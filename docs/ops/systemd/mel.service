@@ -4,18 +4,26 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/mel serve --config /etc/mel.json
+Type=simple
+ExecStart=/usr/local/bin/mel serve --config /etc/mel/mel.json
 WorkingDirectory=/var/lib/mel
 Restart=on-failure
+RestartSec=5
+User=mel
+Group=mel
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/mel
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ReadWritePaths=/var/lib/mel /etc/mel
 AmbientCapabilities=
 CapabilityBoundingSet=
 LockPersonality=true
 MemoryDenyWriteExecute=true
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

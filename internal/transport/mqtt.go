@@ -27,18 +27,26 @@ type MQTT struct {
 func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *MQTT {
 	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Detail: "disabled", Capabilities: cfg.Capabilities}}
 }
-func (m *MQTT) Name() string   { return m.cfg.Name }
-func (m *MQTT) Health() Health { m.mu.Lock(); defer m.mu.Unlock(); return m.health }
-func (m *MQTT) setHealth(ok bool, detail string) {
+func (m *MQTT) Name() string { return m.cfg.Name }
+func (m *MQTT) Health() Health {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.health.OK = ok
-	m.health.Detail = detail
+	return m.health
+}
+func (m *MQTT) setHealth(update func(*Health)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	update(&m.health)
 }
 func (m *MQTT) Connect(ctx context.Context) error {
 	conn, err := dialWithTimeout(m.cfg.Endpoint)
 	if err != nil {
-		m.setHealth(false, err.Error())
+		m.setHealth(func(h *Health) {
+			h.OK = false
+			h.Detail = "connect failed"
+			h.LastError = err.Error()
+			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
+		})
 		return err
 	}
 	m.conn = conn
@@ -51,31 +59,45 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	writeRemaining(pkt, payload.Len())
 	pkt.Write(payload.Bytes())
 	if _, err := conn.Write(pkt.Bytes()); err != nil {
+		_ = conn.Close()
 		return err
 	}
 	ack := make([]byte, 4)
 	if _, err := io.ReadFull(conn, ack); err != nil {
+		_ = conn.Close()
 		return err
 	}
 	if ack[0] != 0x20 || ack[3] != 0x00 {
+		_ = conn.Close()
 		return fmt.Errorf("mqtt connack rejected: %x", ack)
 	}
-	m.setHealth(true, "connected")
+	m.setHealth(func(h *Health) {
+		h.OK = true
+		h.Detail = "connected"
+		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastError = ""
+		h.Reconnects++
+	})
 	return nil
 }
 func (m *MQTT) Close(context.Context) error {
 	if m.conn != nil {
+		m.setHealth(func(h *Health) {
+			h.OK = false
+			h.Detail = "closed"
+			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
+		})
 		return m.conn.Close()
 	}
 	return nil
 }
-func (m *MQTT) Subscribe(ctx context.Context, handler func(string, []byte) error) error {
+func (m *MQTT) Subscribe(ctx context.Context, handler func(topic string, payload []byte) error) error {
 	if m.conn == nil {
 		return fmt.Errorf("not connected")
 	}
 	pkt := bytes.NewBuffer(nil)
 	payload := bytes.NewBuffer(nil)
-	binary.Write(payload, binary.BigEndian, uint16(1))
+	_ = binary.Write(payload, binary.BigEndian, uint16(1))
 	writeString(payload, m.cfg.Topic)
 	payload.WriteByte(0)
 	pkt.WriteByte(0x82)
@@ -93,37 +115,64 @@ func (m *MQTT) Subscribe(ctx context.Context, handler func(string, []byte) error
 			}
 			header := make([]byte, 1)
 			if _, err := io.ReadFull(m.conn, header); err != nil {
-				m.setHealth(false, err.Error())
+				m.markReadFailure(err)
 				return
 			}
 			remaining, err := readRemaining(m.conn)
 			if err != nil {
-				m.setHealth(false, err.Error())
+				m.markReadFailure(err)
 				return
 			}
 			body := make([]byte, remaining)
 			if _, err := io.ReadFull(m.conn, body); err != nil {
-				m.setHealth(false, err.Error())
+				m.markReadFailure(err)
 				return
 			}
 			typeNibble := header[0] >> 4
 			if typeNibble != 3 {
 				continue
 			}
-			topic, payload, err := parsePublish(body)
+			topic, publishPayload, err := parsePublish(body)
 			if err != nil {
-				m.setHealth(false, err.Error())
-				return
-			}
-			if err := handler(topic, payload); err != nil {
+				m.setHealth(func(h *Health) {
+					h.PacketsDropped++
+					h.LastError = err.Error()
+					h.Detail = "publish parse failed"
+				})
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+				continue
 			}
+			if err := handler(topic, publishPayload); err != nil {
+				m.setHealth(func(h *Health) {
+					h.PacketsDropped++
+					h.LastError = err.Error()
+					h.Detail = "ingest handler failed"
+				})
+				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+				continue
+			}
+			m.setHealth(func(h *Health) {
+				h.PacketsRead++
+				h.OK = true
+				h.Detail = "streaming"
+			})
 		}
 	}()
 	return nil
 }
+
+func (m *MQTT) markReadFailure(err error) {
+	m.setHealth(func(h *Health) {
+		h.OK = false
+		h.LastError = err.Error()
+		h.Detail = "stream disconnected"
+		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
+	})
+	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+}
+
 func writeString(buf *bytes.Buffer, s string) {
-	binary.Write(buf, binary.BigEndian, uint16(len(s)))
+	_ = binary.Write(buf, binary.BigEndian, uint16(len(s)))
 	buf.WriteString(s)
 }
 func writeRemaining(buf *bytes.Buffer, n int) {
@@ -165,5 +214,3 @@ func parsePublish(body []byte) (string, []byte, error) {
 	}
 	return string(body[2 : 2+ln]), body[2+ln:], nil
 }
-
-var _ = time.Second

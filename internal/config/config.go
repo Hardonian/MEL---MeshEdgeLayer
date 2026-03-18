@@ -1,11 +1,13 @@
 package config
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,10 +33,11 @@ type BindConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled       bool   `json:"enabled"`
-	SessionSecret string `json:"session_secret"`
-	UIUser        string `json:"ui_user"`
-	UIPassword    string `json:"ui_password"`
+	Enabled             bool   `json:"enabled"`
+	SessionSecret       string `json:"session_secret"`
+	UIUser              string `json:"ui_user"`
+	UIPassword          string `json:"ui_password"`
+	AllowInsecureRemote bool   `json:"allow_insecure_remote"`
 }
 
 type StorageConfig struct {
@@ -87,12 +90,25 @@ type RateLimitConfig struct {
 	TransportReconnectSeconds int `json:"transport_reconnect_seconds"`
 }
 
+type Lint struct {
+	ID          string `json:"id"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	Remediation string `json:"remediation"`
+}
+
 func Default() Config {
 	return Config{
-		Bind:       BindConfig{API: "127.0.0.1:8080", Metrics: "127.0.0.1:9090"},
-		Storage:    StorageConfig{DataDir: "./data", DatabasePath: "./data/mel.db", EncryptionKeyEnv: "MEL_STORAGE_KEY"},
-		Logging:    LoggingConfig{Level: "info", Format: "json"},
-		Retention:  RetentionConfig{MessagesDays: 30, TelemetryDays: 30, AuditDays: 90, PrecisePositionDays: 7},
+		Bind:    BindConfig{API: "127.0.0.1:8080", Metrics: "127.0.0.1:9090"},
+		Auth:    AuthConfig{Enabled: false, UIUser: "admin", UIPassword: "change-me"},
+		Storage: StorageConfig{DataDir: "./data", DatabasePath: "./data/mel.db", EncryptionKeyEnv: "MEL_STORAGE_KEY"},
+		Logging: LoggingConfig{Level: "info", Format: "json"},
+		Retention: RetentionConfig{
+			MessagesDays:        30,
+			TelemetryDays:       30,
+			AuditDays:           90,
+			PrecisePositionDays: 7,
+		},
 		Privacy:    PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true},
 		Features:   FeatureConfig{WebUI: true, Metrics: true},
 		RateLimits: RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
@@ -125,47 +141,142 @@ func normalize(cfg *Config) error {
 	if cfg.Storage.DatabasePath == "" {
 		cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
 	}
+	if cfg.Auth.SessionSecret == "" {
+		cfg.Auth.SessionSecret = randomHex(32)
+	}
+	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
+		host, _, err := net.SplitHostPort(cfg.Bind.API)
+		if err == nil && host == "" {
+			cfg.Bind.API = "127.0.0.1:" + strings.TrimPrefix(cfg.Bind.API, ":")
+		}
+	}
 	return nil
 }
 
 func Validate(cfg Config) error {
 	var errs []string
 	if cfg.Bind.API == "" {
-		errs = append(errs, "bind.api is required")
+		errs = appendErr(errs, "bind.api is required")
 	}
 	if cfg.Storage.DatabasePath == "" {
-		errs = append(errs, "storage.database_path is required")
+		errs = appendErr(errs, "storage.database_path is required")
 	}
 	if cfg.Storage.DataDir == "" {
-		errs = append(errs, "storage.data_dir is required")
+		errs = appendErr(errs, "storage.data_dir is required")
 	}
 	if cfg.Logging.Level == "" {
-		errs = append(errs, "logging.level is required")
+		errs = appendErr(errs, "logging.level is required")
 	}
 	if cfg.Auth.Enabled && len(cfg.Auth.SessionSecret) < 16 {
-		errs = append(errs, "auth.session_secret must be at least 16 chars when auth.enabled")
+		errs = appendErr(errs, "auth.session_secret must be at least 16 chars when auth.enabled")
 	}
-	if cfg.Bind.AllowRemote && !cfg.Auth.Enabled {
-		errs = append(errs, "remote bind requires auth.enabled")
+	if cfg.Bind.AllowRemote && !cfg.Auth.Enabled && !cfg.Auth.AllowInsecureRemote {
+		errs = appendErr(errs, "remote bind requires auth.enabled unless auth.allow_insecure_remote=true")
 	}
-	if cfg.Retention.MessagesDays <= 0 || cfg.Retention.TelemetryDays <= 0 {
-		errs = append(errs, "retention windows must be positive")
+	if cfg.Retention.MessagesDays <= 0 || cfg.Retention.TelemetryDays <= 0 || cfg.Retention.AuditDays <= 0 {
+		errs = appendErr(errs, "retention windows must be positive")
 	}
+	if cfg.Retention.PrecisePositionDays < 0 {
+		errs = appendErr(errs, "retention.precise_position_days must be zero or positive")
+	}
+	if cfg.Storage.EncryptionRequired {
+		key := os.Getenv(cfg.Storage.EncryptionKeyEnv)
+		if len(key) != 32 {
+			errs = appendErr(errs, fmt.Sprintf("storage.encryption_required needs %s to be exactly 32 bytes", cfg.Storage.EncryptionKeyEnv))
+		}
+	}
+	enabledNames := map[string]struct{}{}
 	for _, t := range cfg.Transports {
-		if t.Enabled && t.Name == "" {
-			errs = append(errs, "enabled transport missing name")
+		if !t.Enabled {
+			continue
 		}
-		if t.Enabled && t.Type == "" {
-			errs = append(errs, fmt.Sprintf("transport %s missing type", t.Name))
+		if t.Name == "" {
+			errs = appendErr(errs, "enabled transport missing name")
 		}
-		if t.Enabled && t.Endpoint == "" {
-			errs = append(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+		if t.Type == "" {
+			errs = appendErr(errs, fmt.Sprintf("transport %s missing type", t.Name))
+		}
+		if t.Endpoint == "" {
+			errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+		}
+		if _, ok := enabledNames[t.Name]; ok {
+			errs = appendErr(errs, fmt.Sprintf("duplicate enabled transport name %s", t.Name))
+		}
+		enabledNames[t.Name] = struct{}{}
+		if t.Type == "mqtt" && t.Topic == "" {
+			errs = appendErr(errs, fmt.Sprintf("transport %s missing topic", t.Name))
 		}
 	}
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func appendErr(errs []string, msg string) []string { return append(errs, msg) }
+
+func LintConfig(cfg Config) []Lint {
+	var out []Lint
+	if cfg.Bind.AllowRemote {
+		out = append(out, Lint{"remote-bind", "high", "API/UI listens beyond localhost.", "Keep MEL bound to localhost unless remote access is deliberate and defended."})
+	}
+	if cfg.Bind.AllowRemote && !cfg.Auth.Enabled {
+		out = append(out, Lint{"remote-bind-auth", "critical", "Remote bind is enabled without authentication.", "Enable auth or turn off remote bind."})
+	}
+	if cfg.Bind.AllowRemote && cfg.Auth.AllowInsecureRemote {
+		out = append(out, Lint{"unsafe-dev-remote-override", "high", "Unsafe development override is allowing remote bind without auth.", "Use only for short-lived local development and never for go-live deployments."})
+	}
+	if !cfg.Privacy.MQTTEncryptionRequired {
+		out = append(out, Lint{"mqtt-encryption", "high", "MQTT encryption requirement is disabled.", "Require encrypted broker transport or disable MQTT."})
+	}
+	if cfg.Privacy.MapReportingAllowed {
+		out = append(out, Lint{"map-reporting", "high", "Map reporting can expose node metadata and location.", "Disable map reporting unless operators have explicitly accepted the risk."})
+	}
+	if cfg.Retention.MessagesDays > 90 {
+		out = append(out, Lint{"long-message-retention", "medium", "Message retention exceeds 90 days.", "Shorten message retention or document the operational need."})
+	}
+	if cfg.Privacy.StorePrecisePositions {
+		out = append(out, Lint{"precise-position-storage", "high", "Precise position storage is enabled.", "Prefer redacted positions unless precise storage is required for the deployment."})
+	}
+	if len(cfg.Transports) > 1 {
+		enabled := 0
+		for _, t := range cfg.Transports {
+			if t.Enabled {
+				enabled++
+			}
+		}
+		if enabled > 1 {
+			out = append(out, Lint{"multi-transport-contention", "medium", "Multiple transports are enabled at once.", "Use one primary radio path unless you have verified shared ownership behavior."})
+		}
+	}
+	for _, t := range cfg.Transports {
+		if !t.Enabled || t.Type != "mqtt" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(t.Topic), "default") || strings.Contains(strings.ToLower(t.Topic), "public") {
+			out = append(out, Lint{"mqtt-default-channel", "medium", "MQTT topic naming suggests widely-known or default channel usage.", "Confirm the channel is intentional and avoid public/default identifiers where possible."})
+		}
+	}
+	return out
+}
+
+func WriteInit(path string) (Config, error) {
+	cfg := Default()
+	cfg.Auth.SessionSecret = randomHex(32)
+	cfg.Storage.DataDir = "./data"
+	cfg.Storage.DatabasePath = "./data/mel.db"
+	if err := normalize(&cfg); err != nil {
+		return cfg, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return cfg, err
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return cfg, err
+	}
+	b = append(b, '\n')
+	return cfg, os.WriteFile(path, b, 0o600)
 }
 
 func applyEnv(cfg *Config) {
@@ -193,12 +304,24 @@ func applyEnv(cfg *Config) {
 	setString("MEL_DATA_DIR", &cfg.Storage.DataDir)
 	setBool("MEL_AUTH_ENABLED", &cfg.Auth.Enabled)
 	setString("MEL_SESSION_SECRET", &cfg.Auth.SessionSecret)
+	setString("MEL_UI_USER", &cfg.Auth.UIUser)
+	setString("MEL_UI_PASSWORD", &cfg.Auth.UIPassword)
+	setBool("MEL_AUTH_ALLOW_INSECURE_REMOTE", &cfg.Auth.AllowInsecureRemote)
 	setBool("MEL_PRIVACY_STORE_PRECISE_POSITIONS", &cfg.Privacy.StorePrecisePositions)
 	setBool("MEL_PRIVACY_MAP_REPORTING_ALLOWED", &cfg.Privacy.MapReportingAllowed)
+	setBool("MEL_PRIVACY_MQTT_ENCRYPTION_REQUIRED", &cfg.Privacy.MQTTEncryptionRequired)
 	setInt("MEL_RETENTION_MESSAGES_DAYS", &cfg.Retention.MessagesDays)
 }
 
 func SHA256(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+func randomHex(size int) string {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return strings.Repeat("0", size*2)
+	}
+	return hex.EncodeToString(buf)
 }

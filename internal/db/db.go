@@ -49,6 +49,56 @@ func (d *DB) Exec(sql string) error {
 	return nil
 }
 
+func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
+	cmd := exec.Command("sqlite3", "-json", d.Path, sql)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
+	}
+	var rows []map[string]any
+	if len(out) == 0 {
+		return rows, nil
+	}
+	if err := json.Unmarshal(out, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (d *DB) QueryJSON(sql string) ([]map[string]string, error) {
+	rows, err := d.QueryRows(sql)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]string, 0, len(rows))
+	for _, row := range rows {
+		converted := map[string]string{}
+		for k, v := range row {
+			converted[k] = fmt.Sprint(v)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
+func (d *DB) Scalar(sql string) (string, error) {
+	rows, err := d.QueryRows(sql)
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 0 {
+		return "", nil
+	}
+	for _, v := range rows[0] {
+		return fmt.Sprint(v), nil
+	}
+	return "", nil
+}
+
+func (d *DB) SchemaVersion() (string, error) {
+	return d.Scalar("SELECT version FROM schema_migrations ORDER BY applied_at DESC, version DESC LIMIT 1;")
+}
+
 func esc(v string) string { return strings.ReplaceAll(v, "'", "''") }
 
 func (d *DB) InsertMessage(m map[string]any) error {
@@ -64,29 +114,27 @@ func (d *DB) UpsertNode(m map[string]any) error {
 	return d.Exec(sql)
 }
 
-func (d *DB) QueryJSON(sql string) ([]map[string]string, error) {
-	cmd := exec.Command("sqlite3", "-json", d.Path, sql)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
-	}
-	var rows []map[string]string
-	if len(out) == 0 {
-		return rows, nil
-	}
-	if err := json.Unmarshal(out, &rows); err != nil {
-		return nil, err
-	}
-	return rows, nil
+func (d *DB) InsertAuditLog(category, level, message string, details any) error {
+	detailJSON, _ := json.Marshal(details)
+	sql := fmt.Sprintf(`INSERT INTO audit_logs(category,level,message,details_json,created_at) VALUES('%s','%s','%s','%s','%s');`, esc(category), esc(level), esc(message), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
+	return d.Exec(sql)
+}
+
+func (d *DB) InsertConfigApply(actor, summary, sha string, diff any) error {
+	diffJSON, _ := json.Marshal(diff)
+	sql := fmt.Sprintf(`INSERT INTO config_apply_history(actor,summary,applied_at,config_sha256,diff_json) VALUES('%s','%s','%s','%s','%s');`, esc(actor), esc(summary), time.Now().UTC().Format(time.RFC3339), esc(sha), esc(string(diffJSON)))
+	return d.Exec(sql)
 }
 
 func (d *DB) Vacuum() error { return d.Exec("VACUUM;") }
+
 func asString(v any) string {
 	if v == nil {
 		return ""
 	}
 	return fmt.Sprint(v)
 }
+
 func asInt(v any) int64 {
 	switch x := v.(type) {
 	case int:
@@ -102,6 +150,7 @@ func asInt(v any) int64 {
 	fmt.Sscan(fmt.Sprint(v), &i)
 	return i
 }
+
 func asFloat(v any) float64 {
 	switch x := v.(type) {
 	case float64:
