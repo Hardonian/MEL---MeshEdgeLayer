@@ -12,7 +12,7 @@ type Recommendation struct {
 }
 
 func Explain(cfg config.Config) []Recommendation {
-	var out []Recommendation
+	out := make([]Recommendation, 0)
 	if cfg.Privacy.StorePrecisePositions {
 		out = append(out, Recommendation{
 			ID:          "disable-precise-position-storage",

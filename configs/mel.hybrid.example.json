@@ -1,5 +1,5 @@
 {
-  "bind": {"api": "127.0.0.1:8080", "metrics": "127.0.0.1:9090", "allow_remote": false},
+  "bind": {"api": "127.0.0.1:8080", "metrics": "", "allow_remote": false},
   "auth": {"enabled": false, "session_secret": "replace-with-32-byte-secret", "ui_user": "admin", "ui_password": "change-me", "allow_insecure_remote": false},
   "storage": {"data_dir": "./data", "database_path": "./data/mel.db", "encryption_key_env": "MEL_STORAGE_KEY", "encryption_required": false},
   "logging": {"level": "info", "format": "json"},
@@ -9,6 +9,6 @@
     {"name": "pi-radio", "type": "serial", "enabled": true, "serial_device": "/dev/ttyUSB0", "serial_baud": 115200, "reconnect_seconds": 5, "notes": "Primary direct-node path."},
     {"name": "local-mqtt", "type": "mqtt", "enabled": true, "endpoint": "127.0.0.1:1883", "topic": "msh/US/2/e/#", "client_id": "mel-local", "notes": "Optional parallel ingest; verify contention and duplicate behavior before production use."}
   ],
-  "features": {"web_ui": true, "metrics": true, "ble_experimental": false},
+  "features": {"web_ui": true, "metrics": false, "ble_experimental": false},
   "rate_limits": {"http_rps": 20, "transport_reconnect_seconds": 10}
 }

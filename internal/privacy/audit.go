@@ -16,7 +16,7 @@ type Finding struct {
 }
 
 func Audit(cfg config.Config) []Finding {
-	var out []Finding
+	out := make([]Finding, 0)
 	for _, lint := range config.LintConfig(cfg) {
 		out = append(out, Finding{ID: lint.ID, Severity: lint.Severity, Message: lint.Message, Remediation: lint.Remediation})
 	}

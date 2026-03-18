@@ -55,7 +55,7 @@ func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
 	}
-	var rows []map[string]any
+	rows := make([]map[string]any, 0)
 	if len(out) == 0 {
 		return rows, nil
 	}

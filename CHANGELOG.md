@@ -3,14 +3,11 @@
 ## Unreleased
 
 ### Added
-- `mel init`, `mel node inspect`, `mel import validate`, `mel backup create`, and `mel backup restore --dry-run` commands.
-- Versioned `/api/v1/*` endpoints for status, nodes, node detail, transport health, policy explain, and privacy audit.
-- Plaintext-safe backup bundle creation with restore dry-run validation.
-- Linux install, upgrade, uninstall, and Termux launcher scripts.
-- Runtime, privacy, ops, product, and community documentation for MEL RC1.
+- Operator-facing configuration, evaluation, and known-limitations docs that match current RC1 code paths.
+- A stricter transport matrix covering serial direct-node, TCP direct-node, MQTT, unsupported transports, and control-path gaps.
 
 ### Changed
-- Transport health now includes packet accounting, reconnect tracking, and last-error timestamps.
-- Privacy audit and policy explanation outputs are structured for CLI, UI, and API reuse.
-- Web UI now has truthful onboarding, transport health, privacy findings, recommendation, and event sections.
-- Config validation and linting now highlight unsafe remote bind, risky MQTT posture, long retention, and multi-transport contention.
+- README, architecture docs, install docs, security notes, and contributing guidance now explicitly distinguish implemented, partial, experimental, and unsupported surfaces.
+- Config linting now warns when operators enable placeholder metrics settings, BLE experimental flags, or `storage.encryption_required` without actual MEL at-rest encryption.
+- CLI/API empty-state outputs now prefer empty arrays over `null` where no observations exist yet.
+- `features.web_ui=false` now disables the HTML UI route instead of being ignored.

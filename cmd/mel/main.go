@@ -152,7 +152,7 @@ func serveCmd(args []string) {
 
 func doctorCmd(args []string) {
 	cfg, path := loadCfg(args)
-	findings := []map[string]string{}
+	findings := make([]map[string]string, 0)
 	if err := config.Validate(cfg); err != nil {
 		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
 	}
@@ -214,7 +214,7 @@ func statusCmd(args []string) {
 		"messages":                   messages,
 		"last_successful_ingest":     latestIngestTimestamp(d),
 		"configured_transport_modes": enabledTransportModes(cfg),
-		"transports":                 cfg.Transports,
+		"transports":                 configuredTransportConfigs(cfg),
 	})
 }
 
@@ -408,8 +408,15 @@ func latestIngestTimestamp(d *db.DB) string {
 	return v
 }
 
+func configuredTransportConfigs(cfg config.Config) []config.TransportConfig {
+	if cfg.Transports == nil {
+		return []config.TransportConfig{}
+	}
+	return cfg.Transports
+}
+
 func enabledTransportModes(cfg config.Config) []string {
-	var out []string
+	out := make([]string, 0)
 	for _, t := range cfg.Transports {
 		if t.Enabled {
 			out = append(out, t.Type)
@@ -419,7 +426,7 @@ func enabledTransportModes(cfg config.Config) []string {
 }
 
 func transportCapabilitySummary(cfg config.Config) []map[string]any {
-	var out []map[string]any
+	out := make([]map[string]any, 0)
 	for _, tc := range cfg.Transports {
 		t, err := transport.Build(tc, nil, events.New())
 		entry := map[string]any{"name": tc.Name, "type": tc.Type, "enabled": tc.Enabled, "source": tc.SourceLabel(), "notes": tc.Notes}
@@ -437,7 +444,7 @@ func transportCapabilitySummary(cfg config.Config) []map[string]any {
 }
 
 func doctorTransportChecks(cfg config.Config) []map[string]string {
-	findings := []map[string]string{}
+	findings := make([]map[string]string, 0)
 	enabled := 0
 	directEnabled := 0
 	for _, t := range cfg.Transports {
@@ -548,7 +555,7 @@ func printPrivacyText(findings []privacy.Finding) {
 }
 
 func enabledTransportNames(cfg config.Config) []string {
-	var names []string
+	names := make([]string, 0)
 	for _, t := range cfg.Transports {
 		if t.Enabled {
 			names = append(names, t.Name)
