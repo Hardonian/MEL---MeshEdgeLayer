@@ -27,7 +27,13 @@ type MQTT struct {
 
 func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *MQTT {
 	caps := capabilityDefaults(cfg, true, false, false, false, true, false, "supported", "real MQTT subscribe path; MEL does not claim publish/config control in this milestone")
-	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, Detail: "disabled", Capabilities: caps}}
+	state := directStateNotAttempted
+	detail := "configured but not yet started"
+	if !cfg.Enabled {
+		state = directStateDisabled
+		detail = "disabled by config"
+	}
+	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, State: state, Detail: detail, Capabilities: caps}}
 }
 func (m *MQTT) Name() string                   { return m.cfg.Name }
 func (m *MQTT) SourceType() string             { return m.cfg.Type }
@@ -43,11 +49,17 @@ func (m *MQTT) setHealth(update func(*Health)) {
 	update(&m.health)
 }
 func (m *MQTT) Connect(ctx context.Context) error {
-	m.setHealth(func(h *Health) { h.ReconnectAttempts++; h.Source = m.cfg.Endpoint })
+	m.setHealth(func(h *Health) {
+		h.ReconnectAttempts++
+		h.Source = m.cfg.Endpoint
+		h.State = directStateConnecting
+		h.Detail = "connect in progress"
+	})
 	conn, err := dialWithTimeout(m.cfg.Endpoint)
 	if err != nil {
 		m.setHealth(func(h *Health) {
 			h.OK = false
+			h.State = directStateConnectFailed
 			h.Detail = "connect failed"
 			h.LastError = err.Error()
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
@@ -78,6 +90,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	}
 	m.setHealth(func(h *Health) {
 		h.OK = true
+		h.State = directStateConnectedIdle
 		h.Detail = "connected; waiting for MQTT publishes"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastError = ""
@@ -88,6 +101,7 @@ func (m *MQTT) Close(context.Context) error {
 	if m.conn != nil {
 		m.setHealth(func(h *Health) {
 			h.OK = false
+			h.State = directStateClosed
 			h.Detail = "closed"
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 		})
@@ -139,6 +153,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err != nil {
 			m.setHealth(func(h *Health) {
 				h.PacketsDropped++
+				h.State = directStateDegraded
 				h.LastError = err.Error()
 				h.Detail = "publish parse failed"
 			})
@@ -148,6 +163,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err := handler(topic, publishPayload); err != nil {
 			m.setHealth(func(h *Health) {
 				h.PacketsDropped++
+				h.State = directStateDegraded
 				h.LastError = err.Error()
 				h.Detail = "ingest handler failed"
 			})
@@ -157,7 +173,9 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		m.setHealth(func(h *Health) {
 			h.PacketsRead++
 			h.OK = true
+			h.State = directStateConnectedIngest
 			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			h.LastError = ""
 			h.Detail = "connected and ingesting MQTT publishes"
 		})
 	}
@@ -176,8 +194,9 @@ func (m *MQTT) FetchNodes(context.Context) ([]map[string]any, error) {
 func (m *MQTT) markReadFailure(err error) {
 	m.setHealth(func(h *Health) {
 		h.OK = false
+		h.State = directStateRetrying
 		h.LastError = err.Error()
-		h.Detail = "stream disconnected"
+		h.Detail = "stream disconnected; waiting to retry"
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})

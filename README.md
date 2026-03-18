@@ -101,7 +101,8 @@ PY
 
 Open <http://127.0.0.1:8080/> and confirm the transport state is one of:
 
-- `configured but unreachable`
+- `configured_not_attempted` before the service starts
+- `connect_failed` or `retrying` if the node/path is unavailable
 - `connected but idle`
 - `live data flowing`
 - `unsupported`

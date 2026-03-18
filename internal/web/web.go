@@ -156,17 +156,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Status</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last packet</th><th>Last error</th></tr>`)
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>State</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last packet</th><th>Last error</th></tr>`)
 	for _, h := range s.transportHealth() {
-		status := "configured but unreachable"
-		if h.Unsupported {
-			status = "unsupported"
-		} else if h.OK && h.PacketsRead == 0 {
-			status = "connected but idle"
-		} else if h.OK {
-			status = "live data flowing"
-		}
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, status, h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), transportStateLabel(h), h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -244,6 +236,42 @@ func configuredModes(cfg config.Config) []string {
 		return []string{"none"}
 	}
 	return out
+}
+
+func transportStateLabel(h transport.Health) string {
+	switch h.State {
+	case "disabled":
+		return "disabled"
+	case "configured_not_attempted":
+		return "configured but not yet started"
+	case "connecting":
+		return "connect in progress"
+	case "connect_failed":
+		return "connect failed"
+	case "connected_idle":
+		return "connected but idle"
+	case "connected_ingesting":
+		return "live data flowing"
+	case "degraded":
+		return "connected with read/decode trouble"
+	case "retrying":
+		return "retrying after failure"
+	case "unsupported":
+		return "unsupported in this release"
+	case "configured_offline":
+		return "configured; offline-only doctor evidence"
+	default:
+		if h.Unsupported {
+			return "unsupported in this release"
+		}
+		if h.OK && h.PacketsRead == 0 {
+			return "connected but idle"
+		}
+		if h.OK {
+			return "live data flowing"
+		}
+		return "state unknown"
+	}
 }
 
 var _ = remoteClient

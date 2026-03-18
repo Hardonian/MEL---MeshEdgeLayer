@@ -24,7 +24,26 @@ const (
 	directStart2   = 0xC3
 	directHeaderSz = 4
 	directMaxFrame = 512
+
+	directStateDisabled          = "disabled"
+	directStateNotAttempted      = "configured_not_attempted"
+	directStateConnecting        = "connecting"
+	directStateConnectFailed     = "connect_failed"
+	directStateConnectedIdle     = "connected_idle"
+	directStateConnectedIngest   = "connected_ingesting"
+	directStateDegraded          = "degraded"
+	directStateRetrying          = "retrying"
+	directStateClosed            = "closed"
+	directStateUnsupported       = "unsupported"
+	directStateConfiguredOffline = "configured_offline"
 )
+
+var errDirectInvalidFrame = errors.New("invalid direct frame")
+
+type deadlineReadWriteCloser interface {
+	io.ReadWriteCloser
+	SetReadDeadline(time.Time) error
+}
 
 type Direct struct {
 	cfg    config.TransportConfig
@@ -43,7 +62,13 @@ func NewDirect(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus)
 		status = "supported"
 	}
 	caps := capabilityDefaults(cfg, true, false, false, false, true, false, status, notes)
-	return &Direct{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), Detail: "disconnected", Capabilities: caps}, dial: openDirectConnection}
+	state := directStateNotAttempted
+	detail := "configured but not yet started"
+	if !cfg.Enabled {
+		state = directStateDisabled
+		detail = "disabled by config"
+	}
+	return &Direct{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Detail: detail, Capabilities: caps}, dial: openDirectConnection}
 }
 
 func (d *Direct) Name() string                   { return d.cfg.Name }
@@ -64,11 +89,14 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
+		h.State = directStateConnecting
+		h.Detail = "connect in progress"
 	})
 	rw, err := d.dial(ctx, d.cfg)
 	if err != nil {
 		d.setHealth(func(h *Health) {
 			h.OK = false
+			h.State = directStateConnectFailed
 			h.Detail = "connect failed"
 			h.LastError = err.Error()
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
@@ -80,6 +108,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.mu.Unlock()
 	d.setHealth(func(h *Health) {
 		h.OK = true
+		h.State = directStateConnectedIdle
 		h.Detail = "connected; waiting for radio packets"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastError = ""
@@ -97,6 +126,7 @@ func (d *Direct) Close(context.Context) error {
 	}
 	d.setHealth(func(h *Health) {
 		h.OK = false
+		h.State = directStateClosed
 		h.Detail = "closed"
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
@@ -112,24 +142,35 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 	}
 	reader := bufio.NewReader(rw)
 	for {
-		select {
-		case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
 			return nil
-		default:
 		}
-		frame, err := readDirectFrame(reader)
+		frame, err := readDirectFrame(ctx, rw, reader)
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil
+			}
+			if errors.Is(err, errDirectInvalidFrame) {
+				d.setHealth(func(h *Health) {
+					h.PacketsDropped++
+					h.State = directStateDegraded
+					h.LastError = err.Error()
+					h.Detail = "connected; malformed direct frame ignored"
+				})
+				continue
+			}
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				d.markFailure(err, "stream disconnected")
+				d.markFailure(err, "stream disconnected; waiting to retry")
 				return err
 			}
-			d.markFailure(err, "frame read failed")
+			d.markFailure(err, "frame read failed; waiting to retry")
 			return err
 		}
 		env, err := meshtastic.ParseDirectFromRadio(frame)
 		if err != nil {
 			d.setHealth(func(h *Health) {
 				h.PacketsDropped++
+				h.State = directStateDegraded
 				h.LastError = err.Error()
 				h.Detail = "connected; ignoring non-packet radio frame"
 			})
@@ -139,6 +180,7 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err := handler(d.cfg.Name, wrapped); err != nil {
 			d.setHealth(func(h *Health) {
 				h.PacketsDropped++
+				h.State = directStateDegraded
 				h.LastError = err.Error()
 				h.Detail = "connected; ingest handler failed"
 			})
@@ -147,8 +189,10 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		}
 		d.setHealth(func(h *Health) {
 			h.OK = true
+			h.State = directStateConnectedIngest
 			h.PacketsRead++
 			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			h.LastError = ""
 			h.Detail = "connected and ingesting live radio packets"
 		})
 	}
@@ -167,6 +211,7 @@ func (d *Direct) FetchNodes(context.Context) ([]map[string]any, error) {
 func (d *Direct) markFailure(err error, detail string) {
 	d.setHealth(func(h *Health) {
 		h.OK = false
+		h.State = directStateRetrying
 		h.LastError = err.Error()
 		h.Detail = detail
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
@@ -204,23 +249,26 @@ func configureSerial(ctx context.Context, device string, baud int) error {
 	if baud <= 0 {
 		baud = 115200
 	}
-	cmd := exec.CommandContext(ctx, "stty", "-F", device, fmt.Sprint(baud), "raw", "-echo")
+	cmd := exec.CommandContext(ctx, "stty", "-F", device, fmt.Sprint(baud), "raw", "-echo", "min", "0", "time", "10")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("serial setup failed for %s: %w: %s", device, err, string(out))
 	}
 	return nil
 }
 
-func readDirectFrame(r *bufio.Reader) ([]byte, error) {
+func readDirectFrame(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader) ([]byte, error) {
 	for {
-		b, err := r.ReadByte()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		b, err := readDirectByte(ctx, rw, r)
 		if err != nil {
 			return nil, err
 		}
 		if b != directStart1 {
 			continue
 		}
-		b2, err := r.ReadByte()
+		b2, err := readDirectByte(ctx, rw, r)
 		if err != nil {
 			return nil, err
 		}
@@ -228,17 +276,81 @@ func readDirectFrame(r *bufio.Reader) ([]byte, error) {
 			continue
 		}
 		header := make([]byte, 2)
-		if _, err := io.ReadFull(r, header); err != nil {
+		if err := readDirectFull(ctx, rw, r, header); err != nil {
 			return nil, err
 		}
 		ln := int(binary.BigEndian.Uint16(header))
 		if ln <= 0 || ln > directMaxFrame {
-			return nil, fmt.Errorf("invalid direct frame length %d", ln)
+			return nil, fmt.Errorf("%w: invalid direct frame length %d", errDirectInvalidFrame, ln)
 		}
 		body := make([]byte, ln)
-		if _, err := io.ReadFull(r, body); err != nil {
+		if err := readDirectFull(ctx, rw, r, body); err != nil {
 			return nil, err
 		}
 		return body, nil
 	}
+}
+
+func readDirectByte(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader) (byte, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if err := setReadDeadline(rw, time.Now().Add(time.Second)); err != nil {
+			return 0, err
+		}
+		b, err := r.ReadByte()
+		if err == nil {
+			_ = clearReadDeadline(rw)
+			return b, nil
+		}
+		if isTimeout(err) {
+			continue
+		}
+		return 0, err
+	}
+}
+
+func readDirectFull(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader, buf []byte) error {
+	for n := 0; n < len(buf); {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := setReadDeadline(rw, time.Now().Add(time.Second)); err != nil {
+			return err
+		}
+		readN, err := r.Read(buf[n:])
+		if readN > 0 {
+			n += readN
+		}
+		if err == nil {
+			continue
+		}
+		if isTimeout(err) {
+			continue
+		}
+		return err
+	}
+	return clearReadDeadline(rw)
+}
+
+func setReadDeadline(rw io.ReadWriteCloser, deadline time.Time) error {
+	d, ok := rw.(deadlineReadWriteCloser)
+	if !ok {
+		return nil
+	}
+	return d.SetReadDeadline(deadline)
+}
+
+func clearReadDeadline(rw io.ReadWriteCloser) error {
+	d, ok := rw.(deadlineReadWriteCloser)
+	if !ok {
+		return nil
+	}
+	return d.SetReadDeadline(time.Time{})
+}
+
+func isTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }

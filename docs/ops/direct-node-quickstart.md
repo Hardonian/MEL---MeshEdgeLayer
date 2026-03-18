@@ -24,10 +24,20 @@ Run MEL on a Raspberry Pi or Linux host that is physically attached to a stock M
 ## What success looks like
 
 - `mel doctor` reports no direct-transport findings.
-- The UI transport table shows `connected but idle` or `live data flowing`.
+- The UI/API transport state is `connected_idle` or `connected_ingesting`.
 - `mel status` shows a `last_successful_ingest` timestamp once packets arrive.
 - `mel nodes` and `mel node inspect` return real observed nodes.
 
 ## What MEL does when no radio packets arrive
 
 MEL keeps the DB and UI empty except for configuration and health evidence. It does not fabricate nodes, topology, or messages.
+
+## Direct transport state meanings
+
+- `configured_not_attempted`: config is valid, but the MEL service is not running yet.
+- `connecting`: MEL is actively opening the direct connection.
+- `connect_failed`: the latest connect attempt failed.
+- `connected_idle`: MEL opened the stream but has not decoded a live packet yet.
+- `connected_ingesting`: live packet decode and ingest succeeded.
+- `degraded`: MEL is connected but has recently seen malformed frames or ingest handler failures.
+- `retrying`: the stream dropped and MEL is sleeping before the next connect attempt.

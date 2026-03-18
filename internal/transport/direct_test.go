@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
+	"net"
 	"testing"
 	"time"
 
@@ -21,11 +23,33 @@ type rwc struct {
 
 func (r *rwc) Close() error { return nil }
 
+type timeoutReader struct {
+	buf bytes.Buffer
+}
+
+func (t *timeoutReader) Read(p []byte) (int, error) {
+	if t.buf.Len() == 0 {
+		return 0, timeoutErr{}
+	}
+	return t.buf.Read(p)
+}
+func (t *timeoutReader) Write(p []byte) (int, error) { return len(p), nil }
+func (t *timeoutReader) Close() error                { return nil }
+func (t *timeoutReader) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
 func TestReadDirectFrame(t *testing.T) {
 	payload := []byte{0x0a, 0x01, 0x01}
 	buf := bytes.NewBuffer([]byte{0x00, directStart1, directStart2, 0x00, byte(len(payload))})
 	buf.Write(payload)
-	got, err := readDirectFrame(bufio.NewReader(buf))
+	got, err := readDirectFrame(context.Background(), &rwc{Reader: buf, Writer: io.Discard}, bufio.NewReader(buf))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,11 +58,19 @@ func TestReadDirectFrame(t *testing.T) {
 	}
 }
 
+func TestReadDirectFrameInvalidLength(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{directStart1, directStart2, 0x02, 0x01})
+	_, err := readDirectFrame(context.Background(), &rwc{Reader: buf, Writer: io.Discard}, bufio.NewReader(buf))
+	if !errors.Is(err, errDirectInvalidFrame) {
+		t.Fatalf("expected invalid frame error, got %v", err)
+	}
+}
+
 func TestDirectSubscribe(t *testing.T) {
 	packet := testPacket()
 	fromRadio := append([]byte{directStart1, directStart2, 0x00, byte(len(packet))}, packet...)
 	reader := bytes.NewBuffer(fromRadio)
-	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
 	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
 		return &rwc{Reader: reader, Writer: io.Discard}, nil
 	}
@@ -60,8 +92,66 @@ func TestDirectSubscribe(t *testing.T) {
 		t.Fatal("timeout waiting for direct payload")
 	}
 	h := transport.Health()
-	if h.PacketsRead != 1 || !h.OK {
+	if h.PacketsRead != 1 || !h.OK || h.State != directStateConnectedIngest {
 		t.Fatalf("unexpected health: %+v", h)
+	}
+}
+
+func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
+	packet := testPacket()
+	invalid := []byte{directStart1, directStart2, 0x02, 0x01}
+	valid := append([]byte{directStart1, directStart2, 0x00, byte(len(packet))}, packet...)
+	reader := &timeoutReader{}
+	reader.buf.Write(invalid)
+	reader.buf.Write(valid)
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
+		return reader, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := transport.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan []byte, 1)
+	go func() {
+		_ = transport.Subscribe(ctx, func(topic string, payload []byte) error { got <- payload; cancel(); return nil })
+	}()
+	select {
+	case <-got:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for payload after malformed frame")
+	}
+	h := transport.Health()
+	if h.PacketsRead != 1 || h.PacketsDropped == 0 || h.State != directStateConnectedIngest {
+		t.Fatalf("unexpected health after malformed frame recovery: %+v", h)
+	}
+}
+
+func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
+		return &timeoutReader{}, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := transport.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- transport.Subscribe(ctx, func(string, []byte) error { return nil }) }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected clean shutdown, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("subscribe did not exit after context cancellation")
+	}
+	h := transport.Health()
+	if h.State != directStateConnectedIdle {
+		t.Fatalf("expected idle state to remain truthful, got %+v", h)
 	}
 }
 
@@ -93,3 +183,5 @@ func protoBytes(field int, v []byte) []byte {
 	out := append(protoTag(field, 2), ln[:n]...)
 	return append(out, v...)
 }
+
+var _ net.Error = timeoutErr{}
