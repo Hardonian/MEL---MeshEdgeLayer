@@ -1,4 +1,4 @@
-# ADR-0002: Runtime layers and truthful RC1 scope
+# ADR-0002: Runtime layers and truthful current scope
 
 ## Status
 Accepted

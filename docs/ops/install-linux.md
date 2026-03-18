@@ -5,7 +5,8 @@
 ```bash
 make build
 sudo install -Dm755 ./bin/mel /usr/local/bin/mel
-sudo install -d /etc/mel /var/lib/mel
+sudo install -d -m 0750 /etc/mel /var/lib/mel
+sudo useradd --system --home /var/lib/mel --shell /usr/sbin/nologin mel 2>/dev/null || true
 sudo cp configs/mel.serial.example.json /etc/mel/mel.json
 sudo chown root:root /etc/mel/mel.json
 sudo chmod 600 /etc/mel/mel.json

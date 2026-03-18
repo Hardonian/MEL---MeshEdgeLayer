@@ -138,9 +138,27 @@ Then open:
 
 A healthy first run shows one of these explicit states:
 
-- `configured but unreachable`
+```bash
+make build
+mkdir -p .tmp/mqtt
+cp configs/mel.mqtt-only.example.json .tmp/mqtt/mel.json
+python3 - <<'PY'
+from pathlib import Path
+p = Path('.tmp/mqtt/mel.json')
+text = p.read_text().replace('./data', '.tmp/mqtt/data')
+p.write_text(text)
+PY
+./bin/mel config validate --config .tmp/mqtt/mel.json
+./bin/mel serve --config .tmp/mqtt/mel.json
+```
+
+Open <http://127.0.0.1:8080/> and confirm the transport state is one of:
+
+- `configured_not_attempted` before the service starts
+- `connect_failed` or `retrying` if the node/path is unavailable
 - `connected but idle`
 - `live data flowing`
+- `unsupported`
 
 Once packets arrive, verify with:
 
