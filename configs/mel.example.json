@@ -1,7 +1,7 @@
 {
   "bind": {
     "api": "127.0.0.1:8080",
-    "metrics": "127.0.0.1:9090",
+    "metrics": "",
     "allow_remote": false
   },
   "auth": {
@@ -65,7 +65,7 @@
   ],
   "features": {
     "web_ui": true,
-    "metrics": true,
+    "metrics": false,
     "ble_experimental": false
   },
   "rate_limits": {

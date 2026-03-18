@@ -1,37 +1,48 @@
 # Known limitations
 
-This page is intentionally blunt. It lists the current edges MEL does **not** claim to close.
+MEL RC1 is intentionally smaller than a full Meshtastic management stack. These limitations are current product truth, not roadmap placeholders.
 
-## Transport limitations
+## Unsupported transports
 
-- MEL supports ingest from `serial`, `tcp`, and `mqtt` today.
-- `serialtcp` exists as a direct-stream alias in config/runtime code, but MEL does not yet ship a separate operator guide or hardening story for it.
-- MEL does **not** claim BLE transport support.
-- MEL does **not** claim HTTP transport support.
-- MEL does **not** claim send, publish, radio control, or config-apply transport behavior.
-- MEL does **not** claim transport failover beyond retry loops per enabled transport.
+- BLE transport is explicitly unsupported.
+- HTTP transport is explicitly unsupported.
+- `serialtcp` exists in code but is not promoted as a hardened operator path.
 
-## Meshtastic protocol limitations
+## Partial protocol coverage
 
-- Protobuf handling is partial.
-- MEL currently parses the envelope, base packet fields, user payloads, and position payloads that map into its local storage path.
-- MEL does not claim complete support for every Meshtastic protobuf message or admin/control primitive.
+- MEL parses and stores only the protobuf fields it currently uses for packet, user, and position observations.
+- Full Meshtastic protobuf coverage is not claimed.
+- Unsupported payload types may still be stored as generic packet observations without rich semantic decoding.
 
-## State-model limitations
+## Control-path gaps
 
-- Local node inventory is derived from observed packets, not from an authoritative fetch from the node.
-- UI and API state reflect what MEL has observed and stored locally, not a full mesh truth service.
-- Topology is not inferred beyond stored observed facts.
+- No transmit / publish path.
+- No node admin or radio configuration operations.
+- No transport metadata fetch.
+- No transport-driven node inventory fetch.
 
-## Operator workflow limitations
+## Multi-transport and multi-node caveats
 
-- `mel doctor` checks direct serial/TCP reachability, but intentionally does not prove MQTT broker reachability.
-- Backup restore is dry-run only.
-- The built-in auth model is basic auth when enabled; MEL does not claim a broader identity or tenancy layer.
-- The built-in metrics bind config exists, but this release does not expose a separate metrics server.
+- MEL warns about more than one direct transport.
+- Hybrid direct + MQTT ingest can duplicate observations.
+- MEL does not arbitrate radio ownership across multiple clients or multiple direct attachments.
 
-## Deployment limitations
+## Config and platform caveats
 
-- Linux and Raspberry Pi are the primary supported direct-node environments.
-- Termux is documented as a foreground/manual path, not a durable background-service claim.
-- Multi-node and multi-transport deployments require operator review for contention, duplication, and radio ownership semantics.
+- `storage.encryption_required` does not encrypt SQLite at rest.
+- `bind.metrics` and `features.metrics` do not create a metrics endpoint.
+- `features.ble_experimental` does not create BLE support.
+- `rate_limits.http_rps` is not enforced by the current HTTP server.
+- Serial direct-node requires host `stty` plus device permissions.
+- SQLite operations depend on the `sqlite3` CLI being available.
+
+## UI / API truth boundaries
+
+- The UI and API show only local observations and health state.
+- They do not invent topology, backlog, or historical mesh state when nothing has been ingested.
+- If no transport is connected, empty state is expected behavior.
+
+## Backup / restore caveats
+
+- Backup creation is implemented.
+- Restore is validation-only (`--dry-run`) in RC1.

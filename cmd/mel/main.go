@@ -152,7 +152,7 @@ func serveCmd(args []string) {
 
 func doctorCmd(args []string) {
 	cfg, path := loadCfg(args)
-	findings := []map[string]string{}
+	findings := make([]map[string]string, 0)
 	if err := config.Validate(cfg); err != nil {
 		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
 	}
@@ -215,8 +215,7 @@ func statusCmd(args []string) {
 		"messages":                   messages,
 		"last_successful_ingest":     latestIngestTimestamp(d),
 		"configured_transport_modes": enabledTransportModes(cfg),
-		"transports":                 transportCapabilitySummary(cfg),
-		"runtime_note":               "mel status reads persisted state only; use the running API/UI for live connection state",
+		"transports":                 configuredTransportConfigs(cfg),
 	})
 }
 
@@ -410,38 +409,15 @@ func latestIngestTimestamp(d *db.DB) string {
 	return v
 }
 
-func latestIngestTimestampForTransport(d *db.DB, transportName string) string {
-	if d == nil {
-		return ""
+func configuredTransportConfigs(cfg config.Config) []config.TransportConfig {
+	if cfg.Transports == nil {
+		return []config.TransportConfig{}
 	}
-	v, _ := d.Scalar(fmt.Sprintf("SELECT COALESCE(MAX(rx_time), '') FROM messages WHERE transport_name='%s';", escape(transportName)))
-	return v
-}
-
-func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]string {
-	out := []map[string]string{}
-	for _, t := range cfg.Transports {
-		state := "disabled"
-		detail := "disabled by config"
-		if t.Enabled {
-			state = "configured_offline"
-			detail = "doctor only performs offline reachability checks; use the running API/UI for live connection state"
-		}
-		lastIngest := latestIngestTimestampForTransport(database, t.Name)
-		if t.Enabled && lastIngest != "" {
-			state = "historical_ingest_seen"
-			detail = "persisted packets were previously stored for this transport"
-		} else if t.Enabled && (t.Type == "serial" || t.Type == "tcp" || t.Type == "serialtcp") {
-			state = "reachable_but_no_ingest_evidence"
-			detail = "transport config is reachable enough for offline checks, but no stored packet ingest has been recorded yet"
-		}
-		out = append(out, map[string]string{"name": t.Name, "type": t.Type, "state": state, "detail": detail, "last_successful_ingest": lastIngest})
-	}
-	return out
+	return cfg.Transports
 }
 
 func enabledTransportModes(cfg config.Config) []string {
-	var out []string
+	out := make([]string, 0)
 	for _, t := range cfg.Transports {
 		if t.Enabled {
 			out = append(out, t.Type)
@@ -451,7 +427,7 @@ func enabledTransportModes(cfg config.Config) []string {
 }
 
 func transportCapabilitySummary(cfg config.Config) []map[string]any {
-	var out []map[string]any
+	out := make([]map[string]any, 0)
 	for _, tc := range cfg.Transports {
 		t, err := transport.Build(tc, nil, events.New())
 		entry := map[string]any{"name": tc.Name, "type": tc.Type, "enabled": tc.Enabled, "source": tc.SourceLabel(), "notes": tc.Notes}
@@ -471,7 +447,7 @@ func transportCapabilitySummary(cfg config.Config) []map[string]any {
 }
 
 func doctorTransportChecks(cfg config.Config) []map[string]string {
-	findings := []map[string]string{}
+	findings := make([]map[string]string, 0)
 	enabled := 0
 	directEnabled := 0
 	for _, t := range cfg.Transports {
@@ -586,7 +562,7 @@ func printPrivacyText(findings []privacy.Finding) {
 }
 
 func enabledTransportNames(cfg config.Config) []string {
-	var names []string
+	names := make([]string, 0)
 	for _, t := range cfg.Transports {
 		if t.Enabled {
 			names = append(names, t.Name)

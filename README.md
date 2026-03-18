@@ -1,89 +1,142 @@
 # MEL — MeshEdgeLayer
 
-MEL is a local-first Meshtastic edge collector for operators who want truthful transport health, durable local storage, a small local API/UI, and explicit privacy/retention controls without pretending to replace stock node routing or firmware behavior.
+MEL is a local-first ingest, persistence, and operator-observability layer for **stock Meshtastic deployments**. Today it can ingest real Meshtastic traffic from:
 
-## What MEL is
+- a **direct serial-attached node**,
+- a **Meshtastic-compatible TCP stream**, or
+- an **MQTT broker carrying Meshtastic protobuf envelopes**.
 
-MEL sits beside stock Meshtastic nodes.
+MEL is **not** a firmware fork, not a routing replacement, not a remote control plane for radios, and not a claim of universal Meshtastic transport support. MEL only documents support that exists in code and has repo-local verification coverage.
 
-- It **ingests** mesh observations from a real transport that MEL can actually open today.
-- It **normalizes and stores** those observations in local SQLite tables.
-- It **surfaces operator evidence** through CLI commands, a local API, a local UI, audit logs, privacy findings, and retention/export workflows.
-- It **does not** claim to be a routing replacement, a radio control plane, or a complete node-management stack.
+## Why MEL exists
+
+Stock Meshtastic clients are good at interacting with radios. MEL exists to give operators a small local edge service that:
+
+- stores what it actually observed,
+- keeps transport health and degraded states explicit,
+- exposes a local UI and JSON API,
+- runs privacy and policy checks against the active config, and
+- lets operators inspect, export, back up, and retain local observations.
 
 ## Current implementation status
 
-MEL is currently credible as a cautious OSS preview for:
+### Implemented today
 
-- direct serial ingest from a stock node on Linux / Raspberry Pi,
-- direct TCP ingest from a Meshtastic-compatible framed stream endpoint,
-- MQTT subscribe ingest,
-- local persistence, retention, export, privacy audit, backup creation, and restore dry-run validation,
-- local-only operator workflows through the CLI, HTTP API, and built-in UI.
+- Go daemon and CLI.
+- SQLite persistence with deterministic `sqlite3` CLI migrations.
+- Local UI plus versioned `/api/v1/*` JSON endpoints.
+- `mel doctor`, `mel config validate`, `mel privacy audit`, `mel policy explain`.
+- Export, backup creation, and restore **dry-run validation**.
+- Real ingest via serial direct-node, TCP direct-node, and MQTT.
+- Meshtastic protobuf subset parsing for observed message, user, and position fields that MEL stores today.
 
-MEL is **not** yet a full transport multiplexer, publish bridge, admin/config tool, BLE client, or firmware-side control plane.
+### Explicitly not claimed today
+
+- BLE ingest.
+- HTTP transport ingest.
+- Radio transmit / publish.
+- Node admin or configuration control.
+- Metadata fetch or node fetch from the transport layer.
+- Multi-radio arbitration.
+- Full protobuf coverage.
+- At-rest SQLite encryption implemented by MEL itself.
+- A metrics listener.
 
 ## Transport support matrix
 
-| Transport / path | Status | Config method | Verification method | Caveats |
+| Transport / path | Status | Config method | How to verify | Caveats |
 | --- | --- | --- | --- | --- |
-| Serial direct-node (`type: serial`) | Supported | `serial_device`, `serial_baud` | `./bin/mel doctor`, `./bin/mel transports list`, UI transport status, packet counters | Ingest only. Requires host access to the device and `stty`. |
-| TCP direct-node (`type: tcp`) | Supported | `tcp_host` + `tcp_port` or `endpoint` | `./bin/mel doctor`, `./bin/mel transports list`, UI transport status, packet counters | Ingest only. Endpoint must speak Meshtastic framing, not HTTP. |
-| Direct stream alias (`type: serialtcp`) | Implemented but partial | `endpoint` | `./bin/mel config validate`, `./bin/mel transports list` | Uses the same direct reader as TCP, but MEL ships no separate operator workflow or example for it. |
-| MQTT ingest (`type: mqtt`) | Supported | `endpoint`, `topic`, `client_id` | `./bin/mel transports list`, packet counters, persisted messages | Subscribe ingest only. `mel doctor` intentionally does not probe broker reachability. |
-| BLE (`type: ble`) | Unsupported | Feature-gated only | `./bin/mel transports list` shows unsupported | No live BLE implementation is claimed. |
-| HTTP (`type: http`) | Unsupported | Feature-gated only | `./bin/mel transports list` shows unsupported | No live HTTP node attachment is claimed. |
-| Publish / transmit | Unsupported | None | N/A | `SendPacket` is disabled for all current transports. |
-| Metadata fetch / radio info fetch | Unsupported | None | N/A | No transport currently exposes metadata fetch. |
-| Node inventory fetch from transport control path | Unsupported | None | N/A | Node inventory is derived from observed packets only. |
+| Serial direct-node | Implemented and verified | `type: "serial"`, `serial_device`, optional `serial_baud` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Requires local device access and `stty`. |
+| TCP direct-node | Implemented and verified | `type: "tcp"`, `tcp_host`/`tcp_port` or `endpoint` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Endpoint must speak Meshtastic stream framing, not HTTP. |
+| MQTT ingest | Implemented and verified | `type: "mqtt"`, `endpoint`, `topic`, `client_id` | start `mel serve`, observe `/api/v1/status`, `/api/v1/messages`, CLI status/export | Ingest only. RC1 does not publish back to the broker. |
+| Hybrid direct + MQTT | Implemented but partial | enable two transports | `mel transports list`, doctor/config lints, packet persistence | Supported for ingest only. Operators must handle duplicate-observation risk and radio ownership realities. |
+| `serialtcp` alias | Experimental / not hardened | `type: "serialtcp"`, `endpoint` | direct transport health only | Uses the same direct TCP reader path but is not documented as a primary operator workflow. |
+| BLE | Explicitly unsupported | `type: "ble"` | `mel transports list` / UI shows unsupported | Feature flag does not make it work. |
+| HTTP transport | Explicitly unsupported | `type: "http"` | `mel transports list` / UI shows unsupported | No live device path is wired. |
+| Send / publish / admin control | Planned / not implemented | none | n/a | MEL intentionally refuses to claim radio control until code and tests exist. |
 
-The detailed matrix, with code-level grounding and operator rules, lives in `docs/ops/transport-matrix.md`.
-
-## Positioning in the Meshtastic ecosystem
-
-MEL is best understood as a **truthful edge collector and observability layer**.
-
-- **Relative to stock Meshtastic clients:** MEL does not replace the mobile app or official clients.
-- **Relative to radios/nodes:** MEL attaches to a real node transport when configured, but does not claim radio administration or routing control.
-- **Relative to MQTT backhaul:** MEL can ingest MQTT traffic, but it does not claim broker management, publish support, or topology authority.
-- **Relative to local direct-node attachment:** direct serial/TCP ingest is the preferred operator path for this milestone.
-- **Relative to persistence and observability:** MEL's differentiator is local evidence, privacy posture, export/backup support, and explicit degraded states.
+See [docs/ops/transport-matrix.md](docs/ops/transport-matrix.md) for the evidence-oriented version.
 
 ## Architecture summary
 
-At runtime MEL:
+1. `mel serve` loads defaults, JSON config, and supported `MEL_*` environment overrides.
+2. Config validation and linting check transport requirements, privacy posture, remote bind safety, and known RC1 no-op knobs.
+3. MEL opens SQLite, applies deterministic migrations through the `sqlite3` CLI, and runs retention before ingest starts.
+4. Each enabled transport runs in its own reconnect loop.
+5. Serial/TCP direct frames and MQTT envelopes normalize into the same Meshtastic envelope shape.
+6. Ingested observations are persisted to `messages`, `nodes`, `telemetry_samples`, and `audit_logs`.
+7. The UI, CLI, and `/api/v1/*` read from the same local state and database truth.
 
-1. loads default config, JSON config, and a limited set of `MEL_*` env overrides,
-2. validates config and lints risky posture,
-3. opens SQLite through the `sqlite3` CLI and applies deterministic migrations,
-4. starts one reconnect loop per enabled transport,
-5. normalizes supported packets into a shared Meshtastic envelope path,
-6. stores messages, nodes, telemetry samples, and audit evidence locally,
-7. exposes status via CLI, `/api/v1/*`, and the built-in HTML UI.
+Detailed docs:
 
-See `docs/architecture/overview.md`, `docs/architecture/runtime-flow.md`, and `docs/architecture/transport-flow.md`.
+- [docs/architecture/overview.md](docs/architecture/overview.md)
+- [docs/architecture/runtime-flow.md](docs/architecture/runtime-flow.md)
+- [docs/architecture/transport-flow.md](docs/architecture/transport-flow.md)
 
-## Quickstart that actually works
+## Quickstart that works
 
-### Option A — direct serial on Linux or Raspberry Pi
+### 1. Build MEL
 
 ```bash
 make build
-mkdir -p .tmp/demo
-cp configs/mel.serial.example.json .tmp/demo/mel.json
-python3 - <<'PY'
-from pathlib import Path
-p = Path('.tmp/demo/mel.json')
-text = p.read_text()
-text = text.replace('./data', '.tmp/demo/data').replace('/dev/ttyUSB0', '/dev/serial/by-id/REPLACE_ME')
-p.write_text(text)
-PY
-./bin/mel config validate --config .tmp/demo/mel.json
-./bin/mel doctor --config .tmp/demo/mel.json
-./bin/mel serve --config .tmp/demo/mel.json
 ```
 
-### Option B — MQTT-only evaluation
+### 2. Pick one config example
+
+- Direct serial: `configs/mel.serial.example.json`
+- Direct TCP: `configs/mel.tcp.example.json`
+- MQTT only: `configs/mel.mqtt-only.example.json`
+- Hybrid ingest: `configs/mel.hybrid.example.json`
+
+### 3. Copy it and set real paths
+
+```bash
+mkdir -p .tmp
+cp configs/mel.serial.example.json .tmp/mel.json
+python3 - <<'PY'
+from pathlib import Path
+p = Path('.tmp/mel.json')
+text = p.read_text()
+text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
+p.write_text(text)
+PY
+```
+
+Then edit the transport block:
+
+- serial: set a real `serial_device` such as `/dev/serial/by-id/...`
+- tcp: set `tcp_host` and `tcp_port`
+- mqtt: set broker `endpoint` and `topic`
+
+### 4. Validate config and local prerequisites
+
+```bash
+./bin/mel config validate --config .tmp/mel.json
+./bin/mel doctor --config .tmp/mel.json
+```
+
+Interpret `mel doctor` honestly:
+
+- **no transports enabled** = MEL will stay idle by design.
+- **serial device not found / permission denied** = direct-node setup is incomplete.
+- **TCP endpoint unreachable** = wrong host/port or wrong protocol.
+- **MQTT is enabled** = doctor validates config posture but intentionally does not require broker reachability.
+
+### 5. Start MEL
+
+```bash
+./bin/mel serve --config .tmp/mel.json
+```
+
+Then open:
+
+- UI: <http://127.0.0.1:8080/>
+- status API: <http://127.0.0.1:8080/api/v1/status>
+- messages API: <http://127.0.0.1:8080/api/v1/messages>
+
+### 6. Confirm success with real evidence
+
+A healthy first run shows one of these explicit states:
 
 ```bash
 make build
@@ -107,188 +160,167 @@ Open <http://127.0.0.1:8080/> and confirm the transport state is one of:
 - `live data flowing`
 - `unsupported`
 
-If no packets arrive, MEL intentionally leaves node/message views empty.
+Once packets arrive, verify with:
 
-## Configuration overview
+```bash
+./bin/mel status --config .tmp/mel.json
+./bin/mel nodes --config .tmp/mel.json
+./bin/mel export --config .tmp/mel.json --out .tmp/export.json
+```
 
-MEL config is a single JSON file.
+## Local node attachment
 
-Important sections:
+### Serial direct-node
 
-- `bind`: local API/UI and metrics bind addresses.
-- `auth`: HTTP basic auth for remote exposure.
+Use MEL on a Linux or Raspberry Pi host that owns the radio-attached serial device.
+
+Requirements:
+
+- a real node path in `serial_device`,
+- `stty` available on the host,
+- write access to the MEL data directory,
+- user access to the serial device, usually via `dialout` or `uucp`.
+
+MEL reads real Meshtastic stream frames. It does **not** send packets back to the radio in RC1.
+
+### TCP direct-node
+
+Use `type: "tcp"` only when the target endpoint really exposes Meshtastic stream framing. A web UI, JSON API, or generic TCP tunnel is not enough.
+
+## MQTT ingest
+
+MQTT remains supported for ingest. MEL's MQTT path:
+
+- connects directly to the configured broker endpoint,
+- subscribes to the configured topic,
+- parses protobuf envelopes it receives,
+- stores messages and nodes locally,
+- does **not** publish, administer radios, or claim broker-side control behavior.
+
+## Config overview
+
+Main config groups:
+
+- `bind`: API/UI bind address. Remote bind requires deliberate auth posture.
+- `auth`: HTTP basic auth for UI/API.
 - `storage`: data directory and SQLite path.
-- `retention`: retention windows for messages, telemetry, audits, and precise positions.
-- `privacy`: export redaction, precise position handling, MQTT posture, and trust list.
-- `transports`: the real ingress source list.
-- `rate_limits`: reconnect timing and HTTP rate shaping.
+- `retention`: message, telemetry, audit, and precise-position retention windows.
+- `privacy`: export redaction, precise positions, MQTT encryption policy posture, map reporting, trust list.
+- `transports`: actual ingest configuration.
+- `features.web_ui`: if `false`, MEL still serves JSON endpoints but does not register the HTML UI route.
 
-Actual env overrides are intentionally small and currently include:
+### Config truths and caveats
 
-- `MEL_BIND_API`, `MEL_BIND_METRICS`, `MEL_BIND_ALLOW_REMOTE`
-- `MEL_DB_PATH`, `MEL_DATA_DIR`
-- `MEL_AUTH_ENABLED`, `MEL_SESSION_SECRET`, `MEL_UI_USER`, `MEL_UI_PASSWORD`, `MEL_AUTH_ALLOW_INSECURE_REMOTE`
-- `MEL_PRIVACY_STORE_PRECISE_POSITIONS`, `MEL_PRIVACY_MAP_REPORTING_ALLOWED`, `MEL_PRIVACY_MQTT_ENCRYPTION_REQUIRED`
-- `MEL_RETENTION_MESSAGES_DAYS`
+- `storage.encryption_required` is a **validation guard only** in RC1; MEL does not encrypt the SQLite file itself.
+- `bind.metrics` and `features.metrics` are reserved knobs; RC1 does **not** start a metrics listener.
+- `features.ble_experimental` does not enable a working BLE transport.
+- MEL supports `MEL_*` environment overrides only for the fields currently read in `internal/config/config.go`.
 
-See `docs/ops/configuration.md` and `internal/config/config.go` for the current schema.
-
-## Local node attachment today
-
-### Supported today
-
-- one serial-attached stock node on Linux / Raspberry Pi,
-- one Meshtastic-compatible TCP stream endpoint,
-- hybrid direct + MQTT ingest if you deliberately accept duplicate-observation risk.
-
-### Not supported today
-
-- BLE direct-node attachment,
-- HTTP direct-node attachment,
-- radio transmit / admin / config apply workflows,
-- transport failover semantics beyond independent reconnect loops,
-- authoritative node inventory fetch outside observed packets.
-
-## MQTT support today
-
-MQTT is still real and supported, but MEL now documents it as **one ingest path**, not as the entire product identity.
-
-What MEL claims:
-
-- subscribe ingest,
-- packet counters and health state,
-- shared normalization into the same local message/node path,
-- privacy linting around encryption expectations, anonymous access, and JSON-oriented topics.
-
-What MEL does not claim:
-
-- publish support,
-- broker management,
-- broker reachability proof from `mel doctor`.
+See [docs/ops/configuration.md](docs/ops/configuration.md).
 
 ## Persistence, retention, export, and backup
 
-MEL stores local state in SQLite tables created by `migrations/0001_init.sql`, including:
-
-- `messages`
-- `nodes`
-- `telemetry_samples`
-- `audit_logs`
-- `retention_jobs`
-- supporting tables such as `channels`, `trust_records`, `topology_edges`, and `config_apply_history`
-
-Current operator flows:
-
-- `./bin/mel export --config <path> [--out path]`
-- `./bin/mel import validate --bundle <path>`
-- `./bin/mel backup create --config <path> --out <bundle>`
-- `./bin/mel backup restore --bundle <bundle> --dry-run --destination <dir>`
-
-Restore is intentionally **dry-run only** in this release so operators can inspect bundle validity before MEL claims a write-back restore path.
-
-## CLI commands
+MEL persists to SQLite and currently uses these operator-facing commands:
 
 ```bash
-./bin/mel init --config ./mel.json
-./bin/mel version
-./bin/mel config validate --config ./mel.json
-./bin/mel doctor --config ./mel.json
-./bin/mel serve --config ./mel.json
-./bin/mel status --config ./mel.json
-./bin/mel nodes --config ./mel.json
-./bin/mel node inspect 12345 --config ./mel.json
-./bin/mel transports list --config ./mel.json
-./bin/mel logs tail --config ./mel.json
-./bin/mel db vacuum --config ./mel.json
-./bin/mel privacy audit --format text --config ./mel.json
-./bin/mel policy explain --config ./mel.json
-./bin/mel export --config ./mel.json --out ./mel-export.json
-./bin/mel import validate --bundle ./mel-export.json
-./bin/mel backup create --config ./mel.json --out ./mel-backup.tgz
-./bin/mel backup restore --bundle ./mel-backup.tgz --dry-run --destination ./restore-preview
+./bin/mel export --config .tmp/mel.json --out .tmp/export.json
+./bin/mel backup create --config .tmp/mel.json --out .tmp/mel-backup.tgz
+./bin/mel backup restore --bundle .tmp/mel-backup.tgz --dry-run --destination .tmp/restore-preview
+./bin/mel db vacuum --config .tmp/mel.json
+```
+
+Restore is intentionally **dry-run only** in RC1.
+
+## CLI overview
+
+```text
+mel init
+mel version
+mel doctor --config <path>
+mel config validate --config <path>
+mel serve --config <path>
+mel status --config <path>
+mel nodes --config <path>
+mel node inspect <node-id> --config <path>
+mel transports list --config <path>
+mel privacy audit [--format json|text] --config <path>
+mel policy explain --config <path>
+mel export --config <path> [--out path]
+mel import validate --bundle <path>
+mel backup create --config <path> [--out path]
+mel backup restore --bundle <path> --dry-run [--destination dir]
+mel logs tail --config <path>
+mel db vacuum --config <path>
 ```
 
 ## UI and API scope
 
-The built-in UI and API are local operator surfaces, not a separate product tier.
+The UI and `/api/v1/*` expose local truth only:
 
-Current API surfaces include:
-
-- `/healthz`, `/readyz`
-- `/api/status`, `/api/nodes`, `/api/transports`, `/api/privacy/audit`, `/api/recommendations`, `/api/logs`
-- `/api/v1/status`, `/api/v1/nodes`, `/api/v1/node/{id}`, `/api/v1/transports`, `/api/v1/messages`, `/api/v1/privacy/audit`, `/api/v1/policy/explain`, `/api/v1/events`
-
-The UI reports:
-
-- onboarding steps,
 - transport health,
 - observed nodes,
 - recent messages,
 - privacy findings,
 - policy recommendations,
-- audit/event history.
+- audit/event records.
 
-If the transport is idle or disconnected, those views stay empty except for truthful health/audit evidence.
+They do **not** expose a fabricated mesh topology, node admin flows, or a full Meshtastic management plane.
 
-## How to verify MEL in 10 minutes
+## First 10 minutes evaluation flow
 
-Use `docs/ops/first-10-minutes.md` for a skeptical-operator evaluation flow.
+Use [docs/ops/evaluate-in-10-minutes.md](docs/ops/evaluate-in-10-minutes.md) for a skeptical first-user path. It includes:
 
-Short version:
-
-1. Build MEL.
-2. Start it with one supported transport.
-3. Confirm `/healthz` and `/api/v1/status` answer.
-4. Watch transport counters move from zero after a real packet arrives.
-5. Inspect `messages` and `nodes` through CLI or `sqlite3`.
-6. Run `privacy audit`, `export`, and `backup restore --dry-run`.
-7. Confirm unsupported features remain explicitly unsupported.
+- a real transport evaluation path,
+- a repo-local MQTT self-test path to prove MEL's ingest/storage/UI stack,
+- clear statements about what that self-test does and does not prove.
 
 ## Known limitations
 
-- protobuf decoding is intentionally partial and currently focused on packet envelope basics plus user/position payload handling,
-- direct transport support is ingest-only,
-- no transmit / publish / config apply path is claimed,
-- no BLE or HTTP node attachment is claimed,
-- multi-transport deployments need operator judgment around contention and duplicates,
-- `mel doctor` verifies direct serial/TCP reachability, but not MQTT broker reachability,
-- restore is dry-run only,
-- local UI/API auth is basic auth when enabled, not a larger identity system.
+See [docs/ops/known-limitations.md](docs/ops/known-limitations.md). Important RC1 limits:
 
-See `docs/ops/known-limitations.md`.
+- no BLE or HTTP ingest,
+- no send/control path,
+- partial protobuf coverage,
+- no multi-radio arbitration,
+- no MEL-provided at-rest encryption,
+- no metrics endpoint,
+- restore is dry-run only.
 
-## Safety and privacy notes
+## Security and privacy notes
 
-- Keep MEL bound to localhost unless remote access is deliberate and defended.
-- Keep exports redacted unless you have a specific reason not to.
-- Keep precise position storage disabled unless your operating posture requires it.
-- Treat public/default MQTT topics as a deliberate choice, not a hidden default.
-- Run `./bin/mel privacy audit --config <path>` and `./bin/mel doctor --config <path>` before go-live changes.
+- Keep MEL bound to localhost unless you have a reviewed remote-access design.
+- Enable auth before any remote exposure.
+- Keep `privacy.redact_exports=true` unless you deliberately need raw exports.
+- Treat MQTT and long retention as privacy-sensitive choices.
+- Tighten config file permissions to `0600` where possible.
 
-## Roadmap: planned vs implemented
-
-Implemented now:
-
-- serial direct ingest,
-- TCP direct ingest,
-- MQTT subscribe ingest,
-- local API/UI,
-- persistence, retention, export, backup creation, restore dry-run,
-- privacy audit and policy explanation.
-
-Planned or explicitly not yet implemented:
-
-- BLE direct-node support,
-- HTTP direct-node support,
-- send/publish paths,
-- metadata and node fetch control paths,
-- stronger transport arbitration for shared-radio scenarios,
-- broader protobuf decode coverage.
+See [SECURITY.md](SECURITY.md) and [docs/privacy/privacy-posture.md](docs/privacy/privacy-posture.md).
 
 ## Contributing
 
-See `CONTRIBUTING.md` for repo structure, transport acceptance criteria, and verification expectations.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Transport or docs work must narrow claims when implementation proof is missing.
+
+## Roadmap: implemented vs planned
+
+### Implemented now
+
+- serial direct-node ingest
+- TCP direct-node ingest
+- MQTT ingest
+- local UI/API
+- privacy/policy/doctor flows
+- SQLite persistence, export, backup, retention
+
+### Planned / not implemented
+
+- transport send paths
+- node admin/control operations
+- BLE ingest
+- HTTP transport ingest
+- metrics endpoint
+- broader protobuf coverage
+- restore write path
 
 ## License
 
-MEL is released under the MIT License. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).

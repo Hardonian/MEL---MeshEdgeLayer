@@ -116,7 +116,7 @@ type Lint struct {
 
 func Default() Config {
 	return Config{
-		Bind:    BindConfig{API: "127.0.0.1:8080", Metrics: "127.0.0.1:9090"},
+		Bind:    BindConfig{API: "127.0.0.1:8080", Metrics: ""},
 		Auth:    AuthConfig{Enabled: false, UIUser: "admin", UIPassword: "change-me"},
 		Storage: StorageConfig{DataDir: "./data", DatabasePath: "./data/mel.db", EncryptionKeyEnv: "MEL_STORAGE_KEY"},
 		Logging: LoggingConfig{Level: "info", Format: "json"},
@@ -126,8 +126,9 @@ func Default() Config {
 			AuditDays:           90,
 			PrecisePositionDays: 7,
 		},
-		Privacy:    PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true},
-		Features:   FeatureConfig{WebUI: true, Metrics: true},
+		Privacy:    PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true, TrustList: []string{}},
+		Transports: []TransportConfig{},
+		Features:   FeatureConfig{WebUI: true, Metrics: false},
 		RateLimits: RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
 	}
 }
@@ -267,9 +268,18 @@ func Validate(cfg Config) error {
 func appendErr(errs []string, msg string) []string { return append(errs, msg) }
 
 func LintConfig(cfg Config) []Lint {
-	var out []Lint
+	out := make([]Lint, 0)
 	if cfg.Bind.AllowRemote {
 		out = append(out, Lint{"remote-bind", "high", "API/UI listens beyond localhost.", "Keep MEL bound to localhost unless remote access is deliberate and defended."})
+	}
+	if cfg.Storage.EncryptionRequired {
+		out = append(out, Lint{"storage-encryption", "high", "storage.encryption_required does not encrypt SQLite at rest in RC1.", "Treat this flag as a validation guard only and use filesystem or volume encryption if you need encrypted storage today."})
+	}
+	if cfg.Bind.Metrics != "" || cfg.Features.Metrics {
+		out = append(out, Lint{"metrics-placeholder", "medium", "Metrics listener settings are present but no metrics server is implemented in RC1.", "Do not rely on bind.metrics or features.metrics for scraping until a real metrics endpoint ships."})
+	}
+	if cfg.Features.BLEExperimental {
+		out = append(out, Lint{"ble-experimental", "high", "BLE remains explicitly unsupported in RC1 even if features.ble_experimental is set.", "Use serial, TCP, or MQTT instead and treat BLE as planned work."})
 	}
 	if cfg.Bind.AllowRemote && !cfg.Auth.Enabled {
 		out = append(out, Lint{"remote-bind-auth", "critical", "Remote bind is enabled without authentication.", "Enable auth or turn off remote bind."})

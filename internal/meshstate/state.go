@@ -28,7 +28,7 @@ func (s *State) IncMessages()      { s.mu.Lock(); defer s.mu.Unlock(); s.message
 func (s *State) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := Snapshot{Messages: s.messages}
+	out := Snapshot{Nodes: make([]Node, 0, len(s.nodes)), Messages: s.messages}
 	for _, n := range s.nodes {
 		out.Nodes = append(out.Nodes, n)
 	}

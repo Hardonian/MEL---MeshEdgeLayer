@@ -1,28 +1,35 @@
 # Architecture overview
 
-MEL is a local edge collector for stock Meshtastic deployments.
+MEL RC1 is a single-process local edge service with one CLI and one daemon runtime.
 
-## System position
+## Major runtime pieces
 
-- **Input side:** one or more configured ingest transports that MEL can actually open.
-- **Core:** normalization, local persistence, privacy/policy evaluation, and audit evidence.
-- **Output side:** local CLI commands, local HTTP API, local HTML UI, export bundles, and backup bundles.
+- `cmd/mel`: operator CLI.
+- `cmd/mel-agent`: thin daemon entrypoint that starts the same service runtime.
+- `internal/config`: defaults, JSON load, env overrides, validation, lints.
+- `internal/transport`: transport implementations and capability reporting.
+- `internal/service`: transport loops, shared ingest, persistence, audit logging.
+- `internal/db`: SQLite access through the `sqlite3` CLI.
+- `internal/web`: local UI and JSON API.
+- `internal/privacy` / `internal/policy` / `internal/retention`: operator posture and hygiene logic.
 
-## What MEL does not sit in front of
+## Current dataflow
 
-- It is not a firmware routing replacement.
-- It is not a required cloud relay.
-- It is not a radio control plane.
-- It is not an authoritative mesh-state oracle beyond what it has locally observed.
+1. Load config.
+2. Validate config and compute lints.
+3. Open SQLite and apply migrations.
+4. Run retention.
+5. Start enabled transport loops.
+6. Normalize supported packets into MEL's envelope shape.
+7. Persist messages, nodes, telemetry, and audit events.
+8. Serve local UI/API from the same state.
 
-## Runtime entrypoints
+## Current scope boundary
 
-- `cmd/mel`: operator CLI, including `serve`.
-- `cmd/mel-agent`: minimal daemon-style entrypoint around the same app service.
+MEL is currently an ingest-and-observability layer. It is not a radio control plane, not a firmware extension, and not a replacement for stock Meshtastic clients.
 
-## Core references
+See also:
 
-- Runtime flow: `docs/architecture/runtime-flow.md`
-- Transport flow: `docs/architecture/transport-flow.md`
-- Layer map: `docs/architecture/layers.md`
-- Product boundaries: `docs/product/what-mel-is-not.md`
+- `docs/architecture/runtime-flow.md`
+- `docs/architecture/transport-flow.md`
+- `docs/product/what-mel-is-not.md`

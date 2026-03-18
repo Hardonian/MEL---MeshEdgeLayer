@@ -1,21 +1,26 @@
 # Runtime flow
 
-1. `mel serve` loads defaults, JSON config, and the env overrides implemented in `internal/config/config.go`.
-2. Config validation rejects incomplete transport configuration and unsafe remote bind posture unless the explicit insecure override is set.
-3. The daemon opens SQLite, applies deterministic migrations through the `sqlite3` CLI, and runs retention before transport ingest begins.
-4. Each enabled transport enters its own reconnect loop.
-5. Supported transport payloads are normalized into a shared Meshtastic envelope path.
-6. Messages, nodes, telemetry samples, and audit evidence are persisted into local state.
-7. Privacy findings and policy recommendations are evaluated from actual config state.
-8. The local API and UI present truthful health, node inventory, recent messages, privacy findings, and event logs.
+1. `mel serve` or `mel-agent` loads defaults, JSON config, and the supported `MEL_*` environment overrides.
+2. Config validation rejects malformed transport setup and unsafe remote bind unless the explicit insecure override is set.
+3. Config linting surfaces risky but still-runnable posture such as remote exposure, long retention, unsupported BLE flags, placeholder metrics config, and multi-transport contention.
+4. MEL opens SQLite, applies deterministic migrations through the `sqlite3` CLI, and runs retention before transport ingest begins.
+5. Each enabled transport enters its own reconnect loop.
+6. Supported transport payloads normalize into Meshtastic envelope observations.
+7. Ingest persists messages, nodes, telemetry samples, and audit evidence.
+8. Privacy findings and policy recommendations are evaluated from active config state.
+9. The local UI and versioned JSON API present transport health, node inventory, messages, privacy findings, recommendations, and events.
 
-Current supported ingest paths are:
+## Scope truth
 
-- direct serial,
-- direct TCP,
-- MQTT subscribe.
+This runtime currently claims real ingest support for:
 
-Current explicitly unsupported ingest paths are:
+- serial direct-node,
+- TCP direct-node,
+- MQTT.
+
+It does **not** claim live support for:
 
 - BLE,
-- HTTP.
+- HTTP transport ingest,
+- send/control/admin operations,
+- a metrics listener.

@@ -2,63 +2,47 @@
 
 ## Ground rules
 
-- Keep MEL honest: no fake transports, no mock mesh dashboards, no dead routes.
-- Preserve truthful stock Meshtastic positioning.
+- Keep MEL honest: no fake transports, no fake mesh data, no dead routes.
+- Narrow public claims when implementation proof is missing.
+- Preserve stock Meshtastic compatibility boundaries.
 - Prefer stdlib-only Go unless a dependency is already vendored.
-- Make degraded states explicit in CLI, API, UI, docs, and scripts.
-- Add tests with any behavior change that affects operator truth, privacy, config, transport behavior, or persistence.
+- Make degraded states explicit in CLI, API, and UI.
+- Add tests with any behavior change that affects operator truth, privacy, config, transport health, or persistence.
 
-## Repo structure at a glance
+## Repo truths contributors should know
 
-- `cmd/mel`: operator CLI and the primary `serve` entrypoint.
-- `cmd/mel-agent`: minimal daemon wrapper.
-- `internal/config`: config schema, normalization, validation, and env overrides.
-- `internal/transport`: supported/unsupported transport implementations and capability reporting.
-- `internal/meshtastic`: protobuf subset parsing and direct-frame normalization.
-- `internal/service`: shared ingest and runtime orchestration.
-- `internal/web`: local UI and HTTP API.
-- `internal/db`, `migrations/`: SQLite persistence and schema.
-- `docs/ops`: install, evaluation, transport, and troubleshooting docs.
+- SQLite access intentionally uses the `sqlite3` CLI in this environment.
+- MEL currently supports ingest from serial direct-node, TCP direct-node, and MQTT.
+- BLE, HTTP ingest, send/publish, metadata fetch, and admin/control are not current features.
+- Metrics config exists, but RC1 does not ship a metrics server.
+- `storage.encryption_required` is not at-rest encryption; do not document it that way.
 
-## Safe extension points
-
-- policy/privacy logic,
-- exporter plugins,
-- alert plugins,
-- docs and operator workflows,
-- protobuf subset extensions that are backed by tests and truthful docs.
-
-Core transport ownership and storage semantics should be changed only when the implementation and tests stay truthful.
-
-## Transport acceptance criteria
-
-Do not mark a transport as supported until all of the following are true:
-
-1. the config schema accepts the required fields,
-2. `transport.Build` wires it into runtime construction,
-3. `Connect`, `Subscribe`, and `Health` expose real behavior,
-4. degraded and unsupported states are machine-visible,
-5. `mel doctor` and operator docs explain how to verify it,
-6. tests cover the implemented success/failure path,
-7. README and `docs/ops/transport-matrix.md` are updated in the same change.
-
-## Protobuf / message support criteria
-
-When adding packet parsing support:
-
-- document exactly which payload or port number is now interpreted,
-- persist only fields MEL can explain and verify,
-- avoid claiming whole-protocol support when only a subset is implemented,
-- add or update tests in `internal/meshtastic` and any impacted ingest/storage paths.
-
-## Typical workflow
+## Build and verify
 
 ```bash
-make verify
+make build
+make test
 ./scripts/smoke.sh
 ```
 
-If docs or examples change, also validate the commands you documented.
+Use `make verify` when you want the full repo pass, including cross-builds.
+
+## Safe extension areas
+
+- policy and privacy logic
+- docs and operator workflows
+- export and backup workflows
+- transport hardening backed by code and tests
+- protobuf decode expansion backed by fixtures/tests
+
+## Transport changes
+
+A transport can only be documented as supported when all of the following are true:
+
+1. there is a real implementation path in `internal/transport`,
+2. `mel doctor`, CLI/API/UI, or both expose truthful health for it,
+3. there is repo-local verification coverage,
+4. docs state its caveats precisely.
 
 ## Pull requests
 
@@ -67,5 +51,4 @@ Include:
 - design intent,
 - operator impact,
 - verification evidence,
-- residual risk or limitations,
-- doc updates whenever transport, config, CLI, or API truth changed.
+- residual risk or remaining limitations.

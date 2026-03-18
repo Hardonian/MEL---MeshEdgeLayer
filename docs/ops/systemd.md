@@ -1,6 +1,15 @@
 # systemd operation
 
-The shipped unit lives at `docs/ops/systemd/mel.service` and enables:
+The shipped unit lives at `docs/ops/systemd/mel.service`.
+
+## What it assumes
+
+- `mel` binary at `/usr/local/bin/mel`
+- config at `/etc/mel/mel.json`
+- data dir at `/var/lib/mel`
+- a `mel` service user/group already exist
+
+## Hardening already present
 
 - `NoNewPrivileges=true`
 - `ProtectSystem=strict`
@@ -8,15 +17,17 @@ The shipped unit lives at `docs/ops/systemd/mel.service` and enables:
 - `PrivateTmp=true`
 - `ProtectKernelTunables=true`
 - `ProtectControlGroups=true`
+- `ProtectKernelModules=true`
 - `LockPersonality=true`
 - `MemoryDenyWriteExecute=true`
 - `UMask=0077`
 
-Important operator note:
+## What operators still must do
 
-- the unit is authored for `User=mel` and `Group=mel`,
-- the service account must have access to the configured data directory,
-- for direct serial deployments, the service account must also be in `dialout` or the equivalent serial-device group for the host distro.
+- create the service user/group,
+- grant serial access if using direct-node serial mode,
+- ensure `/var/lib/mel` is writable by that account,
+- review whether `/etc/mel` should remain writable at runtime for your deployment.
 
 Inspect logs with:
 

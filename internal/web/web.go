@@ -50,7 +50,9 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
 	mux.HandleFunc("/api/v1/policy/explain", s.recs)
 	mux.HandleFunc("/api/v1/events", s.logs)
-	mux.HandleFunc("/", s.ui)
+	if cfg.Features.WebUI {
+		mux.HandleFunc("/", s.ui)
+	}
 	s.http = &http.Server{Addr: cfg.Bind.API, Handler: s.withAuth(mux), ReadHeaderTimeout: 5 * time.Second}
 	return s
 }
@@ -226,7 +228,7 @@ func remoteClient(r *http.Request) string {
 }
 
 func configuredModes(cfg config.Config) []string {
-	var out []string
+	out := make([]string, 0)
 	for _, t := range cfg.Transports {
 		if t.Enabled {
 			out = append(out, t.Type)
