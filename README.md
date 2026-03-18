@@ -43,7 +43,8 @@ mel serve --config /etc/mel/mel.json
 
 Open <http://127.0.0.1:8080/> and confirm the transport status is one of:
 
-- `configured but unreachable`
+- `configured_not_attempted` before the service starts
+- `connect_failed` or `retrying` if the node/path is unavailable
 - `connected but idle`
 - `live data flowing`
 
@@ -68,8 +69,9 @@ mel backup restore --bundle ./mel-backup.tgz --dry-run --destination ./restore-p
 ## Operator behavior notes
 
 - MEL prefers **one direct-node transport** at a time.
-- Hybrid direct + MQTT ingest is allowed, but MEL warns about contention and duplicate-observation risk.
+- Hybrid direct + MQTT ingest is allowed, but dedupe only collapses observations when both transports expose the same underlying mesh packet bytes.
 - If a serial device disappears or a TCP endpoint drops, MEL marks the transport unhealthy, records the last error, and retries with backoff.
+- Serial direct mode uses `stty ... min 0 time 10` so blocked reads wake periodically and MEL can shut down or notice disconnects without hanging forever on idle Linux/Pi serial links.
 - MEL only claims ingest support for direct-node transports in this milestone. Send/config-control paths remain disabled until proven safe.
 
 ## Documentation map
