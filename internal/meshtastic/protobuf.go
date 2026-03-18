@@ -1,6 +1,8 @@
 package meshtastic
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -12,6 +14,7 @@ import (
 type Envelope struct {
 	ChannelID, GatewayID string
 	Packet               Packet
+	PacketRaw            []byte
 	RawHex               string
 }
 type Packet struct {
@@ -43,6 +46,7 @@ func ParseEnvelope(raw []byte) (Envelope, error) {
 		env.GatewayID = string(v[0].Bytes)
 	}
 	if v, ok := fields[1]; ok {
+		env.PacketRaw = append([]byte(nil), v[0].Bytes...)
 		pkt, err := parsePacket(v[0].Bytes)
 		if err != nil {
 			return env, err
@@ -50,6 +54,30 @@ func ParseEnvelope(raw []byte) (Envelope, error) {
 		env.Packet = pkt
 	}
 	return env, nil
+}
+
+func DirectPacketToEnvelope(packet []byte) []byte {
+	return msg(fieldBytes(1, packet))
+}
+
+func ParseDirectFromRadio(raw []byte) (Envelope, error) {
+	fields, err := parse(raw)
+	if err != nil {
+		return Envelope{}, err
+	}
+	if len(fields[1]) == 0 || len(fields[1][0].Bytes) == 0 {
+		return Envelope{}, errors.New("fromradio message did not include a mesh packet")
+	}
+	return ParseEnvelope(DirectPacketToEnvelope(fields[1][0].Bytes))
+}
+
+func DedupeHash(env Envelope) string {
+	base := env.PacketRaw
+	if len(base) == 0 {
+		base = []byte(env.RawHex)
+	}
+	sum := sha256Bytes(base)
+	return hex.EncodeToString(sum)
 }
 
 func parsePacket(raw []byte) (Packet, error) {
@@ -197,4 +225,31 @@ func RedactCoord(v *float64) float64 {
 func TopicEncrypted(topic string) bool {
 	topic = strings.ToLower(topic)
 	return strings.Contains(topic, "/e/") || strings.Contains(topic, "encrypted")
+}
+
+func tag(field int, wt int) []byte {
+	b := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(b, uint64(field<<3|wt))
+	return b[:n]
+}
+func fieldVarint(field int, v uint64) []byte {
+	b := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(b, v)
+	return append(tag(field, 0), b[:n]...)
+}
+func fieldFixed32(field int, v uint32) []byte {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, v)
+	return append(tag(field, 5), b...)
+}
+func fieldBytes(field int, v []byte) []byte {
+	ln := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(ln, uint64(len(v)))
+	out := append(tag(field, 2), ln[:n]...)
+	return append(out, v...)
+}
+func msg(parts ...[]byte) []byte { return bytes.Join(parts, nil) }
+func sha256Bytes(raw []byte) []byte {
+	sum := sha256.Sum256(raw)
+	return sum[:]
 }

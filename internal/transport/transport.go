@@ -13,34 +13,56 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 )
 
-type Health struct {
-	Name             string   `json:"name"`
-	Type             string   `json:"type"`
-	OK               bool     `json:"ok"`
-	Unsupported      bool     `json:"unsupported,omitempty"`
-	Detail           string   `json:"detail"`
-	Capabilities     []string `json:"capabilities"`
-	LastError        string   `json:"last_error,omitempty"`
-	LastConnectedAt  string   `json:"last_connected_at,omitempty"`
-	LastDisconnected string   `json:"last_disconnected_at,omitempty"`
-	PacketsRead      uint64   `json:"packets_read"`
-	PacketsDropped   uint64   `json:"packets_dropped"`
-	Reconnects       uint64   `json:"reconnects"`
+type CapabilityMatrix struct {
+	IngestSupported        bool   `json:"ingest_supported"`
+	SendSupported          bool   `json:"send_supported"`
+	MetadataFetchSupported bool   `json:"metadata_fetch_supported"`
+	NodeFetchSupported     bool   `json:"node_fetch_supported"`
+	HealthSupported        bool   `json:"health_supported"`
+	ConfigApplySupported   bool   `json:"config_apply_supported"`
+	ImplementationStatus   string `json:"implementation_status"`
+	Notes                  string `json:"notes,omitempty"`
 }
+
+type Health struct {
+	Name              string           `json:"name"`
+	Type              string           `json:"type"`
+	Source            string           `json:"source"`
+	OK                bool             `json:"ok"`
+	Unsupported       bool             `json:"unsupported,omitempty"`
+	Detail            string           `json:"detail"`
+	Capabilities      CapabilityMatrix `json:"capabilities"`
+	LastError         string           `json:"last_error,omitempty"`
+	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
+	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
+	LastPacketAt      string           `json:"last_packet_at,omitempty"`
+	PacketsRead       uint64           `json:"packets_read"`
+	PacketsDropped    uint64           `json:"packets_dropped"`
+	ReconnectAttempts uint64           `json:"reconnect_attempts"`
+}
+
+type PacketHandler func(topic string, payload []byte) error
 
 type Transport interface {
 	Connect(context.Context) error
 	Close(context.Context) error
 	Health() Health
+	Capabilities() CapabilityMatrix
+	SourceType() string
 	Name() string
-	Subscribe(context.Context, func(topic string, payload []byte) error) error
+	Subscribe(context.Context, PacketHandler) error
+	SendPacket(context.Context, []byte) error
+	FetchMetadata(context.Context) (map[string]any, error)
+	FetchNodes(context.Context) ([]map[string]any, error)
 }
 
 func Build(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) (Transport, error) {
 	switch cfg.Type {
 	case "mqtt":
 		return NewMQTT(cfg, log, bus), nil
-	case "http", "serialtcp", "ble":
+	case "serial", "tcp", "serialtcp":
+		return NewDirect(cfg, log, bus), nil
+	case "http", "ble":
 		return NewUnsupported(cfg), nil
 	default:
 		return nil, fmt.Errorf("unsupported transport type %s", cfg.Type)
@@ -54,14 +76,15 @@ type Unsupported struct {
 }
 
 func NewUnsupported(cfg config.TransportConfig) *Unsupported {
-	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Unsupported: true, Detail: "feature-gated; not enabled in this release candidate", Capabilities: cfg.Capabilities}}
+	caps := capabilityDefaults(cfg, false, false, false, false, true, false, "unsupported", "feature-gated; not enabled in this release")
+	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
 }
 
 func (u *Unsupported) Connect(context.Context) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.health.OK = false
-	u.health.LastError = "transport compiled as unsupported in this release candidate"
+	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }
 func (u *Unsupported) Close(context.Context) error { return nil }
@@ -70,9 +93,33 @@ func (u *Unsupported) Health() Health {
 	defer u.mu.Unlock()
 	return u.health
 }
-func (u *Unsupported) Name() string                                                { return u.cfg.Name }
-func (u *Unsupported) Subscribe(context.Context, func(string, []byte) error) error { return nil }
+func (u *Unsupported) Capabilities() CapabilityMatrix                 { return u.Health().Capabilities }
+func (u *Unsupported) SourceType() string                             { return u.cfg.Type }
+func (u *Unsupported) Name() string                                   { return u.cfg.Name }
+func (u *Unsupported) Subscribe(context.Context, PacketHandler) error { return nil }
+func (u *Unsupported) SendPacket(context.Context, []byte) error {
+	return errors.New("send not supported")
+}
+func (u *Unsupported) FetchMetadata(context.Context) (map[string]any, error) {
+	return nil, errors.New("metadata fetch not supported")
+}
+func (u *Unsupported) FetchNodes(context.Context) ([]map[string]any, error) {
+	return nil, errors.New("node fetch not supported")
+}
 
 func dialWithTimeout(endpoint string) (net.Conn, error) {
 	return net.DialTimeout("tcp", endpoint, 5*time.Second)
+}
+
+func capabilityDefaults(cfg config.TransportConfig, ingest, send, metadata, nodes, health, configApply bool, status, notes string) CapabilityMatrix {
+	return CapabilityMatrix{
+		IngestSupported:        ingest,
+		SendSupported:          send,
+		MetadataFetchSupported: metadata,
+		NodeFetchSupported:     nodes,
+		HealthSupported:        health,
+		ConfigApplySupported:   configApply,
+		ImplementationStatus:   status,
+		Notes:                  notes,
+	}
 }
