@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
@@ -13,11 +14,18 @@ import (
 )
 
 type Health struct {
-	Name         string   `json:"name"`
-	Type         string   `json:"type"`
-	OK           bool     `json:"ok"`
-	Detail       string   `json:"detail"`
-	Capabilities []string `json:"capabilities"`
+	Name             string   `json:"name"`
+	Type             string   `json:"type"`
+	OK               bool     `json:"ok"`
+	Unsupported      bool     `json:"unsupported,omitempty"`
+	Detail           string   `json:"detail"`
+	Capabilities     []string `json:"capabilities"`
+	LastError        string   `json:"last_error,omitempty"`
+	LastConnectedAt  string   `json:"last_connected_at,omitempty"`
+	LastDisconnected string   `json:"last_disconnected_at,omitempty"`
+	PacketsRead      uint64   `json:"packets_read"`
+	PacketsDropped   uint64   `json:"packets_dropped"`
+	Reconnects       uint64   `json:"reconnects"`
 }
 
 type Transport interface {
@@ -39,15 +47,28 @@ func Build(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) (Tr
 	}
 }
 
-type Unsupported struct{ cfg config.TransportConfig }
+type Unsupported struct {
+	cfg    config.TransportConfig
+	mu     sync.Mutex
+	health Health
+}
 
-func NewUnsupported(cfg config.TransportConfig) *Unsupported { return &Unsupported{cfg: cfg} }
+func NewUnsupported(cfg config.TransportConfig) *Unsupported {
+	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Unsupported: true, Detail: "feature-gated; not enabled in this release candidate", Capabilities: cfg.Capabilities}}
+}
+
 func (u *Unsupported) Connect(context.Context) error {
-	return errors.New("transport compiled as unsupported in v0.1")
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.health.OK = false
+	u.health.LastError = "transport compiled as unsupported in this release candidate"
+	return errors.New(u.health.LastError)
 }
 func (u *Unsupported) Close(context.Context) error { return nil }
 func (u *Unsupported) Health() Health {
-	return Health{Name: u.cfg.Name, Type: u.cfg.Type, Detail: "feature-gated; not enabled in this milestone", Capabilities: u.cfg.Capabilities}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.health
 }
 func (u *Unsupported) Name() string                                                { return u.cfg.Name }
 func (u *Unsupported) Subscribe(context.Context, func(string, []byte) error) error { return nil }

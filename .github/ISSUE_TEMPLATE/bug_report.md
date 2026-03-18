@@ -1,12 +1,12 @@
 ---
 name: Bug report
-about: Report a real defect in MEL
+about: Report a real MEL defect
 ---
 
 ## What happened?
 
-## What did you expect?
+## Expected behavior
 
-## Exact command / config used
+## Config posture
 
-## Logs / evidence
+## Verification evidence

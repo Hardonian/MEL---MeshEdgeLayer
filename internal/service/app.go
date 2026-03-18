@@ -30,7 +30,7 @@ type App struct {
 	State      *meshstate.State
 	Web        *web.Server
 	Transports []transport.Transport
-	Plugin     plugins.Plugin
+	Plugins    []plugins.Plugin
 }
 
 func New(cfg config.Config) (*App, error) {
@@ -41,7 +41,7 @@ func New(cfg config.Config) (*App, error) {
 	}
 	bus := events.New()
 	state := meshstate.New()
-	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugin: plugins.UnsafeMQTTPlugin{}}
+	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations)
 	for _, tc := range cfg.Transports {
 		t, err := transport.Build(tc, log, bus)
@@ -69,18 +69,15 @@ func (a *App) Start(ctx context.Context) error {
 	if err := retention.Run(a.DB, a.Cfg); err != nil {
 		return err
 	}
+	for _, finding := range privacy.Audit(a.Cfg) {
+		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
+	}
 	for _, t := range a.Transports {
 		cfgTransport := findTransport(a.Cfg, t.Name())
 		if !cfgTransport.Enabled {
 			continue
 		}
-		if err := t.Connect(ctx); err != nil {
-			a.Log.Error("transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			continue
-		}
-		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t.Name(), topic, payload) }); err != nil {
-			a.Log.Error("transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-		}
+		go a.runTransport(ctx, t, cfgTransport)
 	}
 	go a.Web.Start(ctx)
 	<-ctx.Done()
@@ -88,6 +85,60 @@ func (a *App) Start(ctx context.Context) error {
 		_ = t.Close(context.Background())
 	}
 	return nil
+}
+
+func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransport config.TransportConfig) {
+	backoff := time.Duration(a.Cfg.RateLimits.TransportReconnectSeconds) * time.Second
+	if backoff <= 0 {
+		backoff = 10 * time.Second
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if err := t.Connect(ctx); err != nil {
+			a.Log.Error("transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
+			_ = a.DB.InsertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+				continue
+			}
+		}
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t.Name(), topic, payload) })
+		}()
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-errCh:
+			if err != nil {
+				a.Log.Error("transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+				_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			}
+		case <-time.After(backoff):
+			// transport goroutine owns the stream; check health periodically for reconnect loops
+		}
+		h := t.Health()
+		if h.OK {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+				continue
+			}
+		}
+		_ = t.Close(context.Background())
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+	}
 }
 
 func findTransport(cfg config.Config, name string) config.TransportConfig {
@@ -119,9 +170,12 @@ func (a *App) ingest(transportName, topic string, payload []byte) error {
 	}
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
-	a.Bus.Publish(events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d", transportName, env.Packet.From)})
-	for _, f := range privacy.Audit(a.Cfg) {
-		a.Bus.Publish(events.Event{Type: "privacy.audit", Data: f.Message})
+	evt := events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d", transportName, env.Packet.From)}
+	a.Bus.Publish(evt)
+	for _, p := range a.Plugins {
+		if alert := p.Handle(evt); alert != nil {
+			_ = a.DB.InsertAuditLog("plugin", "warning", alert.Message, alert)
+		}
 	}
 	return nil
 }

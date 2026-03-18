@@ -8,7 +8,8 @@
     "enabled": false,
     "session_secret": "replace-with-32-byte-secret",
     "ui_user": "admin",
-    "ui_password": "change-me"
+    "ui_password": "change-me",
+    "allow_insecure_remote": false
   },
   "storage": {
     "data_dir": "./data",
@@ -41,7 +42,11 @@
       "endpoint": "127.0.0.1:1883",
       "topic": "msh/US/2/e/#",
       "client_id": "mel-local",
-      "capabilities": ["subscribe", "health", "fetch-metadata"]
+      "capabilities": [
+        "subscribe",
+        "health",
+        "fetch-metadata"
+      ]
     }
   ],
   "features": {

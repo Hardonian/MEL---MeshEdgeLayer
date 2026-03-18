@@ -1,113 +1,110 @@
 # MEL — MeshEdgeLayer
 
-MEL is a privacy-first, local-first edge control-plane and observability layer for stock Meshtastic networks. It adds operator visibility, safer retention, policy checks, and a minimal local UI around supported Meshtastic interfaces without requiring firmware forks or protocol-breaking changes.
+MEL is a lightweight, local-first, privacy-first edge layer for stock Meshtastic deployments. It runs as a single local daemon plus CLI, keeps observability truthful, and refuses to pretend it changes on-air routing or stock firmware behavior.
+
+## MEL RC1 design truth
+
+- **Stock firmware only.** MEL does not require a Meshtastic firmware fork.
+- **No fake mesh state.** MEL boots empty when no real transport is connected.
+- **Local bind by default.** Remote exposure requires deliberate config, and MEL warns when that posture is unsafe.
+- **Single-host first.** Linux and Raspberry Pi are first-class. Termux is supported for foreground/manual operation only in this RC.
+- **Real operator workflows.** `mel init`, `mel doctor`, `mel serve`, `mel status`, `mel nodes`, `mel node inspect`, `mel transports list`, `mel privacy audit`, `mel policy explain`, `mel export`, `mel import validate`, `mel backup create`, and `mel backup restore --dry-run` are implemented.
+- **Truthful transport support.** MQTT ingest is real. HTTP, serial-TCP, and BLE remain explicitly unsupported in this RC and are reported that way.
 
 ## What MEL is
 
-- A local daemon and CLI for Meshtastic-adjacent operations.
-- A truthful observability layer for packets, nodes, retention, transport health, and privacy posture.
-- A compatibility-preserving overlay around stock Meshtastic nodes.
-- A local web UI served by the daemon.
-- A policy and privacy audit tool that treats MQTT, map reporting, and metadata leakage as first-class risks.
+- A local daemon and CLI for Meshtastic-adjacent observability and policy checks.
+- A durable SQLite-backed store for real node, message, telemetry, and audit observations.
+- A privacy and policy layer that flags risky MQTT, retention, map reporting, and remote bind posture.
+- A small local web UI that shows truthful empty states instead of injected demo content.
 
 ## What MEL is not
 
-- Not a Meshtastic firmware fork.
-- Not a replacement routing protocol.
-- Not guaranteed anonymity on RF.
-- Not a magical anti-jam solution.
-- Not a fake AI mesh optimizer.
-- Not a cloud requirement.
-
-## Current supported interfaces
-
-- **MQTT ingest**: implemented end-to-end in v0.1 with a real MQTT client and Meshtastic `ServiceEnvelope` parsing.
-- **HTTP / serial-TCP / BLE**: represented as real transport types with explicit feature-gated capability reporting, but not enabled in this milestone.
-
-## Privacy model
-
-- Localhost bind by default.
-- No remote bind without explicit config.
-- Privacy audit flags unsafe MQTT posture, map reporting, remote bind without auth, long retention, and precise position storage.
-- Precise positions are redacted in normal node views; sensitive fields are designed for encrypted-at-rest handling when a 32-byte storage key is supplied.
-
-## Supported platforms
-
-- Linux
-- Raspberry Pi / other arm64 Linux targets
-- Termux / Android: documented as manual foreground mode only in this milestone
+- Not a firmware fork.
+- Not a routing replacement.
+- Not a cloud control plane.
+- Not a mesh simulator.
+- Not a claim that BLE or serial transports are production-ready today.
 
 ## Quickstart
 
 ```bash
 make verify
-cp configs/mel.example.json .tmp/mel.json
+./bin/mel init --config .tmp/mel.json
 mkdir -p .tmp/data
-sed -i 's#./data#.tmp/data#g' .tmp/mel.json
-sed -i 's#./data/mel.db#.tmp/data/mel.db#g' .tmp/mel.json
+python3 - <<'PY'
+from pathlib import Path
+p = Path('.tmp/mel.json')
+text = p.read_text()
+text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
+p.write_text(text)
+PY
+./bin/mel doctor --config .tmp/mel.json || true
 ./bin/mel serve --config .tmp/mel.json
 ```
 
-Then open <http://127.0.0.1:8080/>.
+Open <http://127.0.0.1:8080/>.
 
-## Development setup
+## Supported transports in RC1
 
-Requirements:
-- Go 1.25+
-- `sqlite3`
-- `protoc`
-- `curl`
+| Transport | Status | Notes |
+| --- | --- | --- |
+| MQTT ingest | Supported | Real TCP MQTT subscribe path with packet accounting and reconnect attempts. |
+| HTTP API | Unsupported | Feature-gated, not wired to real Meshtastic devices in RC1. |
+| Serial-TCP | Unsupported | Explicitly surfaced as unsupported. |
+| BLE | Unsupported | No production claim in this RC. |
 
-Useful commands:
+## Config precedence
+
+1. Built-in defaults.
+2. JSON config file.
+3. `MEL_*` environment overrides.
+
+`mel config validate` prints active lints so operators can see when a config is technically valid but still risky.
+
+## Common commands
+
+```bash
+./bin/mel init --config /etc/mel/mel.json
+./bin/mel doctor --config /etc/mel/mel.json
+./bin/mel config validate --config /etc/mel/mel.json
+./bin/mel serve --config /etc/mel/mel.json
+./bin/mel status --config /etc/mel/mel.json
+./bin/mel nodes --config /etc/mel/mel.json
+./bin/mel node inspect 12345 --config /etc/mel/mel.json
+./bin/mel transports list --config /etc/mel/mel.json
+./bin/mel privacy audit --format text --config /etc/mel/mel.json
+./bin/mel policy explain --config /etc/mel/mel.json
+./bin/mel export --config /etc/mel/mel.json --out ./mel-export.json
+./bin/mel import validate --bundle ./mel-export.json
+./bin/mel backup create --config /etc/mel/mel.json --out ./mel-backup.tgz
+./bin/mel backup restore --bundle ./mel-backup.tgz --dry-run --destination ./restore-preview
+```
+
+## Packaging and operations
+
+- One-shot Linux install script: `scripts/install-linux.sh`
+- Upgrade helper: `scripts/upgrade-linux.sh`
+- Uninstall helper: `scripts/uninstall-linux.sh`
+- Hardened systemd unit: `docs/ops/systemd/mel.service`
+- Termux launcher: `scripts/termux-run.sh`
+
+## Verification
 
 ```bash
 ./scripts/verify-proto.sh
-gofmt -w $(find . -name '*.go' -not -path './vendor/*')
-go vet ./...
-go test ./...
-make build
+make verify
 ./scripts/smoke.sh
 ```
 
-## Verification commands
+## Documentation map
 
-```bash
-./scripts/verify-proto.sh
-gofmt -w $(find . -name '*.go' -not -path './vendor/*')
-go vet ./...
-go test ./...
-make build
-./scripts/smoke.sh
-```
+- Architecture: `docs/architecture/`
+- Privacy: `docs/privacy/`
+- Operations: `docs/ops/`
+- Product boundaries: `docs/product/`
+- Community / OSS posture: `docs/community/`
 
-## CLI commands
+## License
 
-- `mel version`
-- `mel doctor --config <path>`
-- `mel config validate --config <path>`
-- `mel serve --config <path>`
-- `mel status`
-- `mel nodes`
-- `mel transports list --config <path>`
-- `mel db vacuum --config <path>`
-- `mel export --config <path>`
-- `mel logs tail --config <path>`
-- `mel policy explain --config <path>`
-- `mel privacy audit --config <path>`
-
-## Real Meshtastic path in v0.1
-
-MEL v0.1 ships one complete ingest path: Meshtastic-style MQTT `ServiceEnvelope` payloads over a real MQTT TCP session. The repository also includes a local simulator command (`mel dev-simulate-mqtt`) used by tests and operators for deterministic validation without claiming live radio access.
-
-## Current limitations
-
-- MQTT only supports plain TCP in this milestone; TLS-capable brokers should be fronted by a local secure tunnel if needed.
-- BLE is not implemented and is explicitly feature-gated.
-- HTTP and serial/TCP transport modules are modeled but not wired to Meshtastic devices in this milestone.
-- SQLite access uses the system `sqlite3` CLI to preserve an offline, stdlib-only Go build in this environment.
-
-## Compatibility guarantees
-
-- MEL does not require Meshtastic firmware changes.
-- If MEL stops, stock mesh behavior continues unchanged.
-- MEL does not claim to change on-air routing inside node firmware.
+MEL is released under the MIT License. See `LICENSE`.
