@@ -3,17 +3,17 @@
 ## Layer 1 — Transport edge
 
 - `internal/transport`
-- Owns connectivity, MQTT subscribe, health state, packet counters, and unsupported capability reporting.
+- Owns connectivity, serial/TCP direct readers, MQTT subscribe handling, health state, packet counters, and explicit unsupported transport reporting.
 
-## Layer 2 — Mesh state core
+## Layer 2 — Mesh normalization + state core
 
-- `internal/db`, `internal/meshstate`, `migrations/`
-- Persists truthful observations and keeps a lightweight in-memory summary for the UI.
+- `internal/meshtastic`, `internal/db`, `internal/meshstate`, `migrations/`
+- Parses the supported protobuf subset, stores truthful observations, and keeps a lightweight in-memory summary for the UI.
 
 ## Layer 3 — Policy + privacy engine
 
 - `internal/policy`, `internal/privacy`, `internal/retention`
-- Produces machine-readable findings and recommendations.
+- Produces machine-readable findings and recommendations from current config and local policy rules.
 
 ## Layer 4 — Service / API layer
 
@@ -23,12 +23,12 @@
 ## Layer 5 — Operator UX layer
 
 - `cmd/mel`, web UI in `internal/web`
-- Implements init, doctor, status, nodes, privacy, policy, export, import validation, and backup flows.
+- Implements init, doctor, status, nodes, node inspection, transport inspection, privacy, policy, export, import validation, backup, and local troubleshooting flows.
 
 ## Layer 6 — Packaging + runtime ops layer
 
 - `scripts/`, `docs/ops/`, `docs/ops/systemd/mel.service`
-- Documents install, upgrade, rollback, and service hardening.
+- Documents install, upgrade, rollback, service hardening, and evaluation workflows.
 
 ## Layer 7 — Extension layer
 
