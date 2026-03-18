@@ -177,7 +177,7 @@ func doctorCmd(args []string) {
 		} else if schemaVersion != "0001_init" {
 			findings = append(findings, map[string]string{"component": "schema", "severity": "high", "message": "unexpected schema version " + schemaVersion})
 		}
-		if _, err := database.Scalar("SELECT 1;"); err != nil {
+		if err := database.Exec("CREATE TEMP TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
 			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error()})
 		}
 	}
@@ -192,6 +192,7 @@ func doctorCmd(args []string) {
 			"enabled_transports":     enabledTransportNames(cfg),
 			"last_successful_ingest": latestIngestTimestamp(database),
 			"transport_capabilities": transportCapabilitySummary(cfg),
+			"transport_observations": doctorTransportObservations(cfg, database),
 		},
 	}
 	mustPrint(out)
@@ -214,7 +215,8 @@ func statusCmd(args []string) {
 		"messages":                   messages,
 		"last_successful_ingest":     latestIngestTimestamp(d),
 		"configured_transport_modes": enabledTransportModes(cfg),
-		"transports":                 cfg.Transports,
+		"transports":                 transportCapabilitySummary(cfg),
+		"runtime_note":               "mel status reads persisted state only; use the running API/UI for live connection state",
 	})
 }
 
@@ -250,7 +252,7 @@ func transportsCmd(args []string) {
 		panic("usage: mel transports list --config <path>")
 	}
 	cfg, _ := loadCfg(args[1:])
-	mustPrint(map[string]any{"transports": transportCapabilitySummary(cfg), "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT is supported for ingest only and may duplicate packets until canonical packet hashes match"})
+	mustPrint(map[string]any{"transports": transportCapabilitySummary(cfg), "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT dedupes only when both paths expose byte-identical mesh packet payloads, so operators must still verify duplicate behavior in their own deployment"})
 }
 
 func dbCmd(args []string) {
@@ -408,6 +410,36 @@ func latestIngestTimestamp(d *db.DB) string {
 	return v
 }
 
+func latestIngestTimestampForTransport(d *db.DB, transportName string) string {
+	if d == nil {
+		return ""
+	}
+	v, _ := d.Scalar(fmt.Sprintf("SELECT COALESCE(MAX(rx_time), '') FROM messages WHERE transport_name='%s';", escape(transportName)))
+	return v
+}
+
+func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]string {
+	out := []map[string]string{}
+	for _, t := range cfg.Transports {
+		state := "disabled"
+		detail := "disabled by config"
+		if t.Enabled {
+			state = "configured_offline"
+			detail = "doctor only performs offline reachability checks; use the running API/UI for live connection state"
+		}
+		lastIngest := latestIngestTimestampForTransport(database, t.Name)
+		if t.Enabled && lastIngest != "" {
+			state = "historical_ingest_seen"
+			detail = "persisted packets were previously stored for this transport"
+		} else if t.Enabled && (t.Type == "serial" || t.Type == "tcp" || t.Type == "serialtcp") {
+			state = "reachable_but_no_ingest_evidence"
+			detail = "transport config is reachable enough for offline checks, but no stored packet ingest has been recorded yet"
+		}
+		out = append(out, map[string]string{"name": t.Name, "type": t.Type, "state": state, "detail": detail, "last_successful_ingest": lastIngest})
+	}
+	return out
+}
+
 func enabledTransportModes(cfg config.Config) []string {
 	var out []string
 	for _, t := range cfg.Transports {
@@ -431,6 +463,8 @@ func transportCapabilitySummary(cfg config.Config) []map[string]any {
 		}
 		entry["capabilities"] = t.Capabilities()
 		entry["implementation_status"] = t.Capabilities().ImplementationStatus
+		entry["state"] = t.Health().State
+		entry["detail"] = t.Health().Detail
 		out = append(out, entry)
 	}
 	return out
@@ -454,26 +488,30 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 			}
 			info, err := os.Stat(device)
 			if err != nil {
-				sev := "high"
 				if os.IsNotExist(err) {
-					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": "serial device not found: " + device})
+					findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": "serial device not found: " + device, "guidance": "Reconnect the node, confirm the configured path, and prefer /dev/serial/by-id/... for stable naming."})
 				} else if os.IsPermission(err) {
-					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": "permission denied reading serial device: " + device})
+					findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": "permission denied reading serial device: " + device, "guidance": "Add the MEL service user to dialout/uucp or update udev rules, then retry."})
 				} else {
-					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": err.Error()})
+					findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": err.Error(), "guidance": "Inspect the serial path and host dmesg output for device errors."})
 				}
 				continue
 			}
 			if info.Mode()&os.ModeDevice == 0 {
-				findings = append(findings, map[string]string{"component": t.Name, "severity": "medium", "message": "configured serial path exists but is not a device: " + device})
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "medium", "message": "configured serial path exists but is not a device: " + device, "guidance": "Point MEL at the real tty device exposed by the Meshtastic node."})
 			}
 			f, err := os.OpenFile(device, os.O_RDWR, 0)
 			if err != nil {
 				msg := "serial device exists but could not be opened: " + err.Error()
+				guidance := "Ensure no other client owns the node and that MEL has read/write access."
 				if os.IsPermission(err) {
 					msg = "serial device permission denied; add the MEL service user to dialout/uucp or adjust udev rules"
+					guidance = "Refresh group membership or service credentials, then rerun doctor."
+				} else if strings.Contains(strings.ToLower(err.Error()), "resource busy") || strings.Contains(strings.ToLower(err.Error()), "device or resource busy") {
+					msg = "serial device is busy; another process appears to own the port"
+					guidance = "Stop other Meshtastic clients, serial consoles, or lingering services before starting MEL."
 				}
-				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": msg})
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": msg, "guidance": guidance})
 			} else {
 				_ = f.Close()
 			}
@@ -485,7 +523,7 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 			}
 			conn, err := net.DialTimeout("tcp", endpoint, 2*time.Second)
 			if err != nil {
-				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": "TCP endpoint unreachable: " + endpoint + ": " + err.Error()})
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": "TCP endpoint unreachable: " + endpoint + ": " + err.Error(), "guidance": "Confirm host/port, listener protocol, and firewall reachability from this machine."})
 			} else {
 				_ = conn.Close()
 			}
@@ -494,10 +532,10 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 		}
 	}
 	if enabled == 0 {
-		findings = append(findings, map[string]string{"component": "transports", "severity": "medium", "message": "no transports are enabled; MEL will start but remain explicitly idle"})
+		findings = append(findings, map[string]string{"component": "transports", "severity": "medium", "message": "no transports are enabled; MEL will start but remain explicitly idle", "guidance": "Enable exactly one primary transport before expecting live mesh data."})
 	}
 	if directEnabled > 1 {
-		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention"})
+		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention", "guidance": "Run one direct serial/TCP attachment path at a time unless you have proven shared radio ownership outside MEL."})
 	}
 	return findings
 }

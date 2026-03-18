@@ -28,6 +28,7 @@ type Health struct {
 	Name              string           `json:"name"`
 	Type              string           `json:"type"`
 	Source            string           `json:"source"`
+	State             string           `json:"state"`
 	OK                bool             `json:"ok"`
 	Unsupported       bool             `json:"unsupported,omitempty"`
 	Detail            string           `json:"detail"`
@@ -77,13 +78,14 @@ type Unsupported struct {
 
 func NewUnsupported(cfg config.TransportConfig) *Unsupported {
 	caps := capabilityDefaults(cfg, false, false, false, false, true, false, "unsupported", "feature-gated; not enabled in this release")
-	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
+	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: directStateUnsupported, Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
 }
 
 func (u *Unsupported) Connect(context.Context) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.health.OK = false
+	u.health.State = directStateUnsupported
 	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }
