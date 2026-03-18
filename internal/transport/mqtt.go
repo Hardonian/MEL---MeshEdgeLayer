@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -25,9 +26,12 @@ type MQTT struct {
 }
 
 func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *MQTT {
-	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Detail: "disabled", Capabilities: cfg.Capabilities}}
+	caps := capabilityDefaults(cfg, true, false, false, false, true, false, "supported", "real MQTT subscribe path; MEL does not claim publish/config control in this milestone")
+	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, Detail: "disabled", Capabilities: caps}}
 }
-func (m *MQTT) Name() string { return m.cfg.Name }
+func (m *MQTT) Name() string                   { return m.cfg.Name }
+func (m *MQTT) SourceType() string             { return m.cfg.Type }
+func (m *MQTT) Capabilities() CapabilityMatrix { return m.Health().Capabilities }
 func (m *MQTT) Health() Health {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -39,6 +43,7 @@ func (m *MQTT) setHealth(update func(*Health)) {
 	update(&m.health)
 }
 func (m *MQTT) Connect(ctx context.Context) error {
+	m.setHealth(func(h *Health) { h.ReconnectAttempts++; h.Source = m.cfg.Endpoint })
 	conn, err := dialWithTimeout(m.cfg.Endpoint)
 	if err != nil {
 		m.setHealth(func(h *Health) {
@@ -73,10 +78,9 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	}
 	m.setHealth(func(h *Health) {
 		h.OK = true
-		h.Detail = "connected"
+		h.Detail = "connected; waiting for MQTT publishes"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastError = ""
-		h.Reconnects++
 	})
 	return nil
 }
@@ -91,7 +95,7 @@ func (m *MQTT) Close(context.Context) error {
 	}
 	return nil
 }
-func (m *MQTT) Subscribe(ctx context.Context, handler func(topic string, payload []byte) error) error {
+func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 	if m.conn == nil {
 		return fmt.Errorf("not connected")
 	}
@@ -106,59 +110,67 @@ func (m *MQTT) Subscribe(ctx context.Context, handler func(topic string, payload
 	if _, err := m.conn.Write(pkt.Bytes()); err != nil {
 		return err
 	}
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			header := make([]byte, 1)
-			if _, err := io.ReadFull(m.conn, header); err != nil {
-				m.markReadFailure(err)
-				return
-			}
-			remaining, err := readRemaining(m.conn)
-			if err != nil {
-				m.markReadFailure(err)
-				return
-			}
-			body := make([]byte, remaining)
-			if _, err := io.ReadFull(m.conn, body); err != nil {
-				m.markReadFailure(err)
-				return
-			}
-			typeNibble := header[0] >> 4
-			if typeNibble != 3 {
-				continue
-			}
-			topic, publishPayload, err := parsePublish(body)
-			if err != nil {
-				m.setHealth(func(h *Health) {
-					h.PacketsDropped++
-					h.LastError = err.Error()
-					h.Detail = "publish parse failed"
-				})
-				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-				continue
-			}
-			if err := handler(topic, publishPayload); err != nil {
-				m.setHealth(func(h *Health) {
-					h.PacketsDropped++
-					h.LastError = err.Error()
-					h.Detail = "ingest handler failed"
-				})
-				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-				continue
-			}
-			m.setHealth(func(h *Health) {
-				h.PacketsRead++
-				h.OK = true
-				h.Detail = "streaming"
-			})
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
 		}
-	}()
-	return nil
+		header := make([]byte, 1)
+		if _, err := io.ReadFull(m.conn, header); err != nil {
+			m.markReadFailure(err)
+			return err
+		}
+		remaining, err := readRemaining(m.conn)
+		if err != nil {
+			m.markReadFailure(err)
+			return err
+		}
+		body := make([]byte, remaining)
+		if _, err := io.ReadFull(m.conn, body); err != nil {
+			m.markReadFailure(err)
+			return err
+		}
+		typeNibble := header[0] >> 4
+		if typeNibble != 3 {
+			continue
+		}
+		topic, publishPayload, err := parsePublish(body)
+		if err != nil {
+			m.setHealth(func(h *Health) {
+				h.PacketsDropped++
+				h.LastError = err.Error()
+				h.Detail = "publish parse failed"
+			})
+			m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+			continue
+		}
+		if err := handler(topic, publishPayload); err != nil {
+			m.setHealth(func(h *Health) {
+				h.PacketsDropped++
+				h.LastError = err.Error()
+				h.Detail = "ingest handler failed"
+			})
+			m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+			continue
+		}
+		m.setHealth(func(h *Health) {
+			h.PacketsRead++
+			h.OK = true
+			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			h.Detail = "connected and ingesting MQTT publishes"
+		})
+	}
+}
+
+func (m *MQTT) SendPacket(context.Context, []byte) error {
+	return errors.New("mqtt publish is disabled in this milestone")
+}
+func (m *MQTT) FetchMetadata(context.Context) (map[string]any, error) {
+	return nil, errors.New("metadata fetch not supported for mqtt")
+}
+func (m *MQTT) FetchNodes(context.Context) ([]map[string]any, error) {
+	return nil, errors.New("node fetch not supported for mqtt")
 }
 
 func (m *MQTT) markReadFailure(err error) {

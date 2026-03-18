@@ -114,6 +114,11 @@ func (d *DB) UpsertNode(m map[string]any) error {
 	return d.Exec(sql)
 }
 
+func (d *DB) InsertTelemetrySample(nodeNum int64, sampleType string, value any, observedAt string) error {
+	valueJSON, _ := json.Marshal(value)
+	sql := fmt.Sprintf(`INSERT INTO telemetry_samples(node_num,sample_type,value_json,observed_at) VALUES(%d,'%s','%s','%s');`, nodeNum, esc(sampleType), esc(string(valueJSON)), esc(observedAt))
+	return d.Exec(sql)
+}
 func (d *DB) InsertAuditLog(category, level, message string, details any) error {
 	detailJSON, _ := json.Marshal(details)
 	sql := fmt.Sprintf(`INSERT INTO audit_logs(category,level,message,details_json,created_at) VALUES('%s','%s','%s','%s','%s');`, esc(category), esc(level), esc(message), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))

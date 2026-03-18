@@ -68,15 +68,32 @@ type PrivacyConfig struct {
 }
 
 type TransportConfig struct {
-	Name         string   `json:"name"`
-	Type         string   `json:"type"`
-	Enabled      bool     `json:"enabled"`
-	Endpoint     string   `json:"endpoint"`
-	Topic        string   `json:"topic"`
-	ClientID     string   `json:"client_id"`
-	Username     string   `json:"username"`
-	Password     string   `json:"password"`
-	Capabilities []string `json:"capabilities"`
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Enabled          bool   `json:"enabled"`
+	Endpoint         string `json:"endpoint"`
+	Topic            string `json:"topic"`
+	ClientID         string `json:"client_id"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	SerialDevice     string `json:"serial_device"`
+	SerialBaud       int    `json:"serial_baud"`
+	TCPHost          string `json:"tcp_host"`
+	TCPPort          int    `json:"tcp_port"`
+	ReconnectSeconds int    `json:"reconnect_seconds"`
+	Notes            string `json:"notes"`
+}
+
+func (t TransportConfig) SourceLabel() string {
+	switch t.Type {
+	case "serial":
+		return t.SerialDevice
+	case "tcp":
+		if t.TCPHost != "" && t.TCPPort > 0 {
+			return net.JoinHostPort(t.TCPHost, strconv.Itoa(t.TCPPort))
+		}
+	}
+	return t.Endpoint
 }
 
 type FeatureConfig struct {
@@ -141,6 +158,18 @@ func normalize(cfg *Config) error {
 	if cfg.Storage.DatabasePath == "" {
 		cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
 	}
+	for i := range cfg.Transports {
+		t := &cfg.Transports[i]
+		if t.SerialBaud == 0 {
+			t.SerialBaud = 115200
+		}
+		if t.Type == "serial" && t.Endpoint == "" && t.SerialDevice != "" {
+			t.Endpoint = t.SerialDevice
+		}
+		if t.Type == "tcp" && t.Endpoint == "" && t.TCPHost != "" && t.TCPPort > 0 {
+			t.Endpoint = net.JoinHostPort(t.TCPHost, strconv.Itoa(t.TCPPort))
+		}
+	}
 	if cfg.Auth.SessionSecret == "" {
 		cfg.Auth.SessionSecret = randomHex(32)
 	}
@@ -196,8 +225,30 @@ func Validate(cfg Config) error {
 		if t.Type == "" {
 			errs = appendErr(errs, fmt.Sprintf("transport %s missing type", t.Name))
 		}
-		if t.Endpoint == "" {
-			errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+		switch t.Type {
+		case "mqtt":
+			if t.Endpoint == "" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+			}
+		case "serial":
+			if t.SerialDevice == "" && t.Endpoint == "" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing serial_device", t.Name))
+			}
+			if t.SerialBaud <= 0 {
+				errs = appendErr(errs, fmt.Sprintf("transport %s serial_baud must be positive", t.Name))
+			}
+		case "tcp":
+			if t.Endpoint == "" && (t.TCPHost == "" || t.TCPPort <= 0) {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing tcp_host/tcp_port or endpoint", t.Name))
+			}
+		case "serialtcp":
+			if t.Endpoint == "" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+			}
+		default:
+			if t.Endpoint == "" && t.Type != "ble" && t.Type != "http" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+			}
 		}
 		if _, ok := enabledNames[t.Name]; ok {
 			errs = appendErr(errs, fmt.Sprintf("duplicate enabled transport name %s", t.Name))
@@ -237,6 +288,18 @@ func LintConfig(cfg Config) []Lint {
 	}
 	if cfg.Privacy.StorePrecisePositions {
 		out = append(out, Lint{"precise-position-storage", "high", "Precise position storage is enabled.", "Prefer redacted positions unless precise storage is required for the deployment."})
+	}
+	directEnabled := 0
+	for _, t := range cfg.Transports {
+		if !t.Enabled {
+			continue
+		}
+		if t.Type == "serial" || t.Type == "tcp" || t.Type == "serialtcp" {
+			directEnabled++
+		}
+	}
+	if directEnabled > 1 {
+		out = append(out, Lint{"multi-direct-transport", "high", "More than one direct-node transport is enabled.", "Choose one direct serial/TCP attachment path to avoid device ownership contention."})
 	}
 	if len(cfg.Transports) > 1 {
 		enabled := 0

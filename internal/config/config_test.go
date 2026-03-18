@@ -57,3 +57,15 @@ func TestWriteInit(t *testing.T) {
 		t.Fatalf("unexpected file mode: %o", info.Mode().Perm())
 	}
 }
+
+func TestValidateDirectTransports(t *testing.T) {
+	cfg := Default()
+	cfg.Transports = []TransportConfig{{Name: "serial", Type: "serial", Enabled: true, SerialDevice: "/dev/ttyUSB0", SerialBaud: 115200}, {Name: "tcp", Type: "tcp", Enabled: true, TCPHost: "127.0.0.1", TCPPort: 4403}}
+	if err := Validate(cfg); err != nil {
+		t.Fatal(err)
+	}
+	lints := LintConfig(cfg)
+	if len(lints) == 0 {
+		t.Fatal("expected contention lint for multiple direct transports")
+	}
+}

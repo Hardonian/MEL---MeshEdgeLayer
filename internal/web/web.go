@@ -46,6 +46,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/nodes", s.nodes)
 	mux.HandleFunc("/api/v1/node/", s.nodeDetail)
 	mux.HandleFunc("/api/v1/transports", s.transports)
+	mux.HandleFunc("/api/v1/messages", s.messages)
 	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
 	mux.HandleFunc("/api/v1/policy/explain", s.recs)
 	mux.HandleFunc("/api/v1/events", s.logs)
@@ -77,6 +78,7 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
 		"schema_version":     schemaVersion,
 		"bind_local_default": !s.cfg.Bind.AllowRemote,
+		"configured_modes":   configuredModes(s.cfg),
 	})
 }
 func (s *Server) nodes(w http.ResponseWriter, _ *http.Request) {
@@ -106,7 +108,15 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"node": rows[0]})
 }
 func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"transports": s.transportHealth()})
+	writeJSON(w, http.StatusOK, map[string]any{"transports": s.transportHealth(), "configured_modes": configuredModes(s.cfg)})
+}
+func (s *Server) messages(w http.ResponseWriter, _ *http.Request) {
+	rows, err := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time,created_at FROM messages ORDER BY id DESC LIMIT 100;")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": rows})
 }
 func (s *Server) audit(w http.ResponseWriter, _ *http.Request) {
 	findings := privacy.Audit(s.cfg)
@@ -127,28 +137,36 @@ func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	snap := s.state.Snapshot()
 	sort.Slice(snap.Nodes, func(i, j int) bool { return snap.Nodes[i].Num < snap.Nodes[j].Num })
 	findings := privacy.Audit(s.cfg)
+	messages, _ := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time FROM messages ORDER BY id DESC LIMIT 20;")
+	logs, _ := s.db.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
 	fmt.Fprintf(w, `<!doctype html><html><head><title>MEL</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
-body{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#fafafa;color:#111}
+body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#fafafa;color:#111}
 nav a{margin-right:1rem}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
-table{border-collapse:collapse;width:100%%}td,th{border:1px solid #ddd;padding:.45rem;text-align:left}.muted{color:#666}.sev-critical{color:#8b0000}.sev-high{color:#b04a00}.sev-medium{color:#805b00}
-code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto}ul{padding-left:1.25rem}
-</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#dashboard">Dashboard</a><a href="#nodes">Nodes</a><a href="#transports">Transport health</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
-	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate local paths and privacy posture.</li><li>Enable exactly one real transport in the config, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
-	fmt.Fprintf(w, `<section id="dashboard"><h2>Dashboard</h2><p>Messages observed: <strong>%d</strong>.</p>`, snap.Messages)
+table{border-collapse:collapse;width:100%%}td,th{border:1px solid #ddd;padding:.45rem;text-align:left;vertical-align:top}.muted{color:#666}.sev-critical{color:#8b0000}.sev-high{color:#b04a00}.sev-medium{color:#805b00}
+code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto}ul{padding-left:1.25rem}.pill{display:inline-block;padding:.15rem .5rem;border:1px solid #ccc;border-radius:999px;margin-right:.35rem;margin-bottom:.35rem}
+</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
+	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
+	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Configured transport modes: `)
+	for _, mode := range configuredModes(s.cfg) {
+		fmt.Fprintf(w, `<span class="pill">%s</span>`, mode)
+	}
+	fmt.Fprintf(w, `</p><p>Messages observed: <strong>%d</strong>.</p>`, snap.Messages)
 	if len(snap.Nodes) == 0 {
-		fmt.Fprint(w, `<p class="muted">No nodes have been observed yet. This means MEL is either disconnected or the connected transport is idle. No sample mesh data is shown.</p>`)
+		fmt.Fprint(w, `<p class="muted">No nodes have been observed yet. If a transport is configured, that means MEL is either disconnected or connected but idle. No sample mesh data is shown.</p>`)
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Status</th><th>Detail</th><th>Packets</th><th>Last error</th></tr>`)
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Status</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last packet</th><th>Last error</th></tr>`)
 	for _, h := range s.transportHealth() {
-		status := "degraded"
+		status := "configured but unreachable"
 		if h.Unsupported {
 			status = "unsupported"
+		} else if h.OK && h.PacketsRead == 0 {
+			status = "connected but idle"
 		} else if h.OK {
-			status = "live"
+			status = "live data flowing"
 		}
-		fmt.Fprintf(w, `<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d read / %d dropped</td><td>%s</td></tr>`, h.Name, h.Type, status, h.Detail, h.PacketsRead, h.PacketsDropped, blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, status, h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -161,6 +179,12 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 		}
 		fmt.Fprint(w, `</table>`)
 	}
+	fmt.Fprint(w, `</section><section id="messages"><h2>Recent messages</h2>`)
+	if len(messages) == 0 {
+		fmt.Fprint(w, `<p class="muted">No live message observations have been stored yet.</p>`)
+	} else {
+		fmt.Fprint(w, `<pre>`+asJSON(messages)+`</pre>`)
+	}
 	fmt.Fprint(w, `</section><section id="privacy"><h2>Privacy findings</h2>`)
 	if len(findings) == 0 {
 		fmt.Fprint(w, `<p>No active privacy findings for the current config.</p>`)
@@ -172,8 +196,7 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 		fmt.Fprint(w, `</ul>`)
 	}
 	fmt.Fprint(w, `</section><section id="recommendations"><h2>Config recommendations</h2><pre>`+asJSON(s.recommendations())+`</pre></section>`)
-	rows, _ := s.db.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
-	fmt.Fprint(w, `<section id="events"><h2>Logs / events</h2><pre>`+asJSON(rows)+`</pre></section></body></html>`)
+	fmt.Fprint(w, `<section id="events"><h2>Logs / events</h2><pre>`+asJSON(logs)+`</pre></section></body></html>`)
 }
 func asJSON(v any) string { b, _ := json.MarshalIndent(v, "", "  "); return string(b) }
 
@@ -208,6 +231,19 @@ func remoteClient(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+func configuredModes(cfg config.Config) []string {
+	var out []string
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			out = append(out, t.Type)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"none"}
+	}
+	return out
 }
 
 var _ = remoteClient

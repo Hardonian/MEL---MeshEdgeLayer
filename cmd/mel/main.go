@@ -18,10 +18,12 @@ import (
 	"github.com/mel-project/mel/internal/backup"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/service"
+	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -154,7 +156,8 @@ func doctorCmd(args []string) {
 	if err := config.Validate(cfg); err != nil {
 		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
 	}
-	if _, err := db.Open(cfg); err != nil {
+	database, err := db.Open(cfg)
+	if err != nil {
 		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error()})
 	}
 	if info, err := os.Stat(cfg.Storage.DataDir); err != nil {
@@ -168,7 +171,29 @@ func doctorCmd(args []string) {
 	for _, lint := range config.LintConfig(cfg) {
 		findings = append(findings, map[string]string{"component": lint.ID, "severity": lint.Severity, "message": lint.Message})
 	}
-	out := map[string]any{"config": path, "findings": findings, "summary": map[string]any{"privacy_findings": privacy.Summary(privacy.Audit(cfg)), "enabled_transports": enabledTransportNames(cfg)}}
+	if database != nil {
+		if schemaVersion, err := database.SchemaVersion(); err != nil {
+			findings = append(findings, map[string]string{"component": "schema", "severity": "critical", "message": err.Error()})
+		} else if schemaVersion != "0001_init" {
+			findings = append(findings, map[string]string{"component": "schema", "severity": "high", "message": "unexpected schema version " + schemaVersion})
+		}
+		if _, err := database.Scalar("SELECT 1;"); err != nil {
+			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error()})
+		}
+	}
+	for _, check := range doctorTransportChecks(cfg) {
+		findings = append(findings, check)
+	}
+	out := map[string]any{
+		"config":   path,
+		"findings": findings,
+		"summary": map[string]any{
+			"privacy_findings":       privacy.Summary(privacy.Audit(cfg)),
+			"enabled_transports":     enabledTransportNames(cfg),
+			"last_successful_ingest": latestIngestTimestamp(database),
+			"transport_capabilities": transportCapabilitySummary(cfg),
+		},
+	}
 	mustPrint(out)
 	if len(findings) > 0 {
 		os.Exit(1)
@@ -182,12 +207,14 @@ func statusCmd(args []string) {
 	messages, _ := d.Scalar("SELECT COUNT(*) FROM messages;")
 	schemaVersion, _ := d.SchemaVersion()
 	mustPrint(map[string]any{
-		"bind":            cfg.Bind.API,
-		"bind_local_only": !cfg.Bind.AllowRemote,
-		"schema_version":  schemaVersion,
-		"nodes":           nodes,
-		"messages":        messages,
-		"transports":      cfg.Transports,
+		"bind":                       cfg.Bind.API,
+		"bind_local_only":            !cfg.Bind.AllowRemote,
+		"schema_version":             schemaVersion,
+		"nodes":                      nodes,
+		"messages":                   messages,
+		"last_successful_ingest":     latestIngestTimestamp(d),
+		"configured_transport_modes": enabledTransportModes(cfg),
+		"transports":                 cfg.Transports,
 	})
 }
 
@@ -223,7 +250,7 @@ func transportsCmd(args []string) {
 		panic("usage: mel transports list --config <path>")
 	}
 	cfg, _ := loadCfg(args[1:])
-	mustPrint(map[string]any{"transports": cfg.Transports, "contention_warning": len(enabledTransportNames(cfg)) > 1})
+	mustPrint(map[string]any{"transports": transportCapabilitySummary(cfg), "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT is supported for ingest only and may duplicate packets until canonical packet hashes match"})
 }
 
 func dbCmd(args []string) {
@@ -373,6 +400,107 @@ func backupCmd(args []string) {
 	}
 }
 
+func latestIngestTimestamp(d *db.DB) string {
+	if d == nil {
+		return ""
+	}
+	v, _ := d.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
+	return v
+}
+
+func enabledTransportModes(cfg config.Config) []string {
+	var out []string
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			out = append(out, t.Type)
+		}
+	}
+	return out
+}
+
+func transportCapabilitySummary(cfg config.Config) []map[string]any {
+	var out []map[string]any
+	for _, tc := range cfg.Transports {
+		t, err := transport.Build(tc, nil, events.New())
+		entry := map[string]any{"name": tc.Name, "type": tc.Type, "enabled": tc.Enabled, "source": tc.SourceLabel(), "notes": tc.Notes}
+		if err != nil {
+			entry["implementation_status"] = "unsupported"
+			entry["error"] = err.Error()
+			out = append(out, entry)
+			continue
+		}
+		entry["capabilities"] = t.Capabilities()
+		entry["implementation_status"] = t.Capabilities().ImplementationStatus
+		out = append(out, entry)
+	}
+	return out
+}
+
+func doctorTransportChecks(cfg config.Config) []map[string]string {
+	findings := []map[string]string{}
+	enabled := 0
+	directEnabled := 0
+	for _, t := range cfg.Transports {
+		if !t.Enabled {
+			continue
+		}
+		enabled++
+		switch t.Type {
+		case "serial":
+			directEnabled++
+			device := t.SerialDevice
+			if device == "" {
+				device = t.Endpoint
+			}
+			info, err := os.Stat(device)
+			if err != nil {
+				sev := "high"
+				if os.IsNotExist(err) {
+					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": "serial device not found: " + device})
+				} else if os.IsPermission(err) {
+					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": "permission denied reading serial device: " + device})
+				} else {
+					findings = append(findings, map[string]string{"component": t.Name, "severity": sev, "message": err.Error()})
+				}
+				continue
+			}
+			if info.Mode()&os.ModeDevice == 0 {
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "medium", "message": "configured serial path exists but is not a device: " + device})
+			}
+			f, err := os.OpenFile(device, os.O_RDWR, 0)
+			if err != nil {
+				msg := "serial device exists but could not be opened: " + err.Error()
+				if os.IsPermission(err) {
+					msg = "serial device permission denied; add the MEL service user to dialout/uucp or adjust udev rules"
+				}
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": msg})
+			} else {
+				_ = f.Close()
+			}
+		case "tcp", "serialtcp":
+			directEnabled++
+			endpoint := t.Endpoint
+			if endpoint == "" {
+				endpoint = net.JoinHostPort(t.TCPHost, fmt.Sprint(t.TCPPort))
+			}
+			conn, err := net.DialTimeout("tcp", endpoint, 2*time.Second)
+			if err != nil {
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "high", "message": "TCP endpoint unreachable: " + endpoint + ": " + err.Error()})
+			} else {
+				_ = conn.Close()
+			}
+		case "mqtt":
+			// validated elsewhere; no reachability attempt here to keep doctor offline-safe.
+		}
+	}
+	if enabled == 0 {
+		findings = append(findings, map[string]string{"component": "transports", "severity": "medium", "message": "no transports are enabled; MEL will start but remain explicitly idle"})
+	}
+	if directEnabled > 1 {
+		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention"})
+	}
+	return findings
+}
 func openDB(cfg config.Config) *db.DB {
 	d, err := db.Open(cfg)
 	if err != nil {

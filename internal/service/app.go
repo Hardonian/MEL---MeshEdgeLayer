@@ -2,10 +2,9 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
@@ -88,7 +87,11 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransport config.TransportConfig) {
-	backoff := time.Duration(a.Cfg.RateLimits.TransportReconnectSeconds) * time.Second
+	backoffSeconds := a.Cfg.RateLimits.TransportReconnectSeconds
+	if cfgTransport.ReconnectSeconds > 0 {
+		backoffSeconds = cfgTransport.ReconnectSeconds
+	}
+	backoff := time.Duration(backoffSeconds) * time.Second
 	if backoff <= 0 {
 		backoff = 10 * time.Second
 	}
@@ -108,29 +111,9 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 				continue
 			}
 		}
-		errCh := make(chan error, 1)
-		go func() {
-			errCh <- t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t.Name(), topic, payload) })
-		}()
-		select {
-		case <-ctx.Done():
-			return
-		case err := <-errCh:
-			if err != nil {
-				a.Log.Error("transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-				_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			}
-		case <-time.After(backoff):
-			// transport goroutine owns the stream; check health periodically for reconnect loops
-		}
-		h := t.Health()
-		if h.OK {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(backoff):
-				continue
-			}
+		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t.Name(), topic, payload) }); err != nil && ctx.Err() == nil {
+			a.Log.Error("transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		}
 		_ = t.Close(context.Background())
 		select {
@@ -155,12 +138,15 @@ func (a *App) ingest(transportName, topic string, payload []byte) error {
 	if err != nil {
 		return err
 	}
-	dedupe := sha256.Sum256(append([]byte(topic), payload...))
 	rxTime := time.Unix(int64(env.Packet.RXTime), 0).UTC().Format(time.RFC3339)
 	if env.Packet.RXTime == 0 {
 		rxTime = time.Now().UTC().Format(time.RFC3339)
 	}
-	msg := map[string]any{"transport_name": transportName, "packet_id": int64(env.Packet.ID), "dedupe_hash": hex.EncodeToString(dedupe[:]), "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "from_node": int64(env.Packet.From), "to_node": int64(env.Packet.To), "portnum": int64(env.Packet.PortNum), "payload_text": env.Packet.PayloadText, "payload_json": map[string]any{"node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName}, "raw_hex": env.RawHex, "rx_time": rxTime, "hop_limit": int64(env.Packet.HopLimit), "relay_node": int64(env.Packet.RelayNode)}
+	payloadJSON := map[string]any{"node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "topic": topic, "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "transport_name": transportName}
+	if env.Packet.Lat != nil || env.Packet.Lon != nil || env.Packet.Altitude != 0 {
+		payloadJSON["position"] = map[string]any{"lat": meshtastic.RedactCoord(env.Packet.Lat), "lon": meshtastic.RedactCoord(env.Packet.Lon), "altitude": env.Packet.Altitude}
+	}
+	msg := map[string]any{"transport_name": transportName, "packet_id": int64(env.Packet.ID), "dedupe_hash": meshtastic.DedupeHash(env), "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "from_node": int64(env.Packet.From), "to_node": int64(env.Packet.To), "portnum": int64(env.Packet.PortNum), "payload_text": env.Packet.PayloadText, "payload_json": payloadJSON, "raw_hex": env.RawHex, "rx_time": rxTime, "hop_limit": int64(env.Packet.HopLimit), "relay_node": int64(env.Packet.RelayNode)}
 	if err := a.DB.InsertMessage(msg); err != nil {
 		return err
 	}
@@ -168,9 +154,18 @@ func (a *App) ingest(transportName, topic string, payload []byte) error {
 	if err := a.DB.UpsertNode(node); err != nil {
 		return err
 	}
+	if env.Packet.Lat != nil || env.Packet.Lon != nil || env.Packet.Altitude != 0 {
+		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), "position", map[string]any{"lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude), "transport_name": transportName}, rxTime); err != nil {
+			return err
+		}
+	}
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
-	evt := events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d", transportName, env.Packet.From)}
+	summary := strings.TrimSpace(env.Packet.PayloadText)
+	if summary == "" {
+		summary = fmt.Sprintf("port %d packet", env.Packet.PortNum)
+	}
+	evt := events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d (%s)", transportName, env.Packet.From, summary)}
 	a.Bus.Publish(evt)
 	for _, p := range a.Plugins {
 		if alert := p.Handle(evt); alert != nil {
