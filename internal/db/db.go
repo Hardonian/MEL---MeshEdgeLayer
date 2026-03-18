@@ -1,0 +1,121 @@
+package db
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/mel-project/mel/internal/config"
+)
+
+type DB struct{ Path string }
+
+func Open(cfg config.Config) (*DB, error) {
+	if err := os.MkdirAll(filepath.Dir(cfg.Storage.DatabasePath), 0o755); err != nil {
+		return nil, err
+	}
+	db := &DB{Path: cfg.Storage.DatabasePath}
+	if err := db.ApplyMigrations(migrationPath()); err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func (d *DB) ApplyMigrations(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("sqlite3", d.Path)
+	cmd.Stdin = strings.NewReader(string(b))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("sqlite3 migrate: %w: %s", err, out)
+	}
+	return nil
+}
+
+func (d *DB) Exec(sql string) error {
+	cmd := exec.Command("sqlite3", d.Path, sql)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("sqlite exec failed: %w: %s", err, out)
+	}
+	return nil
+}
+
+func esc(v string) string { return strings.ReplaceAll(v, "'", "''") }
+
+func (d *DB) InsertMessage(m map[string]any) error {
+	payloadJSON, _ := json.Marshal(m["payload_json"])
+	sql := fmt.Sprintf(`INSERT OR IGNORE INTO messages(transport_name,packet_id,dedupe_hash,channel_id,gateway_id,from_node,to_node,portnum,payload_text,payload_json,raw_hex,rx_time,hop_limit,relay_node) VALUES('%s',%d,'%s','%s','%s',%d,%d,%d,'%s','%s','%s','%s',%d,%d);`,
+		esc(asString(m["transport_name"])), asInt(m["packet_id"]), esc(asString(m["dedupe_hash"])), esc(asString(m["channel_id"])), esc(asString(m["gateway_id"])), asInt(m["from_node"]), asInt(m["to_node"]), asInt(m["portnum"]), esc(asString(m["payload_text"])), esc(string(payloadJSON)), esc(asString(m["raw_hex"])), esc(asString(m["rx_time"])), asInt(m["hop_limit"]), asInt(m["relay_node"]))
+	return d.Exec(sql)
+}
+
+func (d *DB) UpsertNode(m map[string]any) error {
+	sql := fmt.Sprintf(`INSERT INTO nodes(node_num,node_id,long_name,short_name,last_seen,last_gateway_id,last_snr,last_rssi,lat_redacted,lon_redacted,altitude,updated_at) VALUES(%d,'%s','%s','%s','%s','%s',%f,%d,%f,%f,%d,'%s') ON CONFLICT(node_num) DO UPDATE SET node_id=excluded.node_id,long_name=excluded.long_name,short_name=excluded.short_name,last_seen=excluded.last_seen,last_gateway_id=excluded.last_gateway_id,last_snr=excluded.last_snr,last_rssi=excluded.last_rssi,lat_redacted=excluded.lat_redacted,lon_redacted=excluded.lon_redacted,altitude=excluded.altitude,updated_at=excluded.updated_at;`,
+		asInt(m["node_num"]), esc(asString(m["node_id"])), esc(asString(m["long_name"])), esc(asString(m["short_name"])), esc(asString(m["last_seen"])), esc(asString(m["last_gateway_id"])), asFloat(m["last_snr"]), asInt(m["last_rssi"]), asFloat(m["lat_redacted"]), asFloat(m["lon_redacted"]), asInt(m["altitude"]), time.Now().UTC().Format(time.RFC3339))
+	return d.Exec(sql)
+}
+
+func (d *DB) QueryJSON(sql string) ([]map[string]string, error) {
+	cmd := exec.Command("sqlite3", "-json", d.Path, sql)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
+	}
+	var rows []map[string]string
+	if len(out) == 0 {
+		return rows, nil
+	}
+	if err := json.Unmarshal(out, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (d *DB) Vacuum() error { return d.Exec("VACUUM;") }
+func asString(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
+}
+func asInt(v any) int64 {
+	switch x := v.(type) {
+	case int:
+		return int64(x)
+	case int64:
+		return x
+	case uint32:
+		return int64(x)
+	case float64:
+		return int64(x)
+	}
+	var i int64
+	fmt.Sscan(fmt.Sprint(v), &i)
+	return i
+}
+func asFloat(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	}
+	var f float64
+	fmt.Sscan(fmt.Sprint(v), &f)
+	return f
+}
+
+func migrationPath() string {
+	_, file, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	return filepath.Join(root, "migrations", "0001_init.sql")
+}
