@@ -1,0 +1,8 @@
+syntax = "proto3";
+package meshtastic;
+import "meshtastic/mesh.proto";
+message ServiceEnvelope {
+  MeshPacket packet = 1;
+  string channel_id = 2;
+  string gateway_id = 3;
+}
