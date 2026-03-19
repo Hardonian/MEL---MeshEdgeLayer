@@ -234,6 +234,25 @@ func waitFor(t *testing.T, timeout time.Duration, check func() bool) {
 	t.Fatal("condition not met before timeout")
 }
 
+func mustInsertTransportAuditAt(t *testing.T, database *db.DB, createdAt time.Time, name, typ, message string, details map[string]any) {
+	t.Helper()
+	if details == nil {
+		details = map[string]any{}
+	}
+	if _, ok := details["transport"]; !ok {
+		details["transport"] = name
+	}
+	if _, ok := details["type"]; !ok {
+		details["type"] = typ
+	}
+	if err := database.InsertAuditLog("transport", "warning", message, details); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Exec("UPDATE audit_logs SET created_at='" + createdAt.UTC().Format(time.RFC3339) + "' WHERE id=(SELECT MAX(id) FROM audit_logs);"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type stubTransport struct {
 	name   string
 	typ    string

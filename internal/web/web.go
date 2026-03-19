@@ -57,6 +57,9 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/nodes", s.nodes)
 	mux.HandleFunc("/api/v1/node/", s.nodeDetail)
 	mux.HandleFunc("/api/v1/transports", s.transports)
+	mux.HandleFunc("/api/v1/transports/health", s.transportHealthSummary)
+	mux.HandleFunc("/api/v1/transports/alerts", s.transportAlerts)
+	mux.HandleFunc("/api/v1/transports/anomalies", s.transportAnomalies)
 	mux.HandleFunc("/api/v1/messages", s.messages)
 	mux.HandleFunc("/api/v1/metrics", s.metrics)
 	mux.HandleFunc("/api/v1/panel", s.panel)
@@ -159,7 +162,60 @@ func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_transport_incidents": snap.RecentTransportIncidents})
+	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_transport_incidents": snap.RecentTransportIncidents, "active_transport_alerts": snap.ActiveTransportAlerts})
+}
+
+func (s *Server) transportHealthSummary(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	health := make([]any, 0, len(snap.Transports))
+	for _, tr := range snap.Transports {
+		health = append(health, map[string]any{
+			"transport_name":    tr.Name,
+			"transport_type":    tr.Type,
+			"runtime_state":     tr.RuntimeState,
+			"effective_state":   tr.EffectiveState,
+			"health":            tr.Health,
+			"active_alerts":     tr.ActiveAlerts,
+			"recent_anomalies":  tr.RecentAnomalies,
+			"failure_clusters":  tr.FailureClusters,
+			"last_failure_at":   tr.LastFailureAt,
+			"episode_id":        tr.EpisodeID,
+			"failure_count":     tr.FailureCount,
+			"observation_drops": tr.ObservationDrops,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transport_health": health})
+}
+
+func (s *Server) transportAlerts(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transport_alerts": snap.ActiveTransportAlerts})
+}
+
+func (s *Server) transportAnomalies(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	rows := make([]any, 0, len(snap.Transports))
+	for _, tr := range snap.Transports {
+		rows = append(rows, map[string]any{
+			"transport_name":   tr.Name,
+			"transport_type":   tr.Type,
+			"recent_anomalies": tr.RecentAnomalies,
+			"failure_clusters": tr.FailureClusters,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transport_anomalies": rows})
 }
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	limit := 100
@@ -290,9 +346,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	}
 	panel := statuspkg.BuildPanel(statusSnap)
 	fmt.Fprint(w, `</section><section id="panel"><h2>Instrument panel</h2>`)
-	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
+	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Health</th><th>Alerts</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Observation drops</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
 	for _, h := range statusSnap.Transports {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code><br><span class="muted">runtime=%s</span></td><td><strong>%d</strong> / %s<br><span class="muted">%s</span></td><td><pre>%s</pre></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), blankIfEmpty(h.RuntimeState, "unknown"), h.Health.Score, blankIfEmpty(h.Health.State, "unknown"), blankIfEmpty(h.Health.PrimaryReason, "no dominant reason"), asJSON(h.ActiveAlerts), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, h.ObservationDrops, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="deadletters"><h2>Recent transport dead letters</h2>`)

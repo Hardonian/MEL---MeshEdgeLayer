@@ -22,6 +22,7 @@ type Snapshot struct {
 	LastSuccessfulIngest     string                 `json:"last_successful_ingest,omitempty"`
 	Transports               []TransportReport      `json:"transports"`
 	RecentTransportIncidents []db.TransportIncident `json:"recent_transport_incidents,omitempty"`
+	ActiveTransportAlerts    []TransportAlert       `json:"active_transport_alerts,omitempty"`
 }
 
 type TransportReport struct {
@@ -52,6 +53,10 @@ type TransportReport struct {
 	DeadLetters         uint64                     `json:"dead_letters"`
 	RetryStatus         string                     `json:"retry_status"`
 	Capabilities        transport.CapabilityMatrix `json:"capabilities"`
+	Health              TransportHealth            `json:"health"`
+	ActiveAlerts        []TransportAlert           `json:"active_alerts,omitempty"`
+	RecentAnomalies     []TransportAnomalySummary  `json:"recent_anomalies,omitempty"`
+	FailureClusters     []FailureCluster           `json:"failure_clusters,omitempty"`
 }
 
 type persistEvidence struct {
@@ -115,6 +120,32 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 	if database != nil {
 		snap.RecentTransportIncidents, _ = database.RecentTransportIncidents(20)
 	}
+	intelligence, err := EvaluateTransportIntelligence(cfg, database, runtime, time.Now().UTC())
+	if err != nil {
+		return snap, err
+	}
+	if database != nil {
+		if alerts, err := database.TransportAlerts(true); err == nil {
+			snap.ActiveTransportAlerts = make([]TransportAlert, 0, len(alerts))
+			for _, alert := range alerts {
+				converted := TransportAlert{
+					ID:               alert.ID,
+					TransportName:    alert.TransportName,
+					TransportType:    alert.TransportType,
+					Severity:         alert.Severity,
+					Reason:           alert.Reason,
+					Summary:          alert.Summary,
+					FirstTriggeredAt: alert.FirstTriggeredAt,
+					LastUpdatedAt:    alert.LastUpdatedAt,
+					Active:           alert.Active,
+					EpisodeID:        alert.EpisodeID,
+					ClusterKey:       alert.ClusterKey,
+				}
+				snap.ActiveTransportAlerts = append(snap.ActiveTransportAlerts, converted)
+				intelligence.AlertsByTransport[alert.TransportName] = append(intelligence.AlertsByTransport[alert.TransportName], converted)
+			}
+		}
+	}
 	runtimeMap := map[string]transport.Health{}
 	for _, h := range runtime {
 		runtimeMap[h.Name] = h
@@ -168,6 +199,10 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 			DeadLetters:         deadLetters[tc.Name],
 			RetryStatus:         retryStatus(EffectiveState(tc.Enabled, h.State, evidence.Count), h.ReconnectAttempts, h.ConsecutiveTimeouts),
 			Capabilities:        h.Capabilities,
+			Health:              intelligence.HealthByTransport[tc.Name],
+			ActiveAlerts:        intelligence.AlertsByTransport[tc.Name],
+			RecentAnomalies:     intelligence.AnomaliesByTransport[tc.Name],
+			FailureClusters:     intelligence.ClustersByTransport[tc.Name],
 		}
 		snap.Transports = append(snap.Transports, report)
 	}
@@ -317,6 +352,13 @@ func asInt(v any) int64 {
 	var parsed int64
 	fmt.Sscan(fmt.Sprint(v), &parsed)
 	return parsed
+}
+
+func asString(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
 }
 
 func retryStatus(state string, reconnectAttempts, consecutiveTimeouts uint64) string {

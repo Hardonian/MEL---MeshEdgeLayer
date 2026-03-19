@@ -98,3 +98,64 @@ func TestUpsertTransportRuntimePersistsEvidence(t *testing.T) {
 		t.Fatalf("unexpected transport runtime evidence rows: %+v", rows)
 	}
 }
+
+func TestPersistIngestWritesMessageNodeAndTelemetryAtomically(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := d.PersistIngest(IngestRecord{
+		Message:        map[string]any{"transport_name": "mqtt", "packet_id": int64(1), "dedupe_hash": "ingest-1", "channel_id": "test", "gateway_id": "gw", "from_node": int64(10), "to_node": int64(11), "portnum": int64(1), "payload_text": "hello", "payload_json": map[string]any{"payload_text": "hello"}, "raw_hex": "00", "rx_time": "2026-03-19T00:00:00Z", "hop_limit": int64(0), "relay_node": int64(0)},
+		Node:           map[string]any{"node_num": int64(10), "node_id": "!abcd", "long_name": "Node A", "short_name": "A", "last_seen": "2026-03-19T00:00:00Z", "last_gateway_id": "gw", "last_snr": float64(7.5), "last_rssi": int64(-20), "lat_redacted": float64(1.23), "lon_redacted": float64(4.56), "altitude": int64(123)},
+		TelemetryType:  "position",
+		TelemetryValue: map[string]any{"lat_redacted": 1.23},
+		ObservedAt:     "2026-03-19T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stored {
+		t.Fatal("expected first atomic ingest write to store")
+	}
+	messageCount, err := d.Scalar("SELECT COUNT(*) FROM messages WHERE dedupe_hash='ingest-1';")
+	if err != nil || messageCount != "1" {
+		t.Fatalf("expected message row, got count=%s err=%v", messageCount, err)
+	}
+	nodeCount, err := d.Scalar("SELECT COUNT(*) FROM nodes WHERE node_num=10;")
+	if err != nil || nodeCount != "1" {
+		t.Fatalf("expected node row, got count=%s err=%v", nodeCount, err)
+	}
+	telemetryCount, err := d.Scalar("SELECT COUNT(*) FROM telemetry_samples WHERE node_num=10;")
+	if err != nil || telemetryCount != "1" {
+		t.Fatalf("expected telemetry row, got count=%s err=%v", telemetryCount, err)
+	}
+}
+
+func TestPersistIngestValidationFailureLeavesNoPartialWrites(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := d.PersistIngest(IngestRecord{
+		Message: map[string]any{"transport_name": "", "packet_id": int64(1), "dedupe_hash": "broken", "raw_hex": "00", "rx_time": "2026-03-19T00:00:00Z"},
+		Node:    map[string]any{"node_num": int64(10)},
+	})
+	if err == nil {
+		t.Fatal("expected ingest validation or sqlite error")
+	}
+	if stored {
+		t.Fatal("expected failed ingest to report not stored")
+	}
+	messageCount, _ := d.Scalar("SELECT COUNT(*) FROM messages;")
+	nodeCount, _ := d.Scalar("SELECT COUNT(*) FROM nodes;")
+	telemetryCount, _ := d.Scalar("SELECT COUNT(*) FROM telemetry_samples;")
+	if messageCount != "0" || nodeCount != "0" || telemetryCount != "0" {
+		t.Fatalf("expected no partial writes, got messages=%s nodes=%s telemetry=%s", messageCount, nodeCount, telemetryCount)
+	}
+}
