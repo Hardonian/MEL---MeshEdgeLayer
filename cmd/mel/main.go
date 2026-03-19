@@ -28,6 +28,12 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintln(os.Stderr, recoverMessage(r))
+			os.Exit(1)
+		}
+	}()
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)
@@ -70,6 +76,17 @@ func main() {
 	default:
 		usage()
 		os.Exit(1)
+	}
+}
+
+func recoverMessage(v any) string {
+	switch x := v.(type) {
+	case error:
+		return x.Error()
+	case string:
+		return x
+	default:
+		return fmt.Sprint(x)
 	}
 }
 
@@ -154,36 +171,37 @@ func doctorCmd(args []string) {
 	cfg, path := loadCfg(args)
 	findings := make([]map[string]string, 0)
 	if err := config.Validate(cfg); err != nil {
-		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
+		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error(), "guidance": "Fix the config validation errors before starting MEL."})
 	}
 	database, err := db.Open(cfg)
 	if err != nil {
-		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error()})
+		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error(), "guidance": "Confirm sqlite3 is installed and the MEL data directory is writable."})
 	}
 	if info, err := os.Stat(cfg.Storage.DataDir); err != nil {
-		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": err.Error()})
+		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": err.Error(), "guidance": "Create the data directory or point MEL at an existing writable directory."})
 	} else if !info.IsDir() {
-		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": "data_dir is not a directory"})
+		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": "data_dir is not a directory", "guidance": "Point storage.data_dir at a real directory path."})
 	}
 	if err := security.CheckFileMode(path); err != nil {
-		findings = append(findings, map[string]string{"component": "config_file", "severity": "medium", "message": err.Error()})
+		findings = append(findings, map[string]string{"component": "config_file", "severity": "medium", "message": err.Error(), "guidance": "Restrict the config file to mode 0600 before go-live."})
 	}
 	for _, lint := range config.LintConfig(cfg) {
-		findings = append(findings, map[string]string{"component": lint.ID, "severity": lint.Severity, "message": lint.Message})
+		findings = append(findings, map[string]string{"component": lint.ID, "severity": lint.Severity, "message": lint.Message, "guidance": lint.Remediation})
 	}
 	if database != nil {
 		if schemaVersion, err := database.SchemaVersion(); err != nil {
-			findings = append(findings, map[string]string{"component": "schema", "severity": "critical", "message": err.Error()})
+			findings = append(findings, map[string]string{"component": "schema", "severity": "critical", "message": err.Error(), "guidance": "Inspect the SQLite database and rerun MEL against a healthy database file."})
 		} else if schemaVersion != "0001_init" {
-			findings = append(findings, map[string]string{"component": "schema", "severity": "high", "message": "unexpected schema version " + schemaVersion})
+			findings = append(findings, map[string]string{"component": "schema", "severity": "high", "message": "unexpected schema version " + schemaVersion, "guidance": "Use a MEL-managed database or upgrade the repo before go-live."})
 		}
-		if err := database.Exec("CREATE TEMP TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
-			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error()})
+		if err := database.VerifyWriteRead(); err != nil {
+			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error(), "guidance": "Fix filesystem permissions or SQLite lock/contention issues before relying on MEL ingest."})
 		}
 	}
-	for _, check := range doctorTransportChecks(cfg) {
+	for _, check := range doctorTransportChecks(cfg, database) {
 		findings = append(findings, check)
 	}
+	transportTruth := doctorTransportObservations(cfg, database)
 	out := map[string]any{
 		"config":   path,
 		"findings": findings,
@@ -192,7 +210,8 @@ func doctorCmd(args []string) {
 			"enabled_transports":     enabledTransportNames(cfg),
 			"last_successful_ingest": latestIngestTimestamp(database),
 			"transport_capabilities": transportCapabilitySummary(cfg),
-			"transport_observations": doctorTransportObservations(cfg, database),
+			"transport_observations": transportTruth,
+			"next_steps":             doctorNextSteps(cfg, findings, transportTruth),
 		},
 	}
 	mustPrint(out)
@@ -207,6 +226,7 @@ func statusCmd(args []string) {
 	nodes, _ := d.Scalar("SELECT COUNT(*) FROM nodes;")
 	messages, _ := d.Scalar("SELECT COUNT(*) FROM messages;")
 	schemaVersion, _ := d.SchemaVersion()
+	persisted := doctorTransportObservations(cfg, d)
 	mustPrint(map[string]any{
 		"bind":                       cfg.Bind.API,
 		"bind_local_only":            !cfg.Bind.AllowRemote,
@@ -215,7 +235,12 @@ func statusCmd(args []string) {
 		"messages":                   messages,
 		"last_successful_ingest":     latestIngestTimestamp(d),
 		"configured_transport_modes": enabledTransportModes(cfg),
-		"transports":                 configuredTransportConfigs(cfg),
+		"transports_configured":      configuredTransportConfigs(cfg),
+		"transports_persisted":       persisted,
+		"operator_summary": map[string]any{
+			"meaning":    "persisted truth is authoritative for CLI status because no live runtime connection is attached to this command",
+			"next_steps": doctorNextSteps(cfg, nil, persisted),
+		},
 	})
 }
 
@@ -446,7 +471,7 @@ func transportCapabilitySummary(cfg config.Config) []map[string]any {
 	return out
 }
 
-func doctorTransportChecks(cfg config.Config) []map[string]string {
+func doctorTransportChecks(cfg config.Config, database *db.DB) []map[string]string {
 	findings := make([]map[string]string, 0)
 	enabled := 0
 	directEnabled := 0
@@ -504,7 +529,10 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 				_ = conn.Close()
 			}
 		case "mqtt":
-			// validated elsewhere; no reachability attempt here to keep doctor offline-safe.
+			if strings.HasPrefix(strings.TrimSpace(t.Topic), "/") {
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "medium", "message": "MQTT topic starts with /; Meshtastic topics normally do not", "guidance": "Confirm the exact topic path used by your broker before expecting ingest."})
+			}
+			// no broker dial here; doctor remains offline-safe for MQTT.
 		}
 	}
 	if enabled == 0 {
@@ -513,21 +541,51 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 	if directEnabled > 1 {
 		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention", "guidance": "Run one direct serial/TCP attachment path at a time unless you have proven shared radio ownership outside MEL."})
 	}
+	if database != nil {
+		runtimeRows, err := database.TransportRuntimeStatuses()
+		if err == nil {
+			for _, row := range runtimeRows {
+				if row.State == transport.StateError && row.LastError != "" {
+					findings = append(findings, map[string]string{"component": row.Name, "severity": "high", "message": "last runtime error: " + row.LastError, "guidance": "Fix the surfaced transport error, then rerun doctor and confirm the state advances beyond error."})
+				}
+			}
+		}
+	}
 	return findings
 }
 
 func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]any {
 	observations := make([]map[string]any, 0)
+	runtimeByName := map[string]db.TransportRuntime{}
+	if database != nil {
+		if rows, err := database.TransportRuntimeStatuses(); err == nil {
+			for _, row := range rows {
+				runtimeByName[row.Name] = row
+			}
+		}
+	}
 	for _, t := range cfg.Transports {
 		if !t.Enabled {
+			observations = append(observations, map[string]any{"name": t.Name, "type": t.Type, "source": t.SourceLabel(), "enabled": false, "state": transport.StateDisabled, "detail": "disabled by config", "total_messages": uint64(0)})
 			continue
 		}
 		observation := map[string]any{
-			"name":   t.Name,
-			"type":   t.Type,
-			"source": t.SourceLabel(),
-			"state":  directStateForObservation(t),
-			"detail": "configured transport has not been proven by a live packet in this doctor run",
+			"name":           t.Name,
+			"type":           t.Type,
+			"source":         t.SourceLabel(),
+			"enabled":        true,
+			"state":          transport.StateConfigured,
+			"detail":         "configured transport has not been proven by a stored packet in this doctor run",
+			"total_messages": uint64(0),
+		}
+		if runtime, ok := runtimeByName[t.Name]; ok {
+			observation["state"] = runtime.State
+			observation["detail"] = runtime.Detail
+			observation["last_attempt_at"] = runtime.LastAttemptAt
+			observation["last_success_at"] = runtime.LastSuccessAt
+			observation["last_message_at"] = runtime.LastMessageAt
+			observation["last_error"] = runtime.LastError
+			observation["total_messages"] = runtime.TotalMessages
 		}
 		if database == nil {
 			observation["detail"] = "database unavailable; cannot inspect historical ingest evidence"
@@ -549,29 +607,22 @@ func doctorTransportObservations(cfg config.Config, database *db.DB) []map[strin
 			continue
 		}
 		messageCount := asInt(row[0]["message_count"])
+		observation["total_messages"] = uint64(messageCount)
+		observation["last_message_at"] = row[0]["last_rx_time"]
 		if messageCount <= 0 {
 			observations = append(observations, observation)
 			continue
 		}
-		observation["state"] = "historical_ingest_seen"
-		observation["detail"] = "database contains prior packets for this transport; doctor still requires a live runtime check for current connectivity"
-		observation["message_count"] = messageCount
-		observation["last_rx_time"] = row[0]["last_rx_time"]
+		if observation["state"] != transport.StateIngesting {
+			observation["state"] = transport.StateHistoricalOnly
+			observation["detail"] = "database contains prior packets for this transport, but doctor is not asserting live ingest in this run"
+		}
 		observations = append(observations, observation)
 	}
 	if observations == nil {
 		return []map[string]any{}
 	}
 	return observations
-}
-
-func directStateForObservation(t config.TransportConfig) string {
-	switch t.Type {
-	case "serial", "tcp", "serialtcp":
-		return "configured_offline"
-	default:
-		return "configured_not_attempted"
-	}
 }
 
 func openDB(cfg config.Config) *db.DB {
@@ -628,6 +679,52 @@ func enabledTransportNames(cfg config.Config) []string {
 		}
 	}
 	return names
+}
+
+func doctorNextSteps(cfg config.Config, findings []map[string]string, observations []map[string]any) []string {
+	steps := make([]string, 0)
+	if len(enabledTransportNames(cfg)) == 0 {
+		steps = append(steps, "Enable one transport before expecting MEL to store packets.")
+	}
+	for _, finding := range findings {
+		if guidance := finding["guidance"]; guidance != "" {
+			steps = appendUnique(steps, guidance)
+		}
+	}
+	for _, observation := range observations {
+		state := fmt.Sprint(observation["state"])
+		name := fmt.Sprint(observation["name"])
+		switch state {
+		case transport.StateConfigured:
+			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured to connected_no_data or ingesting.", name))
+		case transport.StateConnectedNoData:
+			steps = appendUnique(steps, fmt.Sprintf("%s connected successfully but has not stored a packet yet; generate real mesh traffic or confirm the MQTT topic / direct endpoint is correct.", name))
+		case transport.StateHistoricalOnly:
+			steps = appendUnique(steps, fmt.Sprintf("%s has historical packets only; rerun `mel serve` and look for a fresh stored message timestamp before treating ingest as live.", name))
+		case transport.StateError:
+			lastErr := fmt.Sprint(observation["last_error"])
+			if lastErr == "" {
+				lastErr = "inspect `mel logs tail` for the runtime error details"
+			}
+			steps = appendUnique(steps, fmt.Sprintf("%s is in error: %s.", name, lastErr))
+		}
+		if tType := fmt.Sprint(observation["type"]); tType == "serial" || tType == "tcp" || tType == "serialtcp" {
+			steps = appendUnique(steps, fmt.Sprintf("%s is a direct transport: treat it as implemented but not hardware-verified in this build context until you store packets from your own node.", name))
+		}
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "Doctor found no blocking issues; start MEL and confirm a stored packet timestamp before declaring ingest live.")
+	}
+	return steps
+}
+
+func appendUnique(in []string, value string) []string {
+	for _, existing := range in {
+		if existing == value {
+			return in
+		}
+	}
+	return append(in, value)
 }
 
 func redactMessages(rows []map[string]any) []map[string]any {

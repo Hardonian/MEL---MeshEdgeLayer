@@ -230,6 +230,8 @@ func Validate(cfg Config) error {
 		case "mqtt":
 			if t.Endpoint == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+			} else if err := validateEndpoint(t.Endpoint); err != nil {
+				errs = appendErr(errs, fmt.Sprintf("transport %s invalid endpoint: %v", t.Name, err))
 			}
 		case "serial":
 			if t.SerialDevice == "" && t.Endpoint == "" {
@@ -241,10 +243,18 @@ func Validate(cfg Config) error {
 		case "tcp":
 			if t.Endpoint == "" && (t.TCPHost == "" || t.TCPPort <= 0) {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing tcp_host/tcp_port or endpoint", t.Name))
+			} else if t.Endpoint != "" {
+				if err := validateEndpoint(t.Endpoint); err != nil {
+					errs = appendErr(errs, fmt.Sprintf("transport %s invalid endpoint: %v", t.Name, err))
+				}
+			} else if t.TCPPort <= 0 || t.TCPPort > 65535 {
+				errs = appendErr(errs, fmt.Sprintf("transport %s tcp_port must be between 1 and 65535", t.Name))
 			}
 		case "serialtcp":
 			if t.Endpoint == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
+			} else if err := validateEndpoint(t.Endpoint); err != nil {
+				errs = appendErr(errs, fmt.Sprintf("transport %s invalid endpoint: %v", t.Name, err))
 			}
 		default:
 			if t.Endpoint == "" && t.Type != "ble" && t.Type != "http" {
@@ -257,6 +267,9 @@ func Validate(cfg Config) error {
 		enabledNames[t.Name] = struct{}{}
 		if t.Type == "mqtt" && t.Topic == "" {
 			errs = appendErr(errs, fmt.Sprintf("transport %s missing topic", t.Name))
+		}
+		if t.Type == "mqtt" && strings.TrimSpace(t.ClientID) == "" {
+			errs = appendErr(errs, fmt.Sprintf("transport %s missing client_id", t.Name))
 		}
 	}
 	if len(errs) > 0 {
@@ -326,11 +339,61 @@ func LintConfig(cfg Config) []Lint {
 		if !t.Enabled || t.Type != "mqtt" {
 			continue
 		}
+		if !strings.Contains(t.Topic, "#") && !strings.Contains(t.Topic, "+") {
+			out = append(out, Lint{"mqtt-topic-specificity", "medium", fmt.Sprintf("transport %s topic is a fixed topic with no wildcard; MEL may look healthy while receiving nothing if publishers use another suffix.", t.Name), "Confirm the exact Meshtastic topic path or use a wildcard topic such as msh/REGION/CHAN/e/# when appropriate."})
+		}
 		if strings.Contains(strings.ToLower(t.Topic), "default") || strings.Contains(strings.ToLower(t.Topic), "public") {
 			out = append(out, Lint{"mqtt-default-channel", "medium", "MQTT topic naming suggests widely-known or default channel usage.", "Confirm the channel is intentional and avoid public/default identifiers where possible."})
 		}
 	}
+	for _, t := range cfg.Transports {
+		if !t.Enabled {
+			continue
+		}
+		switch t.Type {
+		case "serial":
+			device := t.SerialDevice
+			if device == "" {
+				device = t.Endpoint
+			}
+			if strings.TrimSpace(device) == "" {
+				continue
+			}
+			if !filepath.IsAbs(device) {
+				out = append(out, Lint{"serial-relative-path", "medium", fmt.Sprintf("transport %s uses a non-absolute serial path.", t.Name), "Prefer an absolute device path such as /dev/serial/by-id/... so MEL does not depend on the working directory."})
+			}
+			if !strings.Contains(device, "/dev/serial/by-id/") {
+				out = append(out, Lint{"serial-stable-path", "medium", fmt.Sprintf("transport %s is not using a stable /dev/serial/by-id path.", t.Name), "Use /dev/serial/by-id/... when available to survive USB re-enumeration."})
+			}
+		case "tcp", "serialtcp":
+			endpoint := t.Endpoint
+			if endpoint == "" {
+				endpoint = net.JoinHostPort(t.TCPHost, strconv.Itoa(t.TCPPort))
+			}
+			if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+				out = append(out, Lint{"tcp-http-endpoint", "high", fmt.Sprintf("transport %s endpoint looks like HTTP, but direct TCP expects raw Meshtastic framing.", t.Name), "Point MEL at the raw Meshtastic TCP stream instead of a web UI or HTTP API."})
+			}
+		}
+	}
 	return out
+}
+
+func validateEndpoint(endpoint string) error {
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(host) == "" {
+		return errors.New("host is empty")
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("port is not numeric: %w", err)
+	}
+	if portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("port %d is out of range", portNum)
+	}
+	return nil
 }
 
 func WriteInit(path string) (Config, error) {

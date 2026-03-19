@@ -70,17 +70,20 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transports": s.transportHealth()})
+	writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transports_live": s.transportHealth(), "transports_persisted": persistedTransportTruth(s.cfg, s.db, s.transportHealth())})
 }
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	schemaVersion, _ := s.db.SchemaVersion()
+	persisted := persistedTransportTruth(s.cfg, s.db, s.transportHealth())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"snapshot":           s.state.Snapshot(),
-		"transports":         s.transportHealth(),
-		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
-		"schema_version":     schemaVersion,
-		"bind_local_default": !s.cfg.Bind.AllowRemote,
-		"configured_modes":   configuredModes(s.cfg),
+		"snapshot":               s.state.Snapshot(),
+		"transports_live":        s.transportHealth(),
+		"transports_persisted":   persisted,
+		"privacy_summary":        privacy.Summary(privacy.Audit(s.cfg)),
+		"schema_version":         schemaVersion,
+		"bind_local_default":     !s.cfg.Bind.AllowRemote,
+		"configured_modes":       configuredModes(s.cfg),
+		"last_successful_ingest": lastSuccessfulIngest(persisted),
 	})
 }
 func (s *Server) nodes(w http.ResponseWriter, _ *http.Request) {
@@ -110,7 +113,7 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"node": rows[0]})
 }
 func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"transports": s.transportHealth(), "configured_modes": configuredModes(s.cfg)})
+	writeJSON(w, http.StatusOK, map[string]any{"transports_live": s.transportHealth(), "transports_persisted": persistedTransportTruth(s.cfg, s.db, s.transportHealth()), "configured_modes": configuredModes(s.cfg)})
 }
 func (s *Server) messages(w http.ResponseWriter, _ *http.Request) {
 	rows, err := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time,created_at FROM messages ORDER BY id DESC LIMIT 100;")
@@ -158,9 +161,11 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>State</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last packet</th><th>Last error</th></tr>`)
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Live state</th><th>Persisted truth</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Counters</th><th>Last message</th><th>Last error</th></tr>`)
+	persistedTruth := persistedTransportTruth(s.cfg, s.db, s.transportHealth())
 	for _, h := range s.transportHealth() {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), transportStateLabel(h), h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
+		persisted := persistedByName(persistedTruth, h.Name)
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d stored / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), blankIfEmpty(asString(persisted["state"]), "unknown"), transportStateLabel(h, persisted), blankIfEmpty(asString(persisted["detail"]), h.Detail), asJSON(h.Capabilities), asInt(persisted["total_messages"]), h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(asString(persisted["last_message_at"]), "—"), blankIfEmpty(asString(persisted["last_error"]), "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -240,40 +245,133 @@ func configuredModes(cfg config.Config) []string {
 	return out
 }
 
-func transportStateLabel(h transport.Health) string {
-	switch h.State {
-	case "disabled":
+func transportStateLabel(h transport.Health, persisted map[string]any) string {
+	state := h.State
+	if persistedState := asString(persisted["state"]); persistedState != "" {
+		state = persistedState
+	}
+	switch state {
+	case transport.StateDisabled:
 		return "disabled"
-	case "configured_not_attempted":
-		return "configured but not yet started"
-	case "connecting":
-		return "connect in progress"
-	case "connect_failed":
-		return "connect failed"
-	case "connected_idle":
-		return "connected but idle"
-	case "connected_ingesting":
-		return "live data flowing"
-	case "degraded":
-		return "connected with read/decode trouble"
-	case "retrying":
-		return "retrying after failure"
-	case "unsupported":
-		return "unsupported in this release"
-	case "configured_offline":
-		return "configured; offline-only doctor evidence"
+	case transport.StateConfigured:
+		return "configured but no attempt has proven connectivity"
+	case transport.StateAttempting:
+		return "connect attempt in progress"
+	case transport.StateConnectedNoData:
+		return "connected but MEL has not stored a packet yet"
+	case transport.StateIngesting:
+		return "live data stored successfully"
+	case transport.StateHistoricalOnly:
+		return "historical packets exist, but no live runtime proof is available"
+	case transport.StateError:
+		return "error or unreachable"
 	default:
 		if h.Unsupported {
 			return "unsupported in this release"
-		}
-		if h.OK && h.PacketsRead == 0 {
-			return "connected but idle"
-		}
-		if h.OK {
-			return "live data flowing"
 		}
 		return "state unknown"
 	}
 }
 
 var _ = remoteClient
+
+func persistedTransportTruth(cfg config.Config, database *db.DB, live []transport.Health) []map[string]any {
+	out := make([]map[string]any, 0, len(cfg.Transports))
+	liveByName := map[string]transport.Health{}
+	for _, h := range live {
+		liveByName[h.Name] = h
+	}
+	runtimeByName := map[string]db.TransportRuntime{}
+	if database != nil {
+		if rows, err := database.TransportRuntimeStatuses(); err == nil {
+			for _, row := range rows {
+				runtimeByName[row.Name] = row
+			}
+		}
+	}
+	for _, tc := range cfg.Transports {
+		entry := map[string]any{
+			"name":    tc.Name,
+			"type":    tc.Type,
+			"source":  tc.SourceLabel(),
+			"enabled": tc.Enabled,
+			"state":   transport.StateConfigured,
+			"detail":  "configured; no persisted runtime evidence is available yet",
+		}
+		if !tc.Enabled {
+			entry["state"] = transport.StateDisabled
+			entry["detail"] = "disabled by config"
+		}
+		if runtime, ok := runtimeByName[tc.Name]; ok {
+			entry["state"] = runtime.State
+			entry["detail"] = runtime.Detail
+			entry["last_attempt_at"] = runtime.LastAttemptAt
+			entry["last_connected_at"] = runtime.LastConnectedAt
+			entry["last_success_at"] = runtime.LastSuccessAt
+			entry["last_message_at"] = runtime.LastMessageAt
+			entry["last_error"] = runtime.LastError
+			entry["total_messages"] = runtime.TotalMessages
+			entry["updated_at"] = runtime.UpdatedAt
+		}
+		if database != nil {
+			if total, lastMessageAt, err := database.MessageStatsByTransport(tc.Name); err == nil {
+				if total > asUint64(entry["total_messages"]) {
+					entry["total_messages"] = total
+				}
+				if asString(entry["last_message_at"]) == "" {
+					entry["last_message_at"] = lastMessageAt
+				}
+				if tc.Enabled && total > 0 && liveByName[tc.Name].State != transport.StateIngesting && asString(entry["state"]) != transport.StateIngesting {
+					entry["state"] = transport.StateHistoricalOnly
+					entry["detail"] = "historical packets exist in SQLite, but this surface is not asserting a live ingesting connection now"
+				}
+			}
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func persistedByName(rows []map[string]any, name string) map[string]any {
+	for _, row := range rows {
+		if asString(row["name"]) == name {
+			return row
+		}
+	}
+	return map[string]any{}
+}
+
+func lastSuccessfulIngest(rows []map[string]any) string {
+	latest := ""
+	for _, row := range rows {
+		if ts := asString(row["last_message_at"]); ts > latest {
+			latest = ts
+		}
+	}
+	return latest
+}
+
+func asString(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
+}
+
+func asInt(v any) int64 {
+	switch x := v.(type) {
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	case uint64:
+		return int64(x)
+	case float64:
+		return int64(x)
+	}
+	var out int64
+	fmt.Sscan(fmt.Sprint(v), &out)
+	return out
+}
+
+func asUint64(v any) uint64 { return uint64(asInt(v)) }

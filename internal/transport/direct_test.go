@@ -92,7 +92,7 @@ func TestDirectSubscribe(t *testing.T) {
 		t.Fatal("timeout waiting for direct payload")
 	}
 	h := transport.Health()
-	if h.PacketsRead != 1 || !h.OK || h.State != directStateConnectedIngest {
+	if h.PacketsRead != 1 || !h.OK || h.State != StateIngesting {
 		t.Fatalf("unexpected health: %+v", h)
 	}
 }
@@ -123,7 +123,7 @@ func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
 		t.Fatal("timeout waiting for payload after malformed frame")
 	}
 	h := transport.Health()
-	if h.PacketsRead != 1 || h.PacketsDropped == 0 || h.State != directStateConnectedIngest {
+	if h.PacketsRead != 1 || h.PacketsDropped == 0 || h.State != StateIngesting {
 		t.Fatalf("unexpected health after malformed frame recovery: %+v", h)
 	}
 }
@@ -150,7 +150,7 @@ func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
 		t.Fatal("subscribe did not exit after context cancellation")
 	}
 	h := transport.Health()
-	if h.State != directStateConnectedIdle {
+	if h.State != StateConnectedNoData {
 		t.Fatalf("expected idle state to remain truthful, got %+v", h)
 	}
 }

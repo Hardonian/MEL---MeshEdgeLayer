@@ -69,3 +69,11 @@ func TestValidateDirectTransports(t *testing.T) {
 		t.Fatal("expected contention lint for multiple direct transports")
 	}
 }
+
+func TestValidateRejectsInvalidMQTTEndpointAndMissingClientID(t *testing.T) {
+	cfg := Default()
+	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1", Topic: "msh/test"}}
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
