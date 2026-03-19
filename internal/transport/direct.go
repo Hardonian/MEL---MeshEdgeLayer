@@ -84,7 +84,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 		h.Source = d.cfg.SourceLabel()
 		h.State = StateAttempting
 		h.Detail = "attempting direct-node connection"
-		h.LastAttemptAt = now
+		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
 	rw, err := d.dial(ctx, d.cfg)
 	if err != nil {

@@ -6,10 +6,11 @@ MEL is a local-first ingest, persistence, and operator-observability layer for *
 
 - Ingests real Meshtastic traffic from **serial direct-node**, **TCP direct-node**, and **MQTT** transports.
 - Persists observed packets, nodes, telemetry samples, and audit events into SQLite using deterministic `sqlite3` CLI migrations.
-- Applies transport hardening defaults for production-oriented ingest loops: reconnect backoff, read/write deadlines, consecutive-timeout deadlock detection, MQTT QoS 1 subscriptions by default, broker keepalive pings, and dead-letter persistence for messages that fail MEL-side processing.
+- Applies transport hardening defaults for production-oriented ingest loops: reconnect backoff, read/write deadlines, consecutive-timeout deadlock detection, MQTT QoS-aware acknowledgements for inbound QoS 1/2 publishes, broker keepalive pings, persisted runtime heartbeat evidence, and dead-letter persistence for messages that fail MEL-side processing.
 - Exposes truthful operator views through `mel doctor`, `mel status`, `mel replay`, the HTML UI, and `/api/v1/*` JSON endpoints.
 - Reports explicit transport truth with the same state vocabulary across CLI and API: `disabled`, `configured_not_attempted`, `attempting`, `configured_offline`, `connected_no_ingest`, `ingesting`, `historical_only`, and `error`.
 - Ships a JSON `/metrics` endpoint that reflects the same counters shown by doctor and status.
+- Persists transport runtime evidence in SQLite so `mel status`, the Web UI, and later process invocations can report the latest stored heartbeat, timeout, retry, and dead-letter counts.
 
 ## What MEL does not do
 
@@ -19,6 +20,7 @@ MEL is a local-first ingest, persistence, and operator-observability layer for *
 - No fake packets, fake nodes, or placeholder transport success.
 - No hardware-verification claims that were not exercised in this repo environment.
 - No claim of “100% reliability”; MEL only claims the retry, timeout, audit, and observability behavior that is implemented and repo-verified here.
+- No Prometheus/Grafana exporter or OTA workflow claim in this repo; JSON metrics exist, but cloud monitoring and update orchestration still require external deployment work.
 - No full Meshtastic protobuf coverage; unsupported payloads are stored truthfully as raw payload bytes.
 
 See the canonical execution contract in [docs/roadmap/ROADMAP_EXECUTION.md](docs/roadmap/ROADMAP_EXECUTION.md).

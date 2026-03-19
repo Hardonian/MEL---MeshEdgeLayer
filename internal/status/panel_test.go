@@ -46,3 +46,26 @@ func TestBuildPanelReflectsLiveReadyState(t *testing.T) {
 		t.Fatalf("expected message count 2, got %d", got)
 	}
 }
+
+func TestCollectBuildsRetryAndDeadLetterEvidence(t *testing.T) {
+	snap := Snapshot{
+		GeneratedAt: "2026-03-19T00:00:00Z",
+		Transports: []TransportReport{{
+			Name:                "mqtt",
+			Type:                "mqtt",
+			EffectiveState:      transport.StateConfiguredOffline,
+			ReconnectAttempts:   3,
+			ConsecutiveTimeouts: 2,
+			DeadLetters:         1,
+			RetryStatus:         "backoff armed after 3 reconnect attempts",
+			Detail:              "broker disconnected; waiting to retry",
+		}},
+	}
+	panel := BuildPanel(snap)
+	if panel.OperatorState != "degraded" {
+		t.Fatalf("expected degraded operator state, got %+v", panel)
+	}
+	if panel.Transports[0].Detail == "" {
+		t.Fatalf("expected detail to remain populated, got %+v", panel.Transports[0])
+	}
+}

@@ -267,24 +267,12 @@ func (a *App) syncTransportRuntime(tc config.TransportConfig, t transport.Transp
 		LastConnectedAt: h.LastConnectedAt,
 		LastSuccessAt:   h.LastSuccessAt,
 		LastMessageAt:   lastMessageAt,
+		LastHeartbeatAt: h.LastHeartbeatAt,
 		LastError:       h.LastError,
 		TotalMessages:   h.TotalMessages,
-	})
-}
-
-func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
-	if a.DB == nil {
-		return
-	}
-	_ = a.DB.UpsertTransportRuntime(db.TransportRuntime{
-		Name:          tc.Name,
-		Type:          tc.Type,
-		Source:        tc.SourceLabel(),
-		Enabled:       tc.Enabled,
-		State:         state,
-		Detail:        detail,
-		LastError:     lastError,
-		LastMessageAt: lastMessageAt,
+		PacketsDropped:  h.PacketsDropped,
+		Reconnects:      h.ReconnectAttempts,
+		Timeouts:        h.ConsecutiveTimeouts,
 	})
 }
 

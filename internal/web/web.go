@@ -210,6 +210,7 @@ func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
 		"last_ingest_time":    snap.LastSuccessfulIngest,
 		"transport_metrics":   snap.Transports,
 		"ingest_rate_per_sec": rateByTransport,
+		"dead_letters_total":  totalDeadLetters(snap.Transports),
 	}
 	writeJSON(w, http.StatusOK, metrics)
 }
@@ -257,9 +258,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	}
 	panel := statuspkg.BuildPanel(statusSnap)
 	fmt.Fprint(w, `</section><section id="panel"><h2>Instrument panel</h2>`)
-	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
+	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
 	for _, h := range statusSnap.Transports {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastHeartbeatAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -314,6 +315,14 @@ func blankIfEmpty(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func totalDeadLetters(transports []statuspkg.TransportReport) uint64 {
+	var total uint64
+	for _, tr := range transports {
+		total += tr.DeadLetters
+	}
+	return total
 }
 
 func escape(v string) string { return strings.ReplaceAll(v, "'", "''") }
