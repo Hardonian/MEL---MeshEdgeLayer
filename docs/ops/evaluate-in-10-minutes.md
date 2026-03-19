@@ -22,6 +22,7 @@ text = p.read_text()
 text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
 p.write_text(text)
 PY
+chmod 600 .tmp/mel.json
 ./bin/mel config validate --config .tmp/mel.json
 ./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json
@@ -35,6 +36,8 @@ Now verify:
 4. run `./bin/mel nodes --config .tmp/mel.json`
 5. run `./bin/mel export --config .tmp/mel.json --out .tmp/export.json`
 6. run `./bin/mel doctor --config .tmp/mel.json` again after ingest
+
+If the second doctor run reports `summary.transport_observations[].state == "historical_ingest_seen"`, MEL is telling you that this transport has prior packets stored locally without over-claiming that it is live right now.
 
 What this proves:
 
@@ -66,6 +69,7 @@ text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp
 text = text.replace('"client_id": "mel-local"', '"client_id": "mel-local", "reconnect_seconds": 1')
 p.write_text(text)
 PY
+chmod 600 .tmp/mel.json
 ./bin/mel config validate --config .tmp/mel.json
 ./bin/mel dev-simulate-mqtt --endpoint 127.0.0.1:18830 --topic msh/US/2/e/test
 ```

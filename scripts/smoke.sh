@@ -12,6 +12,7 @@ text = p.read_text()
 text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
 p.write_text(text)
 PY
+chmod 600 "$CFG"
 mkdir -p .tmp/data
 ./bin/mel config validate --config "$CFG"
 ./bin/mel doctor --config "$CFG" || true
