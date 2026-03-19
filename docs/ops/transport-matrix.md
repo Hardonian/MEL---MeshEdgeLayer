@@ -1,37 +1,22 @@
-# Transport support matrix
+# Transport matrix
 
-This document is the operator-facing truth table for MEL RC1. A row only receives a support label that matches the current code path.
+This file defines support claims for MEL.
 
-## Matrix
+| Transport | Support level | Evidence | Caveats |
+| --- | --- | --- | --- |
+| `serial` | Supported ingest transport | doctor checks, status truth, transport tests, smoke/CLI verification | Requires local tty ownership and `stty`. |
+| `tcp` | Supported ingest transport | doctor checks, status truth, transport tests | Endpoint must expose Meshtastic framing. |
+| `mqtt` | Supported ingest transport | status truth, metrics, smoke verification, transport tests | Subscribe-only; no publish/admin path. |
+| `serialtcp` | Partial alias of direct TCP reader | status truth, transport tests | Not the primary documented workflow. |
+| multi-transport ingest | Supported with caveats | dedupe handling plus doctor warnings | Operator must validate duplicate and ownership behavior. |
+| `ble` | Unsupported | UI/CLI/doc truth only | Feature flags do not change this. |
+| `http` | Unsupported | UI/CLI/doc truth only | No live ingest path exists. |
 
-| Transport / mechanism | Status | Config method | Verification method | Limitations / caveats |
-| --- | --- | --- | --- | --- |
-| `serial` direct-node | Implemented and verified | `type: "serial"`, `serial_device`, optional `serial_baud`, optional `reconnect_seconds` | `mel doctor`; `/api/v1/status`; UI transport table; `mel status`; persisted `messages` / `nodes` | Ingest only. Requires host serial access plus `stty`. MEL does not send or administer the radio. |
-| `tcp` direct-node | Implemented and verified | `type: "tcp"`, `tcp_host` + `tcp_port` or `endpoint` | `mel doctor`; `/api/v1/status`; UI transport table; persisted `messages` / `nodes` | Ingest only. Endpoint must speak Meshtastic stream framing. |
-| `mqtt` ingest | Implemented and verified | `type: "mqtt"`, `endpoint`, `topic`, `client_id` | `mel serve`; `/api/v1/status`; `/api/v1/messages`; `mel export`; repo-local MQTT self-test | Ingest only. `mel doctor` validates config posture but does not attempt broker reachability. |
-| direct + MQTT hybrid ingest | Implemented but partial | enable more than one transport | `mel transports list`; config lint output; doctor output; packet persistence | Duplicate observations and radio ownership contention remain operator responsibilities. |
-| `serialtcp` alias | Experimental / not hardened | `type: "serialtcp"`, `endpoint` | same health surface as direct TCP | Present in code, but not promoted as a primary operator workflow. |
-| `ble` | Explicitly unsupported | `type: "ble"` | transport list / UI show `unsupported` | `features.ble_experimental` does not make BLE work. |
-| `http` | Explicitly unsupported | `type: "http"` | transport list / UI show `unsupported` | No live device implementation exists. |
-| publish / transmit | Planned / not implemented | none | n/a | `SendPacket` returns an error for supported transports. |
-| metadata fetch | Planned / not implemented | none | n/a | `FetchMetadata` returns an error for supported transports. |
-| node fetch from transport | Planned / not implemented | none | n/a | MEL derives node state from observed traffic only. |
-| admin / config apply | Planned / not implemented | none | n/a | No radio control plane is exposed. |
-| multi-node direct ownership | Explicitly unsupported as a product guarantee | multiple direct transports | lint + doctor only | MEL warns about contention; it does not arbitrate ownership. |
+## Supported transport definition
 
-## Verification evidence in repo
+A transport is supported only when MEL has:
 
-- Transport construction: `internal/transport/transport.go`
-- Serial/TCP direct ingest: `internal/transport/direct.go`
-- MQTT ingest: `internal/transport/mqtt.go`
-- Shared ingest and persistence: `internal/service/app.go`
-- Operator-facing health: `internal/web/web.go`, `cmd/mel/main.go`
-- Direct transport tests: `internal/transport/direct_test.go`
-- MQTT transport tests: `internal/transport/mqtt_test.go`
-
-## Selection rules
-
-1. Prefer exactly one direct transport (`serial` or `tcp`) per deployment.
-2. Treat MQTT as an ingest path, not a control path.
-3. Treat hybrid direct + MQTT as a deliberate duplication risk until you have verified your deployment behavior.
-4. If no transport is enabled, MEL starts and remains explicitly idle.
+- real ingest verification,
+- doctor support,
+- documentation coverage,
+- automated tests or smoke evidence.

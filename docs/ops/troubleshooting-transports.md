@@ -1,41 +1,30 @@
-# Troubleshooting transports
+# Transport troubleshooting
 
-## `serial device not found`
+## `configured_offline`
 
-- Confirm the node is attached.
-- Prefer stable `/dev/serial/by-id/...` paths over `/dev/ttyUSB0` when possible.
-- Re-run `mel doctor` after reconnecting the device.
+MEL could not reach the configured serial or TCP path.
 
-## `permission denied reading serial device`
+- Check serial ownership, permissions, and cable state.
+- Check TCP host, port, firewall, and whether the endpoint really exposes Meshtastic framing.
 
-- Add the MEL user to `dialout` or `uucp`.
-- Restart the shell or service after the group change.
-- Re-run `mel doctor` to confirm the device now opens read/write.
+## `connected_no_ingest`
 
-## `connected but idle`
+The transport is connected, but MEL has not yet persisted a packet.
 
-This means MEL connected successfully but has not yet observed a real packet. Check:
+- Generate real traffic on the mesh.
+- Confirm the upstream MQTT topic or direct-node stream is the one carrying packets.
 
-- The node is active.
-- The transport source is the node you expect.
-- Another client is not consuming the stream in a way that prevents MEL from reading it.
+## `historical_only`
 
-## `retrying` after a disconnect
+SQLite contains earlier packets for this transport, but the current command cannot prove a live path.
 
-- MEL previously had the stream open but lost it.
-- On serial links this often means USB re-enumeration, cable instability, or another process stealing the tty.
-- On TCP links this usually means the upstream endpoint closed or became unreachable.
-- MEL will keep retrying on the configured backoff, but it will not hide the last error or claim live ingest until a packet decodes again.
+- Start `mel serve` and wait for `ingesting`.
+- If it never transitions, inspect logs and doctor output.
 
-## `TCP endpoint unreachable`
+## `error`
 
-- Confirm the host and port are correct.
-- Confirm the endpoint really serves a Meshtastic-compatible stream, not an HTTP UI or another protocol.
-- Check firewall and bind settings on the remote host.
+The transport surfaced a concrete error, malformed input, duplicate drop, or handler failure.
 
-## Device disappears after reboot or replug
-
-- Use `/dev/serial/by-id/...` in production configs.
-- MEL retries automatically, but it cannot recover if the configured path never comes back.
-- `mel doctor` will distinguish missing devices from permission failures.
-- Idle serial reads are configured to wake periodically, so shutdown and disconnect detection should not wedge forever on a blocked Linux/Pi read.
+- Re-run `mel doctor`.
+- Inspect `mel logs tail` and `/api/v1/status`.
+- Fix the underlying cause before trusting the transport again.

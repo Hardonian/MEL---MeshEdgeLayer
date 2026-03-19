@@ -6,6 +6,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	status "github.com/mel-project/mel/internal/status"
 )
 
 func TestDoctorTransportChecksSerialMissing(t *testing.T) {
@@ -29,27 +30,57 @@ func TestDoctorTransportObservationsHistoricalIngest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := database.InsertMessage(map[string]any{"transport_name": "radio", "packet_id": int64(1), "dedupe_hash": "abc", "channel_id": "", "gateway_id": "", "from_node": int64(1), "to_node": int64(2), "portnum": int64(1), "payload_text": "hi", "payload_json": map[string]any{"transport_name": "radio"}, "raw_hex": "01", "rx_time": "2026-03-18T00:00:00Z", "hop_limit": int64(3), "relay_node": int64(0)}); err != nil {
+	inserted, err := database.InsertMessage(map[string]any{
+		"transport_name": "radio",
+		"packet_id":      int64(1),
+		"dedupe_hash":    "abc",
+		"channel_id":     "",
+		"gateway_id":     "",
+		"from_node":      int64(1),
+		"to_node":        int64(2),
+		"portnum":        int64(1),
+		"payload_text":   "hi",
+		"payload_json":   map[string]any{"transport_name": "radio", "message_type": "text"},
+		"raw_hex":        "01",
+		"rx_time":        "2026-03-18T00:00:00Z",
+		"hop_limit":      int64(3),
+		"relay_node":     int64(0),
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	obs := doctorTransportObservations(cfg, database)
-	if len(obs) != 1 || obs[0]["state"] != "historical_ingest_seen" {
-		t.Fatalf("unexpected observations: %+v", obs)
+	if !inserted {
+		t.Fatal("expected insert")
+	}
+	snap, err := status.Collect(cfg, database, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Transports) != 1 || snap.Transports[0].EffectiveState != "historical_only" {
+		t.Fatalf("unexpected status snapshot: %+v", snap.Transports)
 	}
 }
 
-func TestTransportCapabilitySummary(t *testing.T) {
+func TestStatusCollectsCapabilitySummary(t *testing.T) {
 	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
 	cfg.Transports = []config.TransportConfig{{Name: "radio", Type: "tcp", Enabled: true, TCPHost: "127.0.0.1", TCPPort: 4403}}
-	summary := transportCapabilitySummary(cfg)
-	if len(summary) != 1 {
-		t.Fatalf("unexpected summary len %d", len(summary))
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
-	caps, ok := summary[0]["capabilities"]
-	if !ok || caps == nil {
-		t.Fatalf("missing capabilities: %+v", summary[0])
+	snap, err := status.Collect(cfg, database, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if summary[0]["state"] != "configured_not_attempted" {
-		t.Fatalf("expected truthful offline state, got %+v", summary[0])
+	if len(snap.Transports) != 1 {
+		t.Fatalf("unexpected summary len %d", len(snap.Transports))
+	}
+	if snap.Transports[0].Capabilities.ImplementationStatus == "" {
+		t.Fatalf("missing capabilities: %+v", snap.Transports[0])
+	}
+	if snap.Transports[0].RuntimeState != "configured_not_attempted" {
+		t.Fatalf("expected truthful offline state, got %+v", snap.Transports[0])
 	}
 }

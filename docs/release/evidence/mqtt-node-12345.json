@@ -1,0 +1,14 @@
+{
+  "altitude": 0,
+  "last_gateway_id": "!gateway",
+  "last_rssi": 42,
+  "last_seen": "2026-03-19T01:14:46Z",
+  "last_snr": 0,
+  "lat_redacted": 0,
+  "lon_redacted": 0,
+  "long_name": "Relay Node",
+  "message_count": 1,
+  "node_id": "!abcd1234",
+  "node_num": 12345,
+  "short_name": "RN"
+}

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,22 +21,36 @@ func Open(cfg config.Config) (*DB, error) {
 		return nil, err
 	}
 	db := &DB{Path: cfg.Storage.DatabasePath}
-	if err := db.ApplyMigrations(migrationPath()); err != nil {
+	if err := db.ApplyMigrations(migrationDir()); err != nil {
 		return nil, err
 	}
 	return db, nil
 }
 
-func (d *DB) ApplyMigrations(path string) error {
-	b, err := os.ReadFile(path)
+func (d *DB) ApplyMigrations(dir string) error {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("sqlite3", d.Path)
-	cmd.Stdin = strings.NewReader(string(b))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("sqlite3 migrate: %w: %s", err, out)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+		cmd := exec.Command("sqlite3", d.Path)
+		cmd.Stdin = strings.NewReader(string(b))
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("sqlite3 migrate %s: %w: %s", name, err, out)
+		}
 	}
 	return nil
 }
@@ -101,11 +116,17 @@ func (d *DB) SchemaVersion() (string, error) {
 
 func esc(v string) string { return strings.ReplaceAll(v, "'", "''") }
 
-func (d *DB) InsertMessage(m map[string]any) error {
+func (d *DB) InsertMessage(m map[string]any) (bool, error) {
 	payloadJSON, _ := json.Marshal(m["payload_json"])
-	sql := fmt.Sprintf(`INSERT OR IGNORE INTO messages(transport_name,packet_id,dedupe_hash,channel_id,gateway_id,from_node,to_node,portnum,payload_text,payload_json,raw_hex,rx_time,hop_limit,relay_node) VALUES('%s',%d,'%s','%s','%s',%d,%d,%d,'%s','%s','%s','%s',%d,%d);`,
-		esc(asString(m["transport_name"])), asInt(m["packet_id"]), esc(asString(m["dedupe_hash"])), esc(asString(m["channel_id"])), esc(asString(m["gateway_id"])), asInt(m["from_node"]), asInt(m["to_node"]), asInt(m["portnum"]), esc(asString(m["payload_text"])), esc(string(payloadJSON)), esc(asString(m["raw_hex"])), esc(asString(m["rx_time"])), asInt(m["hop_limit"]), asInt(m["relay_node"]))
-	return d.Exec(sql)
+	rows, err := d.QueryRows(fmt.Sprintf(`INSERT OR IGNORE INTO messages(transport_name,packet_id,dedupe_hash,channel_id,gateway_id,from_node,to_node,portnum,payload_text,payload_json,raw_hex,rx_time,hop_limit,relay_node) VALUES('%s',%d,'%s','%s','%s',%d,%d,%d,'%s','%s','%s','%s',%d,%d); SELECT changes() AS changes;`,
+		esc(asString(m["transport_name"])), asInt(m["packet_id"]), esc(asString(m["dedupe_hash"])), esc(asString(m["channel_id"])), esc(asString(m["gateway_id"])), asInt(m["from_node"]), asInt(m["to_node"]), asInt(m["portnum"]), esc(asString(m["payload_text"])), esc(string(payloadJSON)), esc(asString(m["raw_hex"])), esc(asString(m["rx_time"])), asInt(m["hop_limit"]), asInt(m["relay_node"])))
+	if err != nil {
+		return false, err
+	}
+	if len(rows) == 0 {
+		return false, nil
+	}
+	return asInt(rows[0]["changes"]) > 0, nil
 }
 
 func (d *DB) UpsertNode(m map[string]any) error {
@@ -168,8 +189,8 @@ func asFloat(v any) float64 {
 	return f
 }
 
-func migrationPath() string {
+func migrationDir() string {
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	return filepath.Join(root, "migrations", "0001_init.sql")
+	return filepath.Join(root, "migrations")
 }

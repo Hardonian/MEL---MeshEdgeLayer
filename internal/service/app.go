@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/retention"
+	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/web"
 )
@@ -32,8 +34,8 @@ type App struct {
 	Plugins    []plugins.Plugin
 }
 
-func New(cfg config.Config) (*App, error) {
-	log := logging.New()
+func New(cfg config.Config, debug bool) (*App, error) {
+	log := logging.New(cfg.Logging.Level, debug)
 	database, err := db.Open(cfg)
 	if err != nil {
 		return nil, err
@@ -41,7 +43,7 @@ func New(cfg config.Config) (*App, error) {
 	bus := events.New()
 	state := meshstate.New()
 	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}}
-	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations)
+	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot)
 	for _, tc := range cfg.Transports {
 		t, err := transport.Build(tc, log, bus)
 		if err != nil {
@@ -59,6 +61,10 @@ func (a *App) TransportHealth() []transport.Health {
 		out = append(out, t.Health())
 	}
 	return out
+}
+
+func (a *App) statusSnapshot() (statuspkg.Snapshot, error) {
+	return statuspkg.Collect(a.Cfg, a.DB, a.TransportHealth())
 }
 
 func (a *App) Start(ctx context.Context) error {
@@ -101,8 +107,9 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 			return
 		default:
 		}
+		a.Log.Debug("transport_attempt", "attempting transport connect", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		if err := t.Connect(ctx); err != nil {
-			a.Log.Error("transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
+			a.Log.Error("transport_failed", "transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			select {
 			case <-ctx.Done():
@@ -111,8 +118,9 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 				continue
 			}
 		}
-		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t.Name(), topic, payload) }); err != nil && ctx.Err() == nil {
-			a.Log.Error("transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+		a.Log.Info("transport_connected", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
+		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t, topic, payload) }); err != nil && ctx.Err() == nil {
+			a.Log.Error("transport_failed", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		}
 		_ = t.Close(context.Background())
@@ -133,44 +141,94 @@ func findTransport(cfg config.Config, name string) config.TransportConfig {
 	return config.TransportConfig{}
 }
 
-func (a *App) ingest(transportName, topic string, payload []byte) error {
+func (a *App) ingest(t transport.Transport, topic string, payload []byte) error {
 	env, err := meshtastic.ParseEnvelope(payload)
 	if err != nil {
+		a.Log.Error("ingest_dropped", "failed to parse packet", map[string]any{"transport": t.Name(), "error": err.Error()})
+		t.MarkDrop("failed to parse packet")
 		return err
 	}
+	rxAt := time.Now().UTC()
 	rxTime := time.Unix(int64(env.Packet.RXTime), 0).UTC().Format(time.RFC3339)
 	if env.Packet.RXTime == 0 {
-		rxTime = time.Now().UTC().Format(time.RFC3339)
+		rxTime = rxAt.Format(time.RFC3339)
 	}
-	payloadJSON := map[string]any{"node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "topic": topic, "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "transport_name": transportName}
-	if env.Packet.Lat != nil || env.Packet.Lon != nil || env.Packet.Altitude != 0 {
-		payloadJSON["position"] = map[string]any{"lat": meshtastic.RedactCoord(env.Packet.Lat), "lon": meshtastic.RedactCoord(env.Packet.Lon), "altitude": env.Packet.Altitude}
-	}
-	msg := map[string]any{"transport_name": transportName, "packet_id": int64(env.Packet.ID), "dedupe_hash": meshtastic.DedupeHash(env), "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "from_node": int64(env.Packet.From), "to_node": int64(env.Packet.To), "portnum": int64(env.Packet.PortNum), "payload_text": env.Packet.PayloadText, "payload_json": payloadJSON, "raw_hex": env.RawHex, "rx_time": rxTime, "hop_limit": int64(env.Packet.HopLimit), "relay_node": int64(env.Packet.RelayNode)}
-	if err := a.DB.InsertMessage(msg); err != nil {
+	messageType, payloadJSON, telemetryType, telemetryValue := buildPayloadEnvelope(t.Name(), topic, env)
+	msg := map[string]any{"transport_name": t.Name(), "packet_id": int64(env.Packet.ID), "dedupe_hash": meshtastic.DedupeHash(env), "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "from_node": int64(env.Packet.From), "to_node": int64(env.Packet.To), "portnum": int64(env.Packet.PortNum), "payload_text": env.Packet.PayloadText, "payload_json": payloadJSON, "raw_hex": env.RawHex, "rx_time": rxTime, "hop_limit": int64(env.Packet.HopLimit), "relay_node": int64(env.Packet.RelayNode)}
+	inserted, err := a.DB.InsertMessage(msg)
+	if err != nil {
+		a.Log.Error("db_error", "message insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+		t.MarkDrop("database write failed")
 		return err
+	}
+	if !inserted {
+		a.Log.Info("ingest_dropped", "duplicate message ignored", map[string]any{"transport": t.Name(), "dedupe_hash": msg["dedupe_hash"]})
+		t.MarkDrop("duplicate packet ignored after dedupe")
+		return nil
 	}
 	node := map[string]any{"node_num": int64(env.Packet.From), "node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "last_seen": rxTime, "last_gateway_id": env.GatewayID, "last_snr": float64(env.Packet.RXSNR), "last_rssi": int64(env.Packet.RXRSSI), "lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude)}
 	if err := a.DB.UpsertNode(node); err != nil {
+		a.Log.Error("db_error", "node upsert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+		t.MarkDrop("node upsert failed")
 		return err
 	}
-	if env.Packet.Lat != nil || env.Packet.Lon != nil || env.Packet.Altitude != 0 {
-		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), "position", map[string]any{"lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude), "transport_name": transportName}, rxTime); err != nil {
+	if telemetryType != "" {
+		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), telemetryType, telemetryValue, rxTime); err != nil {
+			a.Log.Error("db_error", "telemetry insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			t.MarkDrop("telemetry insert failed")
 			return err
 		}
 	}
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
+	t.MarkIngest(rxAt)
 	summary := strings.TrimSpace(env.Packet.PayloadText)
 	if summary == "" {
-		summary = fmt.Sprintf("port %d packet", env.Packet.PortNum)
+		summary = fmt.Sprintf("%s packet", messageType)
 	}
-	evt := events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d (%s)", transportName, env.Packet.From, summary)}
+	evt := events.Event{Type: "meshtastic.packet", Data: fmt.Sprintf("%s packet from %d (%s)", t.Name(), env.Packet.From, summary)}
 	a.Bus.Publish(evt)
 	for _, p := range a.Plugins {
 		if alert := p.Handle(evt); alert != nil {
 			_ = a.DB.InsertAuditLog("plugin", "warning", alert.Message, alert)
 		}
 	}
+	a.Log.Info("ingest_received", "message persisted", map[string]any{"transport": t.Name(), "message_type": messageType, "from_node": env.Packet.From, "portnum": env.Packet.PortNum})
 	return nil
 }
+
+func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) (string, map[string]any, string, map[string]any) {
+	messageType := meshtastic.MessageType(env.Packet)
+	payloadJSON := map[string]any{
+		"node_id":         env.Packet.NodeID,
+		"long_name":       env.Packet.LongName,
+		"short_name":      env.Packet.ShortName,
+		"topic":           topic,
+		"channel_id":      env.ChannelID,
+		"gateway_id":      env.GatewayID,
+		"transport_name":  transportName,
+		"message_type":    messageType,
+		"raw_payload_hex": env.Packet.PayloadHex(),
+	}
+	telemetryType := ""
+	telemetryValue := map[string]any{}
+	switch messageType {
+	case "position":
+		payloadJSON["position"] = map[string]any{"lat": meshtastic.RedactCoord(env.Packet.Lat), "lon": meshtastic.RedactCoord(env.Packet.Lon), "altitude": env.Packet.Altitude}
+		telemetryType = "position"
+		telemetryValue = map[string]any{"lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude), "transport_name": transportName}
+	case "node_info":
+		payloadJSON["user"] = map[string]any{"node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName}
+	case "telemetry":
+		payloadJSON["telemetry"] = map[string]any{"parser": "raw", "note": "payload stored as raw bytes because this repo does not vendor the full telemetry protobuf schema"}
+		telemetryType = "telemetry_raw"
+		telemetryValue = map[string]any{"transport_name": transportName, "raw_payload_hex": env.Packet.PayloadHex(), "portnum": env.Packet.PortNum}
+	case "text":
+		payloadJSON["text"] = strings.TrimSpace(env.Packet.PayloadText)
+	default:
+		payloadJSON["unknown"] = true
+	}
+	return messageType, payloadJSON, telemetryType, telemetryValue
+}
+
+var errDuplicateMessage = errors.New("duplicate message ignored")

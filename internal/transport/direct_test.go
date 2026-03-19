@@ -70,7 +70,7 @@ func TestDirectSubscribe(t *testing.T) {
 	packet := testPacket()
 	fromRadio := append([]byte{directStart1, directStart2, 0x00, byte(len(packet))}, packet...)
 	reader := bytes.NewBuffer(fromRadio)
-	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New("debug", true), events.New())
 	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
 		return &rwc{Reader: reader, Writer: io.Discard}, nil
 	}
@@ -81,7 +81,12 @@ func TestDirectSubscribe(t *testing.T) {
 	}
 	got := make(chan []byte, 1)
 	go func() {
-		_ = transport.Subscribe(ctx, func(topic string, payload []byte) error { got <- payload; cancel(); return nil })
+		_ = transport.Subscribe(ctx, func(topic string, payload []byte) error {
+			transport.MarkIngest(time.Now())
+			got <- payload
+			cancel()
+			return nil
+		})
 	}()
 	select {
 	case payload := <-got:
@@ -92,7 +97,7 @@ func TestDirectSubscribe(t *testing.T) {
 		t.Fatal("timeout waiting for direct payload")
 	}
 	h := transport.Health()
-	if h.PacketsRead != 1 || !h.OK || h.State != directStateConnectedIngest {
+	if h.TotalMessages != 1 || !h.OK || h.State != StateIngesting {
 		t.Fatalf("unexpected health: %+v", h)
 	}
 }
@@ -104,7 +109,7 @@ func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
 	reader := &timeoutReader{}
 	reader.buf.Write(invalid)
 	reader.buf.Write(valid)
-	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New("debug", true), events.New())
 	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
 		return reader, nil
 	}
@@ -115,7 +120,12 @@ func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
 	}
 	got := make(chan []byte, 1)
 	go func() {
-		_ = transport.Subscribe(ctx, func(topic string, payload []byte) error { got <- payload; cancel(); return nil })
+		_ = transport.Subscribe(ctx, func(topic string, payload []byte) error {
+			transport.MarkIngest(time.Now())
+			got <- payload
+			cancel()
+			return nil
+		})
 	}()
 	select {
 	case <-got:
@@ -123,13 +133,13 @@ func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
 		t.Fatal("timeout waiting for payload after malformed frame")
 	}
 	h := transport.Health()
-	if h.PacketsRead != 1 || h.PacketsDropped == 0 || h.State != directStateConnectedIngest {
+	if h.TotalMessages != 1 || h.PacketsDropped == 0 || h.State != StateIngesting {
 		t.Fatalf("unexpected health after malformed frame recovery: %+v", h)
 	}
 }
 
 func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
-	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New(), events.New())
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New("debug", true), events.New())
 	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
 		return &timeoutReader{}, nil
 	}
@@ -150,7 +160,7 @@ func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
 		t.Fatal("subscribe did not exit after context cancellation")
 	}
 	h := transport.Health()
-	if h.State != directStateConnectedIdle {
+	if h.State != StateConnectedNoIngest {
 		t.Fatalf("expected idle state to remain truthful, got %+v", h)
 	}
 }

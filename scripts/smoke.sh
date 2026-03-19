@@ -16,13 +16,17 @@ chmod 600 "$CFG"
 mkdir -p .tmp/data
 ./bin/mel config validate --config "$CFG"
 ./bin/mel doctor --config "$CFG" || true
+./bin/mel status --config "$CFG" >/dev/null
+./bin/mel replay --config "$CFG" --limit 5 >/dev/null
 ./bin/mel export --config "$CFG" --out .tmp/export.json >/dev/null
 ./bin/mel import validate --bundle .tmp/export.json
 ./bin/mel backup create --config "$CFG" --out .tmp/backup.tgz >/dev/null
 ./bin/mel backup restore --bundle .tmp/backup.tgz --dry-run --destination .tmp/restore-preview
-(./bin/mel serve --config "$CFG" >.tmp/agent.log 2>&1 & echo $! >.tmp/agent.pid)
+(./bin/mel serve --debug --config "$CFG" >.tmp/agent.log 2>&1 & echo $! >.tmp/agent.pid)
 sleep 2
 curl -fsS http://127.0.0.1:8080/healthz >/dev/null
 curl -fsS http://127.0.0.1:8080/api/v1/status >/dev/null
+curl -fsS http://127.0.0.1:8080/api/v1/messages >/dev/null
+curl -fsS http://127.0.0.1:8080/metrics >/dev/null
 kill "$(cat .tmp/agent.pid)"
 wait "$(cat .tmp/agent.pid)" 2>/dev/null || true

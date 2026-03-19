@@ -14,11 +14,11 @@ func TestOpenAppliesMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := d.QueryJSON("SELECT version FROM schema_migrations;")
+	rows, err := d.QueryJSON("SELECT version FROM schema_migrations ORDER BY version;")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) == 0 {
-		t.Fatal("expected schema migration row")
+	if len(rows) < 2 {
+		t.Fatalf("expected both schema migrations, got %v", rows)
 	}
 }

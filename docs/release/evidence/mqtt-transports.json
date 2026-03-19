@@ -1,0 +1,34 @@
+{
+  "contention_warning": false,
+  "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT dedupes only when both paths expose byte-identical mesh packet payloads, so operators must still verify duplicate behavior in their own deployment",
+  "transports": [
+    {
+      "name": "local-mqtt",
+      "type": "mqtt",
+      "source": "127.0.0.1:18830",
+      "enabled": true,
+      "effective_state": "historical_only",
+      "runtime_state": "configured_not_attempted",
+      "persisted_state": "historical_only",
+      "status_scope": "persisted_only",
+      "detail": "historical ingest exists (1 stored messages); current runtime state is not proven live",
+      "guidance": "Past messages exist, but this command cannot prove current live connectivity.",
+      "last_ingest_at": "2026-03-19T01:14:46Z",
+      "total_messages": 0,
+      "persisted_messages": 1,
+      "error_count": 0,
+      "dropped_count": 0,
+      "reconnect_attempts": 0,
+      "capabilities": {
+        "ingest_supported": true,
+        "send_supported": false,
+        "metadata_fetch_supported": false,
+        "node_fetch_supported": false,
+        "health_supported": true,
+        "config_apply_supported": false,
+        "implementation_status": "supported",
+        "notes": "real MQTT subscribe path; MEL does not claim publish/config control in this milestone"
+      }
+    }
+  ]
+}

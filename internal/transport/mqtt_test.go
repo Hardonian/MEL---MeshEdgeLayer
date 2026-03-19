@@ -20,7 +20,7 @@ func TestMQTTSubscribe(t *testing.T) {
 	}
 	defer ln.Close()
 	cfg := config.TransportConfig{Name: "test", Type: "mqtt", Endpoint: ln.Addr().String(), Topic: "msh/test", ClientID: "mel-test"}
-	m := NewMQTT(cfg, logging.New(), events.New())
+	m := NewMQTT(cfg, logging.New("debug", true), events.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
@@ -46,7 +46,12 @@ func TestMQTTSubscribe(t *testing.T) {
 	}
 	got := make(chan []byte, 1)
 	go func() {
-		_ = m.Subscribe(ctx, func(topic string, payload []byte) error { got <- payload; cancel(); return nil })
+		_ = m.Subscribe(ctx, func(topic string, payload []byte) error {
+			m.MarkIngest(time.Now())
+			got <- payload
+			cancel()
+			return nil
+		})
 	}()
 	select {
 	case p := <-got:

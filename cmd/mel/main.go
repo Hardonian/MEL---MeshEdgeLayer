@@ -18,12 +18,11 @@ import (
 	"github.com/mel-project/mel/internal/backup"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
-	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/service"
-	"github.com/mel-project/mel/internal/transport"
+	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -65,6 +64,8 @@ func main() {
 		privacyCmd(os.Args[2:])
 	case "backup":
 		backupCmd(os.Args[2:])
+	case "replay":
+		replayCmd(os.Args[2:])
 	case "dev-simulate-mqtt":
 		simulateCmd(os.Args[2:])
 	default:
@@ -79,11 +80,12 @@ func usage() {
   version
   doctor --config <path>
   config validate --config <path>
-  serve --config <path>
+  serve [--debug] --config <path>
   status --config <path>
   nodes --config <path>
   node inspect <node-id> --config <path>
   transports list --config <path>
+  replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
   privacy audit [--format json|text] --config <path>
   policy explain --config <path>
   export --config <path> [--out path]
@@ -127,19 +129,27 @@ func configCmd(args []string) {
 	if len(args) == 0 || args[0] != "validate" {
 		panic("usage: mel config validate --config <path>")
 	}
-	cfg, _ := loadCfg(args[1:])
-	if err := config.Validate(cfg); err != nil {
-		panic(err)
+	cfg, path := loadCfg(args[1:])
+	findings := validateConfigFile(path, cfg)
+	mustPrint(map[string]any{"status": map[bool]string{true: "valid", false: "invalid"}[len(findings) == 0], "findings": findings, "lints": config.LintConfig(cfg)})
+	if len(findings) > 0 {
+		os.Exit(1)
 	}
-	mustPrint(map[string]any{"status": "valid", "lints": config.LintConfig(cfg)})
 }
 
 func serveCmd(args []string) {
-	cfg, path := loadCfg(args)
-	if err := security.CheckFileMode(path); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	f := fs("serve")
+	path := f.String("config", "configs/mel.example.json", "config")
+	debug := f.Bool("debug", false, "enable debug logging")
+	_ = f.Parse(args)
+	cfg, _, err := config.Load(*path)
+	if err != nil {
+		panic(err)
 	}
-	app, err := service.New(cfg)
+	if err := requireConfigMode(*path); err != nil {
+		panic(err)
+	}
+	app, err := service.New(cfg, *debug)
 	if err != nil {
 		panic(err)
 	}
@@ -152,47 +162,54 @@ func serveCmd(args []string) {
 
 func doctorCmd(args []string) {
 	cfg, path := loadCfg(args)
-	findings := make([]map[string]string, 0)
-	if err := config.Validate(cfg); err != nil {
-		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
-	}
+	findings := validateConfigFile(path, cfg)
 	database, err := db.Open(cfg)
 	if err != nil {
-		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error()})
+		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error(), "guidance": "Fix storage.database_path or parent directory permissions before launch."})
 	}
-	if info, err := os.Stat(cfg.Storage.DataDir); err != nil {
-		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": err.Error()})
-	} else if !info.IsDir() {
-		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": "data_dir is not a directory"})
-	}
-	if err := security.CheckFileMode(path); err != nil {
-		findings = append(findings, map[string]string{"component": "config_file", "severity": "medium", "message": err.Error()})
-	}
-	for _, lint := range config.LintConfig(cfg) {
-		findings = append(findings, map[string]string{"component": lint.ID, "severity": lint.Severity, "message": lint.Message})
-	}
+	dbChecks := map[string]any{"path": cfg.Storage.DatabasePath, "write_ok": false, "read_ok": false}
 	if database != nil {
 		if schemaVersion, err := database.SchemaVersion(); err != nil {
-			findings = append(findings, map[string]string{"component": "schema", "severity": "critical", "message": err.Error()})
-		} else if schemaVersion != "0001_init" {
-			findings = append(findings, map[string]string{"component": "schema", "severity": "high", "message": "unexpected schema version " + schemaVersion})
+			findings = append(findings, map[string]string{"component": "schema", "severity": "critical", "message": err.Error(), "guidance": "Migrations must complete before launch."})
+		} else {
+			dbChecks["schema_version"] = schemaVersion
 		}
-		if err := database.Exec("CREATE TEMP TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
-			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error()})
+		if err := database.Exec("CREATE TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
+			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error(), "guidance": "Ensure sqlite3 can write to the configured database path."})
+		} else {
+			dbChecks["write_ok"] = true
+			if value, err := database.Scalar("SELECT v FROM doctor_write_check LIMIT 1;"); err != nil || value != "1" {
+				findings = append(findings, map[string]string{"component": "db_read", "severity": "critical", "message": firstError(err, fmt.Sprintf("unexpected readback value %q", value)), "guidance": "Doctor must be able to read back its temporary validation row."})
+			} else {
+				dbChecks["read_ok"] = true
+			}
 		}
 	}
-	for _, check := range doctorTransportChecks(cfg) {
-		findings = append(findings, check)
+	statusSnap, statusErr := statuspkg.Collect(cfg, database, nil)
+	if statusErr != nil {
+		findings = append(findings, map[string]string{"component": "status", "severity": "high", "message": statusErr.Error(), "guidance": "Fix transport or database reporting before relying on doctor output."})
 	}
+	findings = append(findings, doctorTransportChecks(cfg)...)
 	out := map[string]any{
-		"config":   path,
-		"findings": findings,
+		"doctor_version": "v2",
+		"config":         path,
+		"findings":       findings,
+		"db":             dbChecks,
 		"summary": map[string]any{
 			"privacy_findings":       privacy.Summary(privacy.Audit(cfg)),
 			"enabled_transports":     enabledTransportNames(cfg),
-			"last_successful_ingest": latestIngestTimestamp(database),
-			"transport_capabilities": transportCapabilitySummary(cfg),
-			"transport_observations": doctorTransportObservations(cfg, database),
+			"last_successful_ingest": statusSnap.LastSuccessfulIngest,
+			"transport_status":       statusSnap.Transports,
+			"what_mel_does": []string{
+				"observes configured transports and persists received packets to SQLite",
+				"reports live vs historical transport truth without inventing traffic",
+				"exposes read-only HTTP status, nodes, messages, and metrics endpoints",
+			},
+			"what_mel_does_not_do": []string{
+				"does not claim unsupported Meshtastic transports or send capability",
+				"does not prove hardware validation that was not exercised in this environment",
+				"does not mark ingest successful unless the message was written to SQLite",
+			},
 		},
 	}
 	mustPrint(out)
@@ -204,25 +221,17 @@ func doctorCmd(args []string) {
 func statusCmd(args []string) {
 	cfg, _ := loadCfg(args)
 	d := openDB(cfg)
-	nodes, _ := d.Scalar("SELECT COUNT(*) FROM nodes;")
-	messages, _ := d.Scalar("SELECT COUNT(*) FROM messages;")
-	schemaVersion, _ := d.SchemaVersion()
-	mustPrint(map[string]any{
-		"bind":                       cfg.Bind.API,
-		"bind_local_only":            !cfg.Bind.AllowRemote,
-		"schema_version":             schemaVersion,
-		"nodes":                      nodes,
-		"messages":                   messages,
-		"last_successful_ingest":     latestIngestTimestamp(d),
-		"configured_transport_modes": enabledTransportModes(cfg),
-		"transports":                 configuredTransportConfigs(cfg),
-	})
+	snap, err := statuspkg.Collect(cfg, d, nil)
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(snap)
 }
 
 func nodesCmd(args []string) {
 	cfg, _ := loadCfg(args)
 	d := openDB(cfg)
-	rows, err := d.QueryRows("SELECT node_num,node_id,long_name,short_name,last_seen,last_gateway_id,lat_redacted,lon_redacted,altitude,last_snr,last_rssi FROM nodes ORDER BY updated_at DESC;")
+	rows, err := d.QueryRows("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n ORDER BY updated_at DESC;")
 	if err != nil {
 		panic(err)
 	}
@@ -236,7 +245,7 @@ func nodeCmd(args []string) {
 	target := args[1]
 	cfg, _ := loadCfg(args[2:])
 	d := openDB(cfg)
-	rows, err := d.QueryRows(fmt.Sprintf("SELECT node_num,node_id,long_name,short_name,last_seen,last_gateway_id,lat_redacted,lon_redacted,altitude,last_snr,last_rssi FROM nodes WHERE CAST(node_num AS TEXT)='%s' OR node_id='%s' LIMIT 1;", escape(target), escape(target)))
+	rows, err := d.QueryRows(fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE CAST(n.node_num AS TEXT)='%s' OR n.node_id='%s' LIMIT 1;", escape(target), escape(target)))
 	if err != nil {
 		panic(err)
 	}
@@ -251,7 +260,37 @@ func transportsCmd(args []string) {
 		panic("usage: mel transports list --config <path>")
 	}
 	cfg, _ := loadCfg(args[1:])
-	mustPrint(map[string]any{"transports": transportCapabilitySummary(cfg), "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT dedupes only when both paths expose byte-identical mesh packet payloads, so operators must still verify duplicate behavior in their own deployment"})
+	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil)
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(map[string]any{"transports": snap.Transports, "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT dedupes only when both paths expose byte-identical mesh packet payloads, so operators must still verify duplicate behavior in their own deployment"})
+}
+
+func replayCmd(args []string) {
+	f := fs("replay")
+	path := f.String("config", "configs/mel.example.json", "config")
+	node := f.String("node", "", "filter by node number")
+	messageType := f.String("type", "", "filter by message type")
+	limit := f.Int("limit", 50, "maximum rows")
+	_ = f.Parse(args)
+	cfg, _, err := config.Load(*path)
+	if err != nil {
+		panic(err)
+	}
+	d := openDB(cfg)
+	clauses := []string{"1=1"}
+	if *node != "" {
+		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(*node), escape(*node)))
+	}
+	if *messageType != "" {
+		clauses = append(clauses, fmt.Sprintf("payload_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"message_type\":\"%s\"`, *messageType))))
+	}
+	rows, err := d.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), *limit))
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(map[string]any{"messages": rows, "filters": map[string]any{"node": *node, "type": *messageType, "limit": *limit}})
 }
 
 func dbCmd(args []string) {
@@ -280,7 +319,7 @@ func exportCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
-	messages, err := d.QueryRows("SELECT transport_name,packet_id,channel_id,gateway_id,from_node,to_node,portnum,payload_text,rx_time FROM messages ORDER BY id DESC LIMIT 250;")
+	messages, err := d.QueryRows("SELECT transport_name,packet_id,channel_id,gateway_id,from_node,to_node,portnum,payload_text,payload_json,rx_time FROM messages ORDER BY id DESC LIMIT 250;")
 	if err != nil {
 		panic(err)
 	}
@@ -401,50 +440,26 @@ func backupCmd(args []string) {
 	}
 }
 
-func latestIngestTimestamp(d *db.DB) string {
-	if d == nil {
-		return ""
+func validateConfigFile(path string, cfg config.Config) []map[string]string {
+	findings := make([]map[string]string, 0)
+	if err := config.Validate(cfg); err != nil {
+		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error(), "guidance": "Fix the listed config validation errors before launching MEL."})
 	}
-	v, _ := d.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
-	return v
+	if err := requireConfigMode(path); err != nil {
+		findings = append(findings, map[string]string{"component": "config_file", "severity": "high", "message": err.Error(), "guidance": "Operator config files must be chmod 600 before MEL will trust them in production."})
+	}
+	if info, err := os.Stat(cfg.Storage.DataDir); err != nil {
+		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": err.Error(), "guidance": "Create the data directory and grant MEL access before launch."})
+	} else if !info.IsDir() {
+		findings = append(findings, map[string]string{"component": "data_dir", "severity": "high", "message": "data_dir is not a directory", "guidance": "Point storage.data_dir at a writable directory."})
+	}
+	for _, lint := range config.LintConfig(cfg) {
+		findings = append(findings, map[string]string{"component": lint.ID, "severity": lint.Severity, "message": lint.Message, "guidance": lint.Remediation})
+	}
+	return findings
 }
 
-func configuredTransportConfigs(cfg config.Config) []config.TransportConfig {
-	if cfg.Transports == nil {
-		return []config.TransportConfig{}
-	}
-	return cfg.Transports
-}
-
-func enabledTransportModes(cfg config.Config) []string {
-	out := make([]string, 0)
-	for _, t := range cfg.Transports {
-		if t.Enabled {
-			out = append(out, t.Type)
-		}
-	}
-	return out
-}
-
-func transportCapabilitySummary(cfg config.Config) []map[string]any {
-	out := make([]map[string]any, 0)
-	for _, tc := range cfg.Transports {
-		t, err := transport.Build(tc, nil, events.New())
-		entry := map[string]any{"name": tc.Name, "type": tc.Type, "enabled": tc.Enabled, "source": tc.SourceLabel(), "notes": tc.Notes}
-		if err != nil {
-			entry["implementation_status"] = "unsupported"
-			entry["error"] = err.Error()
-			out = append(out, entry)
-			continue
-		}
-		entry["capabilities"] = t.Capabilities()
-		entry["implementation_status"] = t.Capabilities().ImplementationStatus
-		entry["state"] = t.Health().State
-		entry["detail"] = t.Health().Detail
-		out = append(out, entry)
-	}
-	return out
-}
+func requireConfigMode(path string) error { return security.CheckFileMode(path) }
 
 func doctorTransportChecks(cfg config.Config) []map[string]string {
 	findings := make([]map[string]string, 0)
@@ -504,7 +519,9 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 				_ = conn.Close()
 			}
 		case "mqtt":
-			// validated elsewhere; no reachability attempt here to keep doctor offline-safe.
+			if !strings.Contains(t.Topic, "msh/") {
+				findings = append(findings, map[string]string{"component": t.Name, "severity": "medium", "message": "MQTT topic does not look like a Meshtastic topic filter: " + t.Topic, "guidance": "Confirm the broker topic pattern matches the packet feed you expect MEL to ingest."})
+			}
 		}
 	}
 	if enabled == 0 {
@@ -514,64 +531,6 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention", "guidance": "Run one direct serial/TCP attachment path at a time unless you have proven shared radio ownership outside MEL."})
 	}
 	return findings
-}
-
-func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]any {
-	observations := make([]map[string]any, 0)
-	for _, t := range cfg.Transports {
-		if !t.Enabled {
-			continue
-		}
-		observation := map[string]any{
-			"name":   t.Name,
-			"type":   t.Type,
-			"source": t.SourceLabel(),
-			"state":  directStateForObservation(t),
-			"detail": "configured transport has not been proven by a live packet in this doctor run",
-		}
-		if database == nil {
-			observation["detail"] = "database unavailable; cannot inspect historical ingest evidence"
-			observations = append(observations, observation)
-			continue
-		}
-		row, err := database.QueryRows(fmt.Sprintf(
-			"SELECT transport_name, MAX(rx_time) AS last_rx_time, COUNT(*) AS message_count FROM messages WHERE transport_name='%s';",
-			escape(t.Name),
-		))
-		if err != nil {
-			observation["state"] = "observation_lookup_failed"
-			observation["detail"] = err.Error()
-			observations = append(observations, observation)
-			continue
-		}
-		if len(row) == 0 {
-			observations = append(observations, observation)
-			continue
-		}
-		messageCount := asInt(row[0]["message_count"])
-		if messageCount <= 0 {
-			observations = append(observations, observation)
-			continue
-		}
-		observation["state"] = "historical_ingest_seen"
-		observation["detail"] = "database contains prior packets for this transport; doctor still requires a live runtime check for current connectivity"
-		observation["message_count"] = messageCount
-		observation["last_rx_time"] = row[0]["last_rx_time"]
-		observations = append(observations, observation)
-	}
-	if observations == nil {
-		return []map[string]any{}
-	}
-	return observations
-}
-
-func directStateForObservation(t config.TransportConfig) string {
-	switch t.Type {
-	case "serial", "tcp", "serialtcp":
-		return "configured_offline"
-	default:
-		return "configured_not_attempted"
-	}
 }
 
 func openDB(cfg config.Config) *db.DB {
@@ -662,22 +621,11 @@ func sortedKeys(m map[string]any) []string {
 
 func escape(v string) string { return strings.ReplaceAll(v, "'", "''") }
 
-func asInt(v any) int64 {
-	switch x := v.(type) {
-	case int:
-		return int64(x)
-	case int64:
-		return x
-	case float64:
-		return int64(x)
-	case string:
-		var parsed int64
-		fmt.Sscan(x, &parsed)
-		return parsed
+func firstError(err error, fallback string) string {
+	if err != nil {
+		return err.Error()
 	}
-	var parsed int64
-	fmt.Sscan(fmt.Sprint(v), &parsed)
-	return parsed
+	return fallback
 }
 
 func simulateCmd(args []string) {

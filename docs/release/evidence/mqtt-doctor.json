@@ -1,0 +1,64 @@
+{
+  "config": ".tmp/evidence/mqtt.json",
+  "db": {
+    "path": ".tmp/evidence/mqtt.db",
+    "read_ok": true,
+    "schema_version": "0002_runtime_truth",
+    "write_ok": true
+  },
+  "doctor_version": "v2",
+  "findings": [],
+  "summary": {
+    "enabled_transports": [
+      "local-mqtt"
+    ],
+    "last_successful_ingest": "2026-03-19T01:14:46Z",
+    "privacy_findings": {
+      "critical": 0,
+      "high": 0,
+      "info": 1,
+      "low": 0,
+      "medium": 1
+    },
+    "transport_status": [
+      {
+        "name": "local-mqtt",
+        "type": "mqtt",
+        "source": "127.0.0.1:18830",
+        "enabled": true,
+        "effective_state": "historical_only",
+        "runtime_state": "configured_not_attempted",
+        "persisted_state": "historical_only",
+        "status_scope": "persisted_only",
+        "detail": "historical ingest exists (1 stored messages); current runtime state is not proven live",
+        "guidance": "Past messages exist, but this command cannot prove current live connectivity.",
+        "last_ingest_at": "2026-03-19T01:14:46Z",
+        "total_messages": 0,
+        "persisted_messages": 1,
+        "error_count": 0,
+        "dropped_count": 0,
+        "reconnect_attempts": 0,
+        "capabilities": {
+          "ingest_supported": true,
+          "send_supported": false,
+          "metadata_fetch_supported": false,
+          "node_fetch_supported": false,
+          "health_supported": true,
+          "config_apply_supported": false,
+          "implementation_status": "supported",
+          "notes": "real MQTT subscribe path; MEL does not claim publish/config control in this milestone"
+        }
+      }
+    ],
+    "what_mel_does": [
+      "observes configured transports and persists received packets to SQLite",
+      "reports live vs historical transport truth without inventing traffic",
+      "exposes read-only HTTP status, nodes, messages, and metrics endpoints"
+    ],
+    "what_mel_does_not_do": [
+      "does not claim unsupported Meshtastic transports or send capability",
+      "does not prove hardware validation that was not exercised in this environment",
+      "does not mark ingest successful unless the message was written to SQLite"
+    ]
+  }
+}

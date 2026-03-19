@@ -32,6 +32,25 @@ type Packet struct {
 	Altitude                                  int32
 }
 
+func (p Packet) PayloadHex() string {
+	return hex.EncodeToString(p.Payload)
+}
+
+func MessageType(packet Packet) string {
+	switch packet.PortNum {
+	case 1:
+		return "text"
+	case 3:
+		return "position"
+	case 4:
+		return "node_info"
+	case 67:
+		return "telemetry"
+	default:
+		return "unknown"
+	}
+}
+
 func ParseEnvelope(raw []byte) (Envelope, error) {
 	var env Envelope
 	env.RawHex = hex.EncodeToString(raw)

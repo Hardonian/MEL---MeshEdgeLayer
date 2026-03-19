@@ -24,18 +24,6 @@ const (
 	directStart2   = 0xC3
 	directHeaderSz = 4
 	directMaxFrame = 512
-
-	directStateDisabled          = "disabled"
-	directStateNotAttempted      = "configured_not_attempted"
-	directStateConnecting        = "connecting"
-	directStateConnectFailed     = "connect_failed"
-	directStateConnectedIdle     = "connected_idle"
-	directStateConnectedIngest   = "connected_ingesting"
-	directStateDegraded          = "degraded"
-	directStateRetrying          = "retrying"
-	directStateClosed            = "closed"
-	directStateUnsupported       = "unsupported"
-	directStateConfiguredOffline = "configured_offline"
 )
 
 var errDirectInvalidFrame = errors.New("invalid direct frame")
@@ -62,10 +50,10 @@ func NewDirect(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus)
 		status = "supported"
 	}
 	caps := capabilityDefaults(cfg, true, false, false, false, true, false, status, notes)
-	state := directStateNotAttempted
-	detail := "configured but not yet started"
+	state := StateConfiguredNotAttempted
+	detail := "configured but not yet attempted"
 	if !cfg.Enabled {
-		state = directStateDisabled
+		state = StateDisabled
 		detail = "disabled by config"
 	}
 	return &Direct{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Detail: detail, Capabilities: caps}, dial: openDirectConnection}
@@ -89,16 +77,18 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
-		h.State = directStateConnecting
-		h.Detail = "connect in progress"
+		h.State = StateAttempting
+		h.Detail = "attempting direct-node connection"
+		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
 	rw, err := d.dial(ctx, d.cfg)
 	if err != nil {
 		d.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = directStateConnectFailed
-			h.Detail = "connect failed"
+			h.State = StateConfiguredOffline
+			h.Detail = "configured transport is offline"
 			h.LastError = err.Error()
+			h.ErrorCount++
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 		})
 		return err
@@ -108,8 +98,8 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.mu.Unlock()
 	d.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = directStateConnectedIdle
-		h.Detail = "connected; waiting for radio packets"
+		h.State = StateConnectedNoIngest
+		h.Detail = "connected; waiting for a stored mesh packet"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastError = ""
 	})
@@ -126,8 +116,14 @@ func (d *Direct) Close(context.Context) error {
 	}
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = directStateClosed
-		h.Detail = "closed"
+		if h.State != StateDisabled {
+			h.State = StateConfiguredOffline
+			if h.TotalMessages > 0 {
+				h.Detail = "disconnected; historical ingest exists but no live connection is active"
+			} else {
+				h.Detail = "disconnected; waiting to retry"
+			}
+		}
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	return rw.Close()
@@ -151,12 +147,7 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 				return nil
 			}
 			if errors.Is(err, errDirectInvalidFrame) {
-				d.setHealth(func(h *Health) {
-					h.PacketsDropped++
-					h.State = directStateDegraded
-					h.LastError = err.Error()
-					h.Detail = "connected; malformed direct frame ignored"
-				})
+				d.markDropWithState("connected; malformed direct frame ignored", err)
 				continue
 			}
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
@@ -168,32 +159,22 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		}
 		env, err := meshtastic.ParseDirectFromRadio(frame)
 		if err != nil {
-			d.setHealth(func(h *Health) {
-				h.PacketsDropped++
-				h.State = directStateDegraded
-				h.LastError = err.Error()
-				h.Detail = "connected; ignoring non-packet radio frame"
-			})
+			d.markDropWithState("connected; ignoring non-packet radio frame", err)
 			continue
 		}
 		wrapped := meshtastic.DirectPacketToEnvelope(env.PacketRaw)
 		if err := handler(d.cfg.Name, wrapped); err != nil {
-			d.setHealth(func(h *Health) {
-				h.PacketsDropped++
-				h.State = directStateDegraded
-				h.LastError = err.Error()
-				h.Detail = "connected; ingest handler failed"
-			})
+			d.markDropWithState("connected; ingest handler rejected packet", err)
 			d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 			continue
 		}
 		d.setHealth(func(h *Health) {
 			h.OK = true
-			h.State = directStateConnectedIngest
-			h.PacketsRead++
-			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			if h.TotalMessages == 0 {
+				h.State = StateConnectedNoIngest
+				h.Detail = "connected; packet received but not yet confirmed stored"
+			}
 			h.LastError = ""
-			h.Detail = "connected and ingesting live radio packets"
 		})
 	}
 }
@@ -207,13 +188,37 @@ func (d *Direct) FetchMetadata(context.Context) (map[string]any, error) {
 func (d *Direct) FetchNodes(context.Context) ([]map[string]any, error) {
 	return nil, errors.New("node fetch is not implemented for direct-node transport")
 }
+func (d *Direct) MarkIngest(at time.Time) {
+	d.setHealth(func(h *Health) {
+		h.OK = true
+		h.State = StateIngesting
+		h.TotalMessages++
+		h.LastIngestAt = at.UTC().Format(time.RFC3339)
+		h.LastError = ""
+		h.Detail = "live ingest confirmed by SQLite writes"
+	})
+}
+func (d *Direct) MarkDrop(reason string) { d.markDropWithState(reason, nil) }
+
+func (d *Direct) markDropWithState(reason string, err error) {
+	d.setHealth(func(h *Health) {
+		h.PacketsDropped++
+		h.State = StateError
+		h.Detail = reason
+		if err != nil {
+			h.LastError = err.Error()
+			h.ErrorCount++
+		}
+	})
+}
 
 func (d *Direct) markFailure(err error, detail string) {
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = directStateRetrying
+		h.State = StateError
 		h.LastError = err.Error()
 		h.Detail = detail
+		h.ErrorCount++
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
