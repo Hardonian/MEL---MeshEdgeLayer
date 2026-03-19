@@ -5,7 +5,7 @@ This table exists to keep MEL's public language aligned with the current codebas
 | Claim area | Status | Current truth | Action in docs |
 | --- | --- | --- | --- |
 | "MEL supports Meshtastic" | Partial | MEL supports specific ingest paths only: serial direct-node, TCP direct-node, and MQTT. | Narrowed to transport-specific language. |
-| "Direct-node support" | True with caveats | Serial and TCP direct-node ingest are implemented. Send/control paths are not. | Kept, but limited to ingest. |
+| "Direct-node support" | True with caveats | Serial and TCP direct-node ingest are implemented. Send/control paths are not. This repo pass verified code/tests and offline doctor behavior, not live hardware. | Kept, but limited to ingest and bounded verification language. |
 | "MQTT support" | True with caveats | MQTT subscribe/ingest works. Publish/control do not. | Kept, with ingest-only caveat. |
 | "BLE support" | False as a current feature | BLE is explicitly unsupported. | Downgraded to unsupported/planned. |
 | "HTTP transport support" | False as a current feature | No live HTTP ingest path exists. | Downgraded to unsupported. |

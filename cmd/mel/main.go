@@ -27,6 +27,12 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "mel error: %v\n", r)
+			os.Exit(1)
+		}
+	}()
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)
@@ -71,6 +77,17 @@ func main() {
 	default:
 		usage()
 		os.Exit(1)
+	}
+}
+
+func recoverMessage(v any) string {
+	switch x := v.(type) {
+	case error:
+		return x.Error()
+	case string:
+		return x
+	default:
+		return fmt.Sprint(x)
 	}
 }
 
@@ -530,6 +547,16 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 	if directEnabled > 1 {
 		findings = append(findings, map[string]string{"component": "transports", "severity": "high", "message": "multiple direct-node transports are enabled; choose one to avoid serial/TCP ownership contention", "guidance": "Run one direct serial/TCP attachment path at a time unless you have proven shared radio ownership outside MEL."})
 	}
+	if database != nil {
+		runtimeRows, err := database.TransportRuntimeStatuses()
+		if err == nil {
+			for _, row := range runtimeRows {
+				if row.State == transport.StateError && row.LastError != "" {
+					findings = append(findings, map[string]string{"component": row.Name, "severity": "high", "message": "last runtime error: " + row.LastError, "guidance": "Fix the surfaced transport error, then rerun doctor and confirm the state advances beyond error."})
+				}
+			}
+		}
+	}
 	return findings
 }
 
@@ -587,6 +614,52 @@ func enabledTransportNames(cfg config.Config) []string {
 		}
 	}
 	return names
+}
+
+func doctorNextSteps(cfg config.Config, findings []map[string]string, observations []map[string]any) []string {
+	steps := make([]string, 0)
+	if len(enabledTransportNames(cfg)) == 0 {
+		steps = append(steps, "Enable one transport before expecting MEL to store packets.")
+	}
+	for _, finding := range findings {
+		if guidance := finding["guidance"]; guidance != "" {
+			steps = appendUnique(steps, guidance)
+		}
+	}
+	for _, observation := range observations {
+		state := fmt.Sprint(observation["state"])
+		name := fmt.Sprint(observation["name"])
+		switch state {
+		case transport.StateConfigured:
+			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured to connected_no_data or ingesting.", name))
+		case transport.StateConnectedNoData:
+			steps = appendUnique(steps, fmt.Sprintf("%s connected successfully but has not stored a packet yet; generate real mesh traffic or confirm the MQTT topic / direct endpoint is correct.", name))
+		case transport.StateHistoricalOnly:
+			steps = appendUnique(steps, fmt.Sprintf("%s has historical packets only; rerun `mel serve` and look for a fresh stored message timestamp before treating ingest as live.", name))
+		case transport.StateError:
+			lastErr := fmt.Sprint(observation["last_error"])
+			if lastErr == "" {
+				lastErr = "inspect `mel logs tail` for the runtime error details"
+			}
+			steps = appendUnique(steps, fmt.Sprintf("%s is in error: %s.", name, lastErr))
+		}
+		if tType := fmt.Sprint(observation["type"]); tType == "serial" || tType == "tcp" || tType == "serialtcp" {
+			steps = appendUnique(steps, fmt.Sprintf("%s is a direct transport: treat it as implemented but not hardware-verified in this build context until you store packets from your own node.", name))
+		}
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "Doctor found no blocking issues; start MEL and confirm a stored packet timestamp before declaring ingest live.")
+	}
+	return steps
+}
+
+func appendUnique(in []string, value string) []string {
+	for _, existing := range in {
+		if existing == value {
+			return in
+		}
+	}
+	return append(in, value)
 }
 
 func redactMessages(rows []map[string]any) []map[string]any {

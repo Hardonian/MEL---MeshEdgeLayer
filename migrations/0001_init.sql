@@ -101,3 +101,19 @@ CREATE TABLE IF NOT EXISTS config_apply_history (
   config_sha256 TEXT NOT NULL,
   diff_json TEXT
 );
+
+CREATE TABLE IF NOT EXISTS transport_runtime_status (
+  transport_name TEXT PRIMARY KEY,
+  transport_type TEXT NOT NULL,
+  source TEXT,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  runtime_state TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  last_attempt_at TEXT,
+  last_connected_at TEXT,
+  last_success_at TEXT,
+  last_message_at TEXT,
+  last_error TEXT,
+  total_messages INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

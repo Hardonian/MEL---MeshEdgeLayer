@@ -50,6 +50,7 @@ func (m *MQTT) setHealth(update func(*Health)) {
 	update(&m.health)
 }
 func (m *MQTT) Connect(ctx context.Context) error {
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = m.cfg.Endpoint
@@ -96,6 +97,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 		h.State = StateConnectedNoIngest
 		h.Detail = "connected; waiting for subscribed publishes to be stored"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastSuccessAt = h.LastConnectedAt
 		h.LastError = ""
 	})
 	return nil

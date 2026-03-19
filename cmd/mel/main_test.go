@@ -12,7 +12,7 @@ import (
 func TestDoctorTransportChecksSerialMissing(t *testing.T) {
 	cfg := config.Default()
 	cfg.Transports = []config.TransportConfig{{Name: "radio", Type: "serial", Enabled: true, SerialDevice: filepath.Join(t.TempDir(), "missing-tty")}}
-	checks := doctorTransportChecks(cfg)
+	checks := doctorTransportChecks(cfg, nil)
 	if len(checks) == 0 {
 		t.Fatal("expected doctor findings")
 	}

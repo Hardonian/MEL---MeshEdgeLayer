@@ -74,6 +74,7 @@ func (d *Direct) setHealth(update func(*Health)) {
 }
 
 func (d *Direct) Connect(ctx context.Context) error {
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
@@ -101,6 +102,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 		h.State = StateConnectedNoIngest
 		h.Detail = "connected; waiting for a stored mesh packet"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastSuccessAt = h.LastConnectedAt
 		h.LastError = ""
 	})
 	return nil

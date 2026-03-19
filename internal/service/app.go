@@ -77,6 +77,21 @@ func (a *App) Start(ctx context.Context) error {
 	for _, finding := range privacy.Audit(a.Cfg) {
 		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
+	if len(enabledTransports(a.Cfg)) == 0 {
+		a.Log.Info("no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfigured})
+		_ = a.DB.InsertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
+	}
+	for _, tc := range a.Cfg.Transports {
+		state := transport.StateConfigured
+		detail := "configured; MEL has not attempted a live connection in this process yet"
+		if !tc.Enabled {
+			state = transport.StateDisabled
+			detail = "disabled by config"
+		} else if tc.Type == "serial" || tc.Type == "tcp" || tc.Type == "serialtcp" {
+			_ = a.DB.InsertAuditLog("transport", "warning", "direct-node transport is implemented but not hardware-verified in this build context", map[string]any{"transport": tc.Name, "type": tc.Type, "source": tc.SourceLabel()})
+		}
+		a.persistTransportRuntime(tc, state, detail, "", "")
+	}
 	for _, t := range a.Transports {
 		cfgTransport := findTransport(a.Cfg, t.Name())
 		if !cfgTransport.Enabled {
@@ -88,6 +103,8 @@ func (a *App) Start(ctx context.Context) error {
 	<-ctx.Done()
 	for _, t := range a.Transports {
 		_ = t.Close(context.Background())
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		a.persistTransportRuntime(cfgTransport, transport.StateConfigured, "configured; process stopped", "", "")
 	}
 	return nil
 }
