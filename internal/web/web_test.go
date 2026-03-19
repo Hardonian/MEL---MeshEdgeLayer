@@ -243,3 +243,22 @@ func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {
 		t.Fatalf("expected grouped incidents, got %#v", payload)
 	}
 }
+
+func TestTransportHealthEndpointsExposeDerivedHealthAndAlerts(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-1", FailureCount: 2, ObservationDrops: 2, LastHeartbeatAt: "2026-03-19T00:00:00Z"}}, func(database *db.DB) {
+		if err := database.InsertAuditLog("transport", "warning", transport.ReasonRetryThresholdExceeded, map[string]any{"transport": "mqtt", "type": "mqtt", "episode_id": "ep-1"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.UpsertTransportAlert(db.TransportAlertRecord{ID: "mqtt|retry_threshold_exceeded|retry-threshold", TransportName: "mqtt", TransportType: "mqtt", Severity: "critical", Reason: "retry_threshold_exceeded", Summary: "retry threshold exceeded", FirstTriggeredAt: "2026-03-19T00:00:00Z", LastUpdatedAt: "2026-03-19T00:00:00Z", Active: true, EpisodeID: "ep-1", ClusterKey: "retry-threshold"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, path := range []string{"/api/v1/transports/health", "/api/v1/transports/alerts", "/api/v1/transports/anomalies"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.http.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d", path, rec.Code)
+		}
+	}
+}

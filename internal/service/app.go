@@ -25,20 +25,21 @@ import (
 )
 
 type App struct {
-	Cfg              config.Config
-	Log              *logging.Logger
-	DB               *db.DB
-	Bus              *events.Bus
-	State            *meshstate.State
-	Web              *web.Server
-	Transports       []transport.Transport
-	Plugins          []plugins.Plugin
-	dlMu             sync.Mutex
-	dlEpisodes       map[string]deadLetterEpisode
-	ingestCh         chan ingestRequest
-	observationCh    chan transport.Observation
-	wg               sync.WaitGroup
-	incidentLogLimit int
+	Cfg               config.Config
+	Log               *logging.Logger
+	DB                *db.DB
+	Bus               *events.Bus
+	State             *meshstate.State
+	Web               *web.Server
+	Transports        []transport.Transport
+	Plugins           []plugins.Plugin
+	dlMu              sync.Mutex
+	dlEpisodes        map[string]deadLetterEpisode
+	ingestCh          chan ingestRequest
+	observationCh     chan transport.Observation
+	wg                sync.WaitGroup
+	incidentLogLimit  int
+	intelligenceEvery time.Duration
 }
 
 type ingestRequest struct {
@@ -162,6 +163,13 @@ func (a *App) startWorkers(ctx context.Context) {
 		defer a.wg.Done()
 		a.observationWorker(ctx)
 	}()
+	if a.DB != nil {
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
+			a.intelligenceWorker(ctx)
+		}()
+	}
 }
 
 func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransport config.TransportConfig) {
@@ -337,7 +345,7 @@ func (a *App) enqueueIngest(ctx context.Context, t transport.Transport, topic st
 		if controller, ok := t.(transport.RuntimeStateController); ok {
 			controller.RecordObservationDrop(1)
 		}
-		a.emitTransportObservation(cfgTransport, transport.NewObservation(cfgTransport.Name, cfgTransport.Type, topic, transport.ReasonHandlerRejection, payload, true, "ingest queue full; packet dropped to preserve transport liveness", map[string]any{"final": true, "queue": "ingest", "queue_capacity": cap(a.ingestCh)}))
+		a.emitTransportObservation(cfgTransport, transport.NewObservation(cfgTransport.Name, cfgTransport.Type, topic, transport.ReasonObservationDropped, payload, false, "ingest queue full; packet dropped to preserve transport liveness", map[string]any{"queue": "ingest", "queue_capacity": cap(a.ingestCh), "drop_count": 1, "drop_cause": "ingest_queue_saturation"}))
 		return fmt.Errorf("ingest queue full for transport %s", t.Name())
 	}
 }
@@ -379,6 +387,19 @@ func (a *App) consumeTransportEvents(ctx context.Context) {
 				return
 			case a.observationCh <- obs:
 			default:
+				a.insertAuditLog("transport", "warning", transport.ReasonObservationDropped, map[string]any{
+					"transport":   obs.TransportName,
+					"type":        obs.TransportType,
+					"topic":       obs.Topic,
+					"dead_letter": false,
+					"timestamp":   time.Now().UTC().Format(time.RFC3339),
+					"drop_count":  1,
+					"drop_cause":  "observation_queue_saturation",
+					"details": map[string]any{
+						"reason": obs.Reason,
+						"queue":  "observation",
+					},
+				})
 				if t := a.transportByName(obs.TransportName); t != nil {
 					if controller, ok := t.(transport.RuntimeStateController); ok {
 						controller.RecordObservationDrop(1)
@@ -485,6 +506,19 @@ func (a *App) emitTransportObservation(tc config.TransportConfig, obs transport.
 	}
 	_, dropped := a.Bus.Publish(events.Event{Type: "transport.observation", Data: obs})
 	if dropped > 0 {
+		a.insertAuditLog("transport", "warning", transport.ReasonObservationDropped, map[string]any{
+			"transport":   obs.TransportName,
+			"type":        obs.TransportType,
+			"topic":       obs.Topic,
+			"dead_letter": false,
+			"timestamp":   time.Now().UTC().Format(time.RFC3339),
+			"drop_count":  dropped,
+			"drop_cause":  "event_bus_saturation",
+			"details": map[string]any{
+				"reason": obs.Reason,
+				"queue":  "event_bus",
+			},
+		})
 		if t := a.transportByName(obs.TransportName); t != nil {
 			if controller, ok := t.(transport.RuntimeStateController); ok {
 				controller.RecordObservationDrop(uint64(dropped))
@@ -578,8 +612,9 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 		rxTime = rxAt.Format(time.RFC3339)
 	}
 	messageType, payloadJSON, telemetryType, telemetryValue := buildPayloadEnvelope(t.Name(), topic, env)
+	node := map[string]any{"node_num": int64(env.Packet.From), "node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "last_seen": rxTime, "last_gateway_id": env.GatewayID, "last_snr": float64(env.Packet.RXSNR), "last_rssi": int64(env.Packet.RXRSSI), "lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude)}
 	msg := map[string]any{"transport_name": t.Name(), "packet_id": int64(env.Packet.ID), "dedupe_hash": meshtastic.DedupeHash(env), "channel_id": env.ChannelID, "gateway_id": env.GatewayID, "from_node": int64(env.Packet.From), "to_node": int64(env.Packet.To), "portnum": int64(env.Packet.PortNum), "payload_text": env.Packet.PayloadText, "payload_json": payloadJSON, "raw_hex": env.RawHex, "rx_time": rxTime, "hop_limit": int64(env.Packet.HopLimit), "relay_node": int64(env.Packet.RelayNode)}
-	inserted, err := a.DB.InsertMessage(msg)
+	inserted, err := a.DB.PersistIngest(db.IngestRecord{Message: msg, Node: node, TelemetryType: telemetryType, TelemetryValue: telemetryValue, ObservedAt: rxAt.Format(time.RFC3339)})
 	if err != nil {
 		a.Log.Error("db_error", "message insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("database write failed")
@@ -593,25 +628,6 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 		t.MarkDrop("duplicate packet ignored after dedupe")
 		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return nil
-	}
-	node := map[string]any{"node_num": int64(env.Packet.From), "node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "last_seen": rxTime, "last_gateway_id": env.GatewayID, "last_snr": float64(env.Packet.RXSNR), "last_rssi": int64(env.Packet.RXRSSI), "lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude)}
-	if err := a.DB.UpsertNode(node); err != nil {
-		a.Log.Error("db_error", "node upsert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-		t.MarkDrop("node upsert failed")
-		cfgTransport := findTransport(a.Cfg, t.Name())
-		a.emitTransportObservation(cfgTransport, transport.NewObservation(t.Name(), cfgTransport.Type, topic, transport.ReasonHandlerRejection, []byte(env.RawHex), true, "node upsert failed", map[string]any{"error": err.Error(), "from_node": env.Packet.From, "stage": "upsert_node", "final": true}))
-		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
-		return err
-	}
-	if telemetryType != "" {
-		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), telemetryType, telemetryValue, rxTime); err != nil {
-			a.Log.Error("db_error", "telemetry insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			t.MarkDrop("telemetry insert failed")
-			cfgTransport := findTransport(a.Cfg, t.Name())
-			a.emitTransportObservation(cfgTransport, transport.NewObservation(t.Name(), cfgTransport.Type, topic, transport.ReasonHandlerRejection, []byte(env.RawHex), true, "telemetry insert failed", map[string]any{"error": err.Error(), "from_node": env.Packet.From, "telemetry_type": telemetryType, "stage": "insert_telemetry", "final": true}))
-			a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
-			return err
-		}
 	}
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
