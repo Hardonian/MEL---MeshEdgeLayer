@@ -12,15 +12,16 @@ import (
 )
 
 type Snapshot struct {
-	GeneratedAt              string            `json:"generated_at"`
-	Bind                     string            `json:"bind,omitempty"`
-	BindLocalOnly            bool              `json:"bind_local_only"`
-	SchemaVersion            string            `json:"schema_version,omitempty"`
-	ConfiguredTransportModes []string          `json:"configured_transport_modes"`
-	Messages                 int64             `json:"messages"`
-	Nodes                    int64             `json:"nodes"`
-	LastSuccessfulIngest     string            `json:"last_successful_ingest,omitempty"`
-	Transports               []TransportReport `json:"transports"`
+	GeneratedAt              string                 `json:"generated_at"`
+	Bind                     string                 `json:"bind,omitempty"`
+	BindLocalOnly            bool                   `json:"bind_local_only"`
+	SchemaVersion            string                 `json:"schema_version,omitempty"`
+	ConfiguredTransportModes []string               `json:"configured_transport_modes"`
+	Messages                 int64                  `json:"messages"`
+	Nodes                    int64                  `json:"nodes"`
+	LastSuccessfulIngest     string                 `json:"last_successful_ingest,omitempty"`
+	Transports               []TransportReport      `json:"transports"`
+	RecentTransportIncidents []db.TransportIncident `json:"recent_transport_incidents,omitempty"`
 }
 
 type TransportReport struct {
@@ -38,6 +39,10 @@ type TransportReport struct {
 	LastIngestAt        string                     `json:"last_ingest_at,omitempty"`
 	LastHeartbeatAt     string                     `json:"last_heartbeat_at,omitempty"`
 	LastError           string                     `json:"last_error,omitempty"`
+	LastFailureAt       string                     `json:"last_failure_at,omitempty"`
+	EpisodeID           string                     `json:"episode_id,omitempty"`
+	FailureCount        uint64                     `json:"failure_count"`
+	ObservationDrops    uint64                     `json:"observation_drops"`
 	TotalMessages       uint64                     `json:"total_messages"`
 	PersistedMessages   uint64                     `json:"persisted_messages"`
 	ErrorCount          uint64                     `json:"error_count"`
@@ -92,16 +97,23 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 				LastIngestAt:        row.LastMessageAt,
 				LastHeartbeatAt:     row.LastHeartbeatAt,
 				LastError:           row.LastError,
+				LastFailureAt:       row.LastFailureAt,
+				EpisodeID:           row.EpisodeID,
 				TotalMessages:       row.TotalMessages,
 				PacketsDropped:      row.PacketsDropped,
 				ReconnectAttempts:   row.Reconnects,
 				ConsecutiveTimeouts: row.Timeouts,
+				FailureCount:        row.FailureCount,
+				ObservationDrops:    row.ObservationDrops,
 			}
 		}
 	}
 	deadLetters, err := deadLetterEvidenceByTransport(database)
 	if err != nil {
 		return snap, err
+	}
+	if database != nil {
+		snap.RecentTransportIncidents, _ = database.RecentTransportIncidents(20)
 	}
 	runtimeMap := map[string]transport.Health{}
 	for _, h := range runtime {
@@ -143,6 +155,10 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 			LastIngestAt:        firstNonEmpty(h.LastIngestAt, evidence.LastIngest),
 			LastHeartbeatAt:     h.LastHeartbeatAt,
 			LastError:           h.LastError,
+			LastFailureAt:       h.LastFailureAt,
+			EpisodeID:           h.EpisodeID,
+			FailureCount:        h.FailureCount,
+			ObservationDrops:    h.ObservationDrops,
 			TotalMessages:       h.TotalMessages,
 			PersistedMessages:   evidence.Count,
 			ErrorCount:          h.ErrorCount,

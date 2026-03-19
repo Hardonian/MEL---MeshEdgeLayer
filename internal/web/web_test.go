@@ -216,3 +216,30 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	}
 	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil })
 }
+
+func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying}}, func(database *db.DB) {
+		if err := database.InsertAuditLog("transport", "warning", "timeout_stall", map[string]any{"transport": "mqtt", "dead_letter": false}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.InsertAuditLog("transport", "warning", "timeout_stall", map[string]any{"transport": "mqtt", "dead_letter": false}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents", nil)
+	rec := httptest.NewRecorder()
+
+	srv.http.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	incidents := payload["recent_transport_incidents"].([]any)
+	if len(incidents) == 0 {
+		t.Fatalf("expected grouped incidents, got %#v", payload)
+	}
+}
