@@ -169,6 +169,33 @@ func (a *App) startWorkers(ctx context.Context) {
 			defer a.wg.Done()
 			a.intelligenceWorker(ctx)
 		}()
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
+			a.retentionWorker(ctx)
+		}()
+	}
+}
+
+func (a *App) retentionWorker(ctx context.Context) {
+	if a == nil || a.DB == nil {
+		return
+	}
+	interval := time.Duration(a.Cfg.Intelligence.Retention.PruneEverySeconds) * time.Second
+	if interval <= 0 {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := retention.Run(a.DB, a.Cfg); err != nil {
+				a.Log.Error("retention_worker_failed", "failed to prune retained data", map[string]any{"error": err.Error()})
+			}
+		}
 	}
 }
 

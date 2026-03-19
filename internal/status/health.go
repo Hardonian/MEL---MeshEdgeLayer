@@ -19,6 +19,7 @@ type TransportHealth struct {
 	LastEvaluatedAt string                 `json:"last_evaluated_at"`
 	PrimaryReason   string                 `json:"primary_reason,omitempty"`
 	Signals         TransportHealthSignals `json:"signals"`
+	Explanation     HealthExplanation      `json:"explanation"`
 }
 
 type TransportHealthSignals struct {
@@ -29,6 +30,27 @@ type TransportHealthSignals struct {
 	AnomalyRate           float64 `json:"anomaly_rate"`
 	ObservationDrops      uint64  `json:"observation_drops"`
 	ActiveEpisode         bool    `json:"active_episode"`
+}
+
+type HealthPenalty struct {
+	Reason  string `json:"reason"`
+	Penalty int    `json:"penalty"`
+	Count   uint64 `json:"count"`
+	Window  string `json:"window"`
+}
+
+type HealthExplanation struct {
+	TransportName       string          `json:"transport_name"`
+	Score               int             `json:"score"`
+	State               string          `json:"state"`
+	TopPenalties        []HealthPenalty `json:"top_penalties"`
+	ActiveClusterReason string          `json:"active_cluster_reason,omitempty"`
+	ActiveClusterCount  uint64          `json:"active_cluster_count,omitempty"`
+	ActiveEpisodeID     string          `json:"active_episode_id,omitempty"`
+	FailureCount        uint64          `json:"failure_count"`
+	ObservationDrops    uint64          `json:"observation_drops"`
+	DeadLetterCount     uint64          `json:"dead_letter_count"`
+	RecoveryBlockers    []string        `json:"recovery_blockers,omitempty"`
 }
 
 type TransportAnomalySummary struct {
@@ -58,17 +80,21 @@ type FailureCluster struct {
 }
 
 type TransportAlert struct {
-	ID               string `json:"id"`
-	TransportName    string `json:"transport_name"`
-	TransportType    string `json:"transport_type"`
-	Severity         string `json:"severity"`
-	Reason           string `json:"reason"`
-	Summary          string `json:"summary"`
-	FirstTriggeredAt string `json:"first_triggered_at"`
-	LastUpdatedAt    string `json:"last_updated_at"`
-	Active           bool   `json:"active"`
-	EpisodeID        string `json:"episode_id,omitempty"`
-	ClusterKey       string `json:"cluster_key"`
+	ID                  string          `json:"id"`
+	TransportName       string          `json:"transport_name"`
+	TransportType       string          `json:"transport_type"`
+	Severity            string          `json:"severity"`
+	Reason              string          `json:"reason"`
+	Summary             string          `json:"summary"`
+	FirstTriggeredAt    string          `json:"first_triggered_at"`
+	LastUpdatedAt       string          `json:"last_updated_at"`
+	Active              bool            `json:"active"`
+	EpisodeID           string          `json:"episode_id,omitempty"`
+	ClusterKey          string          `json:"cluster_key"`
+	ContributingReasons []string        `json:"contributing_reasons,omitempty"`
+	ClusterReference    string          `json:"cluster_reference,omitempty"`
+	PenaltySnapshot     []HealthPenalty `json:"penalty_snapshot,omitempty"`
+	TriggerCondition    string          `json:"trigger_condition,omitempty"`
 }
 
 type TransportIntelligence struct {
@@ -89,17 +115,18 @@ type transportEvidenceEvent struct {
 	DropCause        string
 }
 
-var scoringPenaltyByReason = map[string]int{
-	"retry_threshold_exceeded": 30,
-	"timeout_failure":          10,
-	"timeout_stall":            5,
-	"malformed_frame":          5,
-	"malformed_publish":        5,
-	"decode_failure":           5,
-	"topic_mismatch":           3,
-	"handler_rejection":        6,
-	"rejected_send":            6,
-	"rejected_publish":         6,
+type scoreContribution struct {
+	Reason  string
+	Penalty int
+	Count   uint64
+	Window  string
+}
+
+type healthScoreBreakdown struct {
+	Score         int
+	PrimaryReason string
+	Signals       TransportHealthSignals
+	Penalties     []scoreContribution
 }
 
 var healthStateOrder = map[string]int{"healthy": 0, "degraded": 1, "unstable": 2, "failed": 3}
@@ -125,7 +152,8 @@ func EvaluateTransportIntelligence(cfg config.Config, database *db.DB, runtime [
 			persistedRuntime[row.Name] = row
 		}
 	}
-	eventsByTransport, err := queryEvidenceEvents(database, now.Add(-15*time.Minute))
+	maxWindow := maxWindowDuration(cfg)
+	eventsByTransport, err := queryEvidenceEvents(database, now.Add(-maxWindow))
 	if err != nil {
 		return result, err
 	}
@@ -158,9 +186,9 @@ func EvaluateTransportIntelligence(cfg config.Config, database *db.DB, runtime [
 			}
 		}
 		events := eventsByTransport[tc.Name]
-		anomalies := summarizeTransportAnomalies(tc.Name, events, h, now)
+		anomalies := summarizeTransportAnomalies(cfg, tc.Name, events, h, now)
 		clusters := clusterTransportFailures(tc.Name, tc.Type, events, h, now)
-		health := scoreTransportHealth(tc.Name, tc.Type, h, anomalies, now)
+		health := scoreTransportHealth(cfg, tc.Name, tc.Type, h, anomalies, clusters, now)
 		result.HealthByTransport[tc.Name] = health
 		result.AnomaliesByTransport[tc.Name] = anomalies
 		result.ClustersByTransport[tc.Name] = clusters
@@ -227,24 +255,11 @@ func queryEvidenceEvents(database *db.DB, since time.Time) (map[string][]transpo
 	return out, nil
 }
 
-func summarizeTransportAnomalies(name string, events []transportEvidenceEvent, runtime transport.Health, now time.Time) []TransportAnomalySummary {
-	windows := []struct {
-		label    string
-		duration time.Duration
-	}{
-		{label: "1m", duration: time.Minute},
-		{label: "5m", duration: 5 * time.Minute},
-		{label: "15m", duration: 15 * time.Minute},
-	}
+func summarizeTransportAnomalies(cfg config.Config, name string, events []transportEvidenceEvent, runtime transport.Health, now time.Time) []TransportAnomalySummary {
+	windows := anomalyWindows(cfg)
 	out := make([]TransportAnomalySummary, 0, len(windows))
 	for _, window := range windows {
-		summary := TransportAnomalySummary{
-			TransportName:    name,
-			Window:           window.label,
-			CountsByReason:   map[string]uint64{},
-			ActiveEpisodeIDs: []string{},
-			DropCauses:       map[string]uint64{},
-		}
+		summary := TransportAnomalySummary{TransportName: name, Window: window.label, CountsByReason: map[string]uint64{}, ActiveEpisodeIDs: []string{}, DropCauses: map[string]uint64{}}
 		episodeSet := map[string]struct{}{}
 		for _, evt := range events {
 			if now.Sub(evt.CreatedAt) > window.duration {
@@ -267,7 +282,7 @@ func summarizeTransportAnomalies(name string, events []transportEvidenceEvent, r
 				episodeSet[evt.EpisodeID] = struct{}{}
 			}
 		}
-		if runtime.ObservationDrops > 0 && window.label == "15m" {
+		if runtime.ObservationDrops > 0 && window.duration == windows[len(windows)-1].duration {
 			summary.ObservationDrops = maxUint64(summary.ObservationDrops, runtime.ObservationDrops)
 		}
 		for episodeID := range episodeSet {
@@ -337,7 +352,7 @@ func clusterTransportFailures(name, typ string, events []transportEvidenceEvent,
 	return out
 }
 
-func deriveClusterSeverity(cluster FailureCluster, runtime transport.Health, now time.Time) string {
+func deriveClusterSeverity(cluster FailureCluster, runtime transport.Health, _ time.Time) string {
 	if cluster.IncludesDeadLetter || cluster.Reason == transport.ReasonRetryThresholdExceeded || runtime.State == transport.StateFailed {
 		return "critical"
 	}
@@ -347,31 +362,58 @@ func deriveClusterSeverity(cluster FailureCluster, runtime transport.Health, now
 	return "info"
 }
 
-func scoreTransportHealth(name, typ string, runtime transport.Health, anomalies []TransportAnomalySummary, now time.Time) TransportHealth {
-	fiveMinute := AnomalyWindow(anomalies, "5m")
-	fifteenMinute := AnomalyWindow(anomalies, "15m")
+func scoreTransportHealth(cfg config.Config, name, typ string, runtime transport.Health, anomalies []TransportAnomalySummary, clusters []FailureCluster, now time.Time) TransportHealth {
+	breakdown := buildHealthScoreBreakdown(cfg, runtime, anomalies, now)
+	health := TransportHealth{
+		TransportName:   name,
+		TransportType:   typ,
+		Score:           breakdown.Score,
+		State:           healthStateForScore(breakdown.Score),
+		LastEvaluatedAt: now.UTC().Format(time.RFC3339),
+		PrimaryReason:   breakdown.PrimaryReason,
+		Signals:         breakdown.Signals,
+	}
+	health.Explanation = buildHealthExplanation(name, health, clusters, runtime, anomalies, breakdown)
+	return health
+}
+
+func buildHealthScoreBreakdown(cfg config.Config, runtime transport.Health, anomalies []TransportAnomalySummary, now time.Time) healthScoreBreakdown {
+	recentLabel := anomalyWindows(cfg)[1].label
+	residualLabel := anomalyWindows(cfg)[2].label
+	fiveMinute := AnomalyWindow(anomalies, recentLabel)
+	fifteenMinute := AnomalyWindow(anomalies, residualLabel)
 	score := 100
 	primaryReason := ""
-	for reason, count := range fiveMinute.CountsByReason {
-		penalty := scoringPenaltyByReason[reason] * int(count)
-		if penalty > 0 {
-			score -= penalty
-			if primaryReason == "" {
-				primaryReason = reason
-			}
+	contributions := make([]scoreContribution, 0)
+	weights := cfg.Intelligence.Scoring.ReasonWeights
+	for _, reason := range sortedReasonKeys(fiveMinute.CountsByReason) {
+		count := fiveMinute.CountsByReason[reason]
+		penalty := weights[reason] * int(count)
+		if penalty <= 0 {
+			continue
+		}
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: reason, Penalty: penalty, Count: count, Window: recentLabel})
+		if primaryReason == "" {
+			primaryReason = reason
 		}
 	}
 	if fiveMinute.DeadLetters > 0 {
-		score -= int(fiveMinute.DeadLetters) * 25
+		penalty := int(fiveMinute.DeadLetters) * cfg.Intelligence.Scoring.DeadLetterPenalty
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: "dead_letter_burst", Penalty: penalty, Count: fiveMinute.DeadLetters, Window: recentLabel})
 		if primaryReason == "" {
 			primaryReason = "dead_letter_burst"
 		}
 	}
 	if fifteenMinute.DeadLetters > fiveMinute.DeadLetters {
-		score -= minInt(15, int(fifteenMinute.DeadLetters-fiveMinute.DeadLetters)*5)
+		residual := fifteenMinute.DeadLetters - fiveMinute.DeadLetters
+		penalty := minInt(cfg.Intelligence.Scoring.ResidualPenaltyCap, int(residual)*cfg.Intelligence.Scoring.HistoricalDeadLetterWeight)
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: "historical_dead_letters", Penalty: penalty, Count: residual, Window: residualLabel})
 	}
-	for reason, count := range fifteenMinute.CountsByReason {
-		residual := count
+	for _, reason := range sortedReasonKeys(fifteenMinute.CountsByReason) {
+		residual := fifteenMinute.CountsByReason[reason]
 		if recent := fiveMinute.CountsByReason[reason]; residual > recent {
 			residual -= recent
 		} else {
@@ -380,30 +422,39 @@ func scoreTransportHealth(name, typ string, runtime transport.Health, anomalies 
 		if residual == 0 {
 			continue
 		}
-		score -= minInt(15, residualPenaltyForReason(reason, residual))
+		penalty := minInt(cfg.Intelligence.Scoring.ResidualPenaltyCap, residualPenaltyForReason(cfg, reason, residual))
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: reason, Penalty: penalty, Count: residual, Window: residualLabel})
 	}
 	if runtime.EpisodeID != "" && runtime.FailureCount > 0 {
-		score -= minInt(25, int(runtime.FailureCount)*5)
+		penalty := minInt(cfg.Intelligence.Scoring.ActiveEpisodePenaltyCap, int(runtime.FailureCount)*cfg.Intelligence.Scoring.ActiveEpisodePenalty)
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: "active_failure_episode", Penalty: penalty, Count: runtime.FailureCount, Window: "runtime"})
 		if primaryReason == "" {
 			primaryReason = "active_failure_episode"
 		}
 	}
 	if fiveMinute.ObservationDrops > 0 {
-		score -= progressiveObservationPenalty(fiveMinute.ObservationDrops)
+		penalty := progressiveObservationPenalty(cfg, fiveMinute.ObservationDrops)
+		score -= penalty
+		contributions = append(contributions, scoreContribution{Reason: dominantDropCause(fiveMinute), Penalty: penalty, Count: fiveMinute.ObservationDrops, Window: recentLabel})
 		if primaryReason == "" {
 			primaryReason = "observation_drops"
 		}
 	}
-	if gapPenalty, heartbeatDelta := heartbeatPenalty(runtime, now); gapPenalty > 0 {
+	if gapPenalty, heartbeatDelta := heartbeatPenalty(cfg, runtime, now); gapPenalty > 0 {
 		score -= gapPenalty
+		contributions = append(contributions, scoreContribution{Reason: fmt.Sprintf("heartbeat_gap_%ds", heartbeatDelta), Penalty: gapPenalty, Count: uint64(heartbeatDelta), Window: "runtime"})
 		if primaryReason == "" {
 			primaryReason = fmt.Sprintf("heartbeat_gap_%ds", heartbeatDelta)
 		}
 	}
 	if runtime.State == transport.StateFailed {
-		score -= 20
+		score -= cfg.Intelligence.Scoring.RuntimeFailedPenalty
+		contributions = append(contributions, scoreContribution{Reason: "runtime_failed_state", Penalty: cfg.Intelligence.Scoring.RuntimeFailedPenalty, Count: 1, Window: "runtime"})
 	} else if runtime.State == transport.StateRetrying {
-		score -= 12
+		score -= cfg.Intelligence.Scoring.RuntimeRetryingPenalty
+		contributions = append(contributions, scoreContribution{Reason: "runtime_retrying_state", Penalty: cfg.Intelligence.Scoring.RuntimeRetryingPenalty, Count: 1, Window: "runtime"})
 	}
 	if score < 0 {
 		score = 0
@@ -411,13 +462,9 @@ func scoreTransportHealth(name, typ string, runtime transport.Health, anomalies 
 	if score > 100 {
 		score = 100
 	}
-	return TransportHealth{
-		TransportName:   name,
-		TransportType:   typ,
-		Score:           score,
-		State:           healthStateForScore(score),
-		LastEvaluatedAt: now.UTC().Format(time.RFC3339),
-		PrimaryReason:   primaryReason,
+	return healthScoreBreakdown{
+		Score:         score,
+		PrimaryReason: primaryReason,
 		Signals: TransportHealthSignals{
 			RecentFailures:        totalReasonCount(fiveMinute.CountsByReason),
 			DeadLetterCount:       fiveMinute.DeadLetters,
@@ -427,7 +474,88 @@ func scoreTransportHealth(name, typ string, runtime transport.Health, anomalies 
 			ObservationDrops:      fiveMinute.ObservationDrops,
 			ActiveEpisode:         runtime.EpisodeID != "" && runtime.FailureCount > 0,
 		},
+		Penalties: contributions,
 	}
+}
+
+func buildHealthExplanation(name string, health TransportHealth, clusters []FailureCluster, runtime transport.Health, anomalies []TransportAnomalySummary, breakdown healthScoreBreakdown) HealthExplanation {
+	explanation := HealthExplanation{
+		TransportName:    name,
+		Score:            health.Score,
+		State:            health.State,
+		TopPenalties:     topPenaltySnapshot(breakdown.Penalties, 5),
+		ActiveEpisodeID:  runtime.EpisodeID,
+		FailureCount:     runtime.FailureCount,
+		ObservationDrops: health.Signals.ObservationDrops,
+		DeadLetterCount:  health.Signals.DeadLetterCount,
+	}
+	if len(clusters) > 0 {
+		explanation.ActiveClusterReason = clusters[0].Reason
+		explanation.ActiveClusterCount = clusters[0].Count
+	}
+	recent := TransportAnomalySummary{DropCauses: map[string]uint64{}}
+	if len(anomalies) > 1 {
+		recent = anomalies[1]
+	} else if len(anomalies) > 0 {
+		recent = anomalies[0]
+	}
+	explanation.RecoveryBlockers = recoveryBlockers(health, runtime, clusters, breakdown, recent)
+	return explanation
+}
+
+func topPenaltySnapshot(in []scoreContribution, limit int) []HealthPenalty {
+	contributions := append([]scoreContribution(nil), in...)
+	sort.Slice(contributions, func(i, j int) bool {
+		if contributions[i].Penalty == contributions[j].Penalty {
+			if contributions[i].Reason == contributions[j].Reason {
+				return contributions[i].Window < contributions[j].Window
+			}
+			return contributions[i].Reason < contributions[j].Reason
+		}
+		return contributions[i].Penalty > contributions[j].Penalty
+	})
+	if len(contributions) > limit {
+		contributions = contributions[:limit]
+	}
+	out := make([]HealthPenalty, 0, len(contributions))
+	for _, item := range contributions {
+		out = append(out, HealthPenalty{Reason: item.Reason, Penalty: item.Penalty, Count: item.Count, Window: item.Window})
+	}
+	return out
+}
+
+func recoveryBlockers(health TransportHealth, runtime transport.Health, clusters []FailureCluster, breakdown healthScoreBreakdown, recent TransportAnomalySummary) []string {
+	blockers := []string{}
+	if runtime.State == transport.StateFailed || runtime.State == transport.StateRetrying {
+		blockers = append(blockers, fmt.Sprintf("runtime_state:%s", runtime.State))
+	}
+	if runtime.EpisodeID != "" && runtime.FailureCount > 0 {
+		blockers = append(blockers, fmt.Sprintf("active_failure_episode:%s (%d failures)", runtime.EpisodeID, runtime.FailureCount))
+	}
+	if health.Signals.LastHeartbeatDeltaSec >= 120 {
+		blockers = append(blockers, fmt.Sprintf("heartbeat_gap:%ds", health.Signals.LastHeartbeatDeltaSec))
+	}
+	if health.Signals.DeadLetterCount > 0 {
+		blockers = append(blockers, fmt.Sprintf("dead_letters:%d", health.Signals.DeadLetterCount))
+	}
+	if health.Signals.ObservationDrops > 0 {
+		blockers = append(blockers, fmt.Sprintf("observation_drops:%d", health.Signals.ObservationDrops))
+	}
+	for _, cluster := range clusters {
+		if cluster.Severity == "info" {
+			continue
+		}
+		blockers = append(blockers, fmt.Sprintf("cluster:%s x%d", cluster.Reason, cluster.Count))
+	}
+	if len(recent.DropCauses) > 0 {
+		for _, cause := range sortedReasonKeys(recent.DropCauses) {
+			blockers = append(blockers, fmt.Sprintf("drop_cause:%s x%d", cause, recent.DropCauses[cause]))
+		}
+	}
+	for _, penalty := range topPenaltySnapshot(breakdown.Penalties, 3) {
+		blockers = append(blockers, fmt.Sprintf("penalty:%s=%d", penalty.Reason, penalty.Penalty))
+	}
+	return dedupeStrings(blockers)
 }
 
 func AnomalyWindow(windows []TransportAnomalySummary, label string) TransportAnomalySummary {
@@ -439,15 +567,15 @@ func AnomalyWindow(windows []TransportAnomalySummary, label string) TransportAno
 	return TransportAnomalySummary{CountsByReason: map[string]uint64{}, DropCauses: map[string]uint64{}}
 }
 
-func heartbeatPenalty(runtime transport.Health, now time.Time) (int, int64) {
+func heartbeatPenalty(cfg config.Config, runtime transport.Health, now time.Time) (int, int64) {
 	delta := heartbeatDeltaSeconds(runtime, now)
 	switch {
 	case delta >= 900:
-		return 30, delta
+		return cfg.Intelligence.Scoring.HeartbeatPenalty900, delta
 	case delta >= 300:
-		return 20, delta
+		return cfg.Intelligence.Scoring.HeartbeatPenalty300, delta
 	case delta >= 120:
-		return 10, delta
+		return cfg.Intelligence.Scoring.HeartbeatPenalty120, delta
 	default:
 		return 0, delta
 	}
@@ -468,25 +596,29 @@ func heartbeatDeltaSeconds(runtime transport.Health, now time.Time) int64 {
 	return int64(now.Sub(parsed).Seconds())
 }
 
-func progressiveObservationPenalty(count uint64) int {
+func progressiveObservationPenalty(cfg config.Config, count uint64) int {
 	if count == 0 {
 		return 0
 	}
-	penalty := 6
+	penalty := cfg.Intelligence.Scoring.ObservationDropBasePenalty
 	if count > 2 {
-		penalty += minInt(24, int((count-2)*3))
+		penalty += minInt(cfg.Intelligence.Scoring.ObservationDropPenaltyCap-cfg.Intelligence.Scoring.ObservationDropBasePenalty, int((count-2)*uint64(cfg.Intelligence.Scoring.ObservationDropStepPenalty)))
 	}
-	return penalty
+	return minInt(cfg.Intelligence.Scoring.ObservationDropPenaltyCap, penalty)
 }
 
-func residualPenaltyForReason(reason string, count uint64) int {
+func residualPenaltyForReason(cfg config.Config, reason string, count uint64) int {
 	switch reason {
 	case transport.ReasonRetryThresholdExceeded:
 		return int(count) * 12
 	case transport.ReasonTimeoutFailure, transport.ReasonHandlerRejection:
 		return int(count) * 8
 	default:
-		return int(count) * 4
+		weight := cfg.Intelligence.Scoring.ReasonWeights[reason]
+		if weight == 0 {
+			weight = 4
+		}
+		return int(count) * minInt(4, maxInt(1, weight))
 	}
 }
 
@@ -513,6 +645,63 @@ func knownTransportReason(reason string) bool {
 	default:
 		return false
 	}
+}
+
+func anomalyWindows(cfg config.Config) []struct {
+	label    string
+	duration time.Duration
+} {
+	windows := make([]struct {
+		label    string
+		duration time.Duration
+	}, 0, len(cfg.Intelligence.Scoring.AnomalyWindowsSeconds))
+	for _, seconds := range cfg.Intelligence.Scoring.AnomalyWindowsSeconds {
+		d := time.Duration(seconds) * time.Second
+		windows = append(windows, struct {
+			label    string
+			duration time.Duration
+		}{label: durationLabel(d), duration: d})
+	}
+	if len(windows) == 0 {
+		windows = []struct {
+			label    string
+			duration time.Duration
+		}{{"1m", time.Minute}, {"5m", 5 * time.Minute}, {"15m", 15 * time.Minute}}
+	}
+	return windows
+}
+
+func maxWindowDuration(cfg config.Config) time.Duration {
+	maxWindow := 15 * time.Minute
+	for _, window := range anomalyWindows(cfg) {
+		if window.duration > maxWindow {
+			maxWindow = window.duration
+		}
+	}
+	return maxWindow
+}
+
+func durationLabel(d time.Duration) string {
+	if d%time.Minute == 0 {
+		return fmt.Sprintf("%dm", int(d/time.Minute))
+	}
+	return fmt.Sprintf("%ds", int(d/time.Second))
+}
+
+func dominantDropCause(summary TransportAnomalySummary) string {
+	if len(summary.DropCauses) == 0 {
+		return "unspecified_drop_cause"
+	}
+	pairs := sortedReasonKeys(summary.DropCauses)
+	best := pairs[0]
+	bestCount := summary.DropCauses[best]
+	for _, cause := range pairs[1:] {
+		if summary.DropCauses[cause] > bestCount {
+			best = cause
+			bestCount = summary.DropCauses[cause]
+		}
+	}
+	return best
 }
 
 func parseTimestamp(v string) (time.Time, bool) {
@@ -552,6 +741,38 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func sortedReasonKeys[V ~uint64](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func dedupeStrings(in []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, item := range in {
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	return out
 }
 
 func sqlEscape(v string) string {

@@ -262,3 +262,30 @@ func TestTransportHealthEndpointsExposeDerivedHealthAndAlerts(t *testing.T) {
 		}
 	}
 }
+
+func TestTransportHistoryEndpointsAndInspect(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-1", FailureCount: 2, ObservationDrops: 3, LastHeartbeatAt: "2026-03-19T00:00:00Z"}}, func(database *db.DB) {
+		if err := database.InsertTransportHealthSnapshot(db.TransportHealthSnapshot{TransportName: "mqtt", TransportType: "mqtt", Score: 42, State: "unstable", SnapshotTime: "2026-03-19T00:00:00Z", ActiveAlertCount: 1}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.UpsertTransportAlert(db.TransportAlertRecord{ID: "mqtt|retry_threshold_exceeded|retry-threshold", TransportName: "mqtt", TransportType: "mqtt", Severity: "critical", Reason: "retry_threshold_exceeded", Summary: "retry threshold exceeded", FirstTriggeredAt: "2026-03-19T00:00:00Z", LastUpdatedAt: "2026-03-19T00:00:00Z", Active: true, EpisodeID: "ep-1", ClusterKey: "retry-threshold", ContributingReasons: []string{"retry_threshold_exceeded"}, PenaltySnapshot: []db.PenaltyRecord{{Reason: "retry_threshold_exceeded", Penalty: 30, Count: 1, Window: "5m"}}, TriggerCondition: "retry_threshold_exceeded_count=1"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.InsertAuditLog("transport", "warning", transport.ReasonObservationDropped, map[string]any{"transport": "mqtt", "type": "mqtt", "drop_count": 3, "drop_cause": "observation_queue_saturation"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, path := range []string{
+		"/api/v1/transports/health/history?transport=mqtt&limit=10",
+		"/api/v1/transports/alerts/history?transport=mqtt&limit=10",
+		"/api/v1/transports/anomalies/history?transport=mqtt&limit=10",
+		"/api/v1/transports/inspect/mqtt",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.http.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+}

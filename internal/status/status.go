@@ -128,18 +128,26 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 		if alerts, err := database.TransportAlerts(true); err == nil {
 			snap.ActiveTransportAlerts = make([]TransportAlert, 0, len(alerts))
 			for _, alert := range alerts {
+				penalties := make([]HealthPenalty, 0, len(alert.PenaltySnapshot))
+				for _, penalty := range alert.PenaltySnapshot {
+					penalties = append(penalties, HealthPenalty{Reason: penalty.Reason, Penalty: penalty.Penalty, Count: penalty.Count, Window: penalty.Window})
+				}
 				converted := TransportAlert{
-					ID:               alert.ID,
-					TransportName:    alert.TransportName,
-					TransportType:    alert.TransportType,
-					Severity:         alert.Severity,
-					Reason:           alert.Reason,
-					Summary:          alert.Summary,
-					FirstTriggeredAt: alert.FirstTriggeredAt,
-					LastUpdatedAt:    alert.LastUpdatedAt,
-					Active:           alert.Active,
-					EpisodeID:        alert.EpisodeID,
-					ClusterKey:       alert.ClusterKey,
+					ID:                  alert.ID,
+					TransportName:       alert.TransportName,
+					TransportType:       alert.TransportType,
+					Severity:            alert.Severity,
+					Reason:              alert.Reason,
+					Summary:             alert.Summary,
+					FirstTriggeredAt:    alert.FirstTriggeredAt,
+					LastUpdatedAt:       alert.LastUpdatedAt,
+					Active:              alert.Active,
+					EpisodeID:           alert.EpisodeID,
+					ClusterKey:          alert.ClusterKey,
+					ContributingReasons: alert.ContributingReasons,
+					ClusterReference:    alert.ClusterReference,
+					PenaltySnapshot:     penalties,
+					TriggerCondition:    alert.TriggerCondition,
 				}
 				snap.ActiveTransportAlerts = append(snap.ActiveTransportAlerts, converted)
 				intelligence.AlertsByTransport[alert.TransportName] = append(intelligence.AlertsByTransport[alert.TransportName], converted)

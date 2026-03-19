@@ -101,3 +101,14 @@ func TestLintConfigFlagsUnsupportedEnabledTransport(t *testing.T) {
 		t.Fatal("expected unsupported transport lint")
 	}
 }
+
+func TestValidateRejectsUnsafeIntelligenceTuning(t *testing.T) {
+	cfg := Default()
+	cfg.Intelligence.Retention.HealthSnapshotDays = 3
+	cfg.Intelligence.Alerts.MinimumStateDurationSeconds = 1
+	cfg.Intelligence.Alerts.CooldownSeconds = 1
+	cfg.Intelligence.Alerts.RecoveryScoreHealthy = 80
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected intelligence validation error")
+	}
+}
