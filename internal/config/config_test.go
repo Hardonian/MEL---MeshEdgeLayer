@@ -61,6 +61,9 @@ func TestWriteInit(t *testing.T) {
 func TestValidateDirectTransports(t *testing.T) {
 	cfg := Default()
 	cfg.Transports = []TransportConfig{{Name: "serial", Type: "serial", Enabled: true, SerialDevice: "/dev/ttyUSB0", SerialBaud: 115200}, {Name: "tcp", Type: "tcp", Enabled: true, TCPHost: "127.0.0.1", TCPPort: 4403}}
+	if err := normalize(&cfg); err != nil {
+		t.Fatal(err)
+	}
 	if err := Validate(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +78,18 @@ func TestValidateMQTTRequiresClientID(t *testing.T) {
 	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}}
 	if err := Validate(cfg); err == nil {
 		t.Fatal("expected missing client_id validation error")
+	}
+}
+
+func TestNormalizeSetsTransportReliabilityDefaults(t *testing.T) {
+	cfg := Default()
+	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-test"}}
+	if err := normalize(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.Transports[0]
+	if got.MQTTQoS != 1 || got.MQTTKeepAliveSec != 30 || got.ReadTimeoutSec != 15 || got.WriteTimeoutSec != 5 || got.MaxTimeouts != 3 {
+		t.Fatalf("unexpected defaults: %+v", got)
 	}
 }
 

@@ -6,6 +6,7 @@ MEL is a local-first ingest, persistence, and operator-observability layer for *
 
 - Ingests real Meshtastic traffic from **serial direct-node**, **TCP direct-node**, and **MQTT** transports.
 - Persists observed packets, nodes, telemetry samples, and audit events into SQLite using deterministic `sqlite3` CLI migrations.
+- Applies transport hardening defaults for production-oriented ingest loops: reconnect backoff, read/write deadlines, consecutive-timeout deadlock detection, MQTT QoS 1 subscriptions by default, broker keepalive pings, and dead-letter persistence for messages that fail MEL-side processing.
 - Exposes truthful operator views through `mel doctor`, `mel status`, `mel replay`, the HTML UI, and `/api/v1/*` JSON endpoints.
 - Reports explicit transport truth with the same state vocabulary across CLI and API: `disabled`, `configured_not_attempted`, `attempting`, `configured_offline`, `connected_no_ingest`, `ingesting`, `historical_only`, and `error`.
 - Ships a JSON `/metrics` endpoint that reflects the same counters shown by doctor and status.
@@ -17,6 +18,7 @@ MEL is a local-first ingest, persistence, and operator-observability layer for *
 - No transmit, publish, routing, or control-plane behavior.
 - No fake packets, fake nodes, or placeholder transport success.
 - No hardware-verification claims that were not exercised in this repo environment.
+- No claim of “100% reliability”; MEL only claims the retry, timeout, audit, and observability behavior that is implemented and repo-verified here.
 - No full Meshtastic protobuf coverage; unsupported payloads are stored truthfully as raw payload bytes.
 
 See the canonical execution contract in [docs/roadmap/ROADMAP_EXECUTION.md](docs/roadmap/ROADMAP_EXECUTION.md).

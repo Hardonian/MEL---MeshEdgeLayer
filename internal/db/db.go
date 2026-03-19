@@ -33,6 +33,14 @@ type TransportRuntime struct {
 	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
+type DeadLetter struct {
+	TransportName string         `json:"transport_name"`
+	Topic         string         `json:"topic"`
+	Reason        string         `json:"reason"`
+	PayloadHex    string         `json:"payload_hex"`
+	Details       map[string]any `json:"details,omitempty"`
+}
+
 func Open(cfg config.Config) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.Storage.DatabasePath), 0o755); err != nil {
 		return nil, err
@@ -161,6 +169,13 @@ func (d *DB) InsertTelemetrySample(nodeNum int64, sampleType string, value any, 
 func (d *DB) InsertAuditLog(category, level, message string, details any) error {
 	detailJSON, _ := json.Marshal(details)
 	sql := fmt.Sprintf(`INSERT INTO audit_logs(category,level,message,details_json,created_at) VALUES('%s','%s','%s','%s','%s');`, esc(category), esc(level), esc(message), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
+	return d.Exec(sql)
+}
+
+func (d *DB) InsertDeadLetter(dl DeadLetter) error {
+	detailJSON, _ := json.Marshal(dl.Details)
+	sql := fmt.Sprintf(`INSERT INTO dead_letters(transport_name,topic,reason,payload_hex,details_json,created_at) VALUES('%s','%s','%s','%s','%s','%s');`,
+		esc(dl.TransportName), esc(dl.Topic), esc(dl.Reason), esc(dl.PayloadHex), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
 	return d.Exec(sql)
 }
 

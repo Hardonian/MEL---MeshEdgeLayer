@@ -24,6 +24,9 @@ const (
 	StateError                  = "error"
 )
 
+const StateConfigured = StateConfiguredNotAttempted
+const StateConnectedNoData = StateConnectedNoIngest
+
 type CapabilityMatrix struct {
 	IngestSupported        bool   `json:"ingest_supported"`
 	SendSupported          bool   `json:"send_supported"`
@@ -121,12 +124,15 @@ func (u *Unsupported) Connect(context.Context) error {
 	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }
+
 func (u *Unsupported) Close(context.Context) error { return nil }
+
 func (u *Unsupported) Health() Health {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return u.health
 }
+
 func (u *Unsupported) Capabilities() CapabilityMatrix                 { return u.Health().Capabilities }
 func (u *Unsupported) SourceType() string                             { return u.cfg.Type }
 func (u *Unsupported) Name() string                                   { return u.cfg.Name }
@@ -147,7 +153,7 @@ func dialWithTimeout(endpoint string) (net.Conn, error) {
 	return net.DialTimeout("tcp", endpoint, 5*time.Second)
 }
 
-func capabilityDefaults(cfg config.TransportConfig, ingest, send, metadata, nodes, health, configApply bool, status, notes string) CapabilityMatrix {
+func capabilityDefaults(_ config.TransportConfig, ingest, send, metadata, nodes, health, configApply bool, status, notes string) CapabilityMatrix {
 	return CapabilityMatrix{
 		IngestSupported:        ingest,
 		SendSupported:          send,
