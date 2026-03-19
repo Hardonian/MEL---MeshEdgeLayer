@@ -52,7 +52,8 @@ What to expect:
 - a real serial/TCP problem is surfaced as a real finding,
 - zero enabled transports is surfaced explicitly,
 - unsupported transport types stay marked unsupported,
-- `summary.transport_observations[].state == "historical_only"` means the local database has prior packets for that transport even when doctor is not asserting a live connection in that moment.
+- `/readyz` can report `process_ready: true` while `ingest_ready: false`; that means MEL is running but still has no live ingest evidence,
+- `summary.transport_observations[].status == "historical_ingest_seen"` means the local database has prior packets for that transport even when doctor is not asserting a live connection in that moment.
 
 ## 4. Start MEL
 

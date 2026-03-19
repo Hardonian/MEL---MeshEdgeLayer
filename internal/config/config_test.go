@@ -70,10 +70,19 @@ func TestValidateDirectTransports(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidMQTTEndpointAndMissingClientID(t *testing.T) {
+func TestValidateMQTTRequiresClientID(t *testing.T) {
 	cfg := Default()
-	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1", Topic: "msh/test"}}
+	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}}
 	if err := Validate(cfg); err == nil {
-		t.Fatal("expected validation error")
+		t.Fatal("expected missing client_id validation error")
+	}
+}
+
+func TestLintConfigFlagsUnsupportedEnabledTransport(t *testing.T) {
+	cfg := Default()
+	cfg.Transports = []TransportConfig{{Name: "ble-test", Type: "ble", Enabled: true}}
+	lints := LintConfig(cfg)
+	if len(lints) == 0 {
+		t.Fatal("expected unsupported transport lint")
 	}
 }

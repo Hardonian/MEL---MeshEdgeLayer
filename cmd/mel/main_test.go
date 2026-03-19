@@ -34,7 +34,7 @@ func TestDoctorTransportObservationsHistoricalIngest(t *testing.T) {
 		t.Fatal(err)
 	}
 	obs := doctorTransportObservations(cfg, database)
-	if len(obs) != 1 || obs[0]["state"] != transport.StateHistoricalOnly {
+	if len(obs) != 1 || obs[0]["status"] != "historical_ingest_seen" {
 		t.Fatalf("unexpected observations: %+v", obs)
 	}
 }

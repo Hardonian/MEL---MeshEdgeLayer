@@ -70,20 +70,32 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transports_live": s.transportHealth(), "transports_persisted": persistedTransportTruth(s.cfg, s.db, s.transportHealth())})
+	health := s.transportHealth()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"process_ready":  true,
+		"ingest_ready":   readyForIngest(health),
+		"operator_state": operatorState(health),
+		"transports":     health,
+	})
 }
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	schemaVersion, _ := s.db.SchemaVersion()
-	persisted := persistedTransportTruth(s.cfg, s.db, s.transportHealth())
+	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
+	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
+	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	writeJSON(w, http.StatusOK, map[string]any{
-		"snapshot":               s.state.Snapshot(),
-		"transports_live":        s.transportHealth(),
-		"transports_persisted":   persisted,
-		"privacy_summary":        privacy.Summary(privacy.Audit(s.cfg)),
-		"schema_version":         schemaVersion,
-		"bind_local_default":     !s.cfg.Bind.AllowRemote,
-		"configured_modes":       configuredModes(s.cfg),
-		"last_successful_ingest": lastSuccessfulIngest(persisted),
+		"runtime_snapshot": s.state.Snapshot(),
+		"persisted_summary": map[string]any{
+			"nodes":                  persistedNodes,
+			"messages":               persistedMessages,
+			"last_successful_ingest": lastPersistedIngest,
+		},
+		"snapshot_boundary":  "runtime_snapshot reflects only observations seen by the current MEL process; persisted_summary reflects SQLite history across restarts",
+		"transports":         s.transportHealth(),
+		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
+		"schema_version":     schemaVersion,
+		"bind_local_default": !s.cfg.Bind.AllowRemote,
+		"configured_modes":   configuredModes(s.cfg),
 	})
 }
 func (s *Server) nodes(w http.ResponseWriter, _ *http.Request) {
@@ -143,6 +155,9 @@ func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	sort.Slice(snap.Nodes, func(i, j int) bool { return snap.Nodes[i].Num < snap.Nodes[j].Num })
 	findings := privacy.Audit(s.cfg)
 	messages, _ := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time FROM messages ORDER BY id DESC LIMIT 20;")
+	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
+	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
+	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	logs, _ := s.db.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
 	fmt.Fprintf(w, `<!doctype html><html><head><title>MEL</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
 body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#fafafa;color:#111}
@@ -155,17 +170,15 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	for _, mode := range configuredModes(s.cfg) {
 		fmt.Fprintf(w, `<span class="pill">%s</span>`, mode)
 	}
-	fmt.Fprintf(w, `</p><p>Messages observed: <strong>%d</strong>.</p>`, snap.Messages)
+	fmt.Fprintf(w, `</p><p>Runtime process message count: <strong>%d</strong>.</p><p>Persisted message count: <strong>%s</strong>. Persisted node count: <strong>%s</strong>. Last persisted ingest: <strong>%s</strong>.</p>`, snap.Messages, blankIfEmpty(persistedMessages, "0"), blankIfEmpty(persistedNodes, "0"), blankIfEmpty(lastPersistedIngest, "none"))
 	if len(snap.Nodes) == 0 {
-		fmt.Fprint(w, `<p class="muted">No nodes have been observed yet. If a transport is configured, that means MEL is either disconnected or connected but idle. No sample mesh data is shown.</p>`)
+		fmt.Fprint(w, `<p class="muted">The current MEL process has not observed any nodes yet. Persisted counts above may still show historical data from prior runs. No sample mesh data is shown.</p>`)
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Live state</th><th>Persisted truth</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Counters</th><th>Last message</th><th>Last error</th></tr>`)
-	persistedTruth := persistedTransportTruth(s.cfg, s.db, s.transportHealth())
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>State</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last attempt</th><th>Last packet</th><th>Last error</th></tr>`)
 	for _, h := range s.transportHealth() {
-		persisted := persistedByName(persistedTruth, h.Name)
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d stored / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), blankIfEmpty(asString(persisted["state"]), "unknown"), transportStateLabel(h, persisted), blankIfEmpty(asString(persisted["detail"]), h.Detail), asJSON(h.Capabilities), asInt(persisted["total_messages"]), h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(asString(persisted["last_message_at"]), "—"), blankIfEmpty(asString(persisted["last_error"]), "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), transportStateLabel(h), h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -253,24 +266,56 @@ func transportStateLabel(h transport.Health, persisted map[string]any) string {
 	switch state {
 	case transport.StateDisabled:
 		return "disabled"
-	case transport.StateConfigured:
-		return "configured but no attempt has proven connectivity"
-	case transport.StateAttempting:
-		return "connect attempt in progress"
-	case transport.StateConnectedNoData:
-		return "connected but MEL has not stored a packet yet"
-	case transport.StateIngesting:
-		return "live data stored successfully"
-	case transport.StateHistoricalOnly:
-		return "historical packets exist, but no live runtime proof is available"
-	case transport.StateError:
-		return "error or unreachable"
+	case "configured_not_attempted":
+		return "configured but not yet started"
+	case "attempting":
+		return "connect in progress"
+	case "connected_no_ingest_evidence":
+		return "connected but idle"
+	case "ingesting":
+		return "live data flowing"
+	case "error":
+		return "error; see detail and last error"
+	case "unsupported":
+		return "unsupported in this release"
+	case "configured_offline":
+		return "configured; offline-only doctor evidence"
 	default:
 		if h.Unsupported {
 			return "unsupported in this release"
 		}
 		return "state unknown"
 	}
+}
+
+func readyForIngest(health []transport.Health) bool {
+	for _, h := range health {
+		if h.State == "ingesting" {
+			return true
+		}
+	}
+	return false
+}
+
+func operatorState(health []transport.Health) string {
+	if len(health) == 0 {
+		return "idle_no_transports"
+	}
+	if readyForIngest(health) {
+		return "ingesting"
+	}
+	for _, h := range health {
+		if h.State == "error" || h.State == "unsupported" {
+			return "degraded"
+		}
+		if h.State == "connected_no_ingest_evidence" {
+			return "connected_no_ingest_evidence"
+		}
+		if h.State == "attempting" {
+			return "attempting"
+		}
+	}
+	return "configured_not_attempted"
 }
 
 var _ = remoteClient

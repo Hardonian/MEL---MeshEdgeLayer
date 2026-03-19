@@ -53,16 +53,16 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = m.cfg.Endpoint
-		h.State = StateAttempting
-		h.Detail = "attempting MQTT connection"
-		h.LastAttemptAt = attemptedAt
+		h.State = directStateAttempting
+		h.Detail = "connect in progress"
+		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
 	conn, err := dialWithTimeout(m.cfg.Endpoint)
 	if err != nil {
 		m.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = StateError
-			h.Detail = "MQTT connection attempt failed"
+			h.State = directStateError
+			h.Detail = "connect failed"
 			h.LastError = err.Error()
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 		})
@@ -104,8 +104,8 @@ func (m *MQTT) Close(context.Context) error {
 	if m.conn != nil {
 		m.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = StateConfigured
-			h.Detail = "configured; connection closed"
+			h.State = directStateError
+			h.Detail = "connection closed"
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 		})
 		return m.conn.Close()
@@ -156,7 +156,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err != nil {
 			m.setHealth(func(h *Health) {
 				h.PacketsDropped++
-				h.State = StateError
+				h.State = directStateError
 				h.LastError = err.Error()
 				h.Detail = "publish parse failed"
 			})
@@ -166,7 +166,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err := handler(topic, publishPayload); err != nil {
 			m.setHealth(func(h *Health) {
 				h.PacketsDropped++
-				h.State = StateError
+				h.State = directStateError
 				h.LastError = err.Error()
 				h.Detail = "ingest handler failed"
 			})
@@ -198,7 +198,7 @@ func (m *MQTT) FetchNodes(context.Context) ([]map[string]any, error) {
 func (m *MQTT) markReadFailure(err error) {
 	m.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = StateError
+		h.State = directStateError
 		h.LastError = err.Error()
 		h.Detail = "MQTT stream disconnected; waiting to retry"
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)

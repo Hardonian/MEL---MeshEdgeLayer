@@ -35,6 +35,7 @@ type Health struct {
 	Capabilities      CapabilityMatrix `json:"capabilities"`
 	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
 	LastError         string           `json:"last_error,omitempty"`
+	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
 	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
 	LastSuccessAt     string           `json:"last_success_at,omitempty"`
 	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
