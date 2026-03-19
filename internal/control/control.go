@@ -34,6 +34,30 @@ const (
 	ResultFailedTransient      = "failed_transient"
 	ResultFailedTerminal       = "failed_terminal"
 	ResultExpired              = "expired"
+
+	LifecyclePending   = "pending"
+	LifecycleRunning   = "running"
+	LifecycleCompleted = "completed"
+	LifecycleRecovered = "recovered"
+
+	ClosureRecoveredAndClosed = "recovered_and_closed"
+	ClosureExpiredAndReverted = "expired_and_reverted"
+	ClosureSuperseded         = "superseded"
+	ClosureCanceledByOperator = "canceled_by_operator"
+
+	DenialPolicy             = "policy"
+	DenialMode               = "mode"
+	DenialOverride           = "override"
+	DenialLowConfidence      = "low_confidence"
+	DenialTransient          = "transient"
+	DenialCooldown           = "cooldown"
+	DenialBudget             = "budget"
+	DenialMissingActuator    = "missing_actuator"
+	DenialUnknownBlastRadius = "unknown_blast_radius"
+	DenialNoAlternatePath    = "no_alternate_path"
+	DenialIrreversible       = "irreversible"
+	DenialConflict           = "conflict"
+	DenialAttributionWeak    = "attribution_weak"
 )
 
 type ControlAction struct {
@@ -56,6 +80,10 @@ type ControlAction struct {
 	OutcomeDetail   string         `json:"outcome_detail,omitempty"`
 	Mode            string         `json:"mode"`
 	PolicyRule      string         `json:"policy_rule,omitempty"`
+	LifecycleState  string         `json:"lifecycle_state,omitempty"`
+	AdvisoryOnly    bool           `json:"advisory_only,omitempty"`
+	DenialCode      string         `json:"denial_code,omitempty"`
+	ClosureState    string         `json:"closure_state,omitempty"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
@@ -73,26 +101,41 @@ type ControlPolicy struct {
 }
 
 type ControlDecision struct {
-	ID                 string          `json:"id"`
-	CandidateAction    ControlAction   `json:"candidate_action"`
-	Allowed            bool            `json:"allowed"`
-	DenialReason       string          `json:"denial_reason,omitempty"`
-	Confidence         float64         `json:"confidence"`
-	SafetyChecksPassed []string        `json:"safety_checks_passed,omitempty"`
-	SafetyChecks       map[string]bool `json:"safety_checks"`
-	CreatedAt          string          `json:"created_at"`
-	Mode               string          `json:"mode"`
-	OperatorOverride   bool            `json:"operator_override"`
-	InputSummary       map[string]any  `json:"input_summary,omitempty"`
-	PolicySummary      map[string]any  `json:"policy_summary,omitempty"`
+	ID                 string         `json:"id"`
+	CandidateAction    ControlAction  `json:"candidate_action"`
+	Allowed            bool           `json:"allowed"`
+	DenialReason       string         `json:"denial_reason,omitempty"`
+	DenialCode         string         `json:"denial_code,omitempty"`
+	Confidence         float64        `json:"confidence"`
+	SafetyChecksPassed []string       `json:"safety_checks_passed,omitempty"`
+	SafetyChecks       map[string]any `json:"safety_checks"`
+	CreatedAt          string         `json:"created_at"`
+	Mode               string         `json:"mode"`
+	OperatorOverride   bool           `json:"operator_override"`
+	InputSummary       map[string]any `json:"input_summary,omitempty"`
+	PolicySummary      map[string]any `json:"policy_summary,omitempty"`
+}
+
+type ActionReality struct {
+	ActionType         string `json:"action_type"`
+	ActuatorExists     bool   `json:"actuator_exists"`
+	Reversible         bool   `json:"reversible"`
+	BlastRadiusKnown   bool   `json:"blast_radius_known"`
+	BlastRadiusClass   string `json:"blast_radius_class"`
+	SafeForGuardedAuto bool   `json:"safe_for_guarded_auto"`
+	AdvisoryOnly       bool   `json:"advisory_only"`
+	DenialCode         string `json:"denial_code,omitempty"`
+	Notes              string `json:"notes,omitempty"`
 }
 
 type ControlExplanation struct {
 	Mode             string            `json:"mode"`
 	ActiveActions    []ControlAction   `json:"active_actions,omitempty"`
 	RecentActions    []ControlAction   `json:"recent_actions,omitempty"`
+	PendingActions   []ControlAction   `json:"pending_actions,omitempty"`
 	DeniedActions    []ControlDecision `json:"denied_actions,omitempty"`
 	PolicySummary    ControlPolicy     `json:"policy_summary"`
+	RealityMatrix    []ActionReality   `json:"reality_matrix,omitempty"`
 	ReasonsForDenial []string          `json:"reasons_for_denial,omitempty"`
 	EmergencyDisable bool              `json:"emergency_disable"`
 }
@@ -106,6 +149,27 @@ type Evaluation struct {
 type runtimeSignals struct {
 	connectedCount int
 	byTransport    map[string]transport.Health
+}
+
+func DefaultActionRealityMatrix() []ActionReality {
+	return []ActionReality{
+		{ActionType: ActionBackoffIncrease, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Raises only the local reconnect backoff multiplier until expiry or reset."},
+		{ActionType: ActionBackoffReset, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Restores the local reconnect backoff multiplier to baseline."},
+		{ActionType: ActionClearSuppression, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "Suppression is not shipped as a real actuator in this build, so clear_suppression stays advisory-only."},
+		{ActionType: ActionRestartTransport, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Interrupts only the named transport so the bounded reconnect loop can re-enter connect/subscribe."},
+		{ActionType: ActionResubscribeTransport, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Interrupts only the named transport subscription path and relies on the existing reconnect/subscribe loop."},
+		{ActionType: ActionTemporarilyDeprioritize, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "MEL does not currently own a verified live routing selector, so routing changes remain advisory."},
+		{ActionType: ActionTemporarilySuppressNoisySource, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "MEL does not currently ship a verified source suppression actuator or metrics-backed suppression path."},
+		{ActionType: ActionTriggerHealthRecheck, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_process", SafeForGuardedAuto: true, Notes: "Schedules a bounded asynchronous health recheck without changing transport routing."},
+	}
+}
+
+func ActionRealityByType() map[string]ActionReality {
+	out := map[string]ActionReality{}
+	for _, item := range DefaultActionRealityMatrix() {
+		out[item.ActionType] = item
+	}
+	return out
 }
 
 func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, now time.Time) (Evaluation, error) {
@@ -122,9 +186,10 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 	denialReasons := []string{}
 	signals := buildRuntimeSignals(runtime)
 	historyCache := map[string][]db.ControlActionRecord{}
+	realityByType := ActionRealityByType()
 
 	for _, candidate := range candidateActions(cfg, mesh, now) {
-		decision := evaluateCandidate(cfg, database, policy, candidate, mesh, signals, activeActions, historyCache, now)
+		decision := evaluateCandidate(cfg, database, policy, candidate, mesh, signals, activeActions, historyCache, realityByType, now)
 		decisions = append(decisions, decision)
 		if !decision.Allowed && decision.DenialReason != "" {
 			denialReasons = append(denialReasons, decision.DenialReason)
@@ -136,6 +201,10 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 		recent, _ = database.ControlActions("", "", now.Add(-24*time.Hour).Format(time.RFC3339), "", minPositive(cfg.Intelligence.Queries.DefaultLimit, 50), 0)
 	}
 	active := filterActiveActions(activeActions, now)
+	pending := []db.ControlActionRecord{}
+	if database != nil {
+		pending, _ = database.IncompleteControlActions(minPositive(cfg.Intelligence.Queries.DefaultLimit, 50))
+	}
 	denied := make([]ControlDecision, 0)
 	for _, decision := range decisions {
 		if !decision.Allowed {
@@ -146,8 +215,10 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 		Mode:             policy.Mode,
 		ActiveActions:    controlActionsFromRecords(active),
 		RecentActions:    controlActionsFromRecords(recent),
+		PendingActions:   controlActionsFromRecords(pending),
 		DeniedActions:    denied,
 		PolicySummary:    policy,
+		RealityMatrix:    DefaultActionRealityMatrix(),
 		ReasonsForDenial: dedupeStrings(denialReasons),
 		EmergencyDisable: cfg.Control.EmergencyDisable,
 	}
@@ -323,108 +394,91 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 	return dedupeCandidateActions(actions)
 }
 
-func evaluateCandidate(cfg config.Config, database *db.DB, policy ControlPolicy, candidate ControlAction, mesh statuspkg.MeshDrilldown, signals runtimeSignals, active []db.ControlActionRecord, historyCache map[string][]db.ControlActionRecord, now time.Time) ControlDecision {
-	checks := map[string]bool{
-		"confidence_threshold_met":     candidate.Confidence >= policy.RequireMinConfidence,
-		"policy_allows_action":         policyAllows(policy, candidate.ActionType),
-		"cooldown_satisfied":           true,
-		"no_conflicting_active_action": true,
-		"persistent_evidence":          true,
-		"action_budget_not_exceeded":   true,
-		"operator_override_not_active": true,
+func evaluateCandidate(cfg config.Config, database *db.DB, policy ControlPolicy, candidate ControlAction, mesh statuspkg.MeshDrilldown, signals runtimeSignals, active []db.ControlActionRecord, historyCache map[string][]db.ControlActionRecord, realityByType map[string]ActionReality, now time.Time) ControlDecision {
+	reality, ok := realityByType[candidate.ActionType]
+	if !ok {
+		reality = ActionReality{ActionType: candidate.ActionType, BlastRadiusClass: "unknown", DenialCode: DenialMissingActuator}
 	}
-	passed := []string{}
-	denial := ""
-	if cfg.Control.EmergencyDisable {
-		checks["operator_override_not_active"] = false
-		denial = "control disabled by emergency_disable"
+	attribution := suppressionAttribution(database, candidate.TargetTransport, now)
+	evidencePass := persistentEvidence(database, candidate, now)
+	if candidate.ActionType == ActionRestartTransport && signals.byTransport[candidate.TargetTransport].State != transport.StateFailed && signals.byTransport[candidate.TargetTransport].FailureCount == 0 {
+		evidencePass = false
 	}
-	if overrideActive(cfg, candidate) {
-		checks["operator_override_not_active"] = false
-		denial = "operator override suppresses automation for target"
+	if candidate.ActionType == ActionTemporarilySuppressNoisySource && !attribution.Strong {
+		evidencePass = false
 	}
-	if !policyAllows(policy, candidate.ActionType) {
-		checks["policy_allows_action"] = false
-		denial = "policy does not allow action type"
+	if candidate.ActionType == ActionTemporarilyDeprioritize && signals.connectedCount == 0 {
+		evidencePass = false
 	}
+	confidencePass := candidate.Confidence >= policy.RequireMinConfidence
+	policyPass := policyAllows(policy, candidate.ActionType)
+	overridePass := !cfg.Control.EmergencyDisable && !overrideActive(cfg, candidate)
+	conflictPass := !conflictingActiveAction(active, candidate, now)
+	cooldownPass := cooldownSatisfied(database, policy, candidate, historyCache, now)
+	budgetPass := budgetSatisfied(database, policy, candidate, now)
+	alternatePathExists := candidate.ActionType != ActionTemporarilyDeprioritize || healthyAlternateExists(mesh, candidate.TargetTransport)
+	reversibilityPass := reality.Reversible
+	blastKnown := reality.BlastRadiusKnown && strings.TrimSpace(reality.BlastRadiusClass) != "" && reality.BlastRadiusClass != "unknown"
+
 	if candidate.ActionType == ActionRestartTransport && !policy.AllowTransportRestart {
-		checks["policy_allows_action"] = false
-		denial = "policy disables transport restart actions"
+		policyPass = false
 	}
 	if candidate.ActionType == ActionTemporarilySuppressNoisySource && !policy.AllowSourceSuppression {
-		checks["policy_allows_action"] = false
-		denial = "policy disables source suppression"
+		policyPass = false
 	}
 	if isMeshLevelAction(candidate) && !policy.AllowMeshLevelActions {
-		checks["policy_allows_action"] = false
-		denial = "policy disables mesh-level actions"
+		policyPass = false
 	}
-	if !persistentEvidence(database, candidate, now) {
-		checks["persistent_evidence"] = false
-		denial = "evidence remains transient in anomaly snapshot history"
+
+	safetyChecks := map[string]any{
+		"evidence_pass":           evidencePass,
+		"confidence_pass":         confidencePass,
+		"policy_pass":             policyPass,
+		"cooldown_pass":           cooldownPass,
+		"override_pass":           overridePass,
+		"conflict_pass":           conflictPass,
+		"reversibility_pass":      reversibilityPass,
+		"alternate_path_exists":   alternatePathExists,
+		"blast_radius_class":      reality.BlastRadiusClass,
+		"budget_pass":             budgetPass,
+		"actuator_exists":         reality.ActuatorExists,
+		"blast_radius_known":      blastKnown,
+		"safe_for_guarded_auto":   reality.SafeForGuardedAuto,
+		"advisory_only":           reality.AdvisoryOnly,
+		"attribution_strong":      attribution.Strong,
+		"attribution_best_effort": attribution.BestEffort,
 	}
-	if conflictingActiveAction(active, candidate, now) {
-		checks["no_conflicting_active_action"] = false
-		denial = "conflicting active action already exists for target"
-	}
-	if !cooldownSatisfied(database, policy, candidate, historyCache, now) {
-		checks["cooldown_satisfied"] = false
-		denial = "cooldown window still active for target"
-	}
-	if !budgetSatisfied(database, policy, candidate, now) {
-		checks["action_budget_not_exceeded"] = false
-		denial = "action budget exceeded for current control window"
-	}
-	if candidate.ActionType == ActionTemporarilyDeprioritize && !healthyAlternateExists(mesh, candidate.TargetTransport) {
-		checks["persistent_evidence"] = false
-		denial = "no healthy alternate transport exists for deprioritization"
-	}
-	if candidate.ActionType == ActionTemporarilySuppressNoisySource {
-		checks["policy_allows_action"] = false
-		if denial == "" {
-			denial = "source suppression remains advisory until attribution is stronger than current transport-level evidence"
-		}
-	}
-	if candidate.ActionType == ActionTemporarilyDeprioritize {
-		checks["policy_allows_action"] = false
-		if denial == "" {
-			denial = "routing changes remain advisory because MEL does not yet own a reversible live routing selector"
-		}
-	}
-	if candidate.ActionType == ActionRestartTransport && signals.byTransport[candidate.TargetTransport].State != transport.StateFailed && signals.byTransport[candidate.TargetTransport].FailureCount == 0 {
-		checks["persistent_evidence"] = false
-		denial = "restart target is not currently failed or inside an active failure episode"
-	}
-	for name, ok := range checks {
-		if ok {
-			passed = append(passed, name)
-		}
-	}
-	sort.Strings(passed)
-	allowed := denial == "" && cfg.Control.Mode == ModeGuardedAuto
+
+	passed := passedSafetyChecks(safetyChecks)
+	denialCode, denial := determineDenial(cfg, candidate, policy, reality, attribution, safetyChecks)
+	allowed := denialCode == "" && cfg.Control.Mode == ModeGuardedAuto
 	if cfg.Control.Mode == ModeDisabled {
 		allowed = false
-		if denial == "" {
-			denial = "control mode is disabled"
+		if denialCode == "" {
+			denialCode, denial = DenialMode, "control mode is disabled"
 		}
 	}
 	if cfg.Control.Mode == ModeAdvisory {
 		allowed = false
-		if denial == "" {
-			denial = "control mode is advisory"
+		if denialCode == "" {
+			denialCode, denial = DenialMode, "control mode is advisory"
 		}
 	}
+	candidate.AdvisoryOnly = !allowed
+	candidate.DenialCode = denialCode
+	candidate.LifecycleState = LifecyclePending
 	return ControlDecision{
 		ID:                 fmt.Sprintf("cd-%s-%s", sanitizeID(now.UTC().Format(time.RFC3339Nano)), sanitizeID(candidate.ID)),
 		CandidateAction:    candidate,
 		Allowed:            allowed,
 		DenialReason:       denial,
+		DenialCode:         denialCode,
 		Confidence:         candidate.Confidence,
 		SafetyChecksPassed: passed,
-		SafetyChecks:       checks,
+		SafetyChecks:       safetyChecks,
 		CreatedAt:          now.UTC().Format(time.RFC3339),
 		Mode:               cfg.Control.Mode,
-		OperatorOverride:   !checks["operator_override_not_active"],
+		OperatorOverride:   !overridePass,
 		InputSummary: map[string]any{
 			"mesh_state":              mesh.MeshHealth.State,
 			"mesh_score":              mesh.MeshHealth.Score,
@@ -432,12 +486,20 @@ func evaluateCandidate(cfg config.Config, database *db.DB, policy ControlPolicy,
 			"correlated_failures":     len(mesh.CorrelatedFailures),
 			"degraded_segments":       len(mesh.DegradedSegments),
 			"routing_recommendations": len(mesh.RoutingRecommendations),
+			"attribution_confidence":  attribution.Confidence,
+			"attribution_best_effort": attribution.BestEffort,
+			"attributed_node_id":      attribution.NodeID,
+			"blast_radius_class":      reality.BlastRadiusClass,
+			"safe_for_guarded_auto":   reality.SafeForGuardedAuto,
+			"actuator_exists":         reality.ActuatorExists,
+			"alternate_path_exists":   alternatePathExists,
 		},
 		PolicySummary: map[string]any{
 			"mode":                    policy.Mode,
 			"max_actions_per_window":  policy.MaxActionsPerWindow,
 			"cooldown_per_target_sec": policy.CooldownPerTarget,
 			"min_confidence":          policy.RequireMinConfidence,
+			"restart_cap_per_window":  policy.RestartCapPerWindow,
 		},
 	}
 }
@@ -478,6 +540,123 @@ func persistentEvidence(database *db.DB, candidate ControlAction, now time.Time)
 	return len(buckets) >= 2
 }
 
+type attributionSummary struct {
+	NodeID      string
+	Confidence  float64
+	BestEffort  bool
+	Strong      bool
+	MessageSpan int
+}
+
+func suppressionAttribution(database *db.DB, transportName string, now time.Time) attributionSummary {
+	if database == nil || strings.TrimSpace(transportName) == "" {
+		return attributionSummary{BestEffort: true}
+	}
+	start := now.Add(-15 * time.Minute).UTC().Format(time.RFC3339)
+	rows, err := database.QueryRows(fmt.Sprintf(`SELECT COALESCE(NULLIF(n.node_id,''), CAST(m.from_node AS TEXT)) AS attributed_node_id,
+COUNT(*) AS message_count
+FROM messages m
+LEFT JOIN nodes n ON n.node_num = m.from_node
+WHERE m.transport_name='%s' AND m.from_node > 0 AND m.rx_time >= '%s' AND m.rx_time <= '%s'
+GROUP BY attributed_node_id
+ORDER BY message_count DESC, attributed_node_id ASC
+LIMIT 3;`, sqlSafe(transportName), sqlSafe(start), sqlSafe(now.UTC().Format(time.RFC3339))))
+	if err != nil || len(rows) == 0 {
+		return attributionSummary{BestEffort: true}
+	}
+	total := 0
+	for _, row := range rows {
+		total += int(asFloatValue(row["message_count"]))
+	}
+	top := rows[0]
+	topCount := int(asFloatValue(top["message_count"]))
+	confidence := 0.0
+	if total > 0 {
+		confidence = float64(topCount) / float64(total)
+	}
+	strong := len(rows) == 1 && topCount >= 3 && confidence >= 0.85
+	return attributionSummary{
+		NodeID:      fmt.Sprint(top["attributed_node_id"]),
+		Confidence:  confidence,
+		BestEffort:  len(rows) > 1 || !strong,
+		Strong:      strong,
+		MessageSpan: total,
+	}
+}
+
+func passedSafetyChecks(checks map[string]any) []string {
+	out := make([]string, 0, len(checks))
+	for name, value := range checks {
+		if ok, isBool := value.(bool); isBool && ok {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func determineDenial(cfg config.Config, candidate ControlAction, policy ControlPolicy, reality ActionReality, attribution attributionSummary, checks map[string]any) (string, string) {
+	if cfg.Control.EmergencyDisable {
+		return DenialOverride, "control disabled by emergency_disable"
+	}
+	if overrideActive(cfg, candidate) {
+		return DenialOverride, "operator override suppresses automation for target"
+	}
+	if cfg.Control.Mode == ModeDisabled {
+		return DenialMode, "control mode is disabled"
+	}
+	if cfg.Control.Mode == ModeAdvisory {
+		return DenialMode, "control mode is advisory"
+	}
+	if pass, _ := checks["policy_pass"].(bool); !pass {
+		switch {
+		case candidate.ActionType == ActionRestartTransport && !policy.AllowTransportRestart:
+			return DenialPolicy, "policy disables transport restart actions"
+		case candidate.ActionType == ActionTemporarilySuppressNoisySource && !policy.AllowSourceSuppression:
+			return DenialPolicy, "policy disables source suppression"
+		case isMeshLevelAction(candidate) && !policy.AllowMeshLevelActions:
+			return DenialPolicy, "policy disables mesh-level actions"
+		default:
+			return DenialPolicy, "policy does not allow action type"
+		}
+	}
+	if pass, _ := checks["confidence_pass"].(bool); !pass {
+		return DenialLowConfidence, "candidate confidence is below the guarded_auto threshold"
+	}
+	if pass, _ := checks["alternate_path_exists"].(bool); !pass {
+		return DenialNoAlternatePath, "no healthy alternate transport exists for deprioritization"
+	}
+	if candidate.ActionType == ActionTemporarilySuppressNoisySource && !attribution.Strong {
+		return DenialAttributionWeak, "source suppression remains advisory because attribution is still best-effort"
+	}
+	if pass, _ := checks["evidence_pass"].(bool); !pass {
+		return DenialTransient, "evidence remains transient or ambiguous in persisted history"
+	}
+	if pass, _ := checks["cooldown_pass"].(bool); !pass {
+		return DenialCooldown, "cooldown window still active for target"
+	}
+	if pass, _ := checks["budget_pass"].(bool); !pass {
+		return DenialBudget, "action budget exceeded for current control window"
+	}
+	if pass, _ := checks["conflict_pass"].(bool); !pass {
+		return DenialConflict, "conflicting active or in-flight action already exists for target"
+	}
+	if pass, _ := checks["blast_radius_known"].(bool); !pass {
+		return DenialUnknownBlastRadius, "blast radius is not bounded strongly enough for guarded automation"
+	}
+	if pass, _ := checks["reversibility_pass"].(bool); !pass {
+		return DenialIrreversible, "action is not reversible or expiry-backed"
+	}
+	if pass, _ := checks["actuator_exists"].(bool); !pass || reality.AdvisoryOnly || !reality.SafeForGuardedAuto {
+		code := reality.DenialCode
+		if code == "" {
+			code = DenialMissingActuator
+		}
+		return code, firstNonEmpty(reality.Notes, "action remains advisory because MEL does not ship a verified actuator for it")
+	}
+	return "", ""
+}
+
 func healthyAlternateExists(mesh statuspkg.MeshDrilldown, degraded string) bool {
 	for _, route := range mesh.RoutingRecommendations {
 		if route.Action == "suggest_alternate_ingest_path" && route.TargetTransport == degraded {
@@ -492,10 +671,10 @@ func conflictingActiveAction(active []db.ControlActionRecord, candidate ControlA
 		if action.TargetTransport != "" && action.TargetTransport != candidate.TargetTransport {
 			continue
 		}
-		if action.ActionType == candidate.ActionType && isEffectivelyActive(action, now) {
+		if action.ActionType == candidate.ActionType && (isEffectivelyActive(action, now) || isInFlight(action)) {
 			return true
 		}
-		if action.ActionType == ActionRestartTransport && candidate.ActionType == ActionResubscribeTransport && isEffectivelyActive(action, now) {
+		if action.ActionType == ActionRestartTransport && candidate.ActionType == ActionResubscribeTransport && (isEffectivelyActive(action, now) || isInFlight(action)) {
 			return true
 		}
 	}
@@ -612,6 +791,10 @@ func isEffectivelyActive(row db.ControlActionRecord, now time.Time) bool {
 	return ok && now.Before(expires)
 }
 
+func isInFlight(row db.ControlActionRecord) bool {
+	return row.LifecycleState == LifecyclePending || row.LifecycleState == LifecycleRunning
+}
+
 func controlActionsFromRecords(records []db.ControlActionRecord) []ControlAction {
 	out := make([]ControlAction, 0, len(records))
 	for _, row := range records {
@@ -635,6 +818,10 @@ func controlActionsFromRecords(records []db.ControlActionRecord) []ControlAction
 			OutcomeDetail:   row.OutcomeDetail,
 			Mode:            row.Mode,
 			PolicyRule:      row.PolicyRule,
+			LifecycleState:  row.LifecycleState,
+			AdvisoryOnly:    row.AdvisoryOnly,
+			DenialCode:      row.DenialCode,
+			ClosureState:    row.ClosureState,
 			Metadata:        row.Metadata,
 		})
 	}
@@ -734,6 +921,31 @@ func maxUint64(a, b uint64) uint64 {
 		return a
 	}
 	return b
+}
+
+func sqlSafe(v string) string {
+	return strings.ReplaceAll(v, "'", "''")
+}
+
+func asFloatValue(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case string:
+		ts := strings.TrimSpace(t)
+		if ts == "" {
+			return 0
+		}
+		var parsed float64
+		fmt.Sscanf(ts, "%f", &parsed)
+		return parsed
+	default:
+		return 0
+	}
 }
 
 func MarshalJSONMap(v any) string {

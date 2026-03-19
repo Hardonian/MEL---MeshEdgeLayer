@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 )
 
 type failingTransport struct {
+	mu         sync.Mutex
 	name       string
 	typ        string
 	connectErr error
@@ -27,6 +29,8 @@ type failingTransport struct {
 }
 
 func (f *failingTransport) Connect(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.health.Name = f.name
 	f.health.Type = f.typ
 	f.health.ReconnectAttempts++
@@ -54,12 +58,16 @@ func (f *failingTransport) Connect(context.Context) error {
 }
 
 func (f *failingTransport) ForceState(state, detail, lastError string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.health.State = state
 	f.health.Detail = detail
 	f.health.LastError = lastError
 }
 
 func (f *failingTransport) BeginFailureEpisode(err error) (string, uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.health.EpisodeID == "" {
 		f.episodeSeq++
 		f.health.EpisodeID = fmt.Sprintf("%s-episode-%d", f.name, f.episodeSeq)
@@ -73,17 +81,31 @@ func (f *failingTransport) BeginFailureEpisode(err error) (string, uint64) {
 }
 
 func (f *failingTransport) CloseFailureEpisode() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.health.FailureCount = 0
 	f.health.EpisodeID = ""
 	f.health.LastFailureAt = ""
 }
 
 func (f *failingTransport) RecordObservationDrop(count uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.health.ObservationDrops += count
 }
 
+func (f *failingTransport) SetFailureCount(count uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.health.FailureCount = count
+}
+
 func (f *failingTransport) Close(context.Context) error { return nil }
-func (f *failingTransport) Health() transport.Health    { return f.health }
+func (f *failingTransport) Health() transport.Health {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.health
+}
 func (f *failingTransport) Capabilities() transport.CapabilityMatrix {
 	return transport.CapabilityMatrix{}
 }

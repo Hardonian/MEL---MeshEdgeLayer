@@ -106,6 +106,8 @@ func (a *App) Start(ctx context.Context) error {
 	if err := retention.Run(a.DB, a.Cfg); err != nil {
 		return err
 	}
+	a.syncControlReality()
+	a.recoverIncompleteControlActions(time.Now().UTC())
 	for _, finding := range privacy.Audit(a.Cfg) {
 		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
