@@ -103,6 +103,7 @@ func (a *App) evaluateTransportIntelligence(now time.Time) {
 			}
 		}
 	}
+	a.evaluateControl(now)
 }
 
 func deriveTransportAlerts(cfg config.Config, name, typ string, health statuspkg.TransportHealth, anomalies []statuspkg.TransportAnomalySummary, clusters []statuspkg.FailureCluster, previous db.TransportHealthSnapshot, persisted map[string]db.TransportAlertRecord, database *db.DB, now time.Time) []statuspkg.TransportAlert {

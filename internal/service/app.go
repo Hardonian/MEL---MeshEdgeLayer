@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
@@ -25,21 +26,24 @@ import (
 )
 
 type App struct {
-	Cfg               config.Config
-	Log               *logging.Logger
-	DB                *db.DB
-	Bus               *events.Bus
-	State             *meshstate.State
-	Web               *web.Server
-	Transports        []transport.Transport
-	Plugins           []plugins.Plugin
-	dlMu              sync.Mutex
-	dlEpisodes        map[string]deadLetterEpisode
-	ingestCh          chan ingestRequest
-	observationCh     chan transport.Observation
-	wg                sync.WaitGroup
-	incidentLogLimit  int
-	intelligenceEvery time.Duration
+	Cfg                 config.Config
+	Log                 *logging.Logger
+	DB                  *db.DB
+	Bus                 *events.Bus
+	State               *meshstate.State
+	Web                 *web.Server
+	Transports          []transport.Transport
+	Plugins             []plugins.Plugin
+	dlMu                sync.Mutex
+	dlEpisodes          map[string]deadLetterEpisode
+	observationEpisodes map[string]deadLetterEpisode
+	ingestCh            chan ingestRequest
+	observationCh       chan transport.Observation
+	wg                  sync.WaitGroup
+	incidentLogLimit    int
+	intelligenceEvery   time.Duration
+	controlQueue        chan control.ControlAction
+	transportControls   map[string]*transportControlState
 }
 
 type ingestRequest struct {
@@ -54,10 +58,11 @@ type deadLetterEpisode struct {
 }
 
 const (
-	deadLetterSuppressionWindow = 30 * time.Second
-	defaultIngestQueueSize      = 2048
-	defaultObservationQueueSize = 2048
-	defaultIngestWorkers        = 4
+	deadLetterSuppressionWindow       = 30 * time.Second
+	observationAuditSuppressionWindow = 2 * time.Second
+	defaultIngestQueueSize            = 2048
+	defaultObservationQueueSize       = 2048
+	defaultIngestWorkers              = 4
 )
 
 func New(cfg config.Config, debug bool) (*App, error) {
@@ -68,9 +73,10 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	}
 	bus := events.New()
 	state := meshstate.New()
-	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100}
-	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot)
+	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}}
+	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory)
 	for _, tc := range cfg.Transports {
+		app.transportControls[tc.Name] = newTransportControlState()
 		t, err := transport.Build(tc, log, bus)
 		if err != nil {
 			return nil, err
@@ -172,6 +178,11 @@ func (a *App) startWorkers(ctx context.Context) {
 		a.wg.Add(1)
 		go func() {
 			defer a.wg.Done()
+			a.controlExecutor(ctx)
+		}()
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
 			a.retentionWorker(ctx)
 		}()
 	}
@@ -250,7 +261,7 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 				}))
 			}
 			a.syncTransportRuntime(cfgTransport, t)
-			if !sleepWithContext(ctx, jitterBackoff(baseBackoff, consecutiveFailures)) {
+			if !sleepWithControl(ctx, a.interruptCh(cfgTransport.Name), jitterBackoff(a.effectiveBackoff(baseBackoff, cfgTransport.Name, time.Now().UTC()), consecutiveFailures)) {
 				return
 			}
 			continue
@@ -303,7 +314,7 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		a.syncTransportRuntime(cfgTransport, t)
 		_ = t.Close(context.Background())
 		a.syncTransportRuntime(cfgTransport, t)
-		if !sleepWithContext(ctx, jitterBackoff(baseBackoff, maxInt(consecutiveFailures, 1))) {
+		if !sleepWithControl(ctx, a.interruptCh(cfgTransport.Name), jitterBackoff(a.effectiveBackoff(baseBackoff, cfgTransport.Name, time.Now().UTC()), maxInt(consecutiveFailures, 1))) {
 			return
 		}
 	}
@@ -348,6 +359,22 @@ func sleepWithContext(ctx context.Context, d time.Duration) bool {
 	select {
 	case <-ctx.Done():
 		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func sleepWithControl(ctx context.Context, interrupt <-chan struct{}, d time.Duration) bool {
+	if interrupt == nil {
+		return sleepWithContext(ctx, d)
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-interrupt:
+		return true
 	case <-timer.C:
 		return true
 	}
@@ -451,6 +478,9 @@ func (a *App) observationWorker(ctx context.Context) {
 			if obs.DeadLetter {
 				a.recordTransportDeadLetter(findTransport(a.Cfg, obs.TransportName), obs.Topic, obs.Reason, obs.PayloadHex, mergeDetails(obs.Detail, obs.Details))
 			}
+			if a.shouldSuppressObservationAudit(obs) {
+				continue
+			}
 			a.insertAuditLog("transport", severityForObservation(obs), obs.Reason, map[string]any{
 				"transport":      obs.TransportName,
 				"type":           obs.TransportType,
@@ -516,6 +546,34 @@ func (a *App) recordTransportDeadLetter(tc config.TransportConfig, topic, reason
 	}); err != nil {
 		a.Log.Error("dead_letter_persist_failed", "failed to persist transport dead-letter", map[string]any{"transport": tc.Name, "reason": reason, "error": err.Error()})
 	}
+}
+
+func (a *App) shouldSuppressObservationAudit(obs transport.Observation) bool {
+	if a == nil || a.DB == nil || obs.DeadLetter || observationDetailBool(obs.Details, "final") {
+		return false
+	}
+	fingerprint := deadLetterEpisodeFingerprint(obs.Topic, obs.PayloadHex, mergeDetails(obs.Detail, obs.Details))
+	key := "audit|" + deadLetterEpisodeKey(obs.TransportName, obs.Reason)
+	now := time.Now().UTC()
+	a.dlMu.Lock()
+	defer a.dlMu.Unlock()
+	if previous, ok := a.observationEpisodes[key]; ok && previous.fingerprint == fingerprint && now.Sub(previous.recordedAt) < observationAuditSuppressionWindow {
+		return true
+	}
+	a.observationEpisodes[key] = deadLetterEpisode{fingerprint: fingerprint, recordedAt: now}
+	return false
+}
+
+func observationDetailBool(details map[string]any, key string) bool {
+	if len(details) == 0 {
+		return false
+	}
+	value, ok := details[key]
+	if !ok {
+		return false
+	}
+	boolean, ok := value.(bool)
+	return ok && boolean
 }
 
 func (a *App) emitTransportObservation(tc config.TransportConfig, obs transport.Observation) {

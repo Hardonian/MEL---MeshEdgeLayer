@@ -117,8 +117,9 @@ func InspectMesh(cfg config.Config, database *db.DB, runtime []transport.Health,
 }
 
 func buildMeshDrilldown(cfg config.Config, database *db.DB, intel TransportIntelligence, activeAlerts []TransportAlert, now time.Time) MeshDrilldown {
-	correlated := correlateFailures(cfg, intel, activeAlerts)
-	segments := detectDegradedSegments(cfg, intel, correlated)
+	nodesByTransport := recentNodeAttribution(database, cfg, now)
+	correlated := correlateFailures(cfg, intel, activeAlerts, nodesByTransport)
+	segments := detectDegradedSegments(cfg, intel, correlated, nodesByTransport)
 	meshHealth, penalties := scoreMeshHealth(cfg, intel, correlated, segments, activeAlerts)
 	recentClusters := aggregateRecentClusters(intel)
 	rootCause := analyzeRootCause(intel, correlated, activeAlerts)
@@ -175,7 +176,7 @@ func activeTransportAlerts(database *db.DB) []TransportAlert {
 	return out
 }
 
-func correlateFailures(cfg config.Config, intel TransportIntelligence, activeAlerts []TransportAlert) []CorrelatedFailure {
+func correlateFailures(cfg config.Config, intel TransportIntelligence, activeAlerts []TransportAlert, nodesByTransport map[string][]string) []CorrelatedFailure {
 	recentLabel := anomalyWindows(cfg)[1].label
 	type aggregate struct {
 		reason     string
@@ -203,6 +204,9 @@ func correlateFailures(cfg config.Config, intel TransportIntelligence, activeAle
 				groups[key] = agg
 			}
 			agg.transports[transportName] = struct{}{}
+			for _, nodeID := range nodesByTransport[transportName] {
+				agg.nodes[nodeID] = struct{}{}
+			}
 			agg.count += cluster.Count
 			if severityRank(cluster.Severity) > severityRank(agg.severity) {
 				agg.severity = cluster.Severity
@@ -221,6 +225,9 @@ func correlateFailures(cfg config.Config, intel TransportIntelligence, activeAle
 			groups[key] = agg
 		}
 		agg.transports[alert.TransportName] = struct{}{}
+		for _, nodeID := range nodesByTransport[alert.TransportName] {
+			agg.nodes[nodeID] = struct{}{}
+		}
 		agg.count++
 		if severityRank(alert.Severity) > severityRank(agg.severity) {
 			agg.severity = alert.Severity
@@ -255,7 +262,7 @@ func correlateFailures(cfg config.Config, intel TransportIntelligence, activeAle
 	return out
 }
 
-func detectDegradedSegments(cfg config.Config, intel TransportIntelligence, correlated []CorrelatedFailure) []DegradedSegment {
+func detectDegradedSegments(cfg config.Config, intel TransportIntelligence, correlated []CorrelatedFailure, nodesByTransport map[string][]string) []DegradedSegment {
 	segmentByID := map[string]DegradedSegment{}
 	topicByTransport := map[string]string{}
 	for _, tc := range cfg.Transports {
@@ -268,7 +275,7 @@ func detectDegradedSegments(cfg config.Config, intel TransportIntelligence, corr
 		if sharedTopic != "" {
 			explanation += fmt.Sprintf(" Shared topic scope=%s.", sharedTopic)
 		}
-		segmentByID[segmentID] = DegradedSegment{SegmentID: segmentID, Transports: append([]string(nil), failure.Transports...), Reason: failure.Reason, Severity: failure.Severity, Explanation: explanation}
+		segmentByID[segmentID] = DegradedSegment{SegmentID: segmentID, Transports: append([]string(nil), failure.Transports...), Nodes: append([]string(nil), failure.NodeIDs...), Reason: failure.Reason, Severity: failure.Severity, Explanation: explanation}
 	}
 	for transportName, anomalies := range intel.AnomaliesByTransport {
 		recent := AnomalyWindow(anomalies, anomalyWindows(cfg)[1].label)
@@ -280,7 +287,7 @@ func detectDegradedSegments(cfg config.Config, intel TransportIntelligence, corr
 		if _, exists := segmentByID[segmentID]; exists {
 			continue
 		}
-		segmentByID[segmentID] = DegradedSegment{SegmentID: segmentID, Transports: []string{transportName}, Reason: reason, Severity: "warn", Explanation: fmt.Sprintf("%s shows %d observation drops dominated by %s within %s.", transportName, recent.ObservationDrops, reason, recent.Window)}
+		segmentByID[segmentID] = DegradedSegment{SegmentID: segmentID, Transports: []string{transportName}, Nodes: append([]string(nil), nodesByTransport[transportName]...), Reason: reason, Severity: "warn", Explanation: fmt.Sprintf("%s shows %d observation drops dominated by %s within %s.", transportName, recent.ObservationDrops, reason, recent.Window)}
 	}
 	out := make([]DegradedSegment, 0, len(segmentByID))
 	for _, segment := range segmentByID {
@@ -386,7 +393,7 @@ func buildMeshHealthExplanation(mesh MeshHealth, penalties []meshPenalty, correl
 		MeshState:             mesh.State,
 		DominantFailureReason: mesh.DominantFailureReason,
 		AffectedTransports:    affectedTransportNames(mesh, correlated, activeAlerts, intel),
-		AffectedNodes:         []string{},
+		AffectedNodes:         affectedNodeIDs(correlated, segments),
 		TopPenalties:          topMeshPenalties(penalties, 5),
 		ActiveClusters:        trimClusters(recentClusters, 5),
 		ActiveAlerts:          trimAlerts(activeAlerts, 5),
@@ -546,6 +553,36 @@ func meshHistorySummary(database *db.DB, cfg config.Config, now time.Time) MeshH
 	anomalyRows, _ := database.TransportAnomalyHistory("", start, end, cfg.Intelligence.Queries.DefaultLimit, 0)
 	retainedSince := now.AddDate(0, 0, -cfg.Intelligence.Retention.HealthSnapshotDays).Format(time.RFC3339)
 	return MeshHistorySummary{HealthPoints: len(healthRows), AlertPoints: len(alertRows), AnomalyPoints: len(anomalyRows), RetainedSince: retainedSince, RetentionBoundary: fmt.Sprintf("bounded by intelligence.retention.health_snapshot_days=%d and intelligence.retention.health_snapshot_max_rows=%d", cfg.Intelligence.Retention.HealthSnapshotDays, cfg.Intelligence.Retention.HealthSnapshotMaxRows)}
+}
+
+func recentNodeAttribution(database *db.DB, cfg config.Config, now time.Time) map[string][]string {
+	if database == nil {
+		return map[string][]string{}
+	}
+	window := 15 * time.Minute
+	if windows := anomalyWindows(cfg); len(windows) > 0 && windows[len(windows)-1].duration > 0 {
+		window = windows[len(windows)-1].duration
+	}
+	nodes, err := database.RecentTransportNodeAttribution(now.Add(-window).UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339), 5)
+	if err != nil {
+		return map[string][]string{}
+	}
+	return nodes
+}
+
+func affectedNodeIDs(correlated []CorrelatedFailure, segments []DegradedSegment) []string {
+	set := map[string]struct{}{}
+	for _, failure := range correlated {
+		for _, nodeID := range failure.NodeIDs {
+			set[nodeID] = struct{}{}
+		}
+	}
+	for _, segment := range segments {
+		for _, nodeID := range segment.Nodes {
+			set[nodeID] = struct{}{}
+		}
+	}
+	return setToSortedSlice(set)
 }
 
 func aggregateRecentClusters(intel TransportIntelligence) []FailureCluster {

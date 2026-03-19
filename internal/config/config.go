@@ -25,6 +25,7 @@ type Config struct {
 	Features     FeatureConfig      `json:"features"`
 	RateLimits   RateLimitConfig    `json:"rate_limits"`
 	Intelligence IntelligenceConfig `json:"intelligence"`
+	Control      ControlConfig      `json:"control"`
 }
 
 type BindConfig struct {
@@ -69,26 +70,29 @@ type PrivacyConfig struct {
 }
 
 type TransportConfig struct {
-	Name             string `json:"name"`
-	Type             string `json:"type"`
-	Enabled          bool   `json:"enabled"`
-	Endpoint         string `json:"endpoint"`
-	Topic            string `json:"topic"`
-	ClientID         string `json:"client_id"`
-	Username         string `json:"username"`
-	Password         string `json:"password"`
-	MQTTQoS          int    `json:"mqtt_qos"`
-	MQTTKeepAliveSec int    `json:"mqtt_keepalive_seconds"`
-	MQTTCleanSession bool   `json:"mqtt_clean_session"`
-	SerialDevice     string `json:"serial_device"`
-	SerialBaud       int    `json:"serial_baud"`
-	TCPHost          string `json:"tcp_host"`
-	TCPPort          int    `json:"tcp_port"`
-	ReconnectSeconds int    `json:"reconnect_seconds"`
-	ReadTimeoutSec   int    `json:"read_timeout_seconds"`
-	WriteTimeoutSec  int    `json:"write_timeout_seconds"`
-	MaxTimeouts      int    `json:"max_consecutive_timeouts"`
-	Notes            string `json:"notes"`
+	Name                string `json:"name"`
+	Type                string `json:"type"`
+	Enabled             bool   `json:"enabled"`
+	Endpoint            string `json:"endpoint"`
+	Topic               string `json:"topic"`
+	ClientID            string `json:"client_id"`
+	Username            string `json:"username"`
+	Password            string `json:"password"`
+	MQTTQoS             int    `json:"mqtt_qos"`
+	MQTTKeepAliveSec    int    `json:"mqtt_keepalive_seconds"`
+	MQTTCleanSession    bool   `json:"mqtt_clean_session"`
+	SerialDevice        string `json:"serial_device"`
+	SerialBaud          int    `json:"serial_baud"`
+	TCPHost             string `json:"tcp_host"`
+	TCPPort             int    `json:"tcp_port"`
+	ReconnectSeconds    int    `json:"reconnect_seconds"`
+	ReadTimeoutSec      int    `json:"read_timeout_seconds"`
+	WriteTimeoutSec     int    `json:"write_timeout_seconds"`
+	MaxTimeouts         int    `json:"max_consecutive_timeouts"`
+	Notes               string `json:"notes"`
+	ManualOnly          bool   `json:"manual_only"`
+	SuppressAutoActions bool   `json:"suppress_auto_actions"`
+	FreezeRouting       bool   `json:"freeze_routing"`
 }
 
 func (t TransportConfig) SourceLabel() string {
@@ -112,6 +116,23 @@ type FeatureConfig struct {
 type RateLimitConfig struct {
 	HTTPRPS                   int `json:"http_rps"`
 	TransportReconnectSeconds int `json:"transport_reconnect_seconds"`
+}
+
+type ControlConfig struct {
+	Mode                     string   `json:"mode"`
+	EmergencyDisable         bool     `json:"emergency_disable"`
+	AllowedActions           []string `json:"allowed_actions"`
+	MaxActionsPerWindow      int      `json:"max_actions_per_window"`
+	CooldownPerTargetSeconds int      `json:"cooldown_per_target_seconds"`
+	RequireMinConfidence     float64  `json:"require_min_confidence"`
+	AllowMeshLevelActions    bool     `json:"allow_mesh_level_actions"`
+	AllowTransportRestart    bool     `json:"allow_transport_restart"`
+	AllowSourceSuppression   bool     `json:"allow_source_suppression"`
+	ActionWindowSeconds      int      `json:"action_window_seconds"`
+	RestartCapPerWindow      int      `json:"restart_cap_per_window"`
+	MaxQueue                 int      `json:"max_queue"`
+	ActionTimeoutSeconds     int      `json:"action_timeout_seconds"`
+	RetentionDays            int      `json:"retention_days"`
 }
 
 type Lint struct {
@@ -138,6 +159,21 @@ func Default() Config {
 		Features:     FeatureConfig{WebUI: true, Metrics: false},
 		RateLimits:   RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
 		Intelligence: defaultIntelligenceConfig(),
+		Control: ControlConfig{
+			Mode:                     "advisory",
+			AllowedActions:           []string{"restart_transport", "resubscribe_transport", "backoff_increase", "backoff_reset", "temporarily_deprioritize_transport", "temporarily_suppress_noisy_source", "clear_suppression", "trigger_health_recheck"},
+			MaxActionsPerWindow:      8,
+			CooldownPerTargetSeconds: 300,
+			RequireMinConfidence:     0.75,
+			AllowMeshLevelActions:    false,
+			AllowTransportRestart:    true,
+			AllowSourceSuppression:   false,
+			ActionWindowSeconds:      900,
+			RestartCapPerWindow:      2,
+			MaxQueue:                 32,
+			ActionTimeoutSeconds:     10,
+			RetentionDays:            14,
+		},
 	}
 }
 
@@ -201,6 +237,7 @@ func normalize(cfg *Config) error {
 		cfg.Auth.SessionSecret = randomHex(32)
 	}
 	normalizeIntelligence(cfg)
+	normalizeControl(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
 		if err == nil && host == "" {
@@ -315,6 +352,7 @@ func Validate(cfg Config) error {
 		enabledNames[t.Name] = struct{}{}
 	}
 	errs = append(errs, validateIntelligence(cfg)...)
+	errs = append(errs, validateControl(cfg)...)
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}

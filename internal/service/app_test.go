@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
@@ -213,14 +214,17 @@ func newTestApp(t *testing.T, tc config.TransportConfig) *App {
 		t.Fatal(err)
 	}
 	return &App{
-		Cfg:               cfg,
-		Log:               logging.New("debug", true),
-		DB:                database,
-		Bus:               events.New(),
-		dlEpisodes:        map[string]deadLetterEpisode{},
-		ingestCh:          make(chan ingestRequest, defaultIngestQueueSize),
-		observationCh:     make(chan transport.Observation, defaultObservationQueueSize),
-		intelligenceEvery: -1,
+		Cfg:                 cfg,
+		Log:                 logging.New("debug", true),
+		DB:                  database,
+		Bus:                 events.New(),
+		dlEpisodes:          map[string]deadLetterEpisode{},
+		observationEpisodes: map[string]deadLetterEpisode{},
+		ingestCh:            make(chan ingestRequest, defaultIngestQueueSize),
+		observationCh:       make(chan transport.Observation, defaultObservationQueueSize),
+		controlQueue:        make(chan control.ControlAction, cfg.Control.MaxQueue),
+		transportControls:   map[string]*transportControlState{tc.Name: newTransportControlState()},
+		intelligenceEvery:   -1,
 	}
 }
 

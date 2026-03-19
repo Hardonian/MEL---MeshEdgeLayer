@@ -118,7 +118,7 @@ func TestStatusUsesPersistedRuntimeEvidenceWhenNoLiveRuntimeIsPresent(t *testing
 	if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "mqtt", TransportType: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "aa"}); err != nil {
 		t.Fatal(err)
 	}
-	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil })
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
 	rec := httptest.NewRecorder()
 
@@ -214,7 +214,7 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	if seed != nil {
 		seed(database)
 	}
-	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil })
+	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil }, nil, nil, nil)
 }
 
 func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {
@@ -259,6 +259,18 @@ func TestTransportHealthEndpointsExposeDerivedHealthAndAlerts(t *testing.T) {
 		srv.http.Handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("unexpected status for %s: %d", path, rec.Code)
+		}
+	}
+}
+
+func TestControlEndpointsExposeStatusAndHistory(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying}}, nil)
+	for _, path := range []string{"/api/v1/control/status", "/api/v1/control/actions", "/api/v1/control/history"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.http.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d body=%s", path, rec.Code, rec.Body.String())
 		}
 	}
 }
