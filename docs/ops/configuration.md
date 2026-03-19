@@ -60,4 +60,6 @@ MEL uses the same transport states everywhere:
 - `historical_only`
 - `error`
 
-Heartbeat activity and consecutive timeout counters are exposed through `/api/v1/status`, `/api/v1/transports`, `/metrics`, and the HTML UI transport table.
+Heartbeat activity, consecutive timeout counters, retry status, and dead-letter counts are exposed through `/api/v1/status`, `/api/v1/transports`, `/metrics`, and the HTML UI transport table.
+
+The example config files include deterministic timeout and keepalive knobs. Runtime evidence such as `last_heartbeat_at` and `consecutive_timeouts` is not configured manually; it is produced by MEL at runtime and stored in SQLite for later inspection.

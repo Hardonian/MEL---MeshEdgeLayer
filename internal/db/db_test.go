@@ -18,8 +18,8 @@ func TestOpenAppliesMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) < 3 {
-		t.Fatalf("expected schema migrations including dead letters, got %v", rows)
+	if len(rows) < 4 {
+		t.Fatalf("expected schema migrations including runtime evidence, got %v", rows)
 	}
 }
 
@@ -65,5 +65,36 @@ func TestInsertDeadLetter(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0]["reason"] != "parse failure" {
 		t.Fatalf("unexpected dead letter rows: %+v", rows)
+	}
+}
+
+func TestUpsertTransportRuntimePersistsEvidence(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.UpsertTransportRuntime(TransportRuntime{
+		Name:            "mqtt",
+		Type:            "mqtt",
+		Source:          "127.0.0.1:1883",
+		Enabled:         true,
+		State:           "connected_no_ingest",
+		Detail:          "connected; waiting for broker heartbeat or publish",
+		LastHeartbeatAt: "2026-03-19T00:00:03Z",
+		PacketsDropped:  2,
+		Reconnects:      4,
+		Timeouts:        1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := d.QueryJSON("SELECT transport_name, last_heartbeat_at, packets_dropped, reconnect_attempts, consecutive_timeouts FROM transport_runtime_evidence;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0]["last_heartbeat_at"] != "2026-03-19T00:00:03Z" || rows[0]["reconnect_attempts"] != "4" {
+		t.Fatalf("unexpected transport runtime evidence rows: %+v", rows)
 	}
 }

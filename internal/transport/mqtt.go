@@ -24,6 +24,7 @@ type MQTT struct {
 	conn   net.Conn
 	health Health
 	mu     sync.Mutex
+	qos2   map[uint16]publishPacket
 }
 
 func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *MQTT {
@@ -34,7 +35,13 @@ func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *
 		state = StateDisabled
 		detail = "disabled by config"
 	}
-	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, State: state, Detail: detail, Capabilities: caps}}
+	return &MQTT{
+		cfg:    cfg,
+		log:    log,
+		bus:    bus,
+		health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, State: state, Detail: detail, Capabilities: caps},
+		qos2:   map[uint16]publishPacket{},
+	}
 }
 
 func (m *MQTT) Name() string                   { return m.cfg.Name }
@@ -57,7 +64,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 		h.Source = m.cfg.Endpoint
 		h.State = StateAttempting
 		h.Detail = "attempting MQTT connection"
-		h.LastAttemptAt = now
+		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
 	conn, err := dialWithTimeout(m.cfg.Endpoint)
 	if err != nil {
@@ -216,6 +223,11 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 			m.recordHeartbeat("broker heartbeat received")
 		case 9:
 			m.recordHeartbeat("broker subscription acknowledged")
+		case 6:
+			if err := m.completeQoS2(body); err != nil {
+				m.markReadFailure(err)
+				return err
+			}
 		default:
 			m.recordHeartbeat(fmt.Sprintf("mqtt control packet type %d received", typeNibble))
 		}
@@ -376,12 +388,37 @@ func (m *MQTT) ackPublish(p publishPacket) error {
 		_ = binary.Write(buf, binary.BigEndian, p.PacketID)
 		return m.writePacket(buf.Bytes())
 	case 2:
+		m.mu.Lock()
+		m.qos2[p.PacketID] = p
+		m.mu.Unlock()
 		buf := bytes.NewBuffer([]byte{0x50, 0x02})
 		_ = binary.Write(buf, binary.BigEndian, p.PacketID)
 		return m.writePacket(buf.Bytes())
 	default:
 		return fmt.Errorf("unsupported publish qos %d", p.QoS)
 	}
+}
+
+func (m *MQTT) completeQoS2(body []byte) error {
+	if len(body) != 2 {
+		return fmt.Errorf("invalid pubrel length %d", len(body))
+	}
+	packetID := binary.BigEndian.Uint16(body)
+	m.mu.Lock()
+	_, ok := m.qos2[packetID]
+	delete(m.qos2, packetID)
+	m.mu.Unlock()
+	buf := bytes.NewBuffer([]byte{0x70, 0x02})
+	_ = binary.Write(buf, binary.BigEndian, packetID)
+	if err := m.writePacket(buf.Bytes()); err != nil {
+		return err
+	}
+	if ok {
+		m.recordHeartbeat("broker qos2 delivery completed")
+		return nil
+	}
+	m.recordHeartbeat("broker qos2 release received without cached publish; pubcomp sent to clear session")
+	return nil
 }
 
 func (m *MQTT) writePacket(pkt []byte) error {
@@ -449,7 +486,7 @@ func buildConnectPacket(cfg config.TransportConfig) []byte {
 	payload := bytes.NewBuffer(nil)
 	writeString(payload, "MQTT")
 	connectFlags := byte(0)
-	if !cfg.MQTTCleanSession {
+	if cfg.MQTTCleanSession {
 		connectFlags |= 0x02
 	}
 	if cfg.Username != "" {

@@ -28,8 +28,12 @@ type TransportRuntime struct {
 	LastConnectedAt string `json:"last_connected_at,omitempty"`
 	LastSuccessAt   string `json:"last_success_at,omitempty"`
 	LastMessageAt   string `json:"last_message_at,omitempty"`
+	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
 	LastError       string `json:"last_error,omitempty"`
 	TotalMessages   uint64 `json:"total_messages"`
+	PacketsDropped  uint64 `json:"packets_dropped"`
+	Reconnects      uint64 `json:"reconnect_attempts"`
+	Timeouts        uint64 `json:"consecutive_timeouts"`
 	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
@@ -188,7 +192,12 @@ func (d *DB) InsertConfigApply(actor, summary, sha string, diff any) error {
 func (d *DB) UpsertTransportRuntime(tr TransportRuntime) error {
 	sql := fmt.Sprintf(`INSERT INTO transport_runtime_status(transport_name,transport_type,source,enabled,runtime_state,detail,last_attempt_at,last_connected_at,last_success_at,last_message_at,last_error,total_messages,updated_at) VALUES('%s','%s','%s',%d,'%s','%s',%s,%s,%s,%s,%s,%d,'%s') ON CONFLICT(transport_name) DO UPDATE SET transport_type=excluded.transport_type,source=excluded.source,enabled=excluded.enabled,runtime_state=excluded.runtime_state,detail=excluded.detail,last_attempt_at=excluded.last_attempt_at,last_connected_at=excluded.last_connected_at,last_success_at=excluded.last_success_at,last_message_at=excluded.last_message_at,last_error=excluded.last_error,total_messages=excluded.total_messages,updated_at=excluded.updated_at;`,
 		esc(tr.Name), esc(tr.Type), esc(tr.Source), boolInt(tr.Enabled), esc(tr.State), esc(tr.Detail), sqlString(tr.LastAttemptAt), sqlString(tr.LastConnectedAt), sqlString(tr.LastSuccessAt), sqlString(tr.LastMessageAt), sqlString(tr.LastError), tr.TotalMessages, time.Now().UTC().Format(time.RFC3339))
-	return d.Exec(sql)
+	if err := d.Exec(sql); err != nil {
+		return err
+	}
+	evidenceSQL := fmt.Sprintf(`INSERT INTO transport_runtime_evidence(transport_name,last_heartbeat_at,packets_dropped,reconnect_attempts,consecutive_timeouts,updated_at) VALUES('%s',%s,%d,%d,%d,'%s') ON CONFLICT(transport_name) DO UPDATE SET last_heartbeat_at=excluded.last_heartbeat_at,packets_dropped=excluded.packets_dropped,reconnect_attempts=excluded.reconnect_attempts,consecutive_timeouts=excluded.consecutive_timeouts,updated_at=excluded.updated_at;`,
+		esc(tr.Name), sqlString(tr.LastHeartbeatAt), tr.PacketsDropped, tr.Reconnects, tr.Timeouts, time.Now().UTC().Format(time.RFC3339))
+	return d.Exec(evidenceSQL)
 }
 
 func (d *DB) TransportRuntimeStatuses() ([]TransportRuntime, error) {
@@ -196,8 +205,13 @@ func (d *DB) TransportRuntimeStatuses() ([]TransportRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
+	evidenceByName, err := d.transportRuntimeEvidenceMap()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]TransportRuntime, 0, len(rows))
 	for _, row := range rows {
+		evidence := evidenceByName[asString(row["transport_name"])]
 		out = append(out, TransportRuntime{
 			Name:            asString(row["transport_name"]),
 			Type:            asString(row["transport_type"]),
@@ -209,10 +223,43 @@ func (d *DB) TransportRuntimeStatuses() ([]TransportRuntime, error) {
 			LastConnectedAt: asString(row["last_connected_at"]),
 			LastSuccessAt:   asString(row["last_success_at"]),
 			LastMessageAt:   asString(row["last_message_at"]),
+			LastHeartbeatAt: evidence.LastHeartbeatAt,
 			LastError:       asString(row["last_error"]),
 			TotalMessages:   uint64(asInt(row["total_messages"])),
+			PacketsDropped:  evidence.PacketsDropped,
+			Reconnects:      evidence.Reconnects,
+			Timeouts:        evidence.Timeouts,
 			UpdatedAt:       asString(row["updated_at"]),
 		})
+	}
+	return out, nil
+}
+
+func (d *DB) transportRuntimeEvidenceMap() (map[string]TransportRuntime, error) {
+	rows, err := d.QueryRows("SELECT transport_name, COALESCE(last_heartbeat_at,'') AS last_heartbeat_at, COALESCE(packets_dropped,0) AS packets_dropped, COALESCE(reconnect_attempts,0) AS reconnect_attempts, COALESCE(consecutive_timeouts,0) AS consecutive_timeouts FROM transport_runtime_evidence;")
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]TransportRuntime, len(rows))
+	for _, row := range rows {
+		out[asString(row["transport_name"])] = TransportRuntime{
+			LastHeartbeatAt: asString(row["last_heartbeat_at"]),
+			PacketsDropped:  uint64(asInt(row["packets_dropped"])),
+			Reconnects:      uint64(asInt(row["reconnect_attempts"])),
+			Timeouts:        uint64(asInt(row["consecutive_timeouts"])),
+		}
+	}
+	return out, nil
+}
+
+func (d *DB) DeadLetterCounts() (map[string]uint64, error) {
+	rows, err := d.QueryRows("SELECT transport_name, COUNT(*) AS dead_letter_count FROM dead_letters GROUP BY transport_name;")
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]uint64{}
+	for _, row := range rows {
+		out[asString(row["transport_name"])] = uint64(asInt(row["dead_letter_count"]))
 	}
 	return out, nil
 }

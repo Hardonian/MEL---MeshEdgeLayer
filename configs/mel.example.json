@@ -42,7 +42,10 @@
       "serial_device": "/dev/ttyUSB0",
       "serial_baud": 115200,
       "reconnect_seconds": 5,
-      "notes": "Preferred direct-node deployment for Raspberry Pi and Linux hosts."
+      "notes": "Preferred direct-node deployment for Raspberry Pi and Linux hosts. Inspect /api/v1/status for last_heartbeat_at and consecutive_timeouts runtime evidence.",
+      "read_timeout_seconds": 15,
+      "write_timeout_seconds": 5,
+      "max_consecutive_timeouts": 3
     },
     {
       "name": "lab-radio-tcp",
@@ -51,7 +54,10 @@
       "tcp_host": "127.0.0.1",
       "tcp_port": 4403,
       "reconnect_seconds": 5,
-      "notes": "Use only when a Meshtastic-compatible TCP stream endpoint is actually present."
+      "notes": "Use only when a Meshtastic-compatible TCP stream endpoint is actually present. Inspect /api/v1/status for last_heartbeat_at and consecutive_timeouts runtime evidence.",
+      "read_timeout_seconds": 15,
+      "write_timeout_seconds": 5,
+      "max_consecutive_timeouts": 3
     },
     {
       "name": "local-mqtt",
@@ -60,7 +66,12 @@
       "endpoint": "127.0.0.1:1883",
       "topic": "msh/US/2/e/#",
       "client_id": "mel-local",
-      "notes": "Optional MQTT ingest path. Keep disabled for direct-node-first deployments unless you need hybrid ingest."
+      "notes": "Optional MQTT ingest path. Keep disabled for direct-node-first deployments unless you need hybrid ingest. Inspect /api/v1/status for broker last_heartbeat_at, consecutive_timeouts, retry_status, and dead-letter evidence.",
+      "read_timeout_seconds": 15,
+      "write_timeout_seconds": 5,
+      "max_consecutive_timeouts": 3,
+      "mqtt_qos": 1,
+      "mqtt_keepalive_seconds": 30
     }
   ],
   "features": {

@@ -13,7 +13,6 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
-	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -42,7 +41,7 @@ func TestReadyzReturnsSnapshot(t *testing.T) {
 
 func TestStatusReturnsTransportSummary(t *testing.T) {
 	insert := func(d *db.DB) {
-		if _, err := d.InsertMessage(map[string]any{
+		stored, err := d.InsertMessage(map[string]any{
 			"transport_name": "mqtt",
 			"packet_id":      int64(1),
 			"dedupe_hash":    "abc123",
@@ -89,6 +88,59 @@ func TestStatusReturnsTransportSummary(t *testing.T) {
 	report := transports[0].(map[string]any)
 	if report["effective_state"] != transport.StateHistoricalOnly {
 		t.Fatalf("expected historical_only effective state, got %#v", report["effective_state"])
+	}
+}
+
+func TestStatusUsesPersistedRuntimeEvidenceWhenNoLiveRuntimeIsPresent(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-test"}}
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertTransportRuntime(db.TransportRuntime{
+		Name:            "mqtt",
+		Type:            "mqtt",
+		Source:          "127.0.0.1:1883",
+		Enabled:         true,
+		State:           transport.StateConnectedNoIngest,
+		Detail:          "connected; waiting for broker heartbeat or publish",
+		LastAttemptAt:   "2026-03-19T00:00:00Z",
+		LastHeartbeatAt: "2026-03-19T00:00:03Z",
+		Reconnects:      2,
+		Timeouts:        1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "aa"}); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil })
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	rec := httptest.NewRecorder()
+
+	srv.http.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	status := payload["status"].(map[string]any)
+	report := status["transports"].([]any)[0].(map[string]any)
+	if report["last_heartbeat_at"] != "2026-03-19T00:00:03Z" {
+		t.Fatalf("expected persisted heartbeat evidence, got %#v", report["last_heartbeat_at"])
+	}
+	if report["consecutive_timeouts"].(float64) != 1 {
+		t.Fatalf("expected timeout evidence, got %#v", report["consecutive_timeouts"])
+	}
+	if report["dead_letters"].(float64) != 1 {
+		t.Fatalf("expected dead letter count, got %#v", report["dead_letters"])
 	}
 }
 

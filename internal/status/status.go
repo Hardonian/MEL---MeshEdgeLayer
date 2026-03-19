@@ -44,6 +44,8 @@ type TransportReport struct {
 	DroppedCount        uint64                     `json:"dropped_count"`
 	ReconnectAttempts   uint64                     `json:"reconnect_attempts"`
 	ConsecutiveTimeouts uint64                     `json:"consecutive_timeouts"`
+	DeadLetters         uint64                     `json:"dead_letters"`
+	RetryStatus         string                     `json:"retry_status"`
 	Capabilities        transport.CapabilityMatrix `json:"capabilities"`
 }
 
@@ -71,6 +73,36 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 	if err != nil {
 		return snap, err
 	}
+	persistedRuntime := map[string]transport.Health{}
+	if database != nil {
+		rows, err := database.TransportRuntimeStatuses()
+		if err != nil {
+			return snap, err
+		}
+		for _, row := range rows {
+			persistedRuntime[row.Name] = transport.Health{
+				Name:                row.Name,
+				Type:                row.Type,
+				Source:              row.Source,
+				State:               row.State,
+				Detail:              row.Detail,
+				LastAttemptAt:       row.LastAttemptAt,
+				LastConnectedAt:     row.LastConnectedAt,
+				LastSuccessAt:       row.LastSuccessAt,
+				LastIngestAt:        row.LastMessageAt,
+				LastHeartbeatAt:     row.LastHeartbeatAt,
+				LastError:           row.LastError,
+				TotalMessages:       row.TotalMessages,
+				PacketsDropped:      row.PacketsDropped,
+				ReconnectAttempts:   row.Reconnects,
+				ConsecutiveTimeouts: row.Timeouts,
+			}
+		}
+	}
+	deadLetters, err := deadLetterEvidenceByTransport(database)
+	if err != nil {
+		return snap, err
+	}
 	runtimeMap := map[string]transport.Health{}
 	for _, h := range runtime {
 		runtimeMap[h.Name] = h
@@ -78,11 +110,21 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 	for _, tc := range cfg.Transports {
 		h := runtimeMap[tc.Name]
 		if h.Name == "" {
+			h = persistedRuntime[tc.Name]
+		}
+		if h.Name == "" {
 			built, err := transport.Build(tc, nil, nil)
 			if err == nil {
 				h = built.Health()
 			} else {
 				h = transport.Health{Name: tc.Name, Type: tc.Type, Source: tc.SourceLabel(), State: transport.StateError, Detail: err.Error()}
+			}
+		} else if h.Capabilities == (transport.CapabilityMatrix{}) {
+			if built, err := transport.Build(tc, nil, nil); err == nil {
+				h.Capabilities = built.Capabilities()
+				if h.Source == "" {
+					h.Source = built.Health().Source
+				}
 			}
 		}
 		evidence := persisted[tc.Name]
@@ -107,6 +149,8 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 			DroppedCount:        h.PacketsDropped,
 			ReconnectAttempts:   h.ReconnectAttempts,
 			ConsecutiveTimeouts: h.ConsecutiveTimeouts,
+			DeadLetters:         deadLetters[tc.Name],
+			RetryStatus:         retryStatus(EffectiveState(tc.Enabled, h.State, evidence.Count), h.ReconnectAttempts, h.ConsecutiveTimeouts),
 			Capabilities:        h.Capabilities,
 		}
 		snap.Transports = append(snap.Transports, report)
@@ -203,6 +247,13 @@ func persistedEvidenceByTransport(database *db.DB) (map[string]persistEvidence, 
 	return out, nil
 }
 
+func deadLetterEvidenceByTransport(database *db.DB) (map[string]uint64, error) {
+	if database == nil {
+		return map[string]uint64{}, nil
+	}
+	return database.DeadLetterCounts()
+}
+
 func scalarInt(database *db.DB, sql string) int64 {
 	if database == nil {
 		return 0
@@ -250,4 +301,27 @@ func asInt(v any) int64 {
 	var parsed int64
 	fmt.Sscan(fmt.Sprint(v), &parsed)
 	return parsed
+}
+
+func retryStatus(state string, reconnectAttempts, consecutiveTimeouts uint64) string {
+	switch state {
+	case transport.StateAttempting:
+		return fmt.Sprintf("retrying connection (attempt %d)", reconnectAttempts)
+	case transport.StateConfiguredOffline, transport.StateError:
+		if reconnectAttempts > 0 {
+			return fmt.Sprintf("backoff armed after %d reconnect attempts", reconnectAttempts)
+		}
+		return "retry pending after surfaced error"
+	case transport.StateConnectedNoIngest, transport.StateIngesting:
+		if consecutiveTimeouts > 0 {
+			return fmt.Sprintf("connected with %d consecutive read timeout(s)", consecutiveTimeouts)
+		}
+		return "healthy; no retry pending"
+	case transport.StateHistoricalOnly:
+		return "no live retry state in this process; inspect stored evidence"
+	case transport.StateDisabled:
+		return "disabled"
+	default:
+		return "no retry evidence"
+	}
 }

@@ -1,11 +1,62 @@
 {
-  "bind": {"api": "127.0.0.1:8080", "metrics": "", "allow_remote": false},
-  "auth": {"enabled": false, "session_secret": "replace-with-32-byte-secret", "ui_user": "admin", "ui_password": "change-me", "allow_insecure_remote": false},
-  "storage": {"data_dir": "./data", "database_path": "./data/mel.db", "encryption_key_env": "MEL_STORAGE_KEY", "encryption_required": false},
-  "logging": {"level": "info", "format": "json"},
-  "retention": {"messages_days": 30, "telemetry_days": 30, "audit_days": 90, "precise_position_days": 7},
-  "privacy": {"store_precise_positions": false, "mqtt_encryption_required": true, "map_reporting_allowed": false, "redact_exports": true, "trust_list": []},
-  "transports": [{"name": "local-mqtt", "type": "mqtt", "enabled": true, "endpoint": "127.0.0.1:1883", "topic": "msh/US/2/e/#", "client_id": "mel-local"}],
-  "features": {"web_ui": true, "metrics": false, "ble_experimental": false},
-  "rate_limits": {"http_rps": 20, "transport_reconnect_seconds": 10}
+  "bind": {
+    "api": "127.0.0.1:8080",
+    "metrics": "",
+    "allow_remote": false
+  },
+  "auth": {
+    "enabled": false,
+    "session_secret": "replace-with-32-byte-secret",
+    "ui_user": "admin",
+    "ui_password": "change-me",
+    "allow_insecure_remote": false
+  },
+  "storage": {
+    "data_dir": "./data",
+    "database_path": "./data/mel.db",
+    "encryption_key_env": "MEL_STORAGE_KEY",
+    "encryption_required": false
+  },
+  "logging": {
+    "level": "info",
+    "format": "json"
+  },
+  "retention": {
+    "messages_days": 30,
+    "telemetry_days": 30,
+    "audit_days": 90,
+    "precise_position_days": 7
+  },
+  "privacy": {
+    "store_precise_positions": false,
+    "mqtt_encryption_required": true,
+    "map_reporting_allowed": false,
+    "redact_exports": true,
+    "trust_list": []
+  },
+  "transports": [
+    {
+      "name": "local-mqtt",
+      "type": "mqtt",
+      "enabled": true,
+      "endpoint": "127.0.0.1:1883",
+      "topic": "msh/US/2/e/#",
+      "client_id": "mel-local",
+      "read_timeout_seconds": 15,
+      "write_timeout_seconds": 5,
+      "max_consecutive_timeouts": 3,
+      "mqtt_qos": 1,
+      "mqtt_keepalive_seconds": 30,
+      "notes": "Inspect /api/v1/status for broker last_heartbeat_at, consecutive_timeouts, retry_status, and dead-letter evidence."
+    }
+  ],
+  "features": {
+    "web_ui": true,
+    "metrics": false,
+    "ble_experimental": false
+  },
+  "rate_limits": {
+    "http_rps": 20,
+    "transport_reconnect_seconds": 10
+  }
 }

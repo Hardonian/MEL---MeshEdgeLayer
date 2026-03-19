@@ -29,4 +29,5 @@ The transport surfaced a concrete error, malformed input, duplicate drop, or han
 - Re-run `mel doctor`.
 - Inspect `mel logs tail` and `/api/v1/status`.
 - Inspect the `dead_letters` table when MEL received a payload but could not process it locally.
+- Inspect `retry_status` in `/api/v1/status` to see whether MEL is already reconnecting versus merely showing historical evidence.
 - Fix the underlying cause before trusting the transport again.
