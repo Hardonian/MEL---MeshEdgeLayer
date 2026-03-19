@@ -171,6 +171,12 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 				continue
 			}
 			if errors.Is(err, errDirectInvalidFrame) {
+				d.publishObservation(Observation{
+					Reason:     "malformed direct frame",
+					Detail:     err.Error(),
+					DeadLetter: true,
+					Details:    map[string]any{"source": d.cfg.SourceLabel()},
+				})
 				d.markDropWithState("connected; malformed direct frame ignored", err)
 				continue
 			}
@@ -206,7 +212,14 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 }
 
 func (d *Direct) SendPacket(context.Context, []byte) error {
-	return errors.New("direct-node send is disabled in this milestone")
+	err := errors.New("direct-node send is disabled in this milestone")
+	d.publishObservation(Observation{
+		Reason:     "send rejected",
+		Detail:     err.Error(),
+		DeadLetter: true,
+		Details:    map[string]any{"source": d.cfg.SourceLabel()},
+	})
+	return err
 }
 func (d *Direct) FetchMetadata(context.Context) (map[string]any, error) {
 	return nil, errors.New("metadata fetch is not implemented for direct-node transport")
@@ -266,6 +279,29 @@ func (d *Direct) markFailure(err error, detail string) {
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+	d.publishObservation(Observation{
+		Reason:     "direct transport failure",
+		Detail:     detail,
+		DeadLetter: true,
+		Details: map[string]any{
+			"error":                err.Error(),
+			"source":               d.cfg.SourceLabel(),
+			"consecutive_timeouts": d.Health().ConsecutiveTimeouts,
+		},
+	})
+}
+
+func (d *Direct) publishObservation(obs Observation) {
+	if d.bus == nil {
+		return
+	}
+	if obs.TransportName == "" {
+		obs.TransportName = d.cfg.Name
+	}
+	if obs.TransportType == "" {
+		obs.TransportType = d.cfg.Type
+	}
+	d.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
 }
 
 func openDirectConnection(ctx context.Context, cfg config.TransportConfig) (io.ReadWriteCloser, error) {

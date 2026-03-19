@@ -63,6 +63,17 @@ type Health struct {
 
 type PacketHandler func(topic string, payload []byte) error
 
+type Observation struct {
+	TransportName string         `json:"transport_name"`
+	TransportType string         `json:"transport_type"`
+	Topic         string         `json:"topic,omitempty"`
+	Reason        string         `json:"reason"`
+	Detail        string         `json:"detail,omitempty"`
+	PayloadHex    string         `json:"payload_hex,omitempty"`
+	DeadLetter    bool           `json:"dead_letter"`
+	Details       map[string]any `json:"details,omitempty"`
+}
+
 type Transport interface {
 	Connect(context.Context) error
 	Close(context.Context) error

@@ -192,15 +192,42 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		case 3:
 			publish, err := parsePublish(header[0], body)
 			if err != nil {
+				m.publishObservation(Observation{
+					Reason:     "malformed mqtt publish",
+					Detail:     err.Error(),
+					PayloadHex: fmt.Sprintf("%x", body),
+					DeadLetter: true,
+					Details:    map[string]any{"endpoint": m.cfg.Endpoint, "header": fmt.Sprintf("0x%02x", header[0])},
+				})
 				m.markDropWithState("publish parse failed", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 				continue
 			}
 			if !mqttTopicMatches(m.cfg.Topic, publish.Topic) {
+				m.publishObservation(Observation{
+					Topic:      publish.Topic,
+					Reason:     "mqtt topic mismatch",
+					Detail:     "publish topic did not match configured filter",
+					PayloadHex: fmt.Sprintf("%x", publish.Payload),
+					DeadLetter: true,
+					Details:    map[string]any{"configured_topic": m.cfg.Topic, "endpoint": m.cfg.Endpoint},
+				})
 				m.markDropWithState("publish topic did not match configured filter", fmt.Errorf("unexpected topic %s", publish.Topic))
 				continue
 			}
 			if err := handler(publish.Topic, publish.Payload); err != nil {
+				m.publishObservation(Observation{
+					Topic:      publish.Topic,
+					Reason:     "mqtt publish rejected",
+					Detail:     err.Error(),
+					PayloadHex: fmt.Sprintf("%x", publish.Payload),
+					DeadLetter: true,
+					Details: map[string]any{
+						"endpoint":  m.cfg.Endpoint,
+						"packet_id": publish.PacketID,
+						"qos":       publish.QoS,
+					},
+				})
 				m.markDropWithState("ingest handler rejected publish", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 				continue
@@ -235,7 +262,14 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 }
 
 func (m *MQTT) SendPacket(context.Context, []byte) error {
-	return errors.New("mqtt publish is disabled in this milestone")
+	err := errors.New("mqtt publish is disabled in this milestone")
+	m.publishObservation(Observation{
+		Reason:     "publish rejected",
+		Detail:     err.Error(),
+		DeadLetter: true,
+		Details:    map[string]any{"endpoint": m.cfg.Endpoint, "qos": m.requestedQoS()},
+	})
+	return err
 }
 func (m *MQTT) FetchMetadata(context.Context) (map[string]any, error) {
 	return nil, errors.New("metadata fetch not supported for mqtt")
@@ -267,6 +301,16 @@ func (m *MQTT) markReadFailure(err error) {
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
+	m.publishObservation(Observation{
+		Reason:     "mqtt transport failure",
+		Detail:     "stream disconnected; waiting to retry",
+		DeadLetter: true,
+		Details: map[string]any{
+			"error":                err.Error(),
+			"endpoint":             m.cfg.Endpoint,
+			"consecutive_timeouts": m.Health().ConsecutiveTimeouts,
+		},
+	})
 }
 
 func (m *MQTT) markDropWithState(reason string, err error) {
@@ -310,6 +354,22 @@ func (m *MQTT) recordHeartbeat(detail string) {
 		h.ConsecutiveTimeouts = 0
 		h.LastError = ""
 	})
+}
+
+func (m *MQTT) publishObservation(obs Observation) {
+	if m.bus == nil {
+		return
+	}
+	if obs.TransportName == "" {
+		obs.TransportName = m.cfg.Name
+	}
+	if obs.TransportType == "" {
+		obs.TransportType = m.cfg.Type
+	}
+	if obs.Topic == "" {
+		obs.Topic = m.cfg.Topic
+	}
+	m.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
 }
 
 func (m *MQTT) requestedQoS() byte {

@@ -99,6 +99,7 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		go a.runTransport(ctx, t, cfgTransport)
 	}
+	go a.consumeTransportEvents(ctx)
 	go a.Web.Start(ctx)
 	<-ctx.Done()
 	for _, t := range a.Transports {
@@ -118,6 +119,11 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 	if backoff <= 0 {
 		backoff = 10 * time.Second
 	}
+	retryThreshold := cfgTransport.MaxTimeouts
+	if retryThreshold <= 0 {
+		retryThreshold = 3
+	}
+	consecutiveFailures := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -127,8 +133,18 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		a.syncTransportRuntime(cfgTransport, t)
 		a.Log.Debug("transport_attempt", "attempting transport connect", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		if err := t.Connect(ctx); err != nil {
+			consecutiveFailures++
 			a.Log.Error("transport_failed", "transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			if consecutiveFailures >= retryThreshold {
+				a.recordTransportDeadLetter(cfgTransport, "", "retry threshold exceeded during connect", "", map[string]any{
+					"error":                err.Error(),
+					"retry_threshold":      retryThreshold,
+					"consecutive_failures": consecutiveFailures,
+					"phase":                "connect",
+					"reconnect_seconds":    backoff.Seconds(),
+				})
+			}
 			a.syncTransportRuntime(cfgTransport, t)
 			select {
 			case <-ctx.Done():
@@ -137,12 +153,25 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 				continue
 			}
 		}
+		consecutiveFailures = 0
 		a.Log.Info("transport_connected", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		_ = a.DB.InsertAuditLog("transport", "info", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		a.syncTransportRuntime(cfgTransport, t)
 		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t, topic, payload) }); err != nil && ctx.Err() == nil {
+			consecutiveFailures++
 			a.Log.Error("transport_failed", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			if consecutiveFailures >= retryThreshold {
+				a.recordTransportDeadLetter(cfgTransport, "", "retry threshold exceeded during subscribe", "", map[string]any{
+					"error":                err.Error(),
+					"retry_threshold":      retryThreshold,
+					"consecutive_failures": consecutiveFailures,
+					"phase":                "subscribe",
+					"reconnect_seconds":    backoff.Seconds(),
+				})
+			}
+		} else {
+			consecutiveFailures = 0
 		}
 		a.syncTransportRuntime(cfgTransport, t)
 		_ = t.Close(context.Background())
@@ -153,6 +182,84 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		case <-time.After(backoff):
 		}
 	}
+}
+
+func (a *App) consumeTransportEvents(ctx context.Context) {
+	if a.Bus == nil {
+		return
+	}
+	eventsCh := a.Bus.Subscribe()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt := <-eventsCh:
+			if evt.Type != "transport.observation" {
+				continue
+			}
+			obs, ok := evt.Data.(transport.Observation)
+			if !ok {
+				continue
+			}
+			if obs.DeadLetter {
+				a.recordTransportDeadLetter(findTransport(a.Cfg, obs.TransportName), obs.Topic, obs.Reason, obs.PayloadHex, mergeDetails(obs.Detail, obs.Details))
+			}
+			if a.DB != nil {
+				severity := "warning"
+				if obs.Reason == "direct transport failure" || obs.Reason == "mqtt transport failure" {
+					severity = "error"
+				}
+				_ = a.DB.InsertAuditLog("transport", severity, obs.Reason, map[string]any{
+					"transport": obs.TransportName,
+					"type":      obs.TransportType,
+					"topic":     obs.Topic,
+					"detail":    obs.Detail,
+					"payload":   obs.PayloadHex,
+					"details":   obs.Details,
+				})
+			}
+		}
+	}
+}
+
+func (a *App) recordTransportDeadLetter(tc config.TransportConfig, topic, reason, payloadHex string, details map[string]any) {
+	if a.DB == nil {
+		return
+	}
+	detailsCopy := map[string]any{}
+	for k, v := range details {
+		detailsCopy[k] = v
+	}
+	if tc.Name != "" {
+		detailsCopy["transport_name"] = tc.Name
+	}
+	if tc.Type != "" {
+		detailsCopy["transport_type"] = tc.Type
+	}
+	if tc.SourceLabel() != "" {
+		detailsCopy["source"] = tc.SourceLabel()
+	}
+	if topic == "" {
+		topic = tc.Topic
+	}
+	_ = a.DB.InsertDeadLetter(db.DeadLetter{
+		TransportName: tc.Name,
+		Topic:         topic,
+		Reason:        reason,
+		PayloadHex:    payloadHex,
+		Details:       detailsCopy,
+	})
+}
+
+func mergeDetails(detail string, details map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range details {
+		out[k] = v
+	}
+	if strings.TrimSpace(detail) != "" {
+		out["detail"] = detail
+	}
+	return out
 }
 
 func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
