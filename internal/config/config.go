@@ -15,15 +15,16 @@ import (
 )
 
 type Config struct {
-	Bind       BindConfig        `json:"bind"`
-	Auth       AuthConfig        `json:"auth"`
-	Storage    StorageConfig     `json:"storage"`
-	Logging    LoggingConfig     `json:"logging"`
-	Retention  RetentionConfig   `json:"retention"`
-	Privacy    PrivacyConfig     `json:"privacy"`
-	Transports []TransportConfig `json:"transports"`
-	Features   FeatureConfig     `json:"features"`
-	RateLimits RateLimitConfig   `json:"rate_limits"`
+	Bind         BindConfig         `json:"bind"`
+	Auth         AuthConfig         `json:"auth"`
+	Storage      StorageConfig      `json:"storage"`
+	Logging      LoggingConfig      `json:"logging"`
+	Retention    RetentionConfig    `json:"retention"`
+	Privacy      PrivacyConfig      `json:"privacy"`
+	Transports   []TransportConfig  `json:"transports"`
+	Features     FeatureConfig      `json:"features"`
+	RateLimits   RateLimitConfig    `json:"rate_limits"`
+	Intelligence IntelligenceConfig `json:"intelligence"`
 }
 
 type BindConfig struct {
@@ -132,10 +133,11 @@ func Default() Config {
 			AuditDays:           90,
 			PrecisePositionDays: 7,
 		},
-		Privacy:    PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true, TrustList: []string{}},
-		Transports: []TransportConfig{},
-		Features:   FeatureConfig{WebUI: true, Metrics: false},
-		RateLimits: RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
+		Privacy:      PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true, TrustList: []string{}},
+		Transports:   []TransportConfig{},
+		Features:     FeatureConfig{WebUI: true, Metrics: false},
+		RateLimits:   RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
+		Intelligence: defaultIntelligenceConfig(),
 	}
 }
 
@@ -198,6 +200,7 @@ func normalize(cfg *Config) error {
 	if cfg.Auth.SessionSecret == "" {
 		cfg.Auth.SessionSecret = randomHex(32)
 	}
+	normalizeIntelligence(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
 		if err == nil && host == "" {
@@ -311,6 +314,7 @@ func Validate(cfg Config) error {
 		}
 		enabledNames[t.Name] = struct{}{}
 	}
+	errs = append(errs, validateIntelligence(cfg)...)
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}

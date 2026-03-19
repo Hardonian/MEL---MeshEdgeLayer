@@ -60,6 +60,10 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/transports/health", s.transportHealthSummary)
 	mux.HandleFunc("/api/v1/transports/alerts", s.transportAlerts)
 	mux.HandleFunc("/api/v1/transports/anomalies", s.transportAnomalies)
+	mux.HandleFunc("/api/v1/transports/health/history", s.transportHealthHistory)
+	mux.HandleFunc("/api/v1/transports/alerts/history", s.transportAlertsHistory)
+	mux.HandleFunc("/api/v1/transports/anomalies/history", s.transportAnomaliesHistory)
+	mux.HandleFunc("/api/v1/transports/inspect/", s.transportInspect)
 	mux.HandleFunc("/api/v1/messages", s.messages)
 	mux.HandleFunc("/api/v1/metrics", s.metrics)
 	mux.HandleFunc("/api/v1/panel", s.panel)
@@ -217,6 +221,69 @@ func (s *Server) transportAnomalies(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transport_anomalies": rows})
 }
+func (s *Server) transportHealthHistory(w http.ResponseWriter, r *http.Request) {
+	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	rows, err := s.db.TransportHealthSnapshots(transportName, start, end, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
+}
+
+func (s *Server) transportAlertsHistory(w http.ResponseWriter, r *http.Request) {
+	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	rows, err := s.db.TransportAlertsHistory(transportName, start, end, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
+}
+
+func (s *Server) transportAnomaliesHistory(w http.ResponseWriter, r *http.Request) {
+	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	rows, err := s.db.TransportAnomalyHistory(transportName, start, end, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
+}
+
+func (s *Server) transportInspect(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/transports/inspect/")
+	if strings.TrimSpace(name) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"code": "missing_transport", "message": "transport name is required"}})
+		return
+	}
+	drilldown, err := statuspkg.InspectTransport(s.cfg, s.db, s.transportHealth(), name, time.Now().UTC())
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"code": "transport_not_found", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, drilldown)
+}
+
+func historyParams(cfg config.Config, r *http.Request) (string, string, string, int, int) {
+	transportName := strings.TrimSpace(r.URL.Query().Get("transport"))
+	start := strings.TrimSpace(r.URL.Query().Get("start"))
+	end := strings.TrimSpace(r.URL.Query().Get("end"))
+	limit := cfg.Intelligence.Queries.DefaultLimit
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= cfg.Intelligence.Queries.MaxLimit {
+			limit = parsed
+		}
+	}
+	offset := 0
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+	return transportName, start, end, limit, offset
+}
+
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if raw := r.URL.Query().Get("limit"); raw != "" {
@@ -346,9 +413,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	}
 	panel := statuspkg.BuildPanel(statusSnap)
 	fmt.Fprint(w, `</section><section id="panel"><h2>Instrument panel</h2>`)
-	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Health</th><th>Alerts</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Observation drops</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
+	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Health</th><th>Why unhealthy</th><th>Alerts</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Observation drops</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
 	for _, h := range statusSnap.Transports {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code><br><span class="muted">runtime=%s</span></td><td><strong>%d</strong> / %s<br><span class="muted">%s</span></td><td><pre>%s</pre></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), blankIfEmpty(h.RuntimeState, "unknown"), h.Health.Score, blankIfEmpty(h.Health.State, "unknown"), blankIfEmpty(h.Health.PrimaryReason, "no dominant reason"), asJSON(h.ActiveAlerts), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, h.ObservationDrops, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code><br><span class="muted">runtime=%s</span></td><td><strong>%d</strong> / %s<br><span class="muted">%s</span></td><td><pre>%s</pre></td><td><pre>%s</pre></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), blankIfEmpty(h.RuntimeState, "unknown"), h.Health.Score, blankIfEmpty(h.Health.State, "unknown"), blankIfEmpty(h.Health.PrimaryReason, "no dominant reason"), asJSON(h.Health.Explanation), asJSON(h.ActiveAlerts), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, h.ObservationDrops, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="deadletters"><h2>Recent transport dead letters</h2>`)

@@ -207,18 +207,20 @@ func newTestApp(t *testing.T, tc config.TransportConfig) *App {
 	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
 	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
 	cfg.Transports = []config.TransportConfig{tc}
+	cfg.Intelligence.Retention.PruneEverySeconds = 0
 	database, err := db.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return &App{
-		Cfg:           cfg,
-		Log:           logging.New("debug", true),
-		DB:            database,
-		Bus:           events.New(),
-		dlEpisodes:    map[string]deadLetterEpisode{},
-		ingestCh:      make(chan ingestRequest, defaultIngestQueueSize),
-		observationCh: make(chan transport.Observation, defaultObservationQueueSize),
+		Cfg:               cfg,
+		Log:               logging.New("debug", true),
+		DB:                database,
+		Bus:               events.New(),
+		dlEpisodes:        map[string]deadLetterEpisode{},
+		ingestCh:          make(chan ingestRequest, defaultIngestQueueSize),
+		observationCh:     make(chan transport.Observation, defaultObservationQueueSize),
+		intelligenceEvery: -1,
 	}
 }
 

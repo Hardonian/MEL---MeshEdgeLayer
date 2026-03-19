@@ -95,3 +95,56 @@ func mustInsertDeadLetterAt(t *testing.T, database *db.DB, createdAt time.Time, 
 		t.Fatal(err)
 	}
 }
+
+func TestEvaluateTransportIntelligenceProducesHealthExplanation(t *testing.T) {
+	cfg, database := newHealthTestDB(t)
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}}
+	now := time.Date(2026, 3, 19, 0, 10, 0, 0, time.UTC)
+	mustInsertTransportAudit(t, database, now.Add(-90*time.Second), transport.ReasonObservationDropped, map[string]any{"transport": "mqtt-primary", "type": "mqtt", "drop_count": 4, "drop_cause": "ingest_queue_saturation"})
+	mustInsertTransportAudit(t, database, now.Add(-60*time.Second), transport.ReasonHandlerRejection, map[string]any{"transport": "mqtt-primary", "type": "mqtt"})
+	if err := database.UpsertTransportRuntime(db.TransportRuntime{Name: "mqtt-primary", Type: "mqtt", Source: "127.0.0.1:1883", Enabled: true, State: transport.StateRetrying, EpisodeID: "ep-9", FailureCount: 2, ObservationDrops: 4, LastHeartbeatAt: now.Add(-3 * time.Minute).Format(time.RFC3339)}); err != nil {
+		t.Fatal(err)
+	}
+	intel, err := EvaluateTransportIntelligence(cfg, database, nil, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explanation := intel.HealthByTransport["mqtt-primary"].Explanation
+	if explanation.TransportName != "mqtt-primary" || explanation.ActiveEpisodeID != "ep-9" {
+		t.Fatalf("unexpected explanation identity: %+v", explanation)
+	}
+	if len(explanation.TopPenalties) == 0 {
+		t.Fatalf("expected penalty explanation, got %+v", explanation)
+	}
+	if explanation.TopPenalties[0].Penalty <= 0 {
+		t.Fatalf("expected positive penalty, got %+v", explanation.TopPenalties)
+	}
+	if explanation.ObservationDrops != 4 {
+		t.Fatalf("expected observation drops in explanation, got %+v", explanation)
+	}
+	if len(explanation.RecoveryBlockers) == 0 {
+		t.Fatalf("expected recovery blockers, got %+v", explanation)
+	}
+}
+
+func TestEvaluateTransportIntelligenceExplainsBurstCause(t *testing.T) {
+	cfg, database := newHealthTestDB(t)
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}}
+	now := time.Date(2026, 3, 19, 0, 12, 0, 0, time.UTC)
+	mustInsertTransportAudit(t, database, now.Add(-30*time.Second), transport.ReasonObservationDropped, map[string]any{"transport": "mqtt-primary", "type": "mqtt", "drop_count": 6, "drop_cause": "event_bus_drops"})
+	intel, err := EvaluateTransportIntelligence(cfg, database, nil, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explanation := intel.HealthByTransport["mqtt-primary"].Explanation
+	found := false
+	for _, blocker := range explanation.RecoveryBlockers {
+		if blocker == "drop_cause:event_bus_drops x6" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected burst blocker, got %+v", explanation.RecoveryBlockers)
+	}
+}

@@ -59,6 +59,8 @@ func main() {
 		nodeCmd(os.Args[2:])
 	case "transports":
 		transportsCmd(os.Args[2:])
+	case "inspect":
+		inspectCmd(os.Args[2:])
 	case "db":
 		dbCmd(os.Args[2:])
 	case "export":
@@ -106,6 +108,7 @@ func usage() {
   nodes --config <path>
   node inspect <node-id> --config <path>
   transports list --config <path>
+  inspect transport <name> --config <path>
   replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
   privacy audit [--format json|text] --config <path>
   policy explain --config <path>
@@ -332,6 +335,20 @@ func transportsCmd(args []string) {
 		panic(err)
 	}
 	mustPrint(map[string]any{"transports": snap.Transports, "contention_warning": len(enabledTransportNames(cfg)) > 1, "selection_rule": "prefer one direct-node transport; hybrid direct+MQTT dedupes only when both paths expose byte-identical mesh packet payloads, so operators must still verify duplicate behavior in their own deployment"})
+}
+
+func inspectCmd(args []string) {
+	if len(args) < 2 || args[0] != "transport" {
+		panic("usage: mel inspect transport <name> --config <path>")
+	}
+	name := args[1]
+	cfg, _ := loadCfg(args[2:])
+	d := openDB(cfg)
+	drilldown, err := statuspkg.InspectTransport(cfg, d, nil, name, time.Now().UTC())
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(drilldown)
 }
 
 func replayCmd(args []string) {
