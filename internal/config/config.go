@@ -76,11 +76,17 @@ type TransportConfig struct {
 	ClientID         string `json:"client_id"`
 	Username         string `json:"username"`
 	Password         string `json:"password"`
+	MQTTQoS          int    `json:"mqtt_qos"`
+	MQTTKeepAliveSec int    `json:"mqtt_keepalive_seconds"`
+	MQTTCleanSession bool   `json:"mqtt_clean_session"`
 	SerialDevice     string `json:"serial_device"`
 	SerialBaud       int    `json:"serial_baud"`
 	TCPHost          string `json:"tcp_host"`
 	TCPPort          int    `json:"tcp_port"`
 	ReconnectSeconds int    `json:"reconnect_seconds"`
+	ReadTimeoutSec   int    `json:"read_timeout_seconds"`
+	WriteTimeoutSec  int    `json:"write_timeout_seconds"`
+	MaxTimeouts      int    `json:"max_consecutive_timeouts"`
 	Notes            string `json:"notes"`
 }
 
@@ -164,6 +170,24 @@ func normalize(cfg *Config) error {
 		if t.SerialBaud == 0 {
 			t.SerialBaud = 115200
 		}
+		if t.MQTTKeepAliveSec <= 0 {
+			t.MQTTKeepAliveSec = 30
+		}
+		if t.Type == "mqtt" && t.MQTTQoS == 0 {
+			t.MQTTQoS = 1
+		}
+		if t.MQTTQoS < 0 || t.MQTTQoS > 2 {
+			t.MQTTQoS = 1
+		}
+		if t.ReadTimeoutSec <= 0 {
+			t.ReadTimeoutSec = 15
+		}
+		if t.WriteTimeoutSec <= 0 {
+			t.WriteTimeoutSec = 5
+		}
+		if t.MaxTimeouts <= 0 {
+			t.MaxTimeouts = 3
+		}
 		if t.Type == "serial" && t.Endpoint == "" && t.SerialDevice != "" {
 			t.Endpoint = t.SerialDevice
 		}
@@ -236,6 +260,15 @@ func Validate(cfg Config) error {
 			if t.ClientID == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing client_id", t.Name))
 			}
+			if t.Topic == "" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing topic", t.Name))
+			}
+			if t.MQTTQoS < 0 || t.MQTTQoS > 2 {
+				errs = appendErr(errs, fmt.Sprintf("transport %s mqtt_qos must be 0, 1, or 2", t.Name))
+			}
+			if t.MQTTKeepAliveSec <= 0 {
+				errs = appendErr(errs, fmt.Sprintf("transport %s mqtt_keepalive_seconds must be positive", t.Name))
+			}
 		case "serial":
 			if t.SerialDevice == "" && t.Endpoint == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing serial_device", t.Name))
@@ -264,16 +297,19 @@ func Validate(cfg Config) error {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
 			}
 		}
+		if t.ReadTimeoutSec <= 0 {
+			errs = appendErr(errs, fmt.Sprintf("transport %s read_timeout_seconds must be positive", t.Name))
+		}
+		if t.WriteTimeoutSec <= 0 {
+			errs = appendErr(errs, fmt.Sprintf("transport %s write_timeout_seconds must be positive", t.Name))
+		}
+		if t.MaxTimeouts <= 0 {
+			errs = appendErr(errs, fmt.Sprintf("transport %s max_consecutive_timeouts must be positive", t.Name))
+		}
 		if _, ok := enabledNames[t.Name]; ok {
 			errs = appendErr(errs, fmt.Sprintf("duplicate enabled transport name %s", t.Name))
 		}
 		enabledNames[t.Name] = struct{}{}
-		if t.Type == "mqtt" && t.Topic == "" {
-			errs = appendErr(errs, fmt.Sprintf("transport %s missing topic", t.Name))
-		}
-		if t.Type == "mqtt" && strings.TrimSpace(t.ClientID) == "" {
-			errs = appendErr(errs, fmt.Sprintf("transport %s missing client_id", t.Name))
-		}
 	}
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))

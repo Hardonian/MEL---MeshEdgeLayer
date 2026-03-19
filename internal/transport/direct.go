@@ -22,7 +22,6 @@ import (
 const (
 	directStart1   = 0x94
 	directStart2   = 0xC3
-	directHeaderSz = 4
 	directMaxFrame = 512
 )
 
@@ -45,7 +44,7 @@ type Direct struct {
 
 func NewDirect(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *Direct {
 	status := "partial"
-	notes := "real direct-node ingest for serial/TCP Meshtastic streams; send/metadata/node fetch remain disabled until proven"
+	notes := "real direct-node ingest for serial/TCP Meshtastic streams with timeout-based deadlock detection; send/metadata/node fetch remain disabled until proven"
 	if cfg.Type == "serial" || cfg.Type == "tcp" || cfg.Type == "serialtcp" {
 		status = "supported"
 	}
@@ -56,7 +55,13 @@ func NewDirect(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus)
 		state = StateDisabled
 		detail = "disabled by config"
 	}
-	return &Direct{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Detail: detail, Capabilities: caps}, dial: openDirectConnection}
+	return &Direct{
+		cfg:    cfg,
+		log:    log,
+		bus:    bus,
+		health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Detail: detail, Capabilities: caps},
+		dial:   openDirectConnection,
+	}
 }
 
 func (d *Direct) Name() string                   { return d.cfg.Name }
@@ -74,13 +79,13 @@ func (d *Direct) setHealth(update func(*Health)) {
 }
 
 func (d *Direct) Connect(ctx context.Context) error {
-	attemptedAt := time.Now().UTC().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339)
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
 		h.State = StateAttempting
 		h.Detail = "attempting direct-node connection"
-		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastAttemptAt = now
 	})
 	rw, err := d.dial(ctx, d.cfg)
 	if err != nil {
@@ -100,10 +105,12 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.OK = true
 		h.State = StateConnectedNoIngest
-		h.Detail = "connected; waiting for a stored mesh packet"
+		h.Detail = "connected; waiting for direct-node traffic"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastSuccessAt = h.LastConnectedAt
+		h.LastHeartbeatAt = h.LastConnectedAt
 		h.LastError = ""
+		h.ConsecutiveTimeouts = 0
 	})
 	return nil
 }
@@ -121,7 +128,7 @@ func (d *Direct) Close(context.Context) error {
 		if h.State != StateDisabled {
 			h.State = StateConfiguredOffline
 			if h.TotalMessages > 0 {
-				h.Detail = "disconnected; historical ingest exists but no live connection is active"
+				h.Detail = "disconnected; historical ingest exists but no live direct connection is active"
 			} else {
 				h.Detail = "disconnected; waiting to retry"
 			}
@@ -139,14 +146,30 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		return errors.New("not connected")
 	}
 	reader := bufio.NewReader(rw)
+	readTimeout := time.Duration(d.cfg.ReadTimeoutSec) * time.Second
+	if readTimeout <= 0 {
+		readTimeout = 15 * time.Second
+	}
+	maxTimeouts := d.cfg.MaxTimeouts
+	if maxTimeouts <= 0 {
+		maxTimeouts = 3
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil
 		}
-		frame, err := readDirectFrame(ctx, rw, reader)
+		frame, err := readDirectFrameWithTimeout(ctx, rw, reader, readTimeout)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return nil
+			}
+			if isTimeout(err) {
+				timeouts := d.noteTimeout("connected; waiting for direct-node heartbeat or payload")
+				if timeouts >= uint64(maxTimeouts) {
+					d.markFailure(fmt.Errorf("direct transport exceeded %d consecutive read timeouts", maxTimeouts), "direct transport stalled; reconnecting")
+					return err
+				}
+				continue
 			}
 			if errors.Is(err, errDirectInvalidFrame) {
 				d.markDropWithState("connected; malformed direct frame ignored", err)
@@ -176,6 +199,8 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 				h.State = StateConnectedNoIngest
 				h.Detail = "connected; packet received but not yet confirmed stored"
 			}
+			h.LastHeartbeatAt = time.Now().UTC().Format(time.RFC3339)
+			h.ConsecutiveTimeouts = 0
 			h.LastError = ""
 		})
 	}
@@ -196,11 +221,29 @@ func (d *Direct) MarkIngest(at time.Time) {
 		h.State = StateIngesting
 		h.TotalMessages++
 		h.LastIngestAt = at.UTC().Format(time.RFC3339)
+		h.LastHeartbeatAt = h.LastIngestAt
+		h.ConsecutiveTimeouts = 0
 		h.LastError = ""
 		h.Detail = "live ingest confirmed by SQLite writes"
 	})
 }
 func (d *Direct) MarkDrop(reason string) { d.markDropWithState(reason, nil) }
+
+func (d *Direct) noteTimeout(detail string) uint64 {
+	var timeouts uint64
+	d.setHealth(func(h *Health) {
+		h.OK = true
+		h.ConsecutiveTimeouts++
+		timeouts = h.ConsecutiveTimeouts
+		if h.TotalMessages > 0 {
+			h.State = StateIngesting
+		} else {
+			h.State = StateConnectedNoIngest
+		}
+		h.Detail = detail
+	})
+	return timeouts
+}
 
 func (d *Direct) markDropWithState(reason string, err error) {
 	d.setHealth(func(h *Health) {
@@ -264,18 +307,22 @@ func configureSerial(ctx context.Context, device string, baud int) error {
 }
 
 func readDirectFrame(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader) ([]byte, error) {
+	return readDirectFrameWithTimeout(ctx, rw, r, time.Second)
+}
+
+func readDirectFrameWithTimeout(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader, readTimeout time.Duration) ([]byte, error) {
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		b, err := readDirectByte(ctx, rw, r)
+		b, err := readDirectByte(ctx, rw, r, readTimeout)
 		if err != nil {
 			return nil, err
 		}
 		if b != directStart1 {
 			continue
 		}
-		b2, err := readDirectByte(ctx, rw, r)
+		b2, err := readDirectByte(ctx, rw, r, readTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +330,7 @@ func readDirectFrame(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader
 			continue
 		}
 		header := make([]byte, 2)
-		if err := readDirectFull(ctx, rw, r, header); err != nil {
+		if err := readDirectFull(ctx, rw, r, header, readTimeout); err != nil {
 			return nil, err
 		}
 		ln := int(binary.BigEndian.Uint16(header))
@@ -291,39 +338,40 @@ func readDirectFrame(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader
 			return nil, fmt.Errorf("%w: invalid direct frame length %d", errDirectInvalidFrame, ln)
 		}
 		body := make([]byte, ln)
-		if err := readDirectFull(ctx, rw, r, body); err != nil {
+		if err := readDirectFull(ctx, rw, r, body, readTimeout); err != nil {
 			return nil, err
 		}
 		return body, nil
 	}
 }
 
-func readDirectByte(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader) (byte, error) {
-	for {
-		if err := ctx.Err(); err != nil {
-			return 0, err
-		}
-		if err := setReadDeadline(rw, time.Now().Add(time.Second)); err != nil {
-			return 0, err
-		}
-		b, err := r.ReadByte()
-		if err == nil {
-			_ = clearReadDeadline(rw)
-			return b, nil
-		}
-		if isTimeout(err) {
-			continue
-		}
+func readDirectByte(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader, readTimeout time.Duration) (byte, error) {
+	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+	if readTimeout <= 0 {
+		readTimeout = time.Second
+	}
+	if err := setReadDeadline(rw, time.Now().Add(readTimeout)); err != nil {
+		return 0, err
+	}
+	b, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	_ = clearReadDeadline(rw)
+	return b, nil
 }
 
-func readDirectFull(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader, buf []byte) error {
+func readDirectFull(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader, buf []byte, readTimeout time.Duration) error {
+	if readTimeout <= 0 {
+		readTimeout = time.Second
+	}
 	for n := 0; n < len(buf); {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := setReadDeadline(rw, time.Now().Add(time.Second)); err != nil {
+		if err := setReadDeadline(rw, time.Now().Add(readTimeout)); err != nil {
 			return err
 		}
 		readN, err := r.Read(buf[n:])
@@ -331,9 +379,6 @@ func readDirectFull(ctx context.Context, rw io.ReadWriteCloser, r *bufio.Reader,
 			n += readN
 		}
 		if err == nil {
-			continue
-		}
-		if isTimeout(err) {
 			continue
 		}
 		return err

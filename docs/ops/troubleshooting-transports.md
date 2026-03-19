@@ -13,6 +13,7 @@ The transport is connected, but MEL has not yet persisted a packet.
 
 - Generate real traffic on the mesh.
 - Confirm the upstream MQTT topic or direct-node stream is the one carrying packets.
+- Inspect `last_heartbeat_at` and `consecutive_timeouts` in `/api/v1/status` to distinguish an idle-but-healthy path from a stalled one.
 
 ## `historical_only`
 
@@ -27,4 +28,5 @@ The transport surfaced a concrete error, malformed input, duplicate drop, or han
 
 - Re-run `mel doctor`.
 - Inspect `mel logs tail` and `/api/v1/status`.
+- Inspect the `dead_letters` table when MEL received a payload but could not process it locally.
 - Fix the underlying cause before trusting the transport again.

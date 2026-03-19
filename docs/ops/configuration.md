@@ -34,6 +34,19 @@ Unsupported types remain explicitly unsupported:
 - `ble`
 - `http`
 
+### Reliability knobs
+
+These fields are normalized with deterministic defaults when omitted:
+
+- `mqtt_qos`: defaults to `1` for MQTT ingest so the broker must at least ack delivery.
+- `mqtt_keepalive_seconds`: defaults to `30`.
+- `mqtt_clean_session`: defaults to `false`, so MEL requests a persistent broker session instead of claiming stateless behavior.
+- `read_timeout_seconds`: defaults to `15` for direct and MQTT readers.
+- `write_timeout_seconds`: defaults to `5`.
+- `max_consecutive_timeouts`: defaults to `3`; after that MEL treats the transport as stalled and forces a reconnect.
+
+These knobs harden MEL's own ingest loop. They do **not** prove broker persistence, radio health, RS485 bus wiring, or field-hardware correctness on their own.
+
 ## Runtime truth
 
 MEL uses the same transport states everywhere:
@@ -46,3 +59,5 @@ MEL uses the same transport states everywhere:
 - `ingesting`
 - `historical_only`
 - `error`
+
+Heartbeat activity and consecutive timeout counters are exposed through `/api/v1/status`, `/api/v1/transports`, `/metrics`, and the HTML UI transport table.
