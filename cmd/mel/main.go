@@ -23,6 +23,7 @@ import (
 	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/service"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -50,6 +51,8 @@ func main() {
 		doctorCmd(os.Args[2:])
 	case "status":
 		statusCmd(os.Args[2:])
+	case "panel":
+		panelCmd(os.Args[2:])
 	case "nodes":
 		nodesCmd(os.Args[2:])
 	case "node":
@@ -99,6 +102,7 @@ func usage() {
   config validate --config <path>
   serve [--debug] --config <path>
   status --config <path>
+  panel [--format text|json] --config <path>
   nodes --config <path>
   node inspect <node-id> --config <path>
   transports list --config <path>
@@ -206,7 +210,7 @@ func doctorCmd(args []string) {
 	if statusErr != nil {
 		findings = append(findings, map[string]string{"component": "status", "severity": "high", "message": statusErr.Error(), "guidance": "Fix transport or database reporting before relying on doctor output."})
 	}
-	findings = append(findings, doctorTransportChecks(cfg)...)
+	findings = append(findings, doctorTransportChecks(cfg, database)...)
 	out := map[string]any{
 		"doctor_version": "v2",
 		"config":         path,
@@ -243,6 +247,52 @@ func statusCmd(args []string) {
 		panic(err)
 	}
 	mustPrint(snap)
+}
+
+func panelCmd(args []string) {
+	f := fs("panel")
+	path := f.String("config", "configs/mel.example.json", "config")
+	format := f.String("format", "text", "text|json")
+	_ = f.Parse(args)
+	cfg, _, err := config.Load(*path)
+	if err != nil {
+		panic(err)
+	}
+	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil)
+	if err != nil {
+		panic(err)
+	}
+	panel := statuspkg.BuildPanel(snap)
+	if *format == "json" {
+		mustPrint(panel)
+		return
+	}
+	printPanelText(panel)
+}
+
+func printPanelText(panel statuspkg.Panel) {
+	fmt.Printf("MEL PANEL %s [%s]\n", panel.GeneratedAt, strings.ToUpper(panel.OperatorState))
+	fmt.Println(panel.Summary)
+	fmt.Println()
+	for _, metric := range panel.Transports {
+		fmt.Printf("[%s] %-16s %-22s msgs=%d", metric.Label, metric.Name, metric.State, metric.Messages)
+		if metric.LastIngest != "" {
+			fmt.Printf(" last=%s", metric.LastIngest)
+		}
+		fmt.Println()
+		if metric.Detail != "" {
+			fmt.Printf("    %s\n", metric.Detail)
+		}
+	}
+	if len(panel.Transports) == 0 {
+		fmt.Println("[ ] no transports")
+	}
+	fmt.Println()
+	fmt.Printf("Short commands: %s\n", strings.Join(panel.ShortCommands, " | "))
+	fmt.Println("8-bit device menu:")
+	for _, item := range panel.DeviceMenu {
+		fmt.Printf("  %s %-5s %s\n", item.Key, item.Label, item.Action)
+	}
 }
 
 func nodesCmd(args []string) {
@@ -478,7 +528,7 @@ func validateConfigFile(path string, cfg config.Config) []map[string]string {
 
 func requireConfigMode(path string) error { return security.CheckFileMode(path) }
 
-func doctorTransportChecks(cfg config.Config) []map[string]string {
+func doctorTransportChecks(cfg config.Config, database *db.DB) []map[string]string {
 	findings := make([]map[string]string, 0)
 	enabled := 0
 	directEnabled := 0
@@ -630,9 +680,9 @@ func doctorNextSteps(cfg config.Config, findings []map[string]string, observatio
 		state := fmt.Sprint(observation["state"])
 		name := fmt.Sprint(observation["name"])
 		switch state {
-		case transport.StateConfigured:
-			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured to connected_no_data or ingesting.", name))
-		case transport.StateConnectedNoData:
+		case transport.StateConfiguredNotAttempted:
+			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured_not_attempted to connected_no_ingest or ingesting.", name))
+		case transport.StateConnectedNoIngest:
 			steps = appendUnique(steps, fmt.Sprintf("%s connected successfully but has not stored a packet yet; generate real mesh traffic or confirm the MQTT topic / direct endpoint is correct.", name))
 		case transport.StateHistoricalOnly:
 			steps = appendUnique(steps, fmt.Sprintf("%s has historical packets only; rerun `mel serve` and look for a fresh stored message timestamp before treating ingest as live.", name))

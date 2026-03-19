@@ -74,7 +74,6 @@ func (d *Direct) setHealth(update func(*Health)) {
 }
 
 func (d *Direct) Connect(ctx context.Context) error {
-	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()

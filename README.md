@@ -101,6 +101,7 @@ mel doctor --config <path>
 mel config validate --config <path>
 mel serve [--debug] --config <path>
 mel status --config <path>
+mel panel [--format text|json] --config <path>
 mel nodes --config <path>
 mel node inspect <node-id> --config <path>
 mel transports list --config <path>
@@ -137,3 +138,11 @@ MEL currently stores and labels these message classes:
 
 - [docs/contributor/transport-interface-contract.md](docs/contributor/transport-interface-contract.md)
 - [docs/contributor/protobuf-extension-guide.md](docs/contributor/protobuf-extension-guide.md)
+- [docs/architecture/central-extension-node-layout.md](docs/architecture/central-extension-node-layout.md)
+- [docs/architecture/operator-panels.md](docs/architecture/operator-panels.md)
+
+## Topology scaffolds
+
+- `topologies/central-node/` reserves hub-side space for small config files in `config/` and larger stateful assets in `memory-management/`.
+- `topologies/extension-node/` reserves constrained-device space for small config files in `config/` and only bounded local state in `memory-management/`.
+- These scaffolds are documentation-first and do not claim that MEL already ships separate node-specific runtimes.

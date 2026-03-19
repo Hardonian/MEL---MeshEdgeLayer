@@ -77,12 +77,12 @@ func (a *App) Start(ctx context.Context) error {
 	for _, finding := range privacy.Audit(a.Cfg) {
 		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
-	if len(enabledTransports(a.Cfg)) == 0 {
-		a.Log.Info("no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfigured})
+	if len(enabledTransportConfigs(a.Cfg)) == 0 {
+		a.Log.Info("transport_idle", "no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfiguredNotAttempted})
 		_ = a.DB.InsertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
 	}
 	for _, tc := range a.Cfg.Transports {
-		state := transport.StateConfigured
+		state := transport.StateConfiguredNotAttempted
 		detail := "configured; MEL has not attempted a live connection in this process yet"
 		if !tc.Enabled {
 			state = transport.StateDisabled
@@ -104,7 +104,7 @@ func (a *App) Start(ctx context.Context) error {
 	for _, t := range a.Transports {
 		_ = t.Close(context.Background())
 		cfgTransport := findTransport(a.Cfg, t.Name())
-		a.persistTransportRuntime(cfgTransport, transport.StateConfigured, "configured; process stopped", "", "")
+		a.persistTransportRuntime(cfgTransport, transport.StateConfiguredNotAttempted, "configured; process stopped", "", "")
 	}
 	return nil
 }
@@ -147,6 +147,22 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		case <-time.After(backoff):
 		}
 	}
+}
+
+func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
+	if a.DB == nil {
+		return
+	}
+	_ = a.DB.UpsertTransportRuntime(db.TransportRuntime{
+		Name:          tc.Name,
+		Type:          tc.Type,
+		Source:        tc.SourceLabel(),
+		Enabled:       tc.Enabled,
+		State:         state,
+		Detail:        detail,
+		LastError:     lastError,
+		LastMessageAt: lastMessageAt,
+	})
 }
 
 func findTransport(cfg config.Config, name string) config.TransportConfig {
@@ -249,3 +265,13 @@ func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) 
 }
 
 var errDuplicateMessage = errors.New("duplicate message ignored")
+
+func enabledTransportConfigs(cfg config.Config) []config.TransportConfig {
+	out := make([]config.TransportConfig, 0, len(cfg.Transports))
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			out = append(out, t)
+		}
+	}
+	return out
+}
