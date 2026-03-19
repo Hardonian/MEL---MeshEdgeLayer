@@ -80,7 +80,7 @@ func TestStatusCollectsCapabilitySummary(t *testing.T) {
 	if snap.Transports[0].Capabilities.ImplementationStatus == "" {
 		t.Fatalf("missing capabilities: %+v", snap.Transports[0])
 	}
-	if snap.Transports[0].RuntimeState != "configured_not_attempted" {
+	if snap.Transports[0].RuntimeState != "configured" {
 		t.Fatalf("expected truthful offline state, got %+v", snap.Transports[0])
 	}
 }

@@ -52,6 +52,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/privacy/audit", s.audit)
 	mux.HandleFunc("/api/recommendations", s.recs)
 	mux.HandleFunc("/api/logs", s.logs)
+	mux.HandleFunc("/api/dead-letters", s.deadLetters)
 	mux.HandleFunc("/api/v1/status", s.status)
 	mux.HandleFunc("/api/v1/nodes", s.nodes)
 	mux.HandleFunc("/api/v1/node/", s.nodeDetail)
@@ -62,6 +63,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
 	mux.HandleFunc("/api/v1/policy/explain", s.recs)
 	mux.HandleFunc("/api/v1/events", s.logs)
+	mux.HandleFunc("/api/v1/audit-logs", s.logs)
+	mux.HandleFunc("/api/v1/dead-letters", s.deadLetters)
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.ui)
 	}
@@ -221,13 +224,31 @@ func (s *Server) audit(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) recs(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"recommendations": s.recommendations()})
 }
-func (s *Server) logs(w http.ResponseWriter, _ *http.Request) {
-	rows, err := s.db.QueryRows("SELECT category,level,message,details_json,created_at FROM audit_logs ORDER BY id DESC LIMIT 100;")
+func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
+	query := "SELECT category,level,message,details_json,created_at FROM audit_logs"
+	if transportName := strings.TrimSpace(r.URL.Query().Get("transport")); transportName != "" {
+		query += fmt.Sprintf(" WHERE details_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"transport\":\"%s\"`, transportName)))
+	}
+	query += " ORDER BY id DESC LIMIT 100;"
+	rows, err := s.db.QueryRows(query)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": rows})
+}
+func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
+	query := "SELECT transport_name,transport_type,topic,reason,payload_hex,details_json,created_at FROM dead_letters"
+	if transportName := strings.TrimSpace(r.URL.Query().Get("transport")); transportName != "" {
+		query += fmt.Sprintf(" WHERE transport_name='%s'", escape(transportName))
+	}
+	query += " ORDER BY id DESC LIMIT 100;"
+	rows, err := s.db.QueryRows(query)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"dead_letters": rows})
 }
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	snap := s.state.Snapshot()
@@ -239,12 +260,13 @@ func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
 	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	logs, _ := s.db.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
+	deadLetters, _ := s.db.QueryRows("SELECT transport_name,transport_type,topic,reason,created_at FROM dead_letters ORDER BY id DESC LIMIT 20;")
 	fmt.Fprintf(w, `<!doctype html><html><head><title>MEL</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
 body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#fafafa;color:#111}
 nav a{margin-right:1rem}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
 table{border-collapse:collapse;width:100%%}td,th{border:1px solid #ddd;padding:.45rem;text-align:left;vertical-align:top}.muted{color:#666}.sev-critical{color:#8b0000}.sev-high{color:#b04a00}.sev-medium{color:#805b00}
 code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto}ul{padding-left:1.25rem}.pill{display:inline-block;padding:.15rem .5rem;border:1px solid #ccc;border-radius:999px;margin-right:.35rem;margin-bottom:.35rem}
-</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#panel">Panel</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
+</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#panel">Panel</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#deadletters">Dead letters</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
 	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Use <code>mel panel --config /etc/mel/mel.json</code> or <code>/api/v1/panel</code> for a compact instrument panel.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
 	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Configured transport modes: `)
 	for _, mode := range statusSnap.ConfiguredTransportModes {
@@ -263,6 +285,13 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
+	fmt.Fprint(w, `<section id="deadletters"><h2>Recent transport dead letters</h2>`)
+	if len(deadLetters) == 0 {
+		fmt.Fprint(w, `<p class="muted">No persisted transport dead letters are currently stored.</p>`)
+	} else {
+		fmt.Fprint(w, `<pre>`+asJSON(deadLetters)+`</pre>`)
+	}
+	fmt.Fprint(w, `</section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
 	if len(snap.Nodes) == 0 {
 		fmt.Fprint(w, `<p class="muted">Node inventory is empty because no live observations have been stored yet.</p>`)

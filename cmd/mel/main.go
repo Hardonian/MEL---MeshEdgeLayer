@@ -390,7 +390,15 @@ func exportCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
-	bundle := map[string]any{"exported_at": time.Now().UTC().Format(time.RFC3339), "redacted": cfg.Privacy.RedactExports, "nodes": nodes, "messages": messages}
+	deadLetters, err := d.QueryRows("SELECT transport_name,transport_type,topic,reason,payload_hex,details_json,created_at FROM dead_letters ORDER BY id DESC LIMIT 250;")
+	if err != nil {
+		panic(err)
+	}
+	auditLogs, err := d.QueryRows("SELECT category,level,message,details_json,created_at FROM audit_logs ORDER BY id DESC LIMIT 250;")
+	if err != nil {
+		panic(err)
+	}
+	bundle := map[string]any{"exported_at": time.Now().UTC().Format(time.RFC3339), "redacted": cfg.Privacy.RedactExports, "nodes": nodes, "messages": messages, "dead_letters": deadLetters, "audit_logs": auditLogs}
 	if cfg.Privacy.RedactExports {
 		bundle["messages"] = redactMessages(messages)
 	}
@@ -680,13 +688,13 @@ func doctorNextSteps(cfg config.Config, findings []map[string]string, observatio
 		state := fmt.Sprint(observation["state"])
 		name := fmt.Sprint(observation["name"])
 		switch state {
-		case transport.StateConfiguredNotAttempted:
-			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured_not_attempted to connected_no_ingest or ingesting.", name))
-		case transport.StateConnectedNoIngest:
+		case transport.StateConfigured:
+			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured to idle or live.", name))
+		case transport.StateIdle:
 			steps = appendUnique(steps, fmt.Sprintf("%s connected successfully but has not stored a packet yet; generate real mesh traffic or confirm the MQTT topic / direct endpoint is correct.", name))
 		case transport.StateHistoricalOnly:
 			steps = appendUnique(steps, fmt.Sprintf("%s has historical packets only; rerun `mel serve` and look for a fresh stored message timestamp before treating ingest as live.", name))
-		case transport.StateError:
+		case transport.StateFailed, transport.StateRetrying:
 			lastErr := fmt.Sprint(observation["last_error"])
 			if lastErr == "" {
 				lastErr = "inspect `mel logs tail` for the runtime error details"

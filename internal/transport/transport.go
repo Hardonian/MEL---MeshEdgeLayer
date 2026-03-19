@@ -14,18 +14,44 @@ import (
 )
 
 const (
-	StateDisabled               = "disabled"
-	StateConfiguredNotAttempted = "configured_not_attempted"
-	StateAttempting             = "attempting"
-	StateConfiguredOffline      = "configured_offline"
-	StateConnectedNoIngest      = "connected_no_ingest"
-	StateIngesting              = "ingesting"
-	StateHistoricalOnly         = "historical_only"
-	StateError                  = "error"
+	StateDisabled       = "disabled"
+	StateConfigured     = "configured"
+	StateConnecting     = "connecting"
+	StateLive           = "live"
+	StateIdle           = "idle"
+	StateRetrying       = "retrying"
+	StateFailed         = "failed"
+	StateHistoricalOnly = "historical_only"
 )
 
-const StateConfigured = StateConfiguredNotAttempted
+const (
+	StateConfiguredNotAttempted = StateConfigured
+	StateAttempting             = StateConnecting
+	StateConfiguredOffline      = StateRetrying
+	StateConnectedNoIngest      = StateIdle
+	StateIngesting              = StateLive
+	StateError                  = StateFailed
+)
+
 const StateConnectedNoData = StateConnectedNoIngest
+
+const (
+	ReasonMalformedFrame         = "malformed_frame"
+	ReasonDecodeFailure          = "decode_failure"
+	ReasonRejectedSend           = "rejected_send"
+	ReasonUnsupportedControlPath = "unsupported_control_path"
+	ReasonTimeoutStall           = "timeout_stall"
+	ReasonTimeoutFailure         = "timeout_failure"
+	ReasonMalformedPublish       = "malformed_publish"
+	ReasonTopicMismatch          = "topic_mismatch"
+	ReasonHandlerRejection       = "handler_rejection"
+	ReasonRejectedPublish        = "rejected_publish"
+	ReasonStreamFailure          = "stream_failure"
+	ReasonSubscribeFailure       = "subscribe_failure"
+	ReasonRetryThresholdExceeded = "retry_threshold_exceeded"
+)
+
+const maxObservationPayloadBytes = 96
 
 type CapabilityMatrix struct {
 	IngestSupported        bool   `json:"ingest_supported"`
@@ -68,10 +94,43 @@ type Observation struct {
 	TransportType string         `json:"transport_type"`
 	Topic         string         `json:"topic,omitempty"`
 	Reason        string         `json:"reason"`
-	Detail        string         `json:"detail,omitempty"`
 	PayloadHex    string         `json:"payload_hex,omitempty"`
 	DeadLetter    bool           `json:"dead_letter"`
+	Detail        string         `json:"detail,omitempty"`
 	Details       map[string]any `json:"details,omitempty"`
+}
+
+func NewObservation(name, typ, topic, reason string, payload []byte, deadLetter bool, detail string, details map[string]any) Observation {
+	out := Observation{
+		TransportName: name,
+		TransportType: typ,
+		Topic:         topic,
+		Reason:        reason,
+		PayloadHex:    boundedPayloadHex(payload),
+		DeadLetter:    deadLetter,
+		Detail:        detail,
+	}
+	if len(details) > 0 {
+		out.Details = make(map[string]any, len(details))
+		for k, v := range details {
+			out.Details[k] = v
+		}
+	}
+	return out
+}
+
+func (o Observation) Valid() bool {
+	return o.TransportName != "" && o.TransportType != "" && o.Reason != ""
+}
+
+func boundedPayloadHex(payload []byte) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	if len(payload) > maxObservationPayloadBytes {
+		payload = payload[:maxObservationPayloadBytes]
+	}
+	return fmt.Sprintf("%x", payload)
 }
 
 type Transport interface {
