@@ -34,8 +34,14 @@ type Server struct {
 	statusSnapshot  func() (statuspkg.Snapshot, error)
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error)) *Server {
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot}
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot ...func() (statuspkg.Snapshot, error)) *Server {
+	var snapFn func() (statuspkg.Snapshot, error)
+	if len(statusSnapshot) > 0 && statusSnapshot[0] != nil {
+		snapFn = statusSnapshot[0]
+	} else {
+		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
+	}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthz)
 	mux.HandleFunc("/readyz", s.readyz)
@@ -52,6 +58,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/transports", s.transports)
 	mux.HandleFunc("/api/v1/messages", s.messages)
 	mux.HandleFunc("/api/v1/metrics", s.metrics)
+	mux.HandleFunc("/api/v1/panel", s.panel)
 	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
 	mux.HandleFunc("/api/v1/policy/explain", s.recs)
 	mux.HandleFunc("/api/v1/events", s.logs)
@@ -80,7 +87,22 @@ func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"ready": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transports": snap.Transports})
+	panel := statuspkg.BuildPanel(snap)
+	ingestReady := false
+	for _, tr := range snap.Transports {
+		if tr.EffectiveState == transport.StateIngesting {
+			ingestReady = true
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ready":          true,
+		"process_ready":  true,
+		"ingest_ready":   ingestReady,
+		"operator_state": panel.OperatorState,
+		"summary":        panel.Summary,
+		"transports":     snap.Transports,
+	})
 }
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	snap, err := s.statusSnapshot()
@@ -88,9 +110,15 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "status_failed", "message": err.Error()}})
 		return
 	}
+	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
+	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
+	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshot":           s.state.Snapshot(),
+		"runtime_snapshot":   s.state.Snapshot(),
+		"persisted_summary":  map[string]any{"messages": persistedMessages, "nodes": persistedNodes, "last_ingest": lastPersistedIngest},
 		"status":             snap,
+		"panel":              statuspkg.BuildPanel(snap),
 		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
 		"bind_local_default": !s.cfg.Bind.AllowRemote,
 	})
@@ -150,6 +178,15 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "filters": r.URL.Query()})
 }
+func (s *Server) panel(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "panel_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, statuspkg.BuildPanel(snap))
+}
+
 func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
@@ -206,8 +243,8 @@ body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:
 nav a{margin-right:1rem}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
 table{border-collapse:collapse;width:100%%}td,th{border:1px solid #ddd;padding:.45rem;text-align:left;vertical-align:top}.muted{color:#666}.sev-critical{color:#8b0000}.sev-high{color:#b04a00}.sev-medium{color:#805b00}
 code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto}ul{padding-left:1.25rem}.pill{display:inline-block;padding:.15rem .5rem;border:1px solid #ccc;border-radius:999px;margin-right:.35rem;margin-bottom:.35rem}
-</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
-	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
+</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#panel">Panel</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
+	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Use <code>mel panel --config /etc/mel/mel.json</code> or <code>/api/v1/panel</code> for a compact instrument panel.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
 	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Configured transport modes: `)
 	for _, mode := range statusSnap.ConfiguredTransportModes {
 		fmt.Fprintf(w, `<span class="pill">%s</span>`, mode)
@@ -218,7 +255,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last heartbeat</th><th>Last ingest</th><th>Last error</th></tr>`)
+	panel := statuspkg.BuildPanel(statusSnap)
+	fmt.Fprint(w, `</section><section id="panel"><h2>Instrument panel</h2>`)
+	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.DeviceMenu))
 	for _, h := range statusSnap.Transports {
 		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastHeartbeatAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}

@@ -39,26 +39,24 @@ type CapabilityMatrix struct {
 }
 
 type Health struct {
-	Name                string           `json:"name"`
-	Type                string           `json:"type"`
-	Source              string           `json:"source"`
-	State               string           `json:"state"`
-	OK                  bool             `json:"ok"`
-	Unsupported         bool             `json:"unsupported,omitempty"`
-	Detail              string           `json:"detail"`
-	Capabilities        CapabilityMatrix `json:"capabilities"`
-	LastAttemptAt       string           `json:"last_attempt_at,omitempty"`
-	LastConnectedAt     string           `json:"last_connected_at,omitempty"`
-	LastSuccessAt       string           `json:"last_success_at,omitempty"`
-	LastDisconnected    string           `json:"last_disconnected_at,omitempty"`
-	LastIngestAt        string           `json:"last_ingest_at,omitempty"`
-	LastHeartbeatAt     string           `json:"last_heartbeat_at,omitempty"`
-	LastError           string           `json:"last_error,omitempty"`
-	PacketsDropped      uint64           `json:"packets_dropped"`
-	ReconnectAttempts   uint64           `json:"reconnect_attempts"`
-	TotalMessages       uint64           `json:"total_messages"`
-	ErrorCount          uint64           `json:"error_count"`
-	ConsecutiveTimeouts uint64           `json:"consecutive_timeouts"`
+	Name              string           `json:"name"`
+	Type              string           `json:"type"`
+	Source            string           `json:"source"`
+	State             string           `json:"state"`
+	OK                bool             `json:"ok"`
+	Unsupported       bool             `json:"unsupported,omitempty"`
+	Detail            string           `json:"detail"`
+	Capabilities      CapabilityMatrix `json:"capabilities"`
+	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
+	LastError         string           `json:"last_error,omitempty"`
+	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
+	LastSuccessAt     string           `json:"last_success_at,omitempty"`
+	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
+	LastIngestAt      string           `json:"last_ingest_at,omitempty"`
+	PacketsDropped    uint64           `json:"packets_dropped"`
+	ReconnectAttempts uint64           `json:"reconnect_attempts"`
+	TotalMessages     uint64           `json:"total_messages"`
+	ErrorCount        uint64           `json:"error_count"`
 }
 
 type PacketHandler func(topic string, payload []byte) error

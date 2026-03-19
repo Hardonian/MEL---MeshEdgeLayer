@@ -52,7 +52,6 @@ func (m *MQTT) setHealth(update func(*Health)) {
 }
 
 func (m *MQTT) Connect(ctx context.Context) error {
-	now := time.Now().UTC().Format(time.RFC3339)
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = m.cfg.Endpoint

@@ -78,11 +78,11 @@ func (a *App) Start(ctx context.Context) error {
 		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
 	if len(enabledTransportConfigs(a.Cfg)) == 0 {
-		a.Log.Info("transport_idle", "no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfigured})
+		a.Log.Info("transport_idle", "no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfiguredNotAttempted})
 		_ = a.DB.InsertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
 	}
 	for _, tc := range a.Cfg.Transports {
-		state := transport.StateConfigured
+		state := transport.StateConfiguredNotAttempted
 		detail := "configured; MEL has not attempted a live connection in this process yet"
 		if !tc.Enabled {
 			state = transport.StateDisabled
@@ -104,7 +104,7 @@ func (a *App) Start(ctx context.Context) error {
 	for _, t := range a.Transports {
 		_ = t.Close(context.Background())
 		cfgTransport := findTransport(a.Cfg, t.Name())
-		a.persistTransportRuntime(cfgTransport, transport.StateConfigured, "configured; process stopped", "", "")
+		a.persistTransportRuntime(cfgTransport, transport.StateConfiguredNotAttempted, "configured; process stopped", "", "")
 	}
 	return nil
 }
@@ -153,6 +153,22 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		case <-time.After(backoff):
 		}
 	}
+}
+
+func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
+	if a.DB == nil {
+		return
+	}
+	_ = a.DB.UpsertTransportRuntime(db.TransportRuntime{
+		Name:          tc.Name,
+		Type:          tc.Type,
+		Source:        tc.SourceLabel(),
+		Enabled:       tc.Enabled,
+		State:         state,
+		Detail:        detail,
+		LastError:     lastError,
+		LastMessageAt: lastMessageAt,
+	})
 }
 
 func findTransport(cfg config.Config, name string) config.TransportConfig {
