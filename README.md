@@ -100,6 +100,7 @@ text = p.read_text()
 text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
 p.write_text(text)
 PY
+chmod 600 .tmp/mel.json
 ```
 
 Then edit the transport block:
@@ -121,6 +122,7 @@ Interpret `mel doctor` honestly:
 - **serial device not found / permission denied** = direct-node setup is incomplete.
 - **TCP endpoint unreachable** = wrong host/port or wrong protocol.
 - **MQTT is enabled** = doctor validates config posture but intentionally does not require broker reachability.
+- **`historical_ingest_seen` in `summary.transport_observations`** = doctor found prior packets for that transport in SQLite, but it is still not claiming live connectivity in the current run.
 
 ### 5. Start MEL
 
@@ -148,6 +150,7 @@ p = Path('.tmp/mqtt/mel.json')
 text = p.read_text().replace('./data', '.tmp/mqtt/data')
 p.write_text(text)
 PY
+chmod 600 .tmp/mqtt/mel.json
 ./bin/mel config validate --config .tmp/mqtt/mel.json
 ./bin/mel serve --config .tmp/mqtt/mel.json
 ```

@@ -22,6 +22,7 @@ text = p.read_text()
 text = text.replace('./data', '.tmp/eval/data').replace('/dev/ttyUSB0', '/dev/serial/by-id/REPLACE_ME')
 p.write_text(text)
 PY
+chmod 600 .tmp/eval/mel.json
 ```
 
 ### MQTT
@@ -35,6 +36,7 @@ p = Path('.tmp/eval/mel.json')
 text = p.read_text().replace('./data', '.tmp/eval/data')
 p.write_text(text)
 PY
+chmod 600 .tmp/eval/mel.json
 ```
 
 ## 3. Validate and inspect the config
@@ -49,7 +51,8 @@ What to expect:
 
 - a real serial/TCP problem is surfaced as a real finding,
 - zero enabled transports is surfaced explicitly,
-- unsupported transport types stay marked unsupported.
+- unsupported transport types stay marked unsupported,
+- `summary.transport_observations[].state == "historical_ingest_seen"` means the local database has prior packets for that transport even when doctor is not asserting a live connection in that moment.
 
 ## 4. Start MEL
 

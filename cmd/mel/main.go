@@ -515,6 +515,65 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 	}
 	return findings
 }
+
+func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]any {
+	observations := make([]map[string]any, 0)
+	for _, t := range cfg.Transports {
+		if !t.Enabled {
+			continue
+		}
+		observation := map[string]any{
+			"name":   t.Name,
+			"type":   t.Type,
+			"source": t.SourceLabel(),
+			"state":  directStateForObservation(t),
+			"detail": "configured transport has not been proven by a live packet in this doctor run",
+		}
+		if database == nil {
+			observation["detail"] = "database unavailable; cannot inspect historical ingest evidence"
+			observations = append(observations, observation)
+			continue
+		}
+		row, err := database.QueryRows(fmt.Sprintf(
+			"SELECT transport_name, MAX(rx_time) AS last_rx_time, COUNT(*) AS message_count FROM messages WHERE transport_name='%s';",
+			escape(t.Name),
+		))
+		if err != nil {
+			observation["state"] = "observation_lookup_failed"
+			observation["detail"] = err.Error()
+			observations = append(observations, observation)
+			continue
+		}
+		if len(row) == 0 {
+			observations = append(observations, observation)
+			continue
+		}
+		messageCount := asInt(row[0]["message_count"])
+		if messageCount <= 0 {
+			observations = append(observations, observation)
+			continue
+		}
+		observation["state"] = "historical_ingest_seen"
+		observation["detail"] = "database contains prior packets for this transport; doctor still requires a live runtime check for current connectivity"
+		observation["message_count"] = messageCount
+		observation["last_rx_time"] = row[0]["last_rx_time"]
+		observations = append(observations, observation)
+	}
+	if observations == nil {
+		return []map[string]any{}
+	}
+	return observations
+}
+
+func directStateForObservation(t config.TransportConfig) string {
+	switch t.Type {
+	case "serial", "tcp", "serialtcp":
+		return "configured_offline"
+	default:
+		return "configured_not_attempted"
+	}
+}
+
 func openDB(cfg config.Config) *db.DB {
 	d, err := db.Open(cfg)
 	if err != nil {
@@ -602,6 +661,24 @@ func sortedKeys(m map[string]any) []string {
 }
 
 func escape(v string) string { return strings.ReplaceAll(v, "'", "''") }
+
+func asInt(v any) int64 {
+	switch x := v.(type) {
+	case int:
+		return int64(x)
+	case int64:
+		return x
+	case float64:
+		return int64(x)
+	case string:
+		var parsed int64
+		fmt.Sscan(x, &parsed)
+		return parsed
+	}
+	var parsed int64
+	fmt.Sscan(fmt.Sprint(v), &parsed)
+	return parsed
+}
 
 func simulateCmd(args []string) {
 	f := fs("sim")
