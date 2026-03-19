@@ -18,8 +18,8 @@ func TestOpenAppliesMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) < 2 {
-		t.Fatalf("expected both schema migrations, got %v", rows)
+	if len(rows) < 3 {
+		t.Fatalf("expected schema migrations including dead letters, got %v", rows)
 	}
 }
 
@@ -45,5 +45,25 @@ func TestInsertMessageReportsDedupedWrite(t *testing.T) {
 	}
 	if stored {
 		t.Fatal("expected duplicate insert to be ignored")
+	}
+}
+
+func TestInsertDeadLetter(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertDeadLetter(DeadLetter{TransportName: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "0102", Details: map[string]any{"error": "boom"}}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := d.QueryJSON("SELECT transport_name, reason, payload_hex FROM dead_letters;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0]["reason"] != "parse failure" {
+		t.Fatalf("unexpected dead letter rows: %+v", rows)
 	}
 }

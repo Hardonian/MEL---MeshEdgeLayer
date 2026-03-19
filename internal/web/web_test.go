@@ -13,11 +13,12 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
+	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 )
 
-func TestReadyzSeparatesProcessAndIngestTruth(t *testing.T) {
-	srv := newTestServer(t, []transport.Health{{Name: "tcp", Type: "tcp", State: "error", Detail: "connect failed"}}, nil)
+func TestReadyzReturnsSnapshot(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "tcp", Type: "tcp", State: transport.StateError, Detail: "connect failed"}}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	rec := httptest.NewRecorder()
 
@@ -30,20 +31,18 @@ func TestReadyzSeparatesProcessAndIngestTruth(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["process_ready"] != true {
-		t.Fatalf("expected process_ready=true, got %#v", payload["process_ready"])
+	if payload["ready"] != true {
+		t.Fatalf("expected ready=true, got %#v", payload["ready"])
 	}
-	if payload["ingest_ready"] != false {
-		t.Fatalf("expected ingest_ready=false, got %#v", payload["ingest_ready"])
-	}
-	if payload["operator_state"] != "degraded" {
-		t.Fatalf("expected degraded operator_state, got %#v", payload["operator_state"])
+	transports := payload["transports"].([]any)
+	if len(transports) != 1 {
+		t.Fatalf("expected one transport snapshot, got %#v", payload)
 	}
 }
 
-func TestStatusSeparatesRuntimeAndPersistedState(t *testing.T) {
+func TestStatusReturnsTransportSummary(t *testing.T) {
 	insert := func(d *db.DB) {
-		if err := d.InsertMessage(map[string]any{
+		stored, err := d.InsertMessage(map[string]any{
 			"transport_name": "mqtt",
 			"packet_id":      int64(1),
 			"dedupe_hash":    "abc123",
@@ -58,11 +57,15 @@ func TestStatusSeparatesRuntimeAndPersistedState(t *testing.T) {
 			"rx_time":        "2026-03-19T00:00:00Z",
 			"hop_limit":      int64(0),
 			"relay_node":     int64(0),
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatal(err)
 		}
+		if !stored {
+			t.Fatal("expected seed message to persist")
+		}
 	}
-	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: "configured_not_attempted"}}, insert)
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateConfiguredNotAttempted}}, insert)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
 	rec := httptest.NewRecorder()
 
@@ -75,13 +78,17 @@ func TestStatusSeparatesRuntimeAndPersistedState(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	runtimeSnapshot := payload["runtime_snapshot"].(map[string]any)
-	if runtimeSnapshot["messages"].(float64) != 0 {
-		t.Fatalf("expected empty runtime snapshot, got %#v", runtimeSnapshot["messages"])
+	status := payload["status"].(map[string]any)
+	if status["messages"].(float64) != 1 {
+		t.Fatalf("expected persisted message count of 1, got %#v", status["messages"])
 	}
-	persisted := payload["persisted_summary"].(map[string]any)
-	if persisted["messages"] != "1" {
-		t.Fatalf("expected persisted message count of 1, got %#v", persisted["messages"])
+	transports := status["transports"].([]any)
+	if len(transports) != 1 {
+		t.Fatalf("expected one transport report, got %#v", status)
+	}
+	report := transports[0].(map[string]any)
+	if report["effective_state"] != transport.StateHistoricalOnly {
+		t.Fatalf("expected historical_only effective state, got %#v", report["effective_state"])
 	}
 }
 
@@ -91,6 +98,7 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
 	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
 	cfg.Features.WebUI = false
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-test"}}
 	database, err := db.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -98,5 +106,8 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	if seed != nil {
 		seed(database)
 	}
-	return New(cfg, logging.New(), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil })
+	statusSnapshot := func() (statuspkg.Snapshot, error) {
+		return statuspkg.Collect(cfg, database, health)
+	}
+	return New(cfg, logging.New("debug", true), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil }, statusSnapshot)
 }

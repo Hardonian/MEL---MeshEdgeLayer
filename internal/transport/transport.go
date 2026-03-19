@@ -24,6 +24,9 @@ const (
 	StateError                  = "error"
 )
 
+const StateConfigured = StateConfiguredNotAttempted
+const StateConnectedNoData = StateConnectedNoIngest
+
 type CapabilityMatrix struct {
 	IngestSupported        bool   `json:"ingest_supported"`
 	SendSupported          bool   `json:"send_supported"`
@@ -36,36 +39,27 @@ type CapabilityMatrix struct {
 }
 
 type Health struct {
-	Name              string           `json:"name"`
-	Type              string           `json:"type"`
-	Source            string           `json:"source"`
-	State             string           `json:"state"`
-	OK                bool             `json:"ok"`
-	Unsupported       bool             `json:"unsupported,omitempty"`
-	Detail            string           `json:"detail"`
-	Capabilities      CapabilityMatrix `json:"capabilities"`
-	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
-	LastError         string           `json:"last_error,omitempty"`
-	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
-	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
-	LastSuccessAt     string           `json:"last_success_at,omitempty"`
-	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
-	LastIngestAt      string           `json:"last_ingest_at,omitempty"`
-	PacketsDropped    uint64           `json:"packets_dropped"`
-	ReconnectAttempts uint64           `json:"reconnect_attempts"`
-	TotalMessages     uint64           `json:"total_messages"`
-	ErrorCount        uint64           `json:"error_count"`
+	Name                string           `json:"name"`
+	Type                string           `json:"type"`
+	Source              string           `json:"source"`
+	State               string           `json:"state"`
+	OK                  bool             `json:"ok"`
+	Unsupported         bool             `json:"unsupported,omitempty"`
+	Detail              string           `json:"detail"`
+	Capabilities        CapabilityMatrix `json:"capabilities"`
+	LastAttemptAt       string           `json:"last_attempt_at,omitempty"`
+	LastConnectedAt     string           `json:"last_connected_at,omitempty"`
+	LastSuccessAt       string           `json:"last_success_at,omitempty"`
+	LastDisconnected    string           `json:"last_disconnected_at,omitempty"`
+	LastIngestAt        string           `json:"last_ingest_at,omitempty"`
+	LastHeartbeatAt     string           `json:"last_heartbeat_at,omitempty"`
+	LastError           string           `json:"last_error,omitempty"`
+	PacketsDropped      uint64           `json:"packets_dropped"`
+	ReconnectAttempts   uint64           `json:"reconnect_attempts"`
+	TotalMessages       uint64           `json:"total_messages"`
+	ErrorCount          uint64           `json:"error_count"`
+	ConsecutiveTimeouts uint64           `json:"consecutive_timeouts"`
 }
-
-const (
-	StateDisabled        = "disabled"
-	StateConfigured      = "configured"
-	StateAttempting      = "attempting"
-	StateConnectedNoData = "connected_no_data"
-	StateIngesting       = "ingesting"
-	StateHistoricalOnly  = "historical_only"
-	StateError           = "error"
-)
 
 type PacketHandler func(topic string, payload []byte) error
 
@@ -132,12 +126,15 @@ func (u *Unsupported) Connect(context.Context) error {
 	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }
+
 func (u *Unsupported) Close(context.Context) error { return nil }
+
 func (u *Unsupported) Health() Health {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return u.health
 }
+
 func (u *Unsupported) Capabilities() CapabilityMatrix                 { return u.Health().Capabilities }
 func (u *Unsupported) SourceType() string                             { return u.cfg.Type }
 func (u *Unsupported) Name() string                                   { return u.cfg.Name }
@@ -158,7 +155,7 @@ func dialWithTimeout(endpoint string) (net.Conn, error) {
 	return net.DialTimeout("tcp", endpoint, 5*time.Second)
 }
 
-func capabilityDefaults(cfg config.TransportConfig, ingest, send, metadata, nodes, health, configApply bool, status, notes string) CapabilityMatrix {
+func capabilityDefaults(_ config.TransportConfig, ingest, send, metadata, nodes, health, configApply bool, status, notes string) CapabilityMatrix {
 	return CapabilityMatrix{
 		IngestSupported:        ingest,
 		SendSupported:          send,

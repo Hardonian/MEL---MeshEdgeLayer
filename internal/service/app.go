@@ -77,8 +77,8 @@ func (a *App) Start(ctx context.Context) error {
 	for _, finding := range privacy.Audit(a.Cfg) {
 		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
-	if len(enabledTransports(a.Cfg)) == 0 {
-		a.Log.Info("no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfigured})
+	if len(enabledTransportConfigs(a.Cfg)) == 0 {
+		a.Log.Info("transport_idle", "no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfigured})
 		_ = a.DB.InsertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
 	}
 	for _, tc := range a.Cfg.Transports {
@@ -124,10 +124,12 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 			return
 		default:
 		}
+		a.syncTransportRuntime(cfgTransport, t)
 		a.Log.Debug("transport_attempt", "attempting transport connect", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		if err := t.Connect(ctx); err != nil {
 			a.Log.Error("transport_failed", "transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
+			a.syncTransportRuntime(cfgTransport, t)
 			select {
 			case <-ctx.Done():
 				return
@@ -136,11 +138,15 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 			}
 		}
 		a.Log.Info("transport_connected", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
+		_ = a.DB.InsertAuditLog("transport", "info", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
+		a.syncTransportRuntime(cfgTransport, t)
 		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t, topic, payload) }); err != nil && ctx.Err() == nil {
 			a.Log.Error("transport_failed", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		}
+		a.syncTransportRuntime(cfgTransport, t)
 		_ = t.Close(context.Background())
+		a.syncTransportRuntime(cfgTransport, t)
 		select {
 		case <-ctx.Done():
 			return
@@ -163,6 +169,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	if err != nil {
 		a.Log.Error("ingest_dropped", "failed to parse packet", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("failed to parse packet")
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "parse failure", PayloadHex: fmt.Sprintf("%x", payload), Details: map[string]any{"error": err.Error()}})
+		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
 	rxAt := time.Now().UTC()
@@ -176,23 +184,30 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	if err != nil {
 		a.Log.Error("db_error", "message insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("database write failed")
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "database write failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "packet_id": env.Packet.ID}})
+		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
 	if !inserted {
 		a.Log.Info("ingest_dropped", "duplicate message ignored", map[string]any{"transport": t.Name(), "dedupe_hash": msg["dedupe_hash"]})
 		t.MarkDrop("duplicate packet ignored after dedupe")
+		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return nil
 	}
 	node := map[string]any{"node_num": int64(env.Packet.From), "node_id": env.Packet.NodeID, "long_name": env.Packet.LongName, "short_name": env.Packet.ShortName, "last_seen": rxTime, "last_gateway_id": env.GatewayID, "last_snr": float64(env.Packet.RXSNR), "last_rssi": int64(env.Packet.RXRSSI), "lat_redacted": meshtastic.RedactCoord(env.Packet.Lat), "lon_redacted": meshtastic.RedactCoord(env.Packet.Lon), "altitude": int64(env.Packet.Altitude)}
 	if err := a.DB.UpsertNode(node); err != nil {
 		a.Log.Error("db_error", "node upsert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("node upsert failed")
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "node upsert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From}})
+		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
 	if telemetryType != "" {
 		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), telemetryType, telemetryValue, rxTime); err != nil {
 			a.Log.Error("db_error", "telemetry insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			t.MarkDrop("telemetry insert failed")
+			_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "telemetry insert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "telemetry_type": telemetryType}})
+			a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 			return err
 		}
 	}
@@ -210,8 +225,51 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 			_ = a.DB.InsertAuditLog("plugin", "warning", alert.Message, alert)
 		}
 	}
+	_ = a.DB.InsertAuditLog("node", "info", "node observed via transport", map[string]any{"transport": t.Name(), "topic": topic, "node_num": env.Packet.From, "node_id": env.Packet.NodeID, "gateway_id": env.GatewayID})
+	a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 	a.Log.Info("ingest_received", "message persisted", map[string]any{"transport": t.Name(), "message_type": messageType, "from_node": env.Packet.From, "portnum": env.Packet.PortNum})
 	return nil
+}
+
+func (a *App) syncTransportRuntime(tc config.TransportConfig, t transport.Transport) {
+	if a.DB == nil {
+		return
+	}
+	h := t.Health()
+	lastMessageAt := h.LastIngestAt
+	if lastMessageAt == "" {
+		lastMessageAt = h.LastSuccessAt
+	}
+	_ = a.DB.UpsertTransportRuntime(db.TransportRuntime{
+		Name:            tc.Name,
+		Type:            tc.Type,
+		Source:          tc.SourceLabel(),
+		Enabled:         tc.Enabled,
+		State:           h.State,
+		Detail:          h.Detail,
+		LastAttemptAt:   h.LastAttemptAt,
+		LastConnectedAt: h.LastConnectedAt,
+		LastSuccessAt:   h.LastSuccessAt,
+		LastMessageAt:   lastMessageAt,
+		LastError:       h.LastError,
+		TotalMessages:   h.TotalMessages,
+	})
+}
+
+func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
+	if a.DB == nil {
+		return
+	}
+	_ = a.DB.UpsertTransportRuntime(db.TransportRuntime{
+		Name:          tc.Name,
+		Type:          tc.Type,
+		Source:        tc.SourceLabel(),
+		Enabled:       tc.Enabled,
+		State:         state,
+		Detail:        detail,
+		LastError:     lastError,
+		LastMessageAt: lastMessageAt,
+	})
 }
 
 func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) (string, map[string]any, string, map[string]any) {
@@ -249,3 +307,13 @@ func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) 
 }
 
 var errDuplicateMessage = errors.New("duplicate message ignored")
+
+func enabledTransportConfigs(cfg config.Config) []config.TransportConfig {
+	out := make([]config.TransportConfig, 0, len(cfg.Transports))
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			out = append(out, t)
+		}
+	}
+	return out
+}

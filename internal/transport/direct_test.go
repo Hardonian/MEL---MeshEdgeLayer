@@ -29,6 +29,7 @@ type timeoutReader struct {
 
 func (t *timeoutReader) Read(p []byte) (int, error) {
 	if t.buf.Len() == 0 {
+		time.Sleep(10 * time.Millisecond)
 		return 0, timeoutErr{}
 	}
 	return t.buf.Read(p)
@@ -139,7 +140,7 @@ func TestDirectSubscribeInvalidFrameContinues(t *testing.T) {
 }
 
 func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
-	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403"}, logging.New("debug", true), events.New())
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403", ReadTimeoutSec: 1, MaxTimeouts: 500}, logging.New("debug", true), events.New())
 	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
 		return &timeoutReader{}, nil
 	}
@@ -162,6 +163,26 @@ func TestDirectSubscribeCancelOnIdleConnection(t *testing.T) {
 	h := transport.Health()
 	if h.State != StateConnectedNoIngest {
 		t.Fatalf("expected idle state to remain truthful, got %+v", h)
+	}
+}
+
+func TestDirectSubscribeDetectsConsecutiveTimeouts(t *testing.T) {
+	transport := NewDirect(config.TransportConfig{Name: "direct", Type: "tcp", Enabled: true, Endpoint: "127.0.0.1:4403", ReadTimeoutSec: 1, MaxTimeouts: 2}, logging.New("debug", true), events.New())
+	transport.dial = func(context.Context, config.TransportConfig) (io.ReadWriteCloser, error) {
+		return &timeoutReader{}, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := transport.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	err := transport.Subscribe(ctx, func(string, []byte) error { return nil })
+	if err == nil {
+		t.Fatal("expected subscribe to fail after repeated timeouts")
+	}
+	h := transport.Health()
+	if h.State != StateError || h.ConsecutiveTimeouts < 2 {
+		t.Fatalf("expected timeout-driven error state, got %+v", h)
 	}
 }
 

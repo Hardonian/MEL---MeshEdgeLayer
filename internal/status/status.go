@@ -24,25 +24,27 @@ type Snapshot struct {
 }
 
 type TransportReport struct {
-	Name              string                     `json:"name"`
-	Type              string                     `json:"type"`
-	Source            string                     `json:"source"`
-	Enabled           bool                       `json:"enabled"`
-	EffectiveState    string                     `json:"effective_state"`
-	RuntimeState      string                     `json:"runtime_state"`
-	PersistedState    string                     `json:"persisted_state"`
-	StatusScope       string                     `json:"status_scope"`
-	Detail            string                     `json:"detail"`
-	Guidance          string                     `json:"guidance"`
-	LastAttemptAt     string                     `json:"last_attempt_at,omitempty"`
-	LastIngestAt      string                     `json:"last_ingest_at,omitempty"`
-	LastError         string                     `json:"last_error,omitempty"`
-	TotalMessages     uint64                     `json:"total_messages"`
-	PersistedMessages uint64                     `json:"persisted_messages"`
-	ErrorCount        uint64                     `json:"error_count"`
-	DroppedCount      uint64                     `json:"dropped_count"`
-	ReconnectAttempts uint64                     `json:"reconnect_attempts"`
-	Capabilities      transport.CapabilityMatrix `json:"capabilities"`
+	Name                string                     `json:"name"`
+	Type                string                     `json:"type"`
+	Source              string                     `json:"source"`
+	Enabled             bool                       `json:"enabled"`
+	EffectiveState      string                     `json:"effective_state"`
+	RuntimeState        string                     `json:"runtime_state"`
+	PersistedState      string                     `json:"persisted_state"`
+	StatusScope         string                     `json:"status_scope"`
+	Detail              string                     `json:"detail"`
+	Guidance            string                     `json:"guidance"`
+	LastAttemptAt       string                     `json:"last_attempt_at,omitempty"`
+	LastIngestAt        string                     `json:"last_ingest_at,omitempty"`
+	LastHeartbeatAt     string                     `json:"last_heartbeat_at,omitempty"`
+	LastError           string                     `json:"last_error,omitempty"`
+	TotalMessages       uint64                     `json:"total_messages"`
+	PersistedMessages   uint64                     `json:"persisted_messages"`
+	ErrorCount          uint64                     `json:"error_count"`
+	DroppedCount        uint64                     `json:"dropped_count"`
+	ReconnectAttempts   uint64                     `json:"reconnect_attempts"`
+	ConsecutiveTimeouts uint64                     `json:"consecutive_timeouts"`
+	Capabilities        transport.CapabilityMatrix `json:"capabilities"`
 }
 
 type persistEvidence struct {
@@ -85,25 +87,27 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 		}
 		evidence := persisted[tc.Name]
 		report := TransportReport{
-			Name:              tc.Name,
-			Type:              tc.Type,
-			Source:            tc.SourceLabel(),
-			Enabled:           tc.Enabled,
-			EffectiveState:    EffectiveState(tc.Enabled, h.State, evidence.Count),
-			RuntimeState:      h.State,
-			PersistedState:    persistedState(evidence.Count),
-			StatusScope:       statusScope(h.State, evidence.Count),
-			Detail:            detailFor(tc.Enabled, h, evidence),
-			Guidance:          guidanceFor(tc.Enabled, EffectiveState(tc.Enabled, h.State, evidence.Count), tc.Type),
-			LastAttemptAt:     h.LastAttemptAt,
-			LastIngestAt:      firstNonEmpty(h.LastIngestAt, evidence.LastIngest),
-			LastError:         h.LastError,
-			TotalMessages:     h.TotalMessages,
-			PersistedMessages: evidence.Count,
-			ErrorCount:        h.ErrorCount,
-			DroppedCount:      h.PacketsDropped,
-			ReconnectAttempts: h.ReconnectAttempts,
-			Capabilities:      h.Capabilities,
+			Name:                tc.Name,
+			Type:                tc.Type,
+			Source:              tc.SourceLabel(),
+			Enabled:             tc.Enabled,
+			EffectiveState:      EffectiveState(tc.Enabled, h.State, evidence.Count),
+			RuntimeState:        h.State,
+			PersistedState:      persistedState(evidence.Count),
+			StatusScope:         statusScope(h.State, evidence.Count),
+			Detail:              detailFor(tc.Enabled, h, evidence),
+			Guidance:            guidanceFor(tc.Enabled, EffectiveState(tc.Enabled, h.State, evidence.Count), tc.Type),
+			LastAttemptAt:       h.LastAttemptAt,
+			LastIngestAt:        firstNonEmpty(h.LastIngestAt, evidence.LastIngest),
+			LastHeartbeatAt:     h.LastHeartbeatAt,
+			LastError:           h.LastError,
+			TotalMessages:       h.TotalMessages,
+			PersistedMessages:   evidence.Count,
+			ErrorCount:          h.ErrorCount,
+			DroppedCount:        h.PacketsDropped,
+			ReconnectAttempts:   h.ReconnectAttempts,
+			ConsecutiveTimeouts: h.ConsecutiveTimeouts,
+			Capabilities:        h.Capabilities,
 		}
 		snap.Transports = append(snap.Transports, report)
 	}

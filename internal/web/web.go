@@ -218,9 +218,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`)
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last heartbeat</th><th>Last ingest</th><th>Last error</th></tr>`)
 	for _, h := range statusSnap.Transports {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastHeartbeatAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)

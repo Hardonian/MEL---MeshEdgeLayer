@@ -23,6 +23,7 @@ import (
 	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/service"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -206,7 +207,7 @@ func doctorCmd(args []string) {
 	if statusErr != nil {
 		findings = append(findings, map[string]string{"component": "status", "severity": "high", "message": statusErr.Error(), "guidance": "Fix transport or database reporting before relying on doctor output."})
 	}
-	findings = append(findings, doctorTransportChecks(cfg)...)
+	findings = append(findings, doctorTransportChecks(cfg, database)...)
 	out := map[string]any{
 		"doctor_version": "v2",
 		"config":         path,
@@ -478,7 +479,7 @@ func validateConfigFile(path string, cfg config.Config) []map[string]string {
 
 func requireConfigMode(path string) error { return security.CheckFileMode(path) }
 
-func doctorTransportChecks(cfg config.Config) []map[string]string {
+func doctorTransportChecks(cfg config.Config, database *db.DB) []map[string]string {
 	findings := make([]map[string]string, 0)
 	enabled := 0
 	directEnabled := 0
