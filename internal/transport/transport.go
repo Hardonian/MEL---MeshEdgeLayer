@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
@@ -49,9 +50,30 @@ const (
 	ReasonStreamFailure          = "stream_failure"
 	ReasonSubscribeFailure       = "subscribe_failure"
 	ReasonRetryThresholdExceeded = "retry_threshold_exceeded"
+	ReasonObservationDropped     = "observation_dropped"
 )
 
 const maxObservationPayloadBytes = 96
+
+var observationSeq uint64
+
+var terminalDeadLetterReasons = map[string]bool{
+	ReasonRetryThresholdExceeded: true,
+	ReasonRejectedSend:           true,
+	ReasonRejectedPublish:        true,
+}
+
+var auditOnlyReasons = map[string]bool{
+	ReasonMalformedFrame:         true,
+	ReasonMalformedPublish:       true,
+	ReasonTimeoutStall:           true,
+	ReasonTopicMismatch:          true,
+	ReasonStreamFailure:          true,
+	ReasonSubscribeFailure:       false,
+	ReasonTimeoutFailure:         false,
+	ReasonObservationDropped:     false,
+	ReasonUnsupportedControlPath: false,
+}
 
 type CapabilityMatrix struct {
 	IngestSupported        bool   `json:"ingest_supported"`
@@ -65,31 +87,38 @@ type CapabilityMatrix struct {
 }
 
 type Health struct {
-	Name                string           `json:"name"`
-	Type                string           `json:"type"`
-	Source              string           `json:"source"`
-	State               string           `json:"state"`
-	OK                  bool             `json:"ok"`
-	Unsupported         bool             `json:"unsupported,omitempty"`
-	Detail              string           `json:"detail"`
-	Capabilities        CapabilityMatrix `json:"capabilities"`
-	LastAttemptAt       string           `json:"last_attempt_at,omitempty"`
-	LastError           string           `json:"last_error,omitempty"`
-	LastConnectedAt     string           `json:"last_connected_at,omitempty"`
-	LastSuccessAt       string           `json:"last_success_at,omitempty"`
-	LastDisconnected    string           `json:"last_disconnected_at,omitempty"`
-	LastIngestAt        string           `json:"last_ingest_at,omitempty"`
-	LastHeartbeatAt     string           `json:"last_heartbeat_at,omitempty"`
-	PacketsDropped      uint64           `json:"packets_dropped"`
-	ReconnectAttempts   uint64           `json:"reconnect_attempts"`
-	TotalMessages       uint64           `json:"total_messages"`
-	ErrorCount          uint64           `json:"error_count"`
-	ConsecutiveTimeouts uint64           `json:"consecutive_timeouts"`
+	Name                  string           `json:"name"`
+	Type                  string           `json:"type"`
+	Source                string           `json:"source"`
+	State                 string           `json:"state"`
+	OK                    bool             `json:"ok"`
+	Unsupported           bool             `json:"unsupported,omitempty"`
+	Detail                string           `json:"detail"`
+	Capabilities          CapabilityMatrix `json:"capabilities"`
+	LastAttemptAt         string           `json:"last_attempt_at,omitempty"`
+	LastError             string           `json:"last_error,omitempty"`
+	LastConnectedAt       string           `json:"last_connected_at,omitempty"`
+	LastSuccessAt         string           `json:"last_success_at,omitempty"`
+	LastDisconnected      string           `json:"last_disconnected_at,omitempty"`
+	LastIngestAt          string           `json:"last_ingest_at,omitempty"`
+	LastHeartbeatAt       string           `json:"last_heartbeat_at,omitempty"`
+	LastFailureAt         string           `json:"last_failure_at,omitempty"`
+	LastObservationDropAt string           `json:"last_observation_drop_at,omitempty"`
+	PacketsDropped        uint64           `json:"packets_dropped"`
+	ReconnectAttempts     uint64           `json:"reconnect_attempts"`
+	TotalMessages         uint64           `json:"total_messages"`
+	ErrorCount            uint64           `json:"error_count"`
+	ConsecutiveTimeouts   uint64           `json:"consecutive_timeouts"`
+	FailureCount          uint64           `json:"failure_count"`
+	ObservationDrops      uint64           `json:"observation_drops"`
+	EpisodeID             string           `json:"episode_id,omitempty"`
 }
 
 type PacketHandler func(topic string, payload []byte) error
 
 type Observation struct {
+	ObservationID string         `json:"observation_id"`
+	EpisodeID     string         `json:"episode_id,omitempty"`
 	TransportName string         `json:"transport_name"`
 	TransportType string         `json:"transport_type"`
 	Topic         string         `json:"topic,omitempty"`
@@ -98,29 +127,89 @@ type Observation struct {
 	DeadLetter    bool           `json:"dead_letter"`
 	Detail        string         `json:"detail,omitempty"`
 	Details       map[string]any `json:"details,omitempty"`
+	Timestamp     string         `json:"timestamp"`
 }
 
-func NewObservation(name, typ, topic, reason string, payload []byte, deadLetter bool, detail string, details map[string]any) Observation {
-	out := Observation{
+func NewObservation(name, typ, topic, reason string, payload []byte, final bool, detail string, details map[string]any) Observation {
+	detailsCopy := map[string]any{}
+	for k, v := range details {
+		detailsCopy[k] = v
+	}
+	if final {
+		detailsCopy["final"] = true
+	}
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+	obs := Observation{
+		ObservationID: nextObservationID(),
 		TransportName: name,
 		TransportType: typ,
 		Topic:         topic,
 		Reason:        reason,
 		PayloadHex:    boundedPayloadHex(payload),
-		DeadLetter:    deadLetter,
+		DeadLetter:    ShouldDeadLetter(reason, detailsCopy),
 		Detail:        detail,
+		Timestamp:     timestamp,
 	}
-	if len(details) > 0 {
-		out.Details = make(map[string]any, len(details))
-		for k, v := range details {
-			out.Details[k] = v
+	if len(detailsCopy) > 0 {
+		obs.Details = detailsCopy
+		if episodeID := fmt.Sprint(detailsCopy["episode_id"]); episodeID != "" && episodeID != "<nil>" {
+			obs.EpisodeID = episodeID
 		}
 	}
-	return out
+	return obs
 }
 
 func (o Observation) Valid() bool {
-	return o.TransportName != "" && o.TransportType != "" && o.Reason != ""
+	if o.TransportName == "" || o.TransportType == "" || o.Reason == "" || o.ObservationID == "" || o.Timestamp == "" {
+		return false
+	}
+	return knownReason(o.Reason)
+}
+
+func knownReason(reason string) bool {
+	switch reason {
+	case ReasonMalformedFrame, ReasonDecodeFailure, ReasonRejectedSend, ReasonUnsupportedControlPath, ReasonTimeoutStall,
+		ReasonTimeoutFailure, ReasonMalformedPublish, ReasonTopicMismatch, ReasonHandlerRejection, ReasonRejectedPublish,
+		ReasonStreamFailure, ReasonSubscribeFailure, ReasonRetryThresholdExceeded, ReasonObservationDropped:
+		return true
+	default:
+		return false
+	}
+}
+
+func ShouldDeadLetter(reason string, details map[string]any) bool {
+	if terminalDeadLetterReasons[reason] {
+		return true
+	}
+	switch reason {
+	case ReasonHandlerRejection:
+		return detailBool(details, "final")
+	case ReasonDecodeFailure:
+		return detailBool(details, "unrecoverable") || detailBool(details, "final")
+	case ReasonSubscribeFailure, ReasonTimeoutFailure, ReasonObservationDropped:
+		return detailBool(details, "final")
+	case ReasonMalformedFrame, ReasonMalformedPublish, ReasonTimeoutStall, ReasonTopicMismatch, ReasonStreamFailure:
+		return false
+	default:
+		return detailBool(details, "final") && !auditOnlyReasons[reason]
+	}
+}
+
+func detailBool(details map[string]any, key string) bool {
+	if len(details) == 0 {
+		return false
+	}
+	v, ok := details[key]
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
+}
+
+func nextObservationID() string {
+	seq := atomic.AddUint64(&observationSeq, 1)
+	return fmt.Sprintf("obs-%d-%d", time.Now().UTC().UnixNano(), seq)
 }
 
 func boundedPayloadHex(payload []byte) string {
@@ -146,6 +235,13 @@ type Transport interface {
 	FetchNodes(context.Context) ([]map[string]any, error)
 	MarkIngest(time.Time)
 	MarkDrop(string)
+}
+
+type RuntimeStateController interface {
+	ForceState(state, detail, lastError string)
+	BeginFailureEpisode(error) (string, uint64)
+	CloseFailureEpisode()
+	RecordObservationDrop(uint64)
 }
 
 func Build(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) (Transport, error) {

@@ -65,6 +65,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/events", s.logs)
 	mux.HandleFunc("/api/v1/audit-logs", s.logs)
 	mux.HandleFunc("/api/v1/dead-letters", s.deadLetters)
+	mux.HandleFunc("/api/v1/incidents", s.incidents)
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.ui)
 	}
@@ -158,7 +159,7 @@ func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes})
+	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_transport_incidents": snap.RecentTransportIncidents})
 }
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	limit := 100
@@ -237,6 +238,15 @@ func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": rows})
 }
+func (s *Server) incidents(w http.ResponseWriter, _ *http.Request) {
+	incidents, err := s.db.RecentTransportIncidents(100)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"recent_transport_incidents": incidents})
+}
+
 func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT transport_name,transport_type,topic,reason,payload_hex,details_json,created_at FROM dead_letters"
 	if transportName := strings.TrimSpace(r.URL.Query().Get("transport")); transportName != "" {

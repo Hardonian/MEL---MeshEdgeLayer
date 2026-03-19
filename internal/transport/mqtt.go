@@ -58,6 +58,65 @@ func (m *MQTT) setHealth(update func(*Health)) {
 	update(&m.health)
 }
 
+func (m *MQTT) ForceState(state, detail, lastError string) {
+	m.setHealth(func(h *Health) {
+		h.State = state
+		h.Detail = detail
+		h.LastError = lastError
+		if state == StateFailed || state == StateRetrying {
+			h.OK = false
+			h.LastFailureAt = time.Now().UTC().Format(time.RFC3339)
+		} else if state == StateIdle || state == StateLive || state == StateConnecting || state == StateConfigured {
+			h.OK = true
+		}
+	})
+}
+
+func (m *MQTT) BeginFailureEpisode(err error) (string, uint64) {
+	now := time.Now().UTC()
+	var episodeID string
+	var failureCount uint64
+	m.setHealth(func(h *Health) {
+		if h.EpisodeID == "" {
+			h.EpisodeID = fmt.Sprintf("%s-%d", m.cfg.Name, now.UnixNano())
+		}
+		h.FailureCount++
+		failureCount = h.FailureCount
+		episodeID = h.EpisodeID
+		h.LastFailureAt = now.Format(time.RFC3339)
+		if err != nil {
+			h.LastError = err.Error()
+		}
+	})
+	return episodeID, failureCount
+}
+
+func (m *MQTT) CloseFailureEpisode() {
+	m.setHealth(func(h *Health) {
+		h.FailureCount = 0
+		h.EpisodeID = ""
+		h.LastFailureAt = ""
+	})
+}
+
+func (m *MQTT) RecordObservationDrop(count uint64) {
+	if count == 0 {
+		return
+	}
+	m.setHealth(func(h *Health) {
+		h.ObservationDrops += count
+		h.LastObservationDropAt = time.Now().UTC().Format(time.RFC3339)
+	})
+}
+
+func (m *MQTT) connectedState() string {
+	h := m.Health()
+	if h.TotalMessages > 0 {
+		return StateLive
+	}
+	return StateIdle
+}
+
 func (m *MQTT) Connect(ctx context.Context) error {
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
@@ -75,6 +134,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 			h.LastError = err.Error()
 			h.ErrorCount++
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
+			h.LastFailureAt = h.LastDisconnected
 		})
 		return err
 	}
@@ -208,13 +268,13 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		case 3:
 			publish, err := parsePublish(header[0], body)
 			if err != nil {
-				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonMalformedPublish, body, true, err.Error(), map[string]any{"endpoint": m.cfg.Endpoint, "header": fmt.Sprintf("0x%02x", header[0])}))
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonMalformedPublish, body, false, err.Error(), map[string]any{"endpoint": m.cfg.Endpoint, "header": fmt.Sprintf("0x%02x", header[0])}))
 				m.markDropWithState("publish parse failed", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 				continue
 			}
 			if !mqttTopicMatches(m.cfg.Topic, publish.Topic) {
-				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonTopicMismatch, publish.Payload, true, "publish topic did not match configured filter", map[string]any{"configured_topic": m.cfg.Topic, "endpoint": m.cfg.Endpoint}))
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonTopicMismatch, publish.Payload, false, "publish topic did not match configured filter", map[string]any{"configured_topic": m.cfg.Topic, "endpoint": m.cfg.Endpoint}))
 				m.markDropWithState("publish topic did not match configured filter", fmt.Errorf("unexpected topic %s", publish.Topic))
 				continue
 			}
@@ -223,6 +283,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 					"endpoint":  m.cfg.Endpoint,
 					"packet_id": publish.PacketID,
 					"qos":       publish.QoS,
+					"final":     true,
 				}))
 				m.markDropWithState("ingest handler rejected publish", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
@@ -283,30 +344,40 @@ func (m *MQTT) MarkIngest(at time.Time) {
 		h.LastError = ""
 		h.Detail = "live ingest confirmed by SQLite writes"
 	})
+	m.CloseFailureEpisode()
 }
 func (m *MQTT) MarkDrop(reason string) { m.markDropWithState(reason, nil) }
 
 func (m *MQTT) markReadFailure(err error, reason string) {
+	episodeID, failureCount := m.BeginFailureEpisode(err)
+	state := StateRetrying
+	if reason == ReasonTimeoutFailure {
+		state = StateFailed
+	}
 	m.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = StateFailed
+		h.State = state
 		h.LastError = err.Error()
 		h.Detail = "stream disconnected; waiting to retry"
 		h.ErrorCount++
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, reason, nil, true, "stream disconnected; waiting to retry", map[string]any{
+	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, reason, nil, false, "stream disconnected; waiting to retry", map[string]any{
 		"error":                err.Error(),
 		"endpoint":             m.cfg.Endpoint,
 		"consecutive_timeouts": m.Health().ConsecutiveTimeouts,
+		"failure_count":        failureCount,
+		"episode_id":           episodeID,
+		"last_error":           err.Error(),
 	}))
 }
 
 func (m *MQTT) markDropWithState(reason string, err error) {
+	state := m.connectedState()
 	m.setHealth(func(h *Health) {
 		h.PacketsDropped++
-		h.State = StateFailed
+		h.State = state
 		h.Detail = reason
 		if err != nil {
 			h.LastError = err.Error()
@@ -359,7 +430,10 @@ func (m *MQTT) publishObservation(obs Observation) {
 	if obs.Topic == "" {
 		obs.Topic = m.cfg.Topic
 	}
-	m.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
+	_, dropped := m.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
+	if dropped > 0 {
+		m.RecordObservationDrop(uint64(dropped))
+	}
 }
 
 func (m *MQTT) requestedQoS() byte {

@@ -78,6 +78,65 @@ func (d *Direct) setHealth(update func(*Health)) {
 	update(&d.health)
 }
 
+func (d *Direct) ForceState(state, detail, lastError string) {
+	d.setHealth(func(h *Health) {
+		h.State = state
+		h.Detail = detail
+		h.LastError = lastError
+		if state == StateFailed || state == StateRetrying {
+			h.OK = false
+			h.LastFailureAt = time.Now().UTC().Format(time.RFC3339)
+		} else if state == StateIdle || state == StateLive || state == StateConnecting || state == StateConfigured {
+			h.OK = true
+		}
+	})
+}
+
+func (d *Direct) BeginFailureEpisode(err error) (string, uint64) {
+	now := time.Now().UTC()
+	var episodeID string
+	var failureCount uint64
+	d.setHealth(func(h *Health) {
+		if h.EpisodeID == "" {
+			h.EpisodeID = fmt.Sprintf("%s-%d", d.cfg.Name, now.UnixNano())
+		}
+		h.FailureCount++
+		failureCount = h.FailureCount
+		episodeID = h.EpisodeID
+		h.LastFailureAt = now.Format(time.RFC3339)
+		if err != nil {
+			h.LastError = err.Error()
+		}
+	})
+	return episodeID, failureCount
+}
+
+func (d *Direct) CloseFailureEpisode() {
+	d.setHealth(func(h *Health) {
+		h.FailureCount = 0
+		h.EpisodeID = ""
+		h.LastFailureAt = ""
+	})
+}
+
+func (d *Direct) RecordObservationDrop(count uint64) {
+	if count == 0 {
+		return
+	}
+	d.setHealth(func(h *Health) {
+		h.ObservationDrops += count
+		h.LastObservationDropAt = time.Now().UTC().Format(time.RFC3339)
+	})
+}
+
+func (d *Direct) connectedState() string {
+	h := d.Health()
+	if h.TotalMessages > 0 {
+		return StateLive
+	}
+	return StateIdle
+}
+
 func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
@@ -95,6 +154,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 			h.LastError = err.Error()
 			h.ErrorCount++
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
+			h.LastFailureAt = h.LastDisconnected
 		})
 		return err
 	}
@@ -189,12 +249,13 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		}
 		env, err := meshtastic.ParseDirectFromRadio(frame)
 		if err != nil {
-			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonDecodeFailure, frame, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel()}))
+			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonDecodeFailure, frame, false, err.Error(), map[string]any{"source": d.cfg.SourceLabel(), "unrecoverable": false}))
 			d.markDropWithState("connected; ignoring non-packet radio frame", err)
 			continue
 		}
 		wrapped := meshtastic.DirectPacketToEnvelope(env.PacketRaw)
 		if err := handler(d.cfg.Name, wrapped); err != nil {
+			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonHandlerRejection, wrapped, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel(), "final": true}))
 			d.markDropWithState("connected; ingest handler rejected packet", err)
 			d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 			continue
@@ -238,6 +299,7 @@ func (d *Direct) MarkIngest(at time.Time) {
 		h.LastError = ""
 		h.Detail = "live ingest confirmed by SQLite writes"
 	})
+	d.CloseFailureEpisode()
 }
 func (d *Direct) MarkDrop(reason string) { d.markDropWithState(reason, nil) }
 
@@ -258,9 +320,10 @@ func (d *Direct) noteTimeout(detail string) uint64 {
 }
 
 func (d *Direct) markDropWithState(reason string, err error) {
+	state := d.connectedState()
 	d.setHealth(func(h *Health) {
 		h.PacketsDropped++
-		h.State = StateFailed
+		h.State = state
 		h.Detail = reason
 		if err != nil {
 			h.LastError = err.Error()
@@ -270,19 +333,27 @@ func (d *Direct) markDropWithState(reason string, err error) {
 }
 
 func (d *Direct) markFailure(err error, detail, reason string) {
+	episodeID, failureCount := d.BeginFailureEpisode(err)
+	state := StateRetrying
+	if reason == ReasonTimeoutFailure {
+		state = StateFailed
+	}
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = StateFailed
+		h.State = state
 		h.LastError = err.Error()
 		h.Detail = detail
 		h.ErrorCount++
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", reason, nil, true, detail, map[string]any{
+	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", reason, nil, false, detail, map[string]any{
 		"error":                err.Error(),
 		"source":               d.cfg.SourceLabel(),
 		"consecutive_timeouts": d.Health().ConsecutiveTimeouts,
+		"failure_count":        failureCount,
+		"episode_id":           episodeID,
+		"last_error":           err.Error(),
 	}))
 }
 
@@ -296,7 +367,10 @@ func (d *Direct) publishObservation(obs Observation) {
 	if obs.TransportType == "" {
 		obs.TransportType = d.cfg.Type
 	}
-	d.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
+	_, dropped := d.bus.Publish(events.Event{Type: "transport.observation", Data: obs})
+	if dropped > 0 {
+		d.RecordObservationDrop(uint64(dropped))
+	}
 }
 
 func openDirectConnection(ctx context.Context, cfg config.TransportConfig) (io.ReadWriteCloser, error) {
