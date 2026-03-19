@@ -82,7 +82,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
-		h.State = StateAttempting
+		h.State = StateConnecting
 		h.Detail = "attempting direct-node connection"
 		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
@@ -90,7 +90,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 	if err != nil {
 		d.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = StateConfiguredOffline
+			h.State = StateRetrying
 			h.Detail = "configured transport is offline"
 			h.LastError = err.Error()
 			h.ErrorCount++
@@ -103,7 +103,7 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.mu.Unlock()
 	d.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = StateConnectedNoIngest
+		h.State = StateIdle
 		h.Detail = "connected; waiting for direct-node traffic"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastSuccessAt = h.LastConnectedAt
@@ -125,7 +125,7 @@ func (d *Direct) Close(context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.OK = false
 		if h.State != StateDisabled {
-			h.State = StateConfiguredOffline
+			h.State = StateRetrying
 			if h.TotalMessages > 0 {
 				h.Detail = "disconnected; historical ingest exists but no live direct connection is active"
 			} else {
@@ -164,31 +164,32 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 			}
 			if isTimeout(err) {
 				timeouts := d.noteTimeout("connected; waiting for direct-node heartbeat or payload")
+				d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonTimeoutStall, nil, false, "direct transport is stalled waiting for the next frame", map[string]any{
+					"source":               d.cfg.SourceLabel(),
+					"consecutive_timeouts": timeouts,
+					"max_timeouts":         maxTimeouts,
+				}))
 				if timeouts >= uint64(maxTimeouts) {
-					d.markFailure(fmt.Errorf("direct transport exceeded %d consecutive read timeouts", maxTimeouts), "direct transport stalled; reconnecting")
+					d.markFailure(fmt.Errorf("direct transport exceeded %d consecutive read timeouts", maxTimeouts), "direct transport stalled; reconnecting", ReasonTimeoutFailure)
 					return err
 				}
 				continue
 			}
 			if errors.Is(err, errDirectInvalidFrame) {
-				d.publishObservation(Observation{
-					Reason:     "malformed direct frame",
-					Detail:     err.Error(),
-					DeadLetter: true,
-					Details:    map[string]any{"source": d.cfg.SourceLabel()},
-				})
+				d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonMalformedFrame, nil, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel()}))
 				d.markDropWithState("connected; malformed direct frame ignored", err)
 				continue
 			}
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				d.markFailure(err, "stream disconnected; waiting to retry")
+				d.markFailure(err, "stream disconnected; waiting to retry", ReasonStreamFailure)
 				return err
 			}
-			d.markFailure(err, "frame read failed; waiting to retry")
+			d.markFailure(err, "frame read failed; waiting to retry", ReasonStreamFailure)
 			return err
 		}
 		env, err := meshtastic.ParseDirectFromRadio(frame)
 		if err != nil {
+			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonDecodeFailure, frame, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel()}))
 			d.markDropWithState("connected; ignoring non-packet radio frame", err)
 			continue
 		}
@@ -213,24 +214,23 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 
 func (d *Direct) SendPacket(context.Context, []byte) error {
 	err := errors.New("direct-node send is disabled in this milestone")
-	d.publishObservation(Observation{
-		Reason:     "send rejected",
-		Detail:     err.Error(),
-		DeadLetter: true,
-		Details:    map[string]any{"source": d.cfg.SourceLabel()},
-	})
+	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonRejectedSend, nil, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel()}))
 	return err
 }
 func (d *Direct) FetchMetadata(context.Context) (map[string]any, error) {
-	return nil, errors.New("metadata fetch is not implemented for direct-node transport")
+	err := errors.New("metadata fetch is not implemented for direct-node transport")
+	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_metadata", "source": d.cfg.SourceLabel()}))
+	return nil, err
 }
 func (d *Direct) FetchNodes(context.Context) ([]map[string]any, error) {
-	return nil, errors.New("node fetch is not implemented for direct-node transport")
+	err := errors.New("node fetch is not implemented for direct-node transport")
+	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_nodes", "source": d.cfg.SourceLabel()}))
+	return nil, err
 }
 func (d *Direct) MarkIngest(at time.Time) {
 	d.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = StateIngesting
+		h.State = StateLive
 		h.TotalMessages++
 		h.LastIngestAt = at.UTC().Format(time.RFC3339)
 		h.LastHeartbeatAt = h.LastIngestAt
@@ -248,9 +248,9 @@ func (d *Direct) noteTimeout(detail string) uint64 {
 		h.ConsecutiveTimeouts++
 		timeouts = h.ConsecutiveTimeouts
 		if h.TotalMessages > 0 {
-			h.State = StateIngesting
+			h.State = StateLive
 		} else {
-			h.State = StateConnectedNoIngest
+			h.State = StateIdle
 		}
 		h.Detail = detail
 	})
@@ -260,7 +260,7 @@ func (d *Direct) noteTimeout(detail string) uint64 {
 func (d *Direct) markDropWithState(reason string, err error) {
 	d.setHealth(func(h *Health) {
 		h.PacketsDropped++
-		h.State = StateError
+		h.State = StateFailed
 		h.Detail = reason
 		if err != nil {
 			h.LastError = err.Error()
@@ -269,26 +269,21 @@ func (d *Direct) markDropWithState(reason string, err error) {
 	})
 }
 
-func (d *Direct) markFailure(err error, detail string) {
+func (d *Direct) markFailure(err error, detail, reason string) {
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = StateError
+		h.State = StateFailed
 		h.LastError = err.Error()
 		h.Detail = detail
 		h.ErrorCount++
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	d.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-	d.publishObservation(Observation{
-		Reason:     "direct transport failure",
-		Detail:     detail,
-		DeadLetter: true,
-		Details: map[string]any{
-			"error":                err.Error(),
-			"source":               d.cfg.SourceLabel(),
-			"consecutive_timeouts": d.Health().ConsecutiveTimeouts,
-		},
-	})
+	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", reason, nil, true, detail, map[string]any{
+		"error":                err.Error(),
+		"source":               d.cfg.SourceLabel(),
+		"consecutive_timeouts": d.Health().ConsecutiveTimeouts,
+	}))
 }
 
 func (d *Direct) publishObservation(obs Observation) {

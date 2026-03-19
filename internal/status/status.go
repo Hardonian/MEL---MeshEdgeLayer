@@ -180,7 +180,7 @@ func persistedState(count uint64) string {
 }
 
 func statusScope(runtimeState string, persistedCount uint64) string {
-	if runtimeState == transport.StateIngesting || runtimeState == transport.StateConnectedNoIngest || runtimeState == transport.StateAttempting || runtimeState == transport.StateError {
+	if runtimeState == transport.StateLive || runtimeState == transport.StateIdle || runtimeState == transport.StateConnecting || runtimeState == transport.StateRetrying || runtimeState == transport.StateFailed {
 		return "runtime+persisted"
 	}
 	if persistedCount > 0 {
@@ -210,19 +210,19 @@ func guidanceFor(enabled bool, state, transportType string) string {
 		return "Enable the transport before expecting live ingest."
 	}
 	switch state {
-	case transport.StateConfiguredNotAttempted:
-		return "Start mel serve, then verify this transport transitions to ingesting only after messages are written to SQLite."
-	case transport.StateAttempting:
+	case transport.StateConfigured:
+		return "Start mel serve, then verify this transport transitions to live only after messages are written to SQLite."
+	case transport.StateConnecting:
 		return "Verify endpoint reachability and credentials if this state does not clear quickly."
-	case transport.StateConfiguredOffline:
+	case transport.StateRetrying:
 		return "Check cable, host, port, topic, and node ownership; MEL is configured but not currently connected."
-	case transport.StateConnectedNoIngest:
+	case transport.StateIdle:
 		return "Connection is up but no payload has been stored yet; generate real mesh traffic before trusting the path."
-	case transport.StateIngesting:
+	case transport.StateLive:
 		return "Live ingest is confirmed by successful database writes."
 	case transport.StateHistoricalOnly:
 		return "Past messages exist, but this command cannot prove current live connectivity."
-	case transport.StateError:
+	case transport.StateFailed:
 		if transportType == "mqtt" {
 			return "Inspect broker reachability, topic alignment, and credentials; errors are surfaced directly in doctor and logs."
 		}
@@ -305,18 +305,21 @@ func asInt(v any) int64 {
 
 func retryStatus(state string, reconnectAttempts, consecutiveTimeouts uint64) string {
 	switch state {
-	case transport.StateAttempting:
+	case transport.StateConnecting:
 		return fmt.Sprintf("retrying connection (attempt %d)", reconnectAttempts)
-	case transport.StateConfiguredOffline, transport.StateError:
+	case transport.StateRetrying, transport.StateFailed:
 		if reconnectAttempts > 0 {
 			return fmt.Sprintf("backoff armed after %d reconnect attempts", reconnectAttempts)
 		}
 		return "retry pending after surfaced error"
-	case transport.StateConnectedNoIngest, transport.StateIngesting:
+	case transport.StateIdle, transport.StateLive:
 		if consecutiveTimeouts > 0 {
 			return fmt.Sprintf("connected with %d consecutive read timeout(s)", consecutiveTimeouts)
 		}
-		return "healthy; no retry pending"
+		if state == transport.StateLive {
+			return "live evidence present; no retry pending"
+		}
+		return "idle evidence present; no retry pending"
 	case transport.StateHistoricalOnly:
 		return "no live retry state in this process; inspect stored evidence"
 	case transport.StateDisabled:

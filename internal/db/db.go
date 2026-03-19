@@ -39,6 +39,7 @@ type TransportRuntime struct {
 
 type DeadLetter struct {
 	TransportName string         `json:"transport_name"`
+	TransportType string         `json:"transport_type"`
 	Topic         string         `json:"topic"`
 	Reason        string         `json:"reason"`
 	PayloadHex    string         `json:"payload_hex"`
@@ -61,6 +62,10 @@ func (d *DB) ApplyMigrations(dir string) error {
 	if err != nil {
 		return err
 	}
+	applied, err := d.appliedMigrations()
+	if err != nil {
+		return err
+	}
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
@@ -70,11 +75,15 @@ func (d *DB) ApplyMigrations(dir string) error {
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		version := strings.TrimSuffix(name, filepath.Ext(name))
+		if applied[version] {
+			continue
+		}
 		b, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return err
 		}
-		cmd := exec.Command("sqlite3", d.Path)
+		cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path)
 		cmd.Stdin = strings.NewReader(string(b))
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -84,8 +93,27 @@ func (d *DB) ApplyMigrations(dir string) error {
 	return nil
 }
 
+func (d *DB) appliedMigrations() (map[string]bool, error) {
+	out := map[string]bool{}
+	rows, err := d.QueryRows("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations';")
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return out, nil
+	}
+	rows, err = d.QueryRows("SELECT version FROM schema_migrations;")
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[asString(row["version"])] = true
+	}
+	return out, nil
+}
+
 func (d *DB) Exec(sql string) error {
-	cmd := exec.Command("sqlite3", d.Path, sql)
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path, sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("sqlite exec failed: %w: %s", err, out)
@@ -94,7 +122,7 @@ func (d *DB) Exec(sql string) error {
 }
 
 func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
-	cmd := exec.Command("sqlite3", "-json", d.Path, sql)
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path, sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
@@ -178,8 +206,8 @@ func (d *DB) InsertAuditLog(category, level, message string, details any) error 
 
 func (d *DB) InsertDeadLetter(dl DeadLetter) error {
 	detailJSON, _ := json.Marshal(dl.Details)
-	sql := fmt.Sprintf(`INSERT INTO dead_letters(transport_name,topic,reason,payload_hex,details_json,created_at) VALUES('%s','%s','%s','%s','%s','%s');`,
-		esc(dl.TransportName), esc(dl.Topic), esc(dl.Reason), esc(dl.PayloadHex), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
+	sql := fmt.Sprintf(`INSERT INTO dead_letters(transport_name,transport_type,topic,reason,payload_hex,details_json,created_at) VALUES('%s','%s','%s','%s','%s','%s','%s');`,
+		esc(dl.TransportName), esc(dl.TransportType), esc(dl.Topic), esc(dl.Reason), esc(dl.PayloadHex), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
 	return d.Exec(sql)
 }
 

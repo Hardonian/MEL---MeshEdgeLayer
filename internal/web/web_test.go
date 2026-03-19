@@ -115,7 +115,7 @@ func TestStatusUsesPersistedRuntimeEvidenceWhenNoLiveRuntimeIsPresent(t *testing
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "aa"}); err != nil {
+	if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "mqtt", TransportType: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "aa"}); err != nil {
 		t.Fatal(err)
 	}
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil })
@@ -141,6 +141,37 @@ func TestStatusUsesPersistedRuntimeEvidenceWhenNoLiveRuntimeIsPresent(t *testing
 	}
 	if report["dead_letters"].(float64) != 1 {
 		t.Fatalf("expected dead letter count, got %#v", report["dead_letters"])
+	}
+}
+
+func TestDeadLettersEndpointFiltersByTransport(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateIdle}}, func(database *db.DB) {
+		if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "mqtt", TransportType: "mqtt", Topic: "msh/test", Reason: "retry_threshold_exceeded", PayloadHex: "aa"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := database.InsertDeadLetter(db.DeadLetter{TransportName: "direct", TransportType: "tcp", Topic: "", Reason: "timeout_failure", PayloadHex: "bb"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dead-letters?transport=mqtt", nil)
+	rec := httptest.NewRecorder()
+
+	srv.http.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	rows := payload["dead_letters"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected one filtered dead letter, got %#v", payload)
+	}
+	row := rows[0].(map[string]any)
+	if row["transport_name"] != "mqtt" || row["transport_type"] != "mqtt" {
+		t.Fatalf("unexpected dead letter row: %#v", row)
 	}
 }
 

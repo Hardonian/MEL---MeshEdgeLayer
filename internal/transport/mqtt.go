@@ -62,7 +62,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = m.cfg.Endpoint
-		h.State = StateAttempting
+		h.State = StateConnecting
 		h.Detail = "attempting MQTT connection"
 		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
@@ -70,7 +70,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	if err != nil {
 		m.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = StateConfiguredOffline
+			h.State = StateRetrying
 			h.Detail = "configured broker is offline"
 			h.LastError = err.Error()
 			h.ErrorCount++
@@ -96,7 +96,7 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	}
 	m.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = StateConnectedNoIngest
+		h.State = StateIdle
 		h.Detail = fmt.Sprintf("connected; waiting for subscribed publishes (qos=%d) to be stored", m.requestedQoS())
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
 		h.LastSuccessAt = h.LastConnectedAt
@@ -118,7 +118,7 @@ func (m *MQTT) Close(context.Context) error {
 	m.setHealth(func(h *Health) {
 		h.OK = false
 		if h.State != StateDisabled {
-			h.State = StateConfiguredOffline
+			h.State = StateRetrying
 			if h.TotalMessages > 0 {
 				h.Detail = "broker disconnected; historical ingest remains available"
 			} else {
@@ -136,10 +136,11 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 	}
 	packetID := uint16(1)
 	if err := m.writePacket(buildSubscribePacket(packetID, m.cfg.Topic, m.requestedQoS())); err != nil {
+		m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonSubscribeFailure, nil, true, err.Error(), map[string]any{"endpoint": m.cfg.Endpoint, "phase": "write_subscribe"}))
 		return err
 	}
 	if err := m.expectSubAck(packetID); err != nil {
-		m.markReadFailure(err)
+		m.markReadFailure(err, ReasonSubscribeFailure)
 		return err
 	}
 	pingDone := make(chan struct{})
@@ -160,31 +161,46 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err := m.readInto(header); err != nil {
 			if isTimeout(err) {
 				timeouts := m.noteTimeout("connected; waiting for broker heartbeat or publish")
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonTimeoutStall, nil, false, "mqtt stream is stalled waiting for broker activity", map[string]any{
+					"endpoint":             m.cfg.Endpoint,
+					"consecutive_timeouts": timeouts,
+					"max_timeouts":         maxTimeouts,
+				}))
 				if timeouts >= uint64(maxTimeouts) {
-					m.markReadFailure(fmt.Errorf("mqtt transport exceeded %d consecutive read timeouts", maxTimeouts))
+					m.markReadFailure(fmt.Errorf("mqtt transport exceeded %d consecutive read timeouts", maxTimeouts), ReasonTimeoutFailure)
 					return err
 				}
 				continue
 			}
-			m.markReadFailure(err)
+			m.markReadFailure(err, ReasonStreamFailure)
 			return err
 		}
 		remaining, err := readRemaining(m.conn)
 		if err != nil {
 			if isTimeout(err) {
-				m.noteTimeout("connected; waiting for broker heartbeat or publish")
+				timeouts := m.noteTimeout("connected; waiting for broker heartbeat or publish")
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonTimeoutStall, nil, false, "mqtt stream is stalled waiting for broker activity", map[string]any{
+					"endpoint":             m.cfg.Endpoint,
+					"consecutive_timeouts": timeouts,
+					"max_timeouts":         maxTimeouts,
+				}))
 				continue
 			}
-			m.markReadFailure(err)
+			m.markReadFailure(err, ReasonStreamFailure)
 			return err
 		}
 		body := make([]byte, remaining)
 		if err := m.readInto(body); err != nil {
 			if isTimeout(err) {
-				m.noteTimeout("connected; waiting for broker heartbeat or publish")
+				timeouts := m.noteTimeout("connected; waiting for broker heartbeat or publish")
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonTimeoutStall, nil, false, "mqtt stream is stalled waiting for broker activity", map[string]any{
+					"endpoint":             m.cfg.Endpoint,
+					"consecutive_timeouts": timeouts,
+					"max_timeouts":         maxTimeouts,
+				}))
 				continue
 			}
-			m.markReadFailure(err)
+			m.markReadFailure(err, ReasonStreamFailure)
 			return err
 		}
 		typeNibble := header[0] >> 4
@@ -192,54 +208,34 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		case 3:
 			publish, err := parsePublish(header[0], body)
 			if err != nil {
-				m.publishObservation(Observation{
-					Reason:     "malformed mqtt publish",
-					Detail:     err.Error(),
-					PayloadHex: fmt.Sprintf("%x", body),
-					DeadLetter: true,
-					Details:    map[string]any{"endpoint": m.cfg.Endpoint, "header": fmt.Sprintf("0x%02x", header[0])},
-				})
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonMalformedPublish, body, true, err.Error(), map[string]any{"endpoint": m.cfg.Endpoint, "header": fmt.Sprintf("0x%02x", header[0])}))
 				m.markDropWithState("publish parse failed", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 				continue
 			}
 			if !mqttTopicMatches(m.cfg.Topic, publish.Topic) {
-				m.publishObservation(Observation{
-					Topic:      publish.Topic,
-					Reason:     "mqtt topic mismatch",
-					Detail:     "publish topic did not match configured filter",
-					PayloadHex: fmt.Sprintf("%x", publish.Payload),
-					DeadLetter: true,
-					Details:    map[string]any{"configured_topic": m.cfg.Topic, "endpoint": m.cfg.Endpoint},
-				})
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonTopicMismatch, publish.Payload, true, "publish topic did not match configured filter", map[string]any{"configured_topic": m.cfg.Topic, "endpoint": m.cfg.Endpoint}))
 				m.markDropWithState("publish topic did not match configured filter", fmt.Errorf("unexpected topic %s", publish.Topic))
 				continue
 			}
 			if err := handler(publish.Topic, publish.Payload); err != nil {
-				m.publishObservation(Observation{
-					Topic:      publish.Topic,
-					Reason:     "mqtt publish rejected",
-					Detail:     err.Error(),
-					PayloadHex: fmt.Sprintf("%x", publish.Payload),
-					DeadLetter: true,
-					Details: map[string]any{
-						"endpoint":  m.cfg.Endpoint,
-						"packet_id": publish.PacketID,
-						"qos":       publish.QoS,
-					},
-				})
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonHandlerRejection, publish.Payload, true, err.Error(), map[string]any{
+					"endpoint":  m.cfg.Endpoint,
+					"packet_id": publish.PacketID,
+					"qos":       publish.QoS,
+				}))
 				m.markDropWithState("ingest handler rejected publish", err)
 				m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
 				continue
 			}
 			if err := m.ackPublish(publish); err != nil {
-				m.markReadFailure(err)
+				m.markReadFailure(err, ReasonStreamFailure)
 				return err
 			}
 			m.setHealth(func(h *Health) {
 				h.OK = true
 				if h.TotalMessages == 0 {
-					h.State = StateConnectedNoIngest
+					h.State = StateIdle
 					h.Detail = "publish received; waiting for database confirmation"
 				}
 				h.LastHeartbeatAt = time.Now().UTC().Format(time.RFC3339)
@@ -252,7 +248,7 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 			m.recordHeartbeat("broker subscription acknowledged")
 		case 6:
 			if err := m.completeQoS2(body); err != nil {
-				m.markReadFailure(err)
+				m.markReadFailure(err, ReasonStreamFailure)
 				return err
 			}
 		default:
@@ -263,24 +259,23 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 
 func (m *MQTT) SendPacket(context.Context, []byte) error {
 	err := errors.New("mqtt publish is disabled in this milestone")
-	m.publishObservation(Observation{
-		Reason:     "publish rejected",
-		Detail:     err.Error(),
-		DeadLetter: true,
-		Details:    map[string]any{"endpoint": m.cfg.Endpoint, "qos": m.requestedQoS()},
-	})
+	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonRejectedPublish, nil, true, err.Error(), map[string]any{"endpoint": m.cfg.Endpoint, "qos": m.requestedQoS()}))
 	return err
 }
 func (m *MQTT) FetchMetadata(context.Context) (map[string]any, error) {
-	return nil, errors.New("metadata fetch not supported for mqtt")
+	err := errors.New("metadata fetch not supported for mqtt")
+	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_metadata", "endpoint": m.cfg.Endpoint}))
+	return nil, err
 }
 func (m *MQTT) FetchNodes(context.Context) ([]map[string]any, error) {
-	return nil, errors.New("node fetch not supported for mqtt")
+	err := errors.New("node fetch not supported for mqtt")
+	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_nodes", "endpoint": m.cfg.Endpoint}))
+	return nil, err
 }
 func (m *MQTT) MarkIngest(at time.Time) {
 	m.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = StateIngesting
+		h.State = StateLive
 		h.TotalMessages++
 		h.LastIngestAt = at.UTC().Format(time.RFC3339)
 		h.LastHeartbeatAt = h.LastIngestAt
@@ -291,32 +286,27 @@ func (m *MQTT) MarkIngest(at time.Time) {
 }
 func (m *MQTT) MarkDrop(reason string) { m.markDropWithState(reason, nil) }
 
-func (m *MQTT) markReadFailure(err error) {
+func (m *MQTT) markReadFailure(err error, reason string) {
 	m.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = StateError
+		h.State = StateFailed
 		h.LastError = err.Error()
 		h.Detail = "stream disconnected; waiting to retry"
 		h.ErrorCount++
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})
-	m.publishObservation(Observation{
-		Reason:     "mqtt transport failure",
-		Detail:     "stream disconnected; waiting to retry",
-		DeadLetter: true,
-		Details: map[string]any{
-			"error":                err.Error(),
-			"endpoint":             m.cfg.Endpoint,
-			"consecutive_timeouts": m.Health().ConsecutiveTimeouts,
-		},
-	})
+	m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, m.cfg.Topic, reason, nil, true, "stream disconnected; waiting to retry", map[string]any{
+		"error":                err.Error(),
+		"endpoint":             m.cfg.Endpoint,
+		"consecutive_timeouts": m.Health().ConsecutiveTimeouts,
+	}))
 }
 
 func (m *MQTT) markDropWithState(reason string, err error) {
 	m.setHealth(func(h *Health) {
 		h.PacketsDropped++
-		h.State = StateError
+		h.State = StateFailed
 		h.Detail = reason
 		if err != nil {
 			h.LastError = err.Error()
@@ -332,9 +322,9 @@ func (m *MQTT) noteTimeout(detail string) uint64 {
 		h.ConsecutiveTimeouts++
 		timeouts = h.ConsecutiveTimeouts
 		if h.TotalMessages > 0 {
-			h.State = StateIngesting
+			h.State = StateLive
 		} else {
-			h.State = StateConnectedNoIngest
+			h.State = StateIdle
 		}
 		h.Detail = detail
 	})
@@ -345,9 +335,9 @@ func (m *MQTT) recordHeartbeat(detail string) {
 	m.setHealth(func(h *Health) {
 		h.OK = true
 		if h.TotalMessages > 0 {
-			h.State = StateIngesting
+			h.State = StateLive
 		} else {
-			h.State = StateConnectedNoIngest
+			h.State = StateIdle
 		}
 		h.Detail = detail
 		h.LastHeartbeatAt = time.Now().UTC().Format(time.RFC3339)
@@ -394,15 +384,15 @@ func (m *MQTT) keepAliveLoop(ctx context.Context, done <-chan struct{}) {
 			return
 		case <-ticker.C:
 			if err := m.writePacket([]byte{0xC0, 0x00}); err != nil {
-				m.markReadFailure(err)
+				m.markReadFailure(err, ReasonStreamFailure)
 				return
 			}
 			m.setHealth(func(h *Health) {
 				h.OK = true
 				if h.TotalMessages > 0 {
-					h.State = StateIngesting
+					h.State = StateLive
 				} else {
-					h.State = StateConnectedNoIngest
+					h.State = StateIdle
 				}
 				h.Detail = "keepalive ping sent; awaiting broker response"
 			})

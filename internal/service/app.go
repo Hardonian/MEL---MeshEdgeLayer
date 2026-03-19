@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
@@ -32,7 +33,16 @@ type App struct {
 	Web        *web.Server
 	Transports []transport.Transport
 	Plugins    []plugins.Plugin
+	dlMu       sync.Mutex
+	dlEpisodes map[string]deadLetterEpisode
 }
+
+type deadLetterEpisode struct {
+	fingerprint string
+	recordedAt  time.Time
+}
+
+const deadLetterSuppressionWindow = 30 * time.Second
 
 func New(cfg config.Config, debug bool) (*App, error) {
 	log := logging.New(cfg.Logging.Level, debug)
@@ -42,7 +52,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	}
 	bus := events.New()
 	state := meshstate.New()
-	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}}
+	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot)
 	for _, tc := range cfg.Transports {
 		t, err := transport.Build(tc, log, bus)
@@ -92,6 +102,7 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.persistTransportRuntime(tc, state, detail, "", "")
 	}
+	go a.consumeTransportEvents(ctx)
 	for _, t := range a.Transports {
 		cfgTransport := findTransport(a.Cfg, t.Name())
 		if !cfgTransport.Enabled {
@@ -99,7 +110,6 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		go a.runTransport(ctx, t, cfgTransport)
 	}
-	go a.consumeTransportEvents(ctx)
 	go a.Web.Start(ctx)
 	<-ctx.Done()
 	for _, t := range a.Transports {
@@ -124,6 +134,7 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		retryThreshold = 3
 	}
 	consecutiveFailures := 0
+	thresholdRecorded := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -134,16 +145,18 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 		a.Log.Debug("transport_attempt", "attempting transport connect", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		if err := t.Connect(ctx); err != nil {
 			consecutiveFailures++
+			a.persistTransportRuntime(cfgTransport, transport.StateRetrying, "connect failed; retry backoff active", err.Error(), "")
 			a.Log.Error("transport_failed", "transport connect failed", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "error": err.Error()})
-			_ = a.DB.InsertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			if consecutiveFailures >= retryThreshold {
-				a.recordTransportDeadLetter(cfgTransport, "", "retry threshold exceeded during connect", "", map[string]any{
+			a.insertAuditLog("transport", "error", "transport connect failed", map[string]any{"transport": t.Name(), "error": err.Error(), "phase": "connect"})
+			if consecutiveFailures >= retryThreshold && !thresholdRecorded {
+				thresholdRecorded = true
+				a.emitTransportObservation(cfgTransport, transport.NewObservation(cfgTransport.Name, cfgTransport.Type, cfgTransport.Topic, transport.ReasonRetryThresholdExceeded, nil, true, "transport retry threshold exceeded during connect", map[string]any{
 					"error":                err.Error(),
 					"retry_threshold":      retryThreshold,
 					"consecutive_failures": consecutiveFailures,
 					"phase":                "connect",
 					"reconnect_seconds":    backoff.Seconds(),
-				})
+				}))
 			}
 			a.syncTransportRuntime(cfgTransport, t)
 			select {
@@ -154,24 +167,30 @@ func (a *App) runTransport(ctx context.Context, t transport.Transport, cfgTransp
 			}
 		}
 		consecutiveFailures = 0
+		thresholdRecorded = false
+		a.clearDeadLetterEpisode(cfgTransport.Name, transport.ReasonRetryThresholdExceeded)
 		a.Log.Info("transport_connected", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
-		_ = a.DB.InsertAuditLog("transport", "info", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
+		a.insertAuditLog("transport", "info", "transport connected", map[string]any{"transport": t.Name(), "type": cfgTransport.Type, "source": cfgTransport.SourceLabel()})
 		a.syncTransportRuntime(cfgTransport, t)
 		if err := t.Subscribe(ctx, func(topic string, payload []byte) error { return a.ingest(t, topic, payload) }); err != nil && ctx.Err() == nil {
 			consecutiveFailures++
+			a.persistTransportRuntime(cfgTransport, transport.StateRetrying, "subscribe failed; retry backoff active", err.Error(), "")
 			a.Log.Error("transport_failed", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			_ = a.DB.InsertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error()})
-			if consecutiveFailures >= retryThreshold {
-				a.recordTransportDeadLetter(cfgTransport, "", "retry threshold exceeded during subscribe", "", map[string]any{
+			a.insertAuditLog("transport", "error", "transport subscribe failed", map[string]any{"transport": t.Name(), "error": err.Error(), "phase": "subscribe"})
+			if consecutiveFailures >= retryThreshold && !thresholdRecorded {
+				thresholdRecorded = true
+				a.emitTransportObservation(cfgTransport, transport.NewObservation(cfgTransport.Name, cfgTransport.Type, cfgTransport.Topic, transport.ReasonRetryThresholdExceeded, nil, true, "transport retry threshold exceeded during subscribe", map[string]any{
 					"error":                err.Error(),
 					"retry_threshold":      retryThreshold,
 					"consecutive_failures": consecutiveFailures,
 					"phase":                "subscribe",
 					"reconnect_seconds":    backoff.Seconds(),
-				})
+				}))
 			}
 		} else {
 			consecutiveFailures = 0
+			thresholdRecorded = false
+			a.clearDeadLetterEpisode(cfgTransport.Name, transport.ReasonRetryThresholdExceeded)
 		}
 		a.syncTransportRuntime(cfgTransport, t)
 		_ = t.Close(context.Background())
@@ -198,26 +217,22 @@ func (a *App) consumeTransportEvents(ctx context.Context) {
 				continue
 			}
 			obs, ok := evt.Data.(transport.Observation)
-			if !ok {
+			if !ok || !obs.Valid() {
+				a.Log.Error("transport_observation_invalid", "ignored malformed transport observation", map[string]any{"event_type": evt.Type})
 				continue
 			}
 			if obs.DeadLetter {
 				a.recordTransportDeadLetter(findTransport(a.Cfg, obs.TransportName), obs.Topic, obs.Reason, obs.PayloadHex, mergeDetails(obs.Detail, obs.Details))
 			}
-			if a.DB != nil {
-				severity := "warning"
-				if obs.Reason == "direct transport failure" || obs.Reason == "mqtt transport failure" {
-					severity = "error"
-				}
-				_ = a.DB.InsertAuditLog("transport", severity, obs.Reason, map[string]any{
-					"transport": obs.TransportName,
-					"type":      obs.TransportType,
-					"topic":     obs.Topic,
-					"detail":    obs.Detail,
-					"payload":   obs.PayloadHex,
-					"details":   obs.Details,
-				})
-			}
+			a.insertAuditLog("transport", severityForObservation(obs), obs.Reason, map[string]any{
+				"transport":   obs.TransportName,
+				"type":        obs.TransportType,
+				"topic":       obs.Topic,
+				"detail":      obs.Detail,
+				"payload_hex": obs.PayloadHex,
+				"dead_letter": obs.DeadLetter,
+				"details":     obs.Details,
+			})
 		}
 	}
 }
@@ -226,6 +241,16 @@ func (a *App) recordTransportDeadLetter(tc config.TransportConfig, topic, reason
 	if a.DB == nil {
 		return
 	}
+	episodeKey := deadLetterEpisodeKey(tc.Name, reason)
+	episodeFingerprint := deadLetterEpisodeFingerprint(topic, payloadHex, details)
+	now := time.Now().UTC()
+	a.dlMu.Lock()
+	if previous, ok := a.dlEpisodes[episodeKey]; ok && previous.fingerprint == episodeFingerprint && now.Sub(previous.recordedAt) < deadLetterSuppressionWindow {
+		a.dlMu.Unlock()
+		return
+	}
+	a.dlEpisodes[episodeKey] = deadLetterEpisode{fingerprint: episodeFingerprint, recordedAt: now}
+	a.dlMu.Unlock()
 	detailsCopy := map[string]any{}
 	for k, v := range details {
 		detailsCopy[k] = v
@@ -242,13 +267,32 @@ func (a *App) recordTransportDeadLetter(tc config.TransportConfig, topic, reason
 	if topic == "" {
 		topic = tc.Topic
 	}
-	_ = a.DB.InsertDeadLetter(db.DeadLetter{
+	if err := a.DB.InsertDeadLetter(db.DeadLetter{
 		TransportName: tc.Name,
+		TransportType: tc.Type,
 		Topic:         topic,
 		Reason:        reason,
 		PayloadHex:    payloadHex,
 		Details:       detailsCopy,
-	})
+	}); err != nil {
+		a.Log.Error("dead_letter_persist_failed", "failed to persist transport dead-letter", map[string]any{"transport": tc.Name, "reason": reason, "error": err.Error()})
+	}
+}
+
+func (a *App) emitTransportObservation(tc config.TransportConfig, obs transport.Observation) {
+	if a.Bus == nil {
+		return
+	}
+	if obs.TransportName == "" {
+		obs.TransportName = tc.Name
+	}
+	if obs.TransportType == "" {
+		obs.TransportType = tc.Type
+	}
+	if obs.Topic == "" {
+		obs.Topic = tc.Topic
+	}
+	a.Bus.Publish(events.Event{Type: "transport.observation", Data: obs})
 }
 
 func mergeDetails(detail string, details map[string]any) map[string]any {
@@ -260,6 +304,39 @@ func mergeDetails(detail string, details map[string]any) map[string]any {
 		out["detail"] = detail
 	}
 	return out
+}
+
+func severityForObservation(obs transport.Observation) string {
+	switch obs.Reason {
+	case transport.ReasonRetryThresholdExceeded, transport.ReasonTimeoutFailure, transport.ReasonStreamFailure, transport.ReasonSubscribeFailure:
+		return "error"
+	default:
+		return "warning"
+	}
+}
+
+func deadLetterEpisodeKey(name, reason string) string {
+	return name + "|" + reason
+}
+
+func deadLetterEpisodeFingerprint(topic, payloadHex string, details map[string]any) string {
+	phase := fmt.Sprint(details["phase"])
+	return strings.Join([]string{topic, payloadHex, phase, fmt.Sprint(details["error"]), fmt.Sprint(details["consecutive_failures"])}, "|")
+}
+
+func (a *App) clearDeadLetterEpisode(name, reason string) {
+	a.dlMu.Lock()
+	defer a.dlMu.Unlock()
+	delete(a.dlEpisodes, deadLetterEpisodeKey(name, reason))
+}
+
+func (a *App) insertAuditLog(category, level, message string, details any) {
+	if a.DB == nil {
+		return
+	}
+	if err := a.DB.InsertAuditLog(category, level, message, details); err != nil {
+		a.Log.Error("audit_log_persist_failed", "failed to persist audit log", map[string]any{"category": category, "message": message, "error": err.Error()})
+	}
 }
 
 func (a *App) persistTransportRuntime(tc config.TransportConfig, state, detail, lastError, lastMessageAt string) {
@@ -292,7 +369,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	if err != nil {
 		a.Log.Error("ingest_dropped", "failed to parse packet", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("failed to parse packet")
-		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "parse failure", PayloadHex: fmt.Sprintf("%x", payload), Details: map[string]any{"error": err.Error()}})
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), TransportType: cfgTransport.Type, Topic: topic, Reason: "parse failure", PayloadHex: fmt.Sprintf("%x", payload), Details: map[string]any{"error": err.Error()}})
 		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
@@ -307,7 +385,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	if err != nil {
 		a.Log.Error("db_error", "message insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("database write failed")
-		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "database write failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "packet_id": env.Packet.ID}})
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), TransportType: cfgTransport.Type, Topic: topic, Reason: "database write failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "packet_id": env.Packet.ID}})
 		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
@@ -321,7 +400,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	if err := a.DB.UpsertNode(node); err != nil {
 		a.Log.Error("db_error", "node upsert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 		t.MarkDrop("node upsert failed")
-		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "node upsert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From}})
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), TransportType: cfgTransport.Type, Topic: topic, Reason: "node upsert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From}})
 		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
 	}
@@ -329,7 +409,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 		if err := a.DB.InsertTelemetrySample(int64(env.Packet.From), telemetryType, telemetryValue, rxTime); err != nil {
 			a.Log.Error("db_error", "telemetry insert failed", map[string]any{"transport": t.Name(), "error": err.Error()})
 			t.MarkDrop("telemetry insert failed")
-			_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), Topic: topic, Reason: "telemetry insert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "telemetry_type": telemetryType}})
+			cfgTransport := findTransport(a.Cfg, t.Name())
+			_ = a.DB.InsertDeadLetter(db.DeadLetter{TransportName: t.Name(), TransportType: cfgTransport.Type, Topic: topic, Reason: "telemetry insert failed", PayloadHex: env.RawHex, Details: map[string]any{"error": err.Error(), "from_node": env.Packet.From, "telemetry_type": telemetryType}})
 			a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 			return err
 		}

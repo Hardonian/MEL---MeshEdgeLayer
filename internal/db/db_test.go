@@ -18,7 +18,7 @@ func TestOpenAppliesMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) < 4 {
+	if len(rows) < 5 {
 		t.Fatalf("expected schema migrations including runtime evidence, got %v", rows)
 	}
 }
@@ -56,14 +56,14 @@ func TestInsertDeadLetter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.InsertDeadLetter(DeadLetter{TransportName: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "0102", Details: map[string]any{"error": "boom"}}); err != nil {
+	if err := d.InsertDeadLetter(DeadLetter{TransportName: "mqtt", TransportType: "mqtt", Topic: "msh/test", Reason: "parse failure", PayloadHex: "0102", Details: map[string]any{"error": "boom"}}); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := d.QueryJSON("SELECT transport_name, reason, payload_hex FROM dead_letters;")
+	rows, err := d.QueryJSON("SELECT transport_name, transport_type, reason, payload_hex FROM dead_letters;")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0]["reason"] != "parse failure" {
+	if len(rows) != 1 || rows[0]["reason"] != "parse failure" || rows[0]["transport_type"] != "mqtt" {
 		t.Fatalf("unexpected dead letter rows: %+v", rows)
 	}
 }
@@ -81,7 +81,7 @@ func TestUpsertTransportRuntimePersistsEvidence(t *testing.T) {
 		Type:            "mqtt",
 		Source:          "127.0.0.1:1883",
 		Enabled:         true,
-		State:           "connected_no_ingest",
+		State:           "idle",
 		Detail:          "connected; waiting for broker heartbeat or publish",
 		LastHeartbeatAt: "2026-03-19T00:00:03Z",
 		PacketsDropped:  2,
