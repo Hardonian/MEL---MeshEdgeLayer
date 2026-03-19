@@ -289,3 +289,27 @@ func TestTransportHistoryEndpointsAndInspect(t *testing.T) {
 		}
 	}
 }
+
+func TestMeshEndpointsExposeMeshDrilldown(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{
+		{Name: "mqtt-a", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-a", FailureCount: 2, LastHeartbeatAt: "2026-03-19T00:00:00Z"},
+		{Name: "mqtt-b", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-b", FailureCount: 2, LastHeartbeatAt: "2026-03-19T00:00:00Z"},
+	}, func(database *db.DB) {
+		for _, name := range []string{"mqtt-a", "mqtt-b"} {
+			if err := database.InsertAuditLog("transport", "warning", transport.ReasonRetryThresholdExceeded, map[string]any{"transport": name, "type": "mqtt", "episode_id": "ep-" + name}); err != nil {
+				t.Fatal(err)
+			}
+			if err := database.UpsertTransportAlert(db.TransportAlertRecord{ID: name + "|retry_threshold_exceeded|retry-threshold", TransportName: name, TransportType: "mqtt", Severity: "critical", Reason: "retry_threshold_exceeded", Summary: "retry threshold exceeded", FirstTriggeredAt: "2026-03-19T00:00:00Z", LastUpdatedAt: "2026-03-19T00:00:00Z", Active: true}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	for _, path := range []string{"/api/v1/mesh", "/api/v1/mesh/inspect"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.http.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+}

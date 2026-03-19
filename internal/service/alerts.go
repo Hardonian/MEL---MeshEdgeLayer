@@ -97,6 +97,11 @@ func (a *App) evaluateTransportIntelligence(now time.Time) {
 		}); err != nil {
 			a.Log.Error("transport_snapshot_insert_failed", "failed to persist transport health snapshot", map[string]any{"transport": tc.Name, "error": err.Error()})
 		}
+		for _, snapshot := range anomalySnapshotsForTransport(tc.Name, tc.Type, recent, now) {
+			if err := a.DB.UpsertTransportAnomalySnapshot(snapshot); err != nil {
+				a.Log.Error("transport_anomaly_snapshot_upsert_failed", "failed to persist transport anomaly snapshot", map[string]any{"transport": tc.Name, "reason": snapshot.Reason, "error": err.Error()})
+			}
+		}
 	}
 }
 
@@ -389,4 +394,31 @@ func alertSeverityRank(severity string) int {
 	default:
 		return 1
 	}
+}
+
+func anomalySnapshotsForTransport(name, typ string, summary statuspkg.TransportAnomalySummary, now time.Time) []db.TransportAnomalySnapshot {
+	bucket := now.UTC().Truncate(time.Minute).Format(time.RFC3339)
+	out := make([]db.TransportAnomalySnapshot, 0, len(summary.CountsByReason)+2)
+	for _, reason := range sortedReasonKeys(summary.CountsByReason) {
+		out = append(out, db.TransportAnomalySnapshot{BucketStart: bucket, TransportName: name, TransportType: typ, Reason: reason, Count: summary.CountsByReason[reason]})
+	}
+	if summary.DeadLetters > 0 {
+		out = append(out, db.TransportAnomalySnapshot{BucketStart: bucket, TransportName: name, TransportType: typ, Reason: "dead_letter_burst", Count: summary.DeadLetters, DeadLetters: summary.DeadLetters})
+	}
+	if summary.ObservationDrops > 0 {
+		out = append(out, db.TransportAnomalySnapshot{BucketStart: bucket, TransportName: name, TransportType: typ, Reason: dominantDropCause(summary), Count: summary.ObservationDrops, ObservationDrops: summary.ObservationDrops, DropCauses: summary.DropCauses})
+	}
+	if len(out) == 0 {
+		out = append(out, db.TransportAnomalySnapshot{BucketStart: bucket, TransportName: name, TransportType: typ, Reason: "no_recent_anomalies", Count: 0})
+	}
+	return out
+}
+
+func sortedReasonKeys[V ~uint64](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

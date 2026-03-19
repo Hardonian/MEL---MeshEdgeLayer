@@ -64,6 +64,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/transports/alerts/history", s.transportAlertsHistory)
 	mux.HandleFunc("/api/v1/transports/anomalies/history", s.transportAnomaliesHistory)
 	mux.HandleFunc("/api/v1/transports/inspect/", s.transportInspect)
+	mux.HandleFunc("/api/v1/mesh", s.mesh)
+	mux.HandleFunc("/api/v1/mesh/inspect", s.meshInspect)
 	mux.HandleFunc("/api/v1/messages", s.messages)
 	mux.HandleFunc("/api/v1/metrics", s.metrics)
 	mux.HandleFunc("/api/v1/panel", s.panel)
@@ -260,6 +262,24 @@ func (s *Server) transportInspect(w http.ResponseWriter, r *http.Request) {
 	drilldown, err := statuspkg.InspectTransport(s.cfg, s.db, s.transportHealth(), name, time.Now().UTC())
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"code": "transport_not_found", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, drilldown)
+}
+
+func (s *Server) mesh(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, snap.Mesh)
+}
+
+func (s *Server) meshInspect(w http.ResponseWriter, _ *http.Request) {
+	drilldown, err := statuspkg.InspectMesh(s.cfg, s.db, s.transportHealth(), time.Now().UTC())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "mesh_inspect_failed", "message": err.Error()}})
 		return
 	}
 	writeJSON(w, http.StatusOK, drilldown)

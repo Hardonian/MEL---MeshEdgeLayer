@@ -23,6 +23,7 @@ type Snapshot struct {
 	Transports               []TransportReport      `json:"transports"`
 	RecentTransportIncidents []db.TransportIncident `json:"recent_transport_incidents,omitempty"`
 	ActiveTransportAlerts    []TransportAlert       `json:"active_transport_alerts,omitempty"`
+	Mesh                     MeshDrilldown          `json:"mesh"`
 }
 
 type TransportReport struct {
@@ -158,6 +159,7 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 	for _, h := range runtime {
 		runtimeMap[h.Name] = h
 	}
+	snap.Mesh = buildMeshDrilldown(cfg, database, intelligence, snap.ActiveTransportAlerts, time.Now().UTC())
 	for _, tc := range cfg.Transports {
 		h := runtimeMap[tc.Name]
 		if h.Name == "" {
