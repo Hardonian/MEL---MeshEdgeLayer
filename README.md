@@ -46,9 +46,9 @@ Stock Meshtastic clients are good at interacting with radios. MEL exists to give
 
 | Transport / path | Status | Config method | How to verify | Caveats |
 | --- | --- | --- | --- | --- |
-| Serial direct-node | Implemented and verified | `type: "serial"`, `serial_device`, optional `serial_baud` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Requires local device access and `stty`. |
-| TCP direct-node | Implemented and verified | `type: "tcp"`, `tcp_host`/`tcp_port` or `endpoint` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Endpoint must speak Meshtastic stream framing, not HTTP. |
-| MQTT ingest | Implemented and verified | `type: "mqtt"`, `endpoint`, `topic`, `client_id` | start `mel serve`, observe `/api/v1/status`, `/api/v1/messages`, CLI status/export | Ingest only. RC1 does not publish back to the broker. |
+| Serial direct-node | Implemented; code/test verified only in this repo pass | `type: "serial"`, `serial_device`, optional `serial_baud` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Requires local device access and `stty`. Not live-hardware verified in this environment. |
+| TCP direct-node | Implemented; code/test verified only in this repo pass | `type: "tcp"`, `tcp_host`/`tcp_port` or `endpoint` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Endpoint must speak Meshtastic stream framing, not HTTP. Not live-hardware verified in this environment. |
+| MQTT ingest | Implemented and repo-self-tested end-to-end | `type: "mqtt"`, `endpoint`, `topic`, `client_id` | start `mel serve`, observe `/api/v1/status`, `/api/v1/messages`, CLI status/export | Ingest only. RC1 does not publish back to the broker. |
 | Hybrid direct + MQTT | Implemented but partial | enable two transports | `mel transports list`, doctor/config lints, packet persistence | Supported for ingest only. Operators must handle duplicate-observation risk and radio ownership realities. |
 | `serialtcp` alias | Experimental / not hardened | `type: "serialtcp"`, `endpoint` | direct transport health only | Uses the same direct TCP reader path but is not documented as a primary operator workflow. |
 | BLE | Explicitly unsupported | `type: "ble"` | `mel transports list` / UI shows unsupported | Feature flag does not make it work. |
@@ -158,9 +158,10 @@ chmod 600 .tmp/mqtt/mel.json
 Open <http://127.0.0.1:8080/> and confirm the transport state is one of:
 
 - `configured_not_attempted` before the service starts
-- `connect_failed` or `retrying` if the node/path is unavailable
-- `connected but idle`
-- `live data flowing`
+- `attempting` while MEL is probing or reconnecting
+- `error` if the node/path is unavailable or a read/decode failure was observed
+- `connected_no_ingest_evidence`
+- `ingesting`
 - `unsupported`
 
 Once packets arrive, verify with:
@@ -257,6 +258,10 @@ mel db vacuum --config <path>
 ```
 
 ## UI and API scope
+
+- `/api/v1/status.runtime_snapshot` is in-memory state for the current `mel serve` process only.
+- `/api/v1/status.persisted_summary` is SQLite-backed historical state across restarts.
+- `/readyz` now separates `process_ready` from `ingest_ready`; a running daemon can be process-ready while still not ingesting.
 
 The UI and `/api/v1/*` expose local truth only:
 

@@ -27,13 +27,10 @@ const (
 
 	directStateDisabled          = "disabled"
 	directStateNotAttempted      = "configured_not_attempted"
-	directStateConnecting        = "connecting"
-	directStateConnectFailed     = "connect_failed"
-	directStateConnectedIdle     = "connected_idle"
-	directStateConnectedIngest   = "connected_ingesting"
-	directStateDegraded          = "degraded"
-	directStateRetrying          = "retrying"
-	directStateClosed            = "closed"
+	directStateAttempting        = "attempting"
+	directStateConnectedIdle     = "connected_no_ingest_evidence"
+	directStateConnectedIngest   = "ingesting"
+	directStateError             = "error"
 	directStateUnsupported       = "unsupported"
 	directStateConfiguredOffline = "configured_offline"
 )
@@ -89,14 +86,15 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
-		h.State = directStateConnecting
+		h.State = directStateAttempting
 		h.Detail = "connect in progress"
+		h.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	})
 	rw, err := d.dial(ctx, d.cfg)
 	if err != nil {
 		d.setHealth(func(h *Health) {
 			h.OK = false
-			h.State = directStateConnectFailed
+			h.State = directStateError
 			h.Detail = "connect failed"
 			h.LastError = err.Error()
 			h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
@@ -126,8 +124,8 @@ func (d *Direct) Close(context.Context) error {
 	}
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = directStateClosed
-		h.Detail = "closed"
+		h.State = directStateError
+		h.Detail = "connection closed"
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	return rw.Close()
@@ -153,7 +151,7 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 			if errors.Is(err, errDirectInvalidFrame) {
 				d.setHealth(func(h *Health) {
 					h.PacketsDropped++
-					h.State = directStateDegraded
+					h.State = directStateError
 					h.LastError = err.Error()
 					h.Detail = "connected; malformed direct frame ignored"
 				})
@@ -170,7 +168,7 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err != nil {
 			d.setHealth(func(h *Health) {
 				h.PacketsDropped++
-				h.State = directStateDegraded
+				h.State = directStateError
 				h.LastError = err.Error()
 				h.Detail = "connected; ignoring non-packet radio frame"
 			})
@@ -180,7 +178,7 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		if err := handler(d.cfg.Name, wrapped); err != nil {
 			d.setHealth(func(h *Health) {
 				h.PacketsDropped++
-				h.State = directStateDegraded
+				h.State = directStateError
 				h.LastError = err.Error()
 				h.Detail = "connected; ingest handler failed"
 			})
@@ -211,7 +209,7 @@ func (d *Direct) FetchNodes(context.Context) ([]map[string]any, error) {
 func (d *Direct) markFailure(err error, detail string) {
 	d.setHealth(func(h *Health) {
 		h.OK = false
-		h.State = directStateRetrying
+		h.State = directStateError
 		h.LastError = err.Error()
 		h.Detail = detail
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)

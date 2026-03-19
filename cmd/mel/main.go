@@ -28,6 +28,12 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "mel error: %v\n", r)
+			os.Exit(1)
+		}
+	}()
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)
@@ -153,6 +159,7 @@ func serveCmd(args []string) {
 func doctorCmd(args []string) {
 	cfg, path := loadCfg(args)
 	findings := make([]map[string]string, 0)
+	historicalMessages := int64(0)
 	if err := config.Validate(cfg); err != nil {
 		findings = append(findings, map[string]string{"component": "config", "severity": "critical", "message": err.Error()})
 	}
@@ -180,6 +187,10 @@ func doctorCmd(args []string) {
 		if err := database.Exec("CREATE TEMP TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
 			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error()})
 		}
+		historicalMessages, _ = historicalMessageCount(database)
+		if len(enabledTransportNames(cfg)) > 0 && historicalMessages == 0 {
+			findings = append(findings, map[string]string{"component": "ingest_evidence", "severity": "medium", "message": "database contains no stored mesh packets yet", "guidance": "Start MEL, generate or wait for real traffic, and treat all transport status as configured/attempting until packet evidence appears."})
+		}
 	}
 	for _, check := range doctorTransportChecks(cfg) {
 		findings = append(findings, check)
@@ -191,6 +202,7 @@ func doctorCmd(args []string) {
 			"privacy_findings":       privacy.Summary(privacy.Audit(cfg)),
 			"enabled_transports":     enabledTransportNames(cfg),
 			"last_successful_ingest": latestIngestTimestamp(database),
+			"historical_messages":    historicalMessages,
 			"transport_capabilities": transportCapabilitySummary(cfg),
 			"transport_observations": doctorTransportObservations(cfg, database),
 		},
@@ -210,12 +222,14 @@ func statusCmd(args []string) {
 	mustPrint(map[string]any{
 		"bind":                       cfg.Bind.API,
 		"bind_local_only":            !cfg.Bind.AllowRemote,
+		"status_boundary":            "status is derived from persisted SQLite state and config only; runtime transport state requires the live API or UI while mel serve is running",
 		"schema_version":             schemaVersion,
 		"nodes":                      nodes,
 		"messages":                   messages,
 		"last_successful_ingest":     latestIngestTimestamp(d),
 		"configured_transport_modes": enabledTransportModes(cfg),
 		"transports":                 configuredTransportConfigs(cfg),
+		"transport_observations":     doctorTransportObservations(cfg, d),
 	})
 }
 
@@ -518,19 +532,25 @@ func doctorTransportChecks(cfg config.Config) []map[string]string {
 
 func doctorTransportObservations(cfg config.Config, database *db.DB) []map[string]any {
 	observations := make([]map[string]any, 0)
+	checkedAt := time.Now().UTC().Format(time.RFC3339)
 	for _, t := range cfg.Transports {
 		if !t.Enabled {
 			continue
 		}
 		observation := map[string]any{
-			"name":   t.Name,
-			"type":   t.Type,
-			"source": t.SourceLabel(),
-			"state":  directStateForObservation(t),
-			"detail": "configured transport has not been proven by a live packet in this doctor run",
+			"name":                t.Name,
+			"type":                t.Type,
+			"source":              t.SourceLabel(),
+			"status":              directStateForObservation(t),
+			"detail":              "configured transport has not been proven by a live packet in this doctor run",
+			"checked_at":          checkedAt,
+			"evidence_type":       "configuration_only",
+			"verification_method": doctorVerificationMethod(t),
 		}
 		if database == nil {
 			observation["detail"] = "database unavailable; cannot inspect historical ingest evidence"
+			observation["status"] = "error"
+			observation["evidence_type"] = "database_unavailable"
 			observations = append(observations, observation)
 			continue
 		}
@@ -539,8 +559,9 @@ func doctorTransportObservations(cfg config.Config, database *db.DB) []map[strin
 			escape(t.Name),
 		))
 		if err != nil {
-			observation["state"] = "observation_lookup_failed"
+			observation["status"] = "error"
 			observation["detail"] = err.Error()
+			observation["evidence_type"] = "database_lookup_failed"
 			observations = append(observations, observation)
 			continue
 		}
@@ -548,15 +569,21 @@ func doctorTransportObservations(cfg config.Config, database *db.DB) []map[strin
 			observations = append(observations, observation)
 			continue
 		}
+		observation["historical_message_count"] = asInt(row[0]["message_count"])
+		observation["last_ingest_at"] = row[0]["last_rx_time"]
+		if lastErr := lastTransportError(database, t.Name); lastErr != "" {
+			observation["last_observed_error"] = lastErr
+		}
 		messageCount := asInt(row[0]["message_count"])
 		if messageCount <= 0 {
 			observations = append(observations, observation)
 			continue
 		}
-		observation["state"] = "historical_ingest_seen"
+		observation["status"] = "historical_ingest_seen"
 		observation["detail"] = "database contains prior packets for this transport; doctor still requires a live runtime check for current connectivity"
-		observation["message_count"] = messageCount
-		observation["last_rx_time"] = row[0]["last_rx_time"]
+		observation["historical_message_count"] = messageCount
+		observation["last_ingest_at"] = row[0]["last_rx_time"]
+		observation["evidence_type"] = "historical_database"
 		observations = append(observations, observation)
 	}
 	if observations == nil {
@@ -572,6 +599,41 @@ func directStateForObservation(t config.TransportConfig) string {
 	default:
 		return "configured_not_attempted"
 	}
+}
+
+func doctorVerificationMethod(t config.TransportConfig) string {
+	switch t.Type {
+	case "serial":
+		return "offline serial device stat/open check plus persisted packet history lookup"
+	case "tcp", "serialtcp":
+		return "offline TCP connect probe plus persisted packet history lookup"
+	case "mqtt":
+		return "config validation plus persisted packet history lookup; doctor intentionally skips broker reachability"
+	default:
+		return "config validation only"
+	}
+}
+
+func historicalMessageCount(d *db.DB) (int64, error) {
+	if d == nil {
+		return 0, nil
+	}
+	v, err := d.Scalar("SELECT COUNT(*) FROM messages;")
+	if err != nil {
+		return 0, err
+	}
+	return asInt(v), nil
+}
+
+func lastTransportError(d *db.DB, transportName string) string {
+	if d == nil {
+		return ""
+	}
+	rows, err := d.QueryRows(fmt.Sprintf("SELECT message, created_at FROM audit_logs WHERE category='transport' AND details_json LIKE '%%%s%%' ORDER BY id DESC LIMIT 1;", escape(`"transport":"`+transportName+`"`)))
+	if err != nil || len(rows) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%v at %v", rows[0]["message"], rows[0]["created_at"])
 }
 
 func openDB(cfg config.Config) *db.DB {

@@ -35,10 +35,12 @@ MEL RC1 is intentionally smaller than a full Meshtastic management stack. These 
 - `rate_limits.http_rps` is not enforced by the current HTTP server.
 - Serial direct-node requires host `stty` plus device permissions.
 - SQLite operations depend on the `sqlite3` CLI being available.
+- Direct serial and TCP ingest are code/test verified here, but not live-hardware verified in this environment.
 
 ## UI / API truth boundaries
 
 - The UI and API show only local observations and health state.
+- `/api/v1/status` explicitly separates runtime in-memory state from persisted SQLite history.
 - They do not invent topology, backlog, or historical mesh state when nothing has been ingested.
 - If no transport is connected, empty state is expected behavior.
 

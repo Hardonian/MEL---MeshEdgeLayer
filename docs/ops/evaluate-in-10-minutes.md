@@ -31,13 +31,13 @@ chmod 600 .tmp/mel.json
 Now verify:
 
 1. open <http://127.0.0.1:8080/api/v1/status>
-2. watch transport health move to `connected but idle` or `live data flowing`
+2. watch transport health move to `connected_no_ingest_evidence` or `ingesting`
 3. run `./bin/mel status --config .tmp/mel.json`
 4. run `./bin/mel nodes --config .tmp/mel.json`
 5. run `./bin/mel export --config .tmp/mel.json --out .tmp/export.json`
 6. run `./bin/mel doctor --config .tmp/mel.json` again after ingest
 
-If the second doctor run reports `summary.transport_observations[].state == "historical_ingest_seen"`, MEL is telling you that this transport has prior packets stored locally without over-claiming that it is live right now.
+If the second doctor run reports `summary.transport_observations[].status == "historical_ingest_seen"`, MEL is telling you that this transport has prior packets stored locally without over-claiming that it is live right now.
 
 What this proves:
 

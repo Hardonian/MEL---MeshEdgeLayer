@@ -231,6 +231,9 @@ func Validate(cfg Config) error {
 			if t.Endpoint == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing endpoint", t.Name))
 			}
+			if t.ClientID == "" {
+				errs = appendErr(errs, fmt.Sprintf("transport %s missing client_id", t.Name))
+			}
 		case "serial":
 			if t.SerialDevice == "" && t.Endpoint == "" {
 				errs = appendErr(errs, fmt.Sprintf("transport %s missing serial_device", t.Name))
@@ -323,11 +326,17 @@ func LintConfig(cfg Config) []Lint {
 		}
 	}
 	for _, t := range cfg.Transports {
-		if !t.Enabled || t.Type != "mqtt" {
+		if t.Enabled && t.Type == "mqtt" && (strings.Contains(strings.ToLower(t.Topic), "default") || strings.Contains(strings.ToLower(t.Topic), "public")) {
+			out = append(out, Lint{"mqtt-default-channel", "medium", "MQTT topic naming suggests widely-known or default channel usage.", "Confirm the channel is intentional and avoid public/default identifiers where possible."})
+		}
+		if !t.Enabled {
 			continue
 		}
-		if strings.Contains(strings.ToLower(t.Topic), "default") || strings.Contains(strings.ToLower(t.Topic), "public") {
-			out = append(out, Lint{"mqtt-default-channel", "medium", "MQTT topic naming suggests widely-known or default channel usage.", "Confirm the channel is intentional and avoid public/default identifiers where possible."})
+		switch t.Type {
+		case "ble", "http":
+			out = append(out, Lint{"unsupported-transport-" + t.Type, "high", fmt.Sprintf("Transport %s uses %s, which is explicitly unsupported in RC1.", t.Name, t.Type), "Disable this transport and switch to serial, tcp, or mqtt before expecting ingest."})
+		case "serialtcp":
+			out = append(out, Lint{"experimental-serialtcp", "high", fmt.Sprintf("Transport %s uses serialtcp, which is present in code but not hardened as a primary operator path.", t.Name), "Prefer the primary tcp transport type unless you are deliberately testing the alias path."})
 		}
 	}
 	return out

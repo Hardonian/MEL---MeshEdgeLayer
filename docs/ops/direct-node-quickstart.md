@@ -12,7 +12,7 @@ Use this flow when MEL is attached to a real Meshtastic node on Linux or Raspber
 6. Run `./bin/mel config validate --config <path>`.
 7. Run `./bin/mel doctor --config <path>`.
 8. Start `./bin/mel serve --config <path>`.
-9. Visit the UI or `/api/v1/status` and confirm the transport becomes `connected but idle` or `live data flowing`.
+9. Visit the UI or `/api/v1/status` and confirm the transport becomes `connected_no_ingest_evidence` or `ingesting`.
 
 ## TCP direct-node
 
@@ -28,6 +28,7 @@ Use this flow when MEL is attached to a real Meshtastic node on Linux or Raspber
 - `/api/v1/status` shows the direct transport as `ok: true`.
 - `mel status` shows `last_successful_ingest` after packets arrive.
 - `mel nodes` and `mel node inspect` return real locally observed nodes.
+- This repository pass did not include live radio hardware, so serial/TCP claims remain code/test verified plus operator-checkable through doctor/runtime state.
 
 ## What MEL does not do here
 
