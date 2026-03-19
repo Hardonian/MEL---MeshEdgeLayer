@@ -52,7 +52,7 @@ What to expect:
 - a real serial/TCP problem is surfaced as a real finding,
 - zero enabled transports is surfaced explicitly,
 - unsupported transport types stay marked unsupported,
-- `summary.transport_observations[].state == "historical_ingest_seen"` means the local database has prior packets for that transport even when doctor is not asserting a live connection in that moment.
+- `summary.transport_observations[].state == "historical_only"` means the local database has prior packets for that transport even when doctor is not asserting a live connection in that moment.
 
 ## 4. Start MEL
 

@@ -27,7 +27,7 @@ Stock Meshtastic clients are good at interacting with radios. MEL exists to give
 - Local UI plus versioned `/api/v1/*` JSON endpoints.
 - `mel doctor`, `mel config validate`, `mel privacy audit`, `mel policy explain`.
 - Export, backup creation, and restore **dry-run validation**.
-- Real ingest via serial direct-node, TCP direct-node, and MQTT.
+- Real ingest via serial direct-node, TCP direct-node, and MQTT; this repo verifies MQTT end-to-end locally, while direct serial/TCP remain implemented but require operator-side hardware proof.
 - Meshtastic protobuf subset parsing for observed message, user, and position fields that MEL stores today.
 
 ### Explicitly not claimed today
@@ -46,8 +46,8 @@ Stock Meshtastic clients are good at interacting with radios. MEL exists to give
 
 | Transport / path | Status | Config method | How to verify | Caveats |
 | --- | --- | --- | --- | --- |
-| Serial direct-node | Implemented and verified | `type: "serial"`, `serial_device`, optional `serial_baud` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Requires local device access and `stty`. |
-| TCP direct-node | Implemented and verified | `type: "tcp"`, `tcp_host`/`tcp_port` or `endpoint` | `mel doctor`, UI/API transport health, message/node persistence | Ingest only. Endpoint must speak Meshtastic stream framing, not HTTP. |
+| Serial direct-node | Implemented, not hardware-verified in this build context | `type: "serial"`, `serial_device`, optional `serial_baud` | `mel doctor`, UI/API transport health, message/node persistence, your own stored packets | Ingest only. Requires local device access and `stty`. Treat it as real code that still needs operator-side hardware proof. |
+| TCP direct-node | Implemented, not hardware-verified in this build context | `type: "tcp"`, `tcp_host`/`tcp_port` or `endpoint` | `mel doctor`, UI/API transport health, message/node persistence, your own stored packets | Ingest only. Endpoint must speak Meshtastic stream framing, not HTTP. Treat it as real code that still needs operator-side endpoint proof. |
 | MQTT ingest | Implemented and verified | `type: "mqtt"`, `endpoint`, `topic`, `client_id` | start `mel serve`, observe `/api/v1/status`, `/api/v1/messages`, CLI status/export | Ingest only. RC1 does not publish back to the broker. |
 | Hybrid direct + MQTT | Implemented but partial | enable two transports | `mel transports list`, doctor/config lints, packet persistence | Supported for ingest only. Operators must handle duplicate-observation risk and radio ownership realities. |
 | `serialtcp` alias | Experimental / not hardened | `type: "serialtcp"`, `endpoint` | direct transport health only | Uses the same direct TCP reader path but is not documented as a primary operator workflow. |
@@ -122,7 +122,7 @@ Interpret `mel doctor` honestly:
 - **serial device not found / permission denied** = direct-node setup is incomplete.
 - **TCP endpoint unreachable** = wrong host/port or wrong protocol.
 - **MQTT is enabled** = doctor validates config posture but intentionally does not require broker reachability.
-- **`historical_ingest_seen` in `summary.transport_observations`** = doctor found prior packets for that transport in SQLite, but it is still not claiming live connectivity in the current run.
+- **`historical_only` in `summary.transport_observations`** = doctor found prior packets for that transport in SQLite, but it is still not claiming live connectivity in the current run.
 
 ### 5. Start MEL
 
@@ -157,11 +157,12 @@ chmod 600 .tmp/mqtt/mel.json
 
 Open <http://127.0.0.1:8080/> and confirm the transport state is one of:
 
-- `configured_not_attempted` before the service starts
-- `connect_failed` or `retrying` if the node/path is unavailable
-- `connected but idle`
-- `live data flowing`
-- `unsupported`
+- `configured` before a live attempt has succeeded
+- `attempting` while MEL is trying to connect
+- `connected_no_data` after a connection succeeds but before MEL stores a packet
+- `ingesting` only after MEL stores a packet in SQLite
+- `historical_only` when older packets exist but current live proof is missing
+- `error` when the path is unavailable or decode/storage fails
 
 Once packets arrive, verify with:
 
