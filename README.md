@@ -27,7 +27,7 @@ Stock Meshtastic clients are good at interacting with radios. MEL exists to give
 - Local UI plus versioned `/api/v1/*` JSON endpoints.
 - `mel doctor`, `mel config validate`, `mel privacy audit`, `mel policy explain`.
 - Export, backup creation, and restore **dry-run validation**.
-- Real ingest via serial direct-node, TCP direct-node, and MQTT.
+- Real ingest via serial direct-node, TCP direct-node, and MQTT; this repo verifies MQTT end-to-end locally, while direct serial/TCP remain implemented but require operator-side hardware proof.
 - Meshtastic protobuf subset parsing for observed message, user, and position fields that MEL stores today.
 
 ### Explicitly not claimed today
@@ -122,7 +122,7 @@ Interpret `mel doctor` honestly:
 - **serial device not found / permission denied** = direct-node setup is incomplete.
 - **TCP endpoint unreachable** = wrong host/port or wrong protocol.
 - **MQTT is enabled** = doctor validates config posture but intentionally does not require broker reachability.
-- **`historical_ingest_seen` in `summary.transport_observations`** = doctor found prior packets for that transport in SQLite, but it is still not claiming live connectivity in the current run.
+- **`historical_only` in `summary.transport_observations`** = doctor found prior packets for that transport in SQLite, but it is still not claiming live connectivity in the current run.
 
 ### 5. Start MEL
 

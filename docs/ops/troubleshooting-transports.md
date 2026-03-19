@@ -14,7 +14,7 @@
 
 ## `connected_no_ingest_evidence`
 
-This means MEL connected successfully but has not yet observed a real packet. Check:
+This means MEL connected successfully but has not yet stored a real packet. Check:
 
 - The node is active.
 - The transport source is the node you expect.
@@ -25,7 +25,7 @@ This means MEL connected successfully but has not yet observed a real packet. Ch
 - MEL previously had the stream open or probe attempt, but the last observed transport state ended in error.
 - On serial links this often means USB re-enumeration, cable instability, or another process stealing the tty.
 - On TCP links this usually means the upstream endpoint closed or became unreachable.
-- MEL will keep retrying on the configured backoff, but it will not hide the last error or claim live ingest until a packet decodes again.
+- MEL will keep retrying on the configured backoff, but it will not hide the last error or claim live ingest until a packet stores again.
 
 ## `TCP endpoint unreachable`
 

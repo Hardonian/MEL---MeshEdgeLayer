@@ -25,7 +25,7 @@ Use this flow when MEL is attached to a real Meshtastic node on Linux or Raspber
 ## What success looks like
 
 - `mel doctor` reports no direct-transport reachability or permission findings.
-- `/api/v1/status` shows the direct transport as `ok: true`.
+- `/api/v1/status` shows both live and persisted transport truth, and `ingesting` only appears after a packet stores successfully.
 - `mel status` shows `last_successful_ingest` after packets arrive.
 - `mel nodes` and `mel node inspect` return real locally observed nodes.
 - This repository pass did not include live radio hardware, so serial/TCP claims remain code/test verified plus operator-checkable through doctor/runtime state.

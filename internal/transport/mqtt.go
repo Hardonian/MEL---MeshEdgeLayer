@@ -27,10 +27,10 @@ type MQTT struct {
 
 func NewMQTT(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) *MQTT {
 	caps := capabilityDefaults(cfg, true, false, false, false, true, false, "supported", "real MQTT subscribe path; MEL does not claim publish/config control in this milestone")
-	state := directStateNotAttempted
-	detail := "configured but not yet started"
+	state := StateConfigured
+	detail := "configured; no live connection attempt has been recorded yet"
 	if !cfg.Enabled {
-		state = directStateDisabled
+		state = StateDisabled
 		detail = "disabled by config"
 	}
 	return &MQTT{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.Endpoint, State: state, Detail: detail, Capabilities: caps}}
@@ -49,6 +49,7 @@ func (m *MQTT) setHealth(update func(*Health)) {
 	update(&m.health)
 }
 func (m *MQTT) Connect(ctx context.Context) error {
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	m.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = m.cfg.Endpoint
@@ -91,9 +92,10 @@ func (m *MQTT) Connect(ctx context.Context) error {
 	}
 	m.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = directStateConnectedIdle
-		h.Detail = "connected; waiting for MQTT publishes"
+		h.State = StateConnectedNoData
+		h.Detail = "connected to MQTT broker; waiting for a packet that stores successfully"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastSuccessAt = h.LastConnectedAt
 		h.LastError = ""
 	})
 	return nil
@@ -174,10 +176,11 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 		m.setHealth(func(h *Health) {
 			h.PacketsRead++
 			h.OK = true
-			h.State = directStateConnectedIngest
+			h.State = StateIngesting
 			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			h.LastSuccessAt = h.LastPacketAt
 			h.LastError = ""
-			h.Detail = "connected and ingesting MQTT publishes"
+			h.Detail = "MQTT packets are being stored successfully"
 		})
 	}
 }
@@ -197,7 +200,7 @@ func (m *MQTT) markReadFailure(err error) {
 		h.OK = false
 		h.State = directStateError
 		h.LastError = err.Error()
-		h.Detail = "stream disconnected; waiting to retry"
+		h.Detail = "MQTT stream disconnected; waiting to retry"
 		h.LastDisconnected = time.Now().UTC().Format(time.RFC3339)
 	})
 	m.bus.Publish(events.Event{Type: "transport.error", Data: err.Error()})

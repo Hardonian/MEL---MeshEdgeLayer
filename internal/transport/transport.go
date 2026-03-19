@@ -33,15 +33,27 @@ type Health struct {
 	Unsupported       bool             `json:"unsupported,omitempty"`
 	Detail            string           `json:"detail"`
 	Capabilities      CapabilityMatrix `json:"capabilities"`
+	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
 	LastError         string           `json:"last_error,omitempty"`
 	LastAttemptAt     string           `json:"last_attempt_at,omitempty"`
 	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
+	LastSuccessAt     string           `json:"last_success_at,omitempty"`
 	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
 	LastPacketAt      string           `json:"last_packet_at,omitempty"`
 	PacketsRead       uint64           `json:"packets_read"`
 	PacketsDropped    uint64           `json:"packets_dropped"`
 	ReconnectAttempts uint64           `json:"reconnect_attempts"`
 }
+
+const (
+	StateDisabled        = "disabled"
+	StateConfigured      = "configured"
+	StateAttempting      = "attempting"
+	StateConnectedNoData = "connected_no_data"
+	StateIngesting       = "ingesting"
+	StateHistoricalOnly  = "historical_only"
+	StateError           = "error"
+)
 
 type PacketHandler func(topic string, payload []byte) error
 
@@ -79,14 +91,14 @@ type Unsupported struct {
 
 func NewUnsupported(cfg config.TransportConfig) *Unsupported {
 	caps := capabilityDefaults(cfg, false, false, false, false, true, false, "unsupported", "feature-gated; not enabled in this release")
-	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: directStateUnsupported, Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
+	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: StateError, Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
 }
 
 func (u *Unsupported) Connect(context.Context) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.health.OK = false
-	u.health.State = directStateUnsupported
+	u.health.State = StateError
 	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }

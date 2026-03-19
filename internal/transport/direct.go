@@ -59,10 +59,10 @@ func NewDirect(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus)
 		status = "supported"
 	}
 	caps := capabilityDefaults(cfg, true, false, false, false, true, false, status, notes)
-	state := directStateNotAttempted
-	detail := "configured but not yet started"
+	state := StateConfigured
+	detail := "configured; no live connection attempt has been recorded yet"
 	if !cfg.Enabled {
-		state = directStateDisabled
+		state = StateDisabled
 		detail = "disabled by config"
 	}
 	return &Direct{cfg: cfg, log: log, bus: bus, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Detail: detail, Capabilities: caps}, dial: openDirectConnection}
@@ -83,6 +83,7 @@ func (d *Direct) setHealth(update func(*Health)) {
 }
 
 func (d *Direct) Connect(ctx context.Context) error {
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	d.setHealth(func(h *Health) {
 		h.ReconnectAttempts++
 		h.Source = d.cfg.SourceLabel()
@@ -106,9 +107,10 @@ func (d *Direct) Connect(ctx context.Context) error {
 	d.mu.Unlock()
 	d.setHealth(func(h *Health) {
 		h.OK = true
-		h.State = directStateConnectedIdle
-		h.Detail = "connected; waiting for radio packets"
+		h.State = StateConnectedNoData
+		h.Detail = "connected to direct node; waiting for a packet that stores successfully"
 		h.LastConnectedAt = time.Now().UTC().Format(time.RFC3339)
+		h.LastSuccessAt = h.LastConnectedAt
 		h.LastError = ""
 	})
 	return nil
@@ -187,11 +189,12 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 		}
 		d.setHealth(func(h *Health) {
 			h.OK = true
-			h.State = directStateConnectedIngest
+			h.State = StateIngesting
 			h.PacketsRead++
 			h.LastPacketAt = time.Now().UTC().Format(time.RFC3339)
+			h.LastSuccessAt = h.LastPacketAt
 			h.LastError = ""
-			h.Detail = "connected and ingesting live radio packets"
+			h.Detail = "direct-node packets are being stored successfully"
 		})
 	}
 }
