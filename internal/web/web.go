@@ -409,6 +409,34 @@ func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
 		"ingest_rate_per_sec": rateByTransport,
 		"dead_letters_total":  totalDeadLetters(snap.Transports),
 	}
+	if s.db != nil {
+		metrics["control_metrics"] = map[string]any{
+			"decisions_total":           scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions;"),
+			"executions_total":          scalarInt(s.db, "SELECT COUNT(*) FROM control_actions WHERE result='executed_successfully';"),
+			"denials_total":             scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE allowed=0;"),
+			"cooldown_denials":          scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='cooldown';"),
+			"override_denials":          scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='override';"),
+			"missing_actuator_denials":  scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='missing_actuator';"),
+			"active_actions":            scalarInt(s.db, "SELECT COUNT(*) FROM control_actions WHERE lifecycle_state IN ('pending','running') OR (result='executed_successfully' AND reversible=1 AND (expires_at='' OR expires_at > datetime('now')));"),
+			"queue_depth":               scalarInt(s.db, "SELECT COUNT(*) FROM control_actions WHERE lifecycle_state='pending';"),
+			"execution_latency_seconds": scalarFloat(s.db, "SELECT COALESCE(AVG((julianday(completed_at)-julianday(executed_at))*86400.0),0) FROM control_actions WHERE executed_at != '' AND completed_at != '';"),
+			"denials_by_reason": map[string]any{
+				"policy":               scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='policy';"),
+				"mode":                 scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='mode';"),
+				"override":             scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='override';"),
+				"low_confidence":       scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='low_confidence';"),
+				"transient":            scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='transient';"),
+				"cooldown":             scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='cooldown';"),
+				"budget":               scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='budget';"),
+				"missing_actuator":     scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='missing_actuator';"),
+				"unknown_blast_radius": scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='unknown_blast_radius';"),
+				"no_alternate_path":    scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='no_alternate_path';"),
+				"irreversible":         scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='irreversible';"),
+				"conflict":             scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='conflict';"),
+				"attribution_weak":     scalarInt(s.db, "SELECT COUNT(*) FROM control_decisions WHERE denial_code='attribution_weak';"),
+			},
+		}
+	}
 	writeJSON(w, http.StatusOK, metrics)
 }
 func (s *Server) audit(w http.ResponseWriter, _ *http.Request) {
@@ -580,5 +608,29 @@ func toInt(v any) int64 {
 	}
 	var parsed int64
 	fmt.Sscan(fmt.Sprint(v), &parsed)
+	return parsed
+}
+
+func scalarInt(d *db.DB, sql string) int64 {
+	if d == nil {
+		return 0
+	}
+	value, err := d.Scalar(sql)
+	if err != nil {
+		return 0
+	}
+	return toInt(value)
+}
+
+func scalarFloat(d *db.DB, sql string) float64 {
+	if d == nil {
+		return 0
+	}
+	value, err := d.Scalar(sql)
+	if err != nil {
+		return 0
+	}
+	var parsed float64
+	fmt.Sscan(fmt.Sprint(value), &parsed)
 	return parsed
 }

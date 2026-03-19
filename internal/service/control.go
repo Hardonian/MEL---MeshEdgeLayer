@@ -84,12 +84,17 @@ func (a *App) controlExplanation() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	reality, _ := a.DB.ControlActionRealities()
 	return map[string]any{
 		"mode":               eval.Explanation.Mode,
 		"active_actions":     eval.Explanation.ActiveActions,
+		"pending_actions":    eval.Explanation.PendingActions,
 		"recent_actions":     eval.Explanation.RecentActions,
 		"denied_actions":     eval.Explanation.DeniedActions,
 		"policy_summary":     eval.Explanation.PolicySummary,
+		"reality_matrix":     reality,
+		"queue_depth":        len(a.controlQueue),
+		"queue_capacity":     cap(a.controlQueue),
 		"reasons_for_denial": eval.Explanation.ReasonsForDenial,
 		"emergency_disable":  eval.Explanation.EmergencyDisable,
 	}, nil
@@ -107,13 +112,23 @@ func (a *App) controlHistory(start, end, transportName string, limit, offset int
 	if err != nil {
 		return nil, err
 	}
+	inFlight, err := a.DB.IncompleteControlActions(limit)
+	if err != nil {
+		return nil, err
+	}
+	reality, err := a.DB.ControlActionRealities()
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"actions":    actions,
-		"decisions":  decisions,
-		"transport":  transportName,
-		"start":      start,
-		"end":        end,
-		"pagination": map[string]any{"limit": limit, "offset": offset},
+		"actions":        actions,
+		"decisions":      decisions,
+		"in_flight":      inFlight,
+		"reality_matrix": reality,
+		"transport":      transportName,
+		"start":          start,
+		"end":            end,
+		"pagination":     map[string]any{"limit": limit, "offset": offset},
 	}, nil
 }
 
@@ -144,13 +159,20 @@ func (a *App) evaluateControl(now time.Time) {
 		}
 		action := decision.CandidateAction
 		action.DecisionID = decision.ID
+		action.LifecycleState = control.LifecyclePending
+		action.AdvisoryOnly = !decision.Allowed
+		action.DenialCode = decision.DenialCode
 		if !decision.Allowed {
 			action.ExecutedAt = decision.CreatedAt
 			action.CompletedAt = decision.CreatedAt
 			action.OutcomeDetail = decision.DenialReason
+			action.LifecycleState = control.LifecycleCompleted
 			action.Result = control.ResultDeniedByPolicy
-			if strings.Contains(decision.DenialReason, "cooldown") {
+			if decision.DenialCode == control.DenialCooldown {
 				action.Result = control.ResultDeniedByCooldown
+			}
+			if decision.DenialCode == control.DenialOverride {
+				action.ClosureState = control.ClosureCanceledByOperator
 			}
 			if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
 				a.Log.Error("control_action_upsert_failed", "failed to persist denied control action", map[string]any{"action_id": action.ID, "error": err.Error()})
@@ -166,7 +188,9 @@ func (a *App) evaluateControl(now time.Time) {
 		default:
 			action.ExecutedAt = now.UTC().Format(time.RFC3339)
 			action.CompletedAt = action.ExecutedAt
+			action.LifecycleState = control.LifecycleCompleted
 			action.Result = control.ResultFailedTransient
+			action.ClosureState = control.ClosureSuperseded
 			action.OutcomeDetail = "control queue is full; action dropped to preserve bounded execution"
 			_ = a.DB.UpsertControlAction(controlActionRecord(action))
 			a.Log.Error("control_queue_full", "control action queue is full", map[string]any{"action_id": action.ID, "action_type": action.ActionType})
@@ -184,7 +208,7 @@ func (a *App) queueRecoveryActions(now time.Time) {
 		return
 	}
 	for _, row := range rows {
-		if row.Result != control.ResultExecutedSuccessfully || row.ExpiresAt == "" {
+		if row.Result != control.ResultExecutedSuccessfully || row.ExpiresAt == "" || row.ClosureState != "" {
 			continue
 		}
 		expiresAt, ok := parseRFC3339(row.ExpiresAt)
@@ -197,15 +221,15 @@ func (a *App) queueRecoveryActions(now time.Time) {
 		var followup control.ControlAction
 		switch row.ActionType {
 		case control.ActionBackoffIncrease:
-			followup = control.ControlAction{ID: fmt.Sprintf("%s-reset", row.ID), DecisionID: row.DecisionID, ActionType: control.ActionBackoffReset, TargetTransport: row.TargetTransport, Reason: "backoff increase window expired after quiet recovery evidence", Confidence: 0.9, TriggerEvidence: []string{"anomaly snapshots quiet after expiry"}, CreatedAt: now.UTC().Format(time.RFC3339), Mode: a.Cfg.Control.Mode, PolicyRule: "evidence_based_backoff_reset"}
-		case control.ActionTemporarilySuppressNoisySource:
-			followup = control.ControlAction{ID: fmt.Sprintf("%s-clear", row.ID), DecisionID: row.DecisionID, ActionType: control.ActionClearSuppression, TargetTransport: row.TargetTransport, Reason: "suppression window expired after quiet recovery evidence", Confidence: 0.85, TriggerEvidence: []string{"anomaly snapshots quiet after expiry"}, CreatedAt: now.UTC().Format(time.RFC3339), Mode: a.Cfg.Control.Mode, PolicyRule: "evidence_based_clear_suppression"}
+			followup = control.ControlAction{ID: fmt.Sprintf("%s-reset", row.ID), DecisionID: row.DecisionID, ActionType: control.ActionBackoffReset, TargetTransport: row.TargetTransport, Reason: "backoff increase window expired after quiet recovery evidence", Confidence: 0.9, TriggerEvidence: []string{"anomaly snapshots quiet after expiry"}, CreatedAt: now.UTC().Format(time.RFC3339), Mode: a.Cfg.Control.Mode, PolicyRule: "evidence_based_backoff_reset", LifecycleState: control.LifecyclePending}
 		default:
 			continue
 		}
 		if _, ok := a.seenControlAction(followup.ID); ok {
 			continue
 		}
+		row.ClosureState = control.ClosureExpiredAndReverted
+		_ = a.DB.UpsertControlAction(row)
 		_ = a.DB.UpsertControlAction(controlActionRecord(followup))
 		select {
 		case a.controlQueue <- followup:
@@ -231,25 +255,123 @@ func quietSinceExpiry(database *db.DB, transportName string, now time.Time) bool
 	return true
 }
 
+func advisoryDenied(actionType string) bool {
+	for _, item := range control.DefaultActionRealityMatrix() {
+		if item.ActionType == actionType {
+			return item.AdvisoryOnly || !item.ActuatorExists || !item.SafeForGuardedAuto
+		}
+	}
+	return true
+}
+
+func (a *App) enqueueHealthRecheckFollowup(action control.ControlAction) {
+	followup := control.ControlAction{
+		ID:              fmt.Sprintf("%s-health-recheck", action.ID),
+		DecisionID:      action.DecisionID,
+		ActionType:      control.ActionTriggerHealthRecheck,
+		TargetTransport: action.TargetTransport,
+		TargetSegment:   action.TargetSegment,
+		Reason:          "post-action health recheck for guarded control closure",
+		Confidence:      0.9,
+		TriggerEvidence: []string{"prior guarded control action executed successfully"},
+		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
+		Mode:            a.Cfg.Control.Mode,
+		PolicyRule:      "post_action_health_recheck",
+		LifecycleState:  control.LifecyclePending,
+	}
+	if _, ok := a.seenControlAction(followup.ID); ok {
+		return
+	}
+	if err := a.DB.UpsertControlAction(controlActionRecord(followup)); err != nil {
+		return
+	}
+	select {
+	case a.controlQueue <- followup:
+	default:
+	}
+}
+
+func (a *App) syncControlReality() {
+	if a == nil || a.DB == nil {
+		return
+	}
+	for _, item := range control.DefaultActionRealityMatrix() {
+		_ = a.DB.UpsertControlActionReality(db.ControlActionRealityRecord{
+			ActionType:         item.ActionType,
+			ActuatorExists:     item.ActuatorExists,
+			Reversible:         item.Reversible,
+			BlastRadiusKnown:   item.BlastRadiusKnown,
+			BlastRadiusClass:   item.BlastRadiusClass,
+			SafeForGuardedAuto: item.SafeForGuardedAuto,
+			AdvisoryOnly:       item.AdvisoryOnly,
+			DenialCode:         item.DenialCode,
+			Notes:              item.Notes,
+		})
+	}
+}
+
+func (a *App) recoverIncompleteControlActions(now time.Time) {
+	if a == nil || a.DB == nil {
+		return
+	}
+	rows, err := a.DB.IncompleteControlActions(a.Cfg.Intelligence.Queries.MaxLimit)
+	if err != nil {
+		return
+	}
+	for _, row := range rows {
+		if strings.TrimSpace(row.ExecutedAt) == "" {
+			row.ExecutedAt = now.UTC().Format(time.RFC3339)
+		}
+		row.CompletedAt = now.UTC().Format(time.RFC3339)
+		row.LifecycleState = control.LifecycleRecovered
+		row.Result = control.ResultFailedTransient
+		row.OutcomeDetail = "process restarted before action completion; safe recovery closed the in-flight action without blind re-execution"
+		row.ClosureState = control.ClosureSuperseded
+		if row.ActionType == control.ActionBackoffIncrease {
+			row.Result = control.ResultExpired
+			row.OutcomeDetail = "process restarted before rollback; volatile backoff state reverted to baseline during recovery"
+			row.ClosureState = control.ClosureExpiredAndReverted
+		}
+		_ = a.DB.UpsertControlAction(row)
+		if row.ActionType == control.ActionRestartTransport || row.ActionType == control.ActionResubscribeTransport {
+			a.enqueueHealthRecheckFollowup(control.ControlAction{
+				ID:              row.ID,
+				DecisionID:      row.DecisionID,
+				ActionType:      row.ActionType,
+				TargetTransport: row.TargetTransport,
+				TargetSegment:   row.TargetSegment,
+			})
+		}
+	}
+}
+
 func (a *App) seenControlAction(id string) (db.ControlActionRecord, bool) {
-	rows, err := a.DB.ControlActions("", "", "", "", 500, 0)
+	row, ok, err := a.DB.ControlActionByID(id)
 	if err != nil {
 		return db.ControlActionRecord{}, false
 	}
-	for _, row := range rows {
-		if row.ID == id {
-			return row, true
-		}
-	}
-	return db.ControlActionRecord{}, false
+	return row, ok
 }
 
 func (a *App) executeControlAction(ctx context.Context, action control.ControlAction) {
 	if a == nil || a.DB == nil {
 		return
 	}
+	if advisoryDenied(action.ActionType) {
+		now := time.Now().UTC().Format(time.RFC3339)
+		action.ExecutedAt = now
+		action.CompletedAt = now
+		action.LifecycleState = control.LifecycleCompleted
+		action.AdvisoryOnly = true
+		action.DenialCode = control.DenialMissingActuator
+		action.Result = control.ResultDeniedByPolicy
+		action.OutcomeDetail = "action remains advisory because the actuator reality matrix marks it unsupported for guarded_auto"
+		_ = a.DB.UpsertControlAction(controlActionRecord(action))
+		return
+	}
 	startedAt := time.Now().UTC().Format(time.RFC3339)
 	action.ExecutedAt = startedAt
+	action.LifecycleState = control.LifecycleRunning
 	_ = a.DB.UpsertControlAction(controlActionRecord(action))
 
 	timeout := time.Duration(a.Cfg.Control.ActionTimeoutSeconds) * time.Second
@@ -289,24 +411,11 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 			result, detail = control.ResultFailedTerminal, "target transport not found"
 		}
 	case control.ActionTemporarilyDeprioritize:
-		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
-			if until, ok := parseRFC3339(action.ExpiresAt); ok {
-				st.markDeprioritized(until)
-			}
-			result, detail = control.ResultExecutedNoop, "routing selector is not implemented; deprioritization is persisted as advisory state only"
-		}
+		result, detail = control.ResultDeniedByPolicy, "routing selector is not implemented; deprioritization stays advisory-only"
 	case control.ActionTemporarilySuppressNoisySource:
-		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
-			if until, ok := parseRFC3339(action.ExpiresAt); ok {
-				st.markSuppressed(until)
-			}
-			result, detail = control.ResultExecutedNoop, "source suppression actuator is not implemented; suppression is recorded as advisory state only"
-		}
+		result, detail = control.ResultDeniedByPolicy, "source suppression actuator is not implemented; suppression stays advisory-only"
 	case control.ActionClearSuppression:
-		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
-			st.clearSuppression()
-			result, detail = control.ResultExecutedSuccessfully, "suppression advisory state cleared after quiet recovery evidence"
-		}
+		result, detail = control.ResultDeniedByPolicy, "clear_suppression is unavailable because suppression is not implemented as a real actuator"
 	case control.ActionTriggerHealthRecheck:
 		go a.evaluateTransportIntelligence(time.Now().UTC())
 		result, detail = control.ResultExecutedSuccessfully, "scheduled asynchronous health recheck outside the ingest hot path"
@@ -315,9 +424,19 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	}
 	completedAt := time.Now().UTC().Format(time.RFC3339)
 	action.CompletedAt = completedAt
+	action.LifecycleState = control.LifecycleCompleted
 	action.Result = result
 	action.OutcomeDetail = detail
+	switch action.ActionType {
+	case control.ActionBackoffReset, control.ActionTriggerHealthRecheck:
+		if result == control.ResultExecutedSuccessfully {
+			action.ClosureState = control.ClosureRecoveredAndClosed
+		}
+	}
 	_ = a.DB.UpsertControlAction(controlActionRecord(action))
+	if result == control.ResultExecutedSuccessfully && (action.ActionType == control.ActionRestartTransport || action.ActionType == control.ActionResubscribeTransport) {
+		a.enqueueHealthRecheckFollowup(action)
+	}
 }
 
 func (a *App) findTransportAndControl(name string) (anyTransport, *transportControlState) {
@@ -377,6 +496,10 @@ func controlActionRecord(action control.ControlAction) db.ControlActionRecord {
 		OutcomeDetail:   action.OutcomeDetail,
 		Mode:            action.Mode,
 		PolicyRule:      action.PolicyRule,
+		LifecycleState:  action.LifecycleState,
+		AdvisoryOnly:    action.AdvisoryOnly,
+		DenialCode:      action.DenialCode,
+		ClosureState:    action.ClosureState,
 		Metadata:        action.Metadata,
 	}
 }
@@ -392,6 +515,7 @@ func controlDecisionRecord(decision control.ControlDecision) db.ControlDecisionR
 		Confidence:        decision.Confidence,
 		Allowed:           decision.Allowed,
 		DenialReason:      decision.DenialReason,
+		DenialCode:        decision.DenialCode,
 		SafetyChecks:      decision.SafetyChecks,
 		DecisionInputs:    decision.InputSummary,
 		PolicySummary:     decision.PolicySummary,
