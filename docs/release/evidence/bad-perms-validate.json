@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "component": "config_file",
+      "guidance": "Operator config files must be chmod 600 before MEL will trust them in production.",
+      "message": ".tmp/evidence/bad-perms.json permissions are broader than 0600",
+      "severity": "high"
+    }
+  ],
+  "lints": [],
+  "status": "invalid"
+}

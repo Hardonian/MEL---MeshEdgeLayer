@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-03-19T01:13:52Z",
+  "bind": "127.0.0.1:8080",
+  "bind_local_only": true,
+  "schema_version": "0002_runtime_truth",
+  "configured_transport_modes": [
+    "none"
+  ],
+  "messages": 0,
+  "nodes": 0,
+  "transports": []
+}

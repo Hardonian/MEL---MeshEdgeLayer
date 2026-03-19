@@ -13,6 +13,17 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 )
 
+const (
+	StateDisabled               = "disabled"
+	StateConfiguredNotAttempted = "configured_not_attempted"
+	StateAttempting             = "attempting"
+	StateConfiguredOffline      = "configured_offline"
+	StateConnectedNoIngest      = "connected_no_ingest"
+	StateIngesting              = "ingesting"
+	StateHistoricalOnly         = "historical_only"
+	StateError                  = "error"
+)
+
 type CapabilityMatrix struct {
 	IngestSupported        bool   `json:"ingest_supported"`
 	SendSupported          bool   `json:"send_supported"`
@@ -39,10 +50,11 @@ type Health struct {
 	LastConnectedAt   string           `json:"last_connected_at,omitempty"`
 	LastSuccessAt     string           `json:"last_success_at,omitempty"`
 	LastDisconnected  string           `json:"last_disconnected_at,omitempty"`
-	LastPacketAt      string           `json:"last_packet_at,omitempty"`
-	PacketsRead       uint64           `json:"packets_read"`
+	LastIngestAt      string           `json:"last_ingest_at,omitempty"`
 	PacketsDropped    uint64           `json:"packets_dropped"`
 	ReconnectAttempts uint64           `json:"reconnect_attempts"`
+	TotalMessages     uint64           `json:"total_messages"`
+	ErrorCount        uint64           `json:"error_count"`
 }
 
 const (
@@ -68,14 +80,24 @@ type Transport interface {
 	SendPacket(context.Context, []byte) error
 	FetchMetadata(context.Context) (map[string]any, error)
 	FetchNodes(context.Context) ([]map[string]any, error)
+	MarkIngest(time.Time)
+	MarkDrop(string)
 }
 
 func Build(cfg config.TransportConfig, log *logging.Logger, bus *events.Bus) (Transport, error) {
+	safeLog := log
+	if safeLog == nil {
+		safeLog = logging.New("info", false)
+	}
+	safeBus := bus
+	if safeBus == nil {
+		safeBus = events.New()
+	}
 	switch cfg.Type {
 	case "mqtt":
-		return NewMQTT(cfg, log, bus), nil
+		return NewMQTT(cfg, safeLog, safeBus), nil
 	case "serial", "tcp", "serialtcp":
-		return NewDirect(cfg, log, bus), nil
+		return NewDirect(cfg, safeLog, safeBus), nil
 	case "http", "ble":
 		return NewUnsupported(cfg), nil
 	default:
@@ -91,7 +113,13 @@ type Unsupported struct {
 
 func NewUnsupported(cfg config.TransportConfig) *Unsupported {
 	caps := capabilityDefaults(cfg, false, false, false, false, true, false, "unsupported", "feature-gated; not enabled in this release")
-	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: StateError, Unsupported: true, Detail: caps.Notes, Capabilities: caps}}
+	state := StateDisabled
+	detail := "disabled by config"
+	if cfg.Enabled {
+		state = StateError
+		detail = caps.Notes
+	}
+	return &Unsupported{cfg: cfg, health: Health{Name: cfg.Name, Type: cfg.Type, Source: cfg.SourceLabel(), State: state, Unsupported: true, Detail: detail, Capabilities: caps}}
 }
 
 func (u *Unsupported) Connect(context.Context) error {
@@ -99,6 +127,8 @@ func (u *Unsupported) Connect(context.Context) error {
 	defer u.mu.Unlock()
 	u.health.OK = false
 	u.health.State = StateError
+	u.health.ErrorCount++
+	u.health.LastAttemptAt = time.Now().UTC().Format(time.RFC3339)
 	u.health.LastError = "transport compiled as unsupported in this release"
 	return errors.New(u.health.LastError)
 }
@@ -121,6 +151,8 @@ func (u *Unsupported) FetchMetadata(context.Context) (map[string]any, error) {
 func (u *Unsupported) FetchNodes(context.Context) ([]map[string]any, error) {
 	return nil, errors.New("node fetch not supported")
 }
+func (u *Unsupported) MarkIngest(time.Time) {}
+func (u *Unsupported) MarkDrop(string)      {}
 
 func dialWithTimeout(endpoint string) (net.Conn, error) {
 	return net.DialTimeout("tcp", endpoint, 5*time.Second)

@@ -292,7 +292,7 @@ func LintConfig(cfg Config) []Lint {
 		out = append(out, Lint{"storage-encryption", "high", "storage.encryption_required does not encrypt SQLite at rest in RC1.", "Treat this flag as a validation guard only and use filesystem or volume encryption if you need encrypted storage today."})
 	}
 	if cfg.Bind.Metrics != "" || cfg.Features.Metrics {
-		out = append(out, Lint{"metrics-placeholder", "medium", "Metrics listener settings are present but no metrics server is implemented in RC1.", "Do not rely on bind.metrics or features.metrics for scraping until a real metrics endpoint ships."})
+		out = append(out, Lint{"metrics-bind-unused", "medium", "Metrics are served on the main API listener; bind.metrics and features.metrics do not start a second listener.", "Scrape /metrics on bind.api or leave the reserved metrics knobs unset."})
 	}
 	if cfg.Features.BLEExperimental {
 		out = append(out, Lint{"ble-experimental", "high", "BLE remains explicitly unsupported in RC1 even if features.ble_experimental is set.", "Use serial, TCP, or MQTT instead and treat BLE as planned work."})

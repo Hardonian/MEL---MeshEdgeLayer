@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
+	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -29,13 +31,15 @@ type Server struct {
 	http            *http.Server
 	transportHealth func() []transport.Health
 	recommendations func() []policy.Recommendation
+	statusSnapshot  func() (statuspkg.Snapshot, error)
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation) *Server {
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec}
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error)) *Server {
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthz)
 	mux.HandleFunc("/readyz", s.readyz)
+	mux.HandleFunc("/metrics", s.metrics)
 	mux.HandleFunc("/api/status", s.status)
 	mux.HandleFunc("/api/nodes", s.nodes)
 	mux.HandleFunc("/api/transports", s.transports)
@@ -47,6 +51,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/node/", s.nodeDetail)
 	mux.HandleFunc("/api/v1/transports", s.transports)
 	mux.HandleFunc("/api/v1/messages", s.messages)
+	mux.HandleFunc("/api/v1/metrics", s.metrics)
 	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
 	mux.HandleFunc("/api/v1/policy/explain", s.recs)
 	mux.HandleFunc("/api/v1/events", s.logs)
@@ -58,7 +63,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 }
 func (s *Server) Start(ctx context.Context) {
 	go func() { <-ctx.Done(); _ = s.http.Shutdown(context.Background()) }()
-	s.log.Info("web starting", map[string]any{"addr": s.cfg.Bind.API})
+	s.log.Info("web_start", "web starting", map[string]any{"addr": s.cfg.Bind.API})
 	_ = s.http.ListenAndServe()
 }
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -70,36 +75,28 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
-	health := s.transportHealth()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"process_ready":  true,
-		"ingest_ready":   readyForIngest(health),
-		"operator_state": operatorState(health),
-		"transports":     health,
-	})
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ready": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transports": snap.Transports})
 }
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
-	schemaVersion, _ := s.db.SchemaVersion()
-	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
-	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
-	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "status_failed", "message": err.Error()}})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"runtime_snapshot": s.state.Snapshot(),
-		"persisted_summary": map[string]any{
-			"nodes":                  persistedNodes,
-			"messages":               persistedMessages,
-			"last_successful_ingest": lastPersistedIngest,
-		},
-		"snapshot_boundary":  "runtime_snapshot reflects only observations seen by the current MEL process; persisted_summary reflects SQLite history across restarts",
-		"transports":         s.transportHealth(),
+		"snapshot":           s.state.Snapshot(),
+		"status":             snap,
 		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
-		"schema_version":     schemaVersion,
 		"bind_local_default": !s.cfg.Bind.AllowRemote,
-		"configured_modes":   configuredModes(s.cfg),
 	})
 }
 func (s *Server) nodes(w http.ResponseWriter, _ *http.Request) {
-	rows, err := s.db.QueryRows("SELECT node_num,node_id,long_name,short_name,last_seen,last_gateway_id,lat_redacted,lon_redacted,altitude FROM nodes ORDER BY updated_at DESC;")
+	rows, err := s.db.QueryRows("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n ORDER BY n.updated_at DESC;")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
 		return
@@ -112,7 +109,7 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"code": "missing_node", "message": "node identifier is required"}})
 		return
 	}
-	query := fmt.Sprintf("SELECT node_num,node_id,long_name,short_name,last_seen,last_gateway_id,lat_redacted,lon_redacted,altitude,last_snr,last_rssi FROM nodes WHERE CAST(node_num AS TEXT)='%s' OR node_id='%s' LIMIT 1;", escape(nodeID), escape(nodeID))
+	query := fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE CAST(n.node_num AS TEXT)='%s' OR n.node_id='%s' LIMIT 1;", escape(nodeID), escape(nodeID))
 	rows, err := s.db.QueryRows(query)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
@@ -125,15 +122,59 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"node": rows[0]})
 }
 func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"transports_live": s.transportHealth(), "transports_persisted": persistedTransportTruth(s.cfg, s.db, s.transportHealth()), "configured_modes": configuredModes(s.cfg)})
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes})
 }
-func (s *Server) messages(w http.ResponseWriter, _ *http.Request) {
-	rows, err := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time,created_at FROM messages ORDER BY id DESC LIMIT 100;")
+func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 500 {
+			limit = parsed
+		}
+	}
+	clauses := []string{"1=1"}
+	if node := r.URL.Query().Get("node"); node != "" {
+		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(node), escape(node)))
+	}
+	if messageType := r.URL.Query().Get("type"); messageType != "" {
+		clauses = append(clauses, fmt.Sprintf("payload_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"message_type\":\"%s\"`, messageType))))
+	}
+	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), limit))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"messages": rows})
+	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "filters": r.URL.Query()})
+}
+func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
+	snap, err := s.statusSnapshot()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	cutoff := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
+	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name, COUNT(*) AS recent_messages FROM messages WHERE rx_time >= '%s' GROUP BY transport_name;", cutoff))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	rateByTransport := map[string]float64{}
+	for _, row := range rows {
+		rateByTransport[fmt.Sprint(row["transport_name"])] = float64(toInt(row["recent_messages"])) / 300.0
+	}
+	metrics := map[string]any{
+		"generated_at":        time.Now().UTC().Format(time.RFC3339),
+		"window_seconds":      300,
+		"total_messages":      snap.Messages,
+		"last_ingest_time":    snap.LastSuccessfulIngest,
+		"transport_metrics":   snap.Transports,
+		"ingest_rate_per_sec": rateByTransport,
+	}
+	writeJSON(w, http.StatusOK, metrics)
 }
 func (s *Server) audit(w http.ResponseWriter, _ *http.Request) {
 	findings := privacy.Audit(s.cfg)
@@ -152,6 +193,7 @@ func (s *Server) logs(w http.ResponseWriter, _ *http.Request) {
 }
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	snap := s.state.Snapshot()
+	statusSnap, _ := s.statusSnapshot()
 	sort.Slice(snap.Nodes, func(i, j int) bool { return snap.Nodes[i].Num < snap.Nodes[j].Num })
 	findings := privacy.Audit(s.cfg)
 	messages, _ := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time FROM messages ORDER BY id DESC LIMIT 20;")
@@ -167,7 +209,7 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 </style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
 	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
 	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Configured transport modes: `)
-	for _, mode := range configuredModes(s.cfg) {
+	for _, mode := range statusSnap.ConfiguredTransportModes {
 		fmt.Fprintf(w, `<span class="pill">%s</span>`, mode)
 	}
 	fmt.Fprintf(w, `</p><p>Runtime process message count: <strong>%d</strong>.</p><p>Persisted message count: <strong>%s</strong>. Persisted node count: <strong>%s</strong>. Last persisted ingest: <strong>%s</strong>.</p>`, snap.Messages, blankIfEmpty(persistedMessages, "0"), blankIfEmpty(persistedNodes, "0"), blankIfEmpty(lastPersistedIngest, "none"))
@@ -176,9 +218,9 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	} else {
 		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
 	}
-	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>State</th><th>Operator view</th><th>Detail</th><th>Capabilities</th><th>Packets</th><th>Last attempt</th><th>Last packet</th><th>Last error</th></tr>`)
-	for _, h := range s.transportHealth() {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s</td><td><pre>%s</pre></td><td>%d read / %d dropped<br><span class="muted">reconnect attempts: %d</span></td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.State, "unknown"), transportStateLabel(h), h.Detail, asJSON(h.Capabilities), h.PacketsRead, h.PacketsDropped, h.ReconnectAttempts, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastPacketAt, "—"), blankIfEmpty(h.LastError, "—"))
+	fmt.Fprint(w, `</section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`)
+	for _, h := range statusSnap.Transports {
+		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
 	}
 	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
 	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
@@ -245,178 +287,18 @@ func remoteClient(r *http.Request) string {
 	return host
 }
 
-func configuredModes(cfg config.Config) []string {
-	out := make([]string, 0)
-	for _, t := range cfg.Transports {
-		if t.Enabled {
-			out = append(out, t.Type)
-		}
-	}
-	if len(out) == 0 {
-		return []string{"none"}
-	}
-	return out
-}
-
-func transportStateLabel(h transport.Health, persisted map[string]any) string {
-	state := h.State
-	if persistedState := asString(persisted["state"]); persistedState != "" {
-		state = persistedState
-	}
-	switch state {
-	case transport.StateDisabled:
-		return "disabled"
-	case "configured_not_attempted":
-		return "configured but not yet started"
-	case "attempting":
-		return "connect in progress"
-	case "connected_no_ingest_evidence":
-		return "connected but idle"
-	case "ingesting":
-		return "live data flowing"
-	case "error":
-		return "error; see detail and last error"
-	case "unsupported":
-		return "unsupported in this release"
-	case "configured_offline":
-		return "configured; offline-only doctor evidence"
-	default:
-		if h.Unsupported {
-			return "unsupported in this release"
-		}
-		return "state unknown"
-	}
-}
-
-func readyForIngest(health []transport.Health) bool {
-	for _, h := range health {
-		if h.State == "ingesting" {
-			return true
-		}
-	}
-	return false
-}
-
-func operatorState(health []transport.Health) string {
-	if len(health) == 0 {
-		return "idle_no_transports"
-	}
-	if readyForIngest(health) {
-		return "ingesting"
-	}
-	for _, h := range health {
-		if h.State == "error" || h.State == "unsupported" {
-			return "degraded"
-		}
-		if h.State == "connected_no_ingest_evidence" {
-			return "connected_no_ingest_evidence"
-		}
-		if h.State == "attempting" {
-			return "attempting"
-		}
-	}
-	return "configured_not_attempted"
-}
-
-var _ = remoteClient
-
-func persistedTransportTruth(cfg config.Config, database *db.DB, live []transport.Health) []map[string]any {
-	out := make([]map[string]any, 0, len(cfg.Transports))
-	liveByName := map[string]transport.Health{}
-	for _, h := range live {
-		liveByName[h.Name] = h
-	}
-	runtimeByName := map[string]db.TransportRuntime{}
-	if database != nil {
-		if rows, err := database.TransportRuntimeStatuses(); err == nil {
-			for _, row := range rows {
-				runtimeByName[row.Name] = row
-			}
-		}
-	}
-	for _, tc := range cfg.Transports {
-		entry := map[string]any{
-			"name":    tc.Name,
-			"type":    tc.Type,
-			"source":  tc.SourceLabel(),
-			"enabled": tc.Enabled,
-			"state":   transport.StateConfigured,
-			"detail":  "configured; no persisted runtime evidence is available yet",
-		}
-		if !tc.Enabled {
-			entry["state"] = transport.StateDisabled
-			entry["detail"] = "disabled by config"
-		}
-		if runtime, ok := runtimeByName[tc.Name]; ok {
-			entry["state"] = runtime.State
-			entry["detail"] = runtime.Detail
-			entry["last_attempt_at"] = runtime.LastAttemptAt
-			entry["last_connected_at"] = runtime.LastConnectedAt
-			entry["last_success_at"] = runtime.LastSuccessAt
-			entry["last_message_at"] = runtime.LastMessageAt
-			entry["last_error"] = runtime.LastError
-			entry["total_messages"] = runtime.TotalMessages
-			entry["updated_at"] = runtime.UpdatedAt
-		}
-		if database != nil {
-			if total, lastMessageAt, err := database.MessageStatsByTransport(tc.Name); err == nil {
-				if total > asUint64(entry["total_messages"]) {
-					entry["total_messages"] = total
-				}
-				if asString(entry["last_message_at"]) == "" {
-					entry["last_message_at"] = lastMessageAt
-				}
-				if tc.Enabled && total > 0 && liveByName[tc.Name].State != transport.StateIngesting && asString(entry["state"]) != transport.StateIngesting {
-					entry["state"] = transport.StateHistoricalOnly
-					entry["detail"] = "historical packets exist in SQLite, but this surface is not asserting a live ingesting connection now"
-				}
-			}
-		}
-		out = append(out, entry)
-	}
-	return out
-}
-
-func persistedByName(rows []map[string]any, name string) map[string]any {
-	for _, row := range rows {
-		if asString(row["name"]) == name {
-			return row
-		}
-	}
-	return map[string]any{}
-}
-
-func lastSuccessfulIngest(rows []map[string]any) string {
-	latest := ""
-	for _, row := range rows {
-		if ts := asString(row["last_message_at"]); ts > latest {
-			latest = ts
-		}
-	}
-	return latest
-}
-
-func asString(v any) string {
-	if v == nil {
-		return ""
-	}
-	return fmt.Sprint(v)
-}
-
-func asInt(v any) int64 {
+func toInt(v any) int64 {
 	switch x := v.(type) {
-	case int64:
-		return x
-	case int:
-		return int64(x)
-	case uint64:
-		return int64(x)
 	case float64:
 		return int64(x)
+	case int64:
+		return x
+	case string:
+		var parsed int64
+		fmt.Sscan(x, &parsed)
+		return parsed
 	}
-	var out int64
-	fmt.Sscan(fmt.Sprint(v), &out)
-	return out
+	var parsed int64
+	fmt.Sscan(fmt.Sprint(v), &parsed)
+	return parsed
 }
-
-func asUint64(v any) uint64 { return uint64(asInt(v)) }
