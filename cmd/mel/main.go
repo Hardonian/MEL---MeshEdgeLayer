@@ -109,6 +109,7 @@ func usage() {
   node inspect <node-id> --config <path>
   transports list --config <path>
   inspect transport <name> --config <path>
+  inspect mesh --config <path>
   replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
   privacy audit [--format json|text] --config <path>
   policy explain --config <path>
@@ -338,17 +339,33 @@ func transportsCmd(args []string) {
 }
 
 func inspectCmd(args []string) {
-	if len(args) < 2 || args[0] != "transport" {
-		panic("usage: mel inspect transport <name> --config <path>")
+	if len(args) == 0 {
+		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path>")
 	}
-	name := args[1]
-	cfg, _ := loadCfg(args[2:])
-	d := openDB(cfg)
-	drilldown, err := statuspkg.InspectTransport(cfg, d, nil, name, time.Now().UTC())
-	if err != nil {
-		panic(err)
+	switch args[0] {
+	case "transport":
+		if len(args) < 2 {
+			panic("usage: mel inspect transport <name> --config <path>")
+		}
+		name := args[1]
+		cfg, _ := loadCfg(args[2:])
+		d := openDB(cfg)
+		drilldown, err := statuspkg.InspectTransport(cfg, d, nil, name, time.Now().UTC())
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(drilldown)
+	case "mesh":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		drilldown, err := statuspkg.InspectMesh(cfg, d, nil, time.Now().UTC())
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(drilldown)
+	default:
+		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path>")
 	}
-	mustPrint(drilldown)
 }
 
 func replayCmd(args []string) {

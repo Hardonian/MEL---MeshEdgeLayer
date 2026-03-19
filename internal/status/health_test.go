@@ -148,3 +148,64 @@ func TestEvaluateTransportIntelligenceExplainsBurstCause(t *testing.T) {
 		t.Fatalf("expected burst blocker, got %+v", explanation.RecoveryBlockers)
 	}
 }
+
+func TestInspectMeshCorrelatesFailuresAndScoresSystemicIssues(t *testing.T) {
+	cfg, database := newHealthTestDB(t)
+	cfg.Transports = []config.TransportConfig{
+		{Name: "mqtt-a", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"},
+		{Name: "mqtt-b", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1884", Topic: "msh/test"},
+	}
+	now := time.Date(2026, 3, 19, 1, 0, 0, 0, time.UTC)
+	for _, name := range []string{"mqtt-a", "mqtt-b"} {
+		mustInsertTransportAudit(t, database, now.Add(-2*time.Minute), transport.ReasonTimeoutFailure, map[string]any{"transport": name, "type": "mqtt", "episode_id": "ep-" + name})
+		mustInsertTransportAudit(t, database, now.Add(-90*time.Second), transport.ReasonRetryThresholdExceeded, map[string]any{"transport": name, "type": "mqtt", "episode_id": "ep-" + name})
+		if err := database.UpsertTransportRuntime(db.TransportRuntime{Name: name, Type: "mqtt", Source: "127.0.0.1:1883", Enabled: true, State: transport.StateRetrying, EpisodeID: "ep-" + name, FailureCount: 2, LastHeartbeatAt: now.Add(-4 * time.Minute).Format(time.RFC3339), Reconnects: 2}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.UpsertTransportAlert(db.TransportAlertRecord{ID: "mqtt-a|retry_threshold_exceeded|retry-threshold", TransportName: "mqtt-a", TransportType: "mqtt", Severity: "critical", Reason: "retry_threshold_exceeded", Summary: "retry threshold exceeded", FirstTriggeredAt: now.Add(-90 * time.Second).Format(time.RFC3339), LastUpdatedAt: now.Add(-30 * time.Second).Format(time.RFC3339), Active: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertTransportAlert(db.TransportAlertRecord{ID: "mqtt-b|retry_threshold_exceeded|retry-threshold", TransportName: "mqtt-b", TransportType: "mqtt", Severity: "critical", Reason: "retry_threshold_exceeded", Summary: "retry threshold exceeded", FirstTriggeredAt: now.Add(-90 * time.Second).Format(time.RFC3339), LastUpdatedAt: now.Add(-30 * time.Second).Format(time.RFC3339), Active: true}); err != nil {
+		t.Fatal(err)
+	}
+	drilldown, err := InspectMesh(cfg, database, nil, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drilldown.MeshHealth.State != "failed" && drilldown.MeshHealth.State != "unstable" {
+		t.Fatalf("expected systemic mesh degradation, got %+v", drilldown.MeshHealth)
+	}
+	if len(drilldown.CorrelatedFailures) == 0 || drilldown.CorrelatedFailures[0].Reason != transport.ReasonRetryThresholdExceeded {
+		t.Fatalf("expected correlated retry-threshold failure, got %+v", drilldown.CorrelatedFailures)
+	}
+	if drilldown.RootCauseAnalysis.PrimaryCause != "connectivity_issue" {
+		t.Fatalf("expected connectivity root cause, got %+v", drilldown.RootCauseAnalysis)
+	}
+	if len(drilldown.OperatorRecommendations) == 0 || drilldown.OperatorRecommendations[0].Action != "Check network connectivity" {
+		t.Fatalf("expected actionable operator recommendation, got %+v", drilldown.OperatorRecommendations)
+	}
+}
+
+func TestInspectMeshMapsObservationDropsToInternalSaturation(t *testing.T) {
+	cfg, database := newHealthTestDB(t)
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}}
+	now := time.Date(2026, 3, 19, 1, 5, 0, 0, time.UTC)
+	mustInsertTransportAudit(t, database, now.Add(-30*time.Second), transport.ReasonObservationDropped, map[string]any{"transport": "mqtt-primary", "type": "mqtt", "drop_count": 7, "drop_cause": "event_bus_drops"})
+	if err := database.UpsertTransportRuntime(db.TransportRuntime{Name: "mqtt-primary", Type: "mqtt", Source: "127.0.0.1:1883", Enabled: true, State: transport.StateLive, ObservationDrops: 7, LastHeartbeatAt: now.Add(-10 * time.Second).Format(time.RFC3339)}); err != nil {
+		t.Fatal(err)
+	}
+	drilldown, err := InspectMesh(cfg, database, nil, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drilldown.RootCauseAnalysis.PrimaryCause != "internal_saturation" {
+		t.Fatalf("expected internal saturation, got %+v", drilldown.RootCauseAnalysis)
+	}
+	if drilldown.MeshHealthExplanation.EvidenceLossSummary.BusDrops != 7 {
+		t.Fatalf("expected bus drops in mesh explanation, got %+v", drilldown.MeshHealthExplanation.EvidenceLossSummary)
+	}
+	if len(drilldown.RoutingRecommendations) == 0 {
+		t.Fatalf("expected advisory routing recommendation, got %+v", drilldown.RoutingRecommendations)
+	}
+}

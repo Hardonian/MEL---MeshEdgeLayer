@@ -56,6 +56,17 @@ type TransportAnomalyHistoryPoint struct {
 	DropCauses       map[string]uint64 `json:"drop_causes,omitempty"`
 }
 
+type TransportAnomalySnapshot struct {
+	BucketStart      string            `json:"bucket_start"`
+	TransportName    string            `json:"transport_name"`
+	TransportType    string            `json:"transport_type"`
+	Reason           string            `json:"reason"`
+	Count            uint64            `json:"count"`
+	DeadLetters      uint64            `json:"dead_letters"`
+	ObservationDrops uint64            `json:"observation_drops"`
+	DropCauses       map[string]uint64 `json:"drop_causes,omitempty"`
+}
+
 func (d *DB) UpsertTransportAlert(alert TransportAlertRecord) error {
 	if strings.TrimSpace(alert.ID) == "" {
 		return fmt.Errorf("transport alert id is required")
@@ -220,36 +231,21 @@ FROM transport_alerts WHERE %s ORDER BY last_updated_at DESC, first_triggered_at
 	return out, nil
 }
 
+func (d *DB) UpsertTransportAnomalySnapshot(snapshot TransportAnomalySnapshot) error {
+	if strings.TrimSpace(snapshot.BucketStart) == "" || strings.TrimSpace(snapshot.TransportName) == "" || strings.TrimSpace(snapshot.Reason) == "" {
+		return fmt.Errorf("transport anomaly snapshot bucket_start, transport_name, and reason are required")
+	}
+	dropJSON, _ := json.Marshal(snapshot.DropCauses)
+	sql := fmt.Sprintf(`INSERT INTO transport_anomaly_snapshots(bucket_start,transport_name,transport_type,reason,count,dead_letters,observation_drops,drop_causes_json)
+VALUES('%s','%s','%s','%s',%d,%d,%d,'%s')
+ON CONFLICT(bucket_start,transport_name,reason) DO UPDATE SET transport_type=excluded.transport_type,count=excluded.count,dead_letters=excluded.dead_letters,observation_drops=excluded.observation_drops,drop_causes_json=excluded.drop_causes_json;`,
+		esc(snapshot.BucketStart), esc(snapshot.TransportName), esc(snapshot.TransportType), esc(snapshot.Reason), snapshot.Count, snapshot.DeadLetters, snapshot.ObservationDrops, esc(string(dropJSON)))
+	return d.Exec(sql)
+}
+
 func (d *DB) TransportAnomalyHistory(name, start, end string, limit, offset int) ([]TransportAnomalyHistoryPoint, error) {
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT bucket_start, transport_name, transport_type, reason, SUM(count) AS count, SUM(dead_letters) AS dead_letters, SUM(observation_drops) AS observation_drops, json_group_object(drop_cause, drop_count) AS drop_causes_json
-FROM (
-	SELECT strftime('%%Y-%%m-%%dT%%H:%%M:00Z', created_at) AS bucket_start,
-	       COALESCE(json_extract(details_json,'$.transport'), '') AS transport_name,
-	       COALESCE(json_extract(details_json,'$.type'), '') AS transport_type,
-	       message AS reason,
-	       1 AS count,
-	       0 AS dead_letters,
-	       COALESCE(json_extract(details_json,'$.drop_count'), json_extract(details_json,'$.details.drop_count'), 0) AS observation_drops,
-	       COALESCE(json_extract(details_json,'$.drop_cause'), json_extract(details_json,'$.details.drop_cause'), '') AS drop_cause,
-	       COALESCE(json_extract(details_json,'$.drop_count'), json_extract(details_json,'$.details.drop_count'), 0) AS drop_count,
-	       created_at
-	FROM audit_logs WHERE category='transport'
-	UNION ALL
-	SELECT strftime('%%Y-%%m-%%dT%%H:%%M:00Z', created_at) AS bucket_start,
-	       transport_name,
-	       transport_type,
-	       reason,
-	       1 AS count,
-	       1 AS dead_letters,
-	       0 AS observation_drops,
-	       '' AS drop_cause,
-	       0 AS drop_count,
-	       created_at
-	FROM dead_letters
-) evidence
-WHERE %s AND transport_name != ''
-GROUP BY bucket_start, transport_name, transport_type, reason
-ORDER BY bucket_start DESC, transport_name, reason LIMIT %d OFFSET %d;`, historyFilter("transport_name", name, "created_at", start, end), limit, offset))
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT bucket_start, transport_name, transport_type, reason, count, dead_letters, observation_drops, COALESCE(drop_causes_json,'{}') AS drop_causes_json
+FROM transport_anomaly_snapshots WHERE %s ORDER BY bucket_start DESC, transport_name, reason LIMIT %d OFFSET %d;`, historyFilter("transport_name", name, "bucket_start", start, end), limit, offset))
 	if err != nil {
 		return nil, err
 	}

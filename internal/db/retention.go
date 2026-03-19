@@ -18,7 +18,11 @@ DELETE FROM transport_health_snapshots WHERE snapshot_time < '%s';
 DELETE FROM transport_health_snapshots WHERE id IN (
 	SELECT id FROM transport_health_snapshots ORDER BY snapshot_time DESC, id DESC LIMIT -1 OFFSET %d
 );
+DELETE FROM transport_anomaly_snapshots WHERE bucket_start < '%s';
+DELETE FROM transport_anomaly_snapshots WHERE id IN (
+	SELECT id FROM transport_anomaly_snapshots ORDER BY bucket_start DESC, id DESC LIMIT -1 OFFSET %d
+);
 DELETE FROM transport_alerts WHERE active=0 AND resolved_at != '' AND resolved_at < '%s';
-COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL))
+COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows, esc(cutoffSQL))
 	return d.Exec(sql)
 }
