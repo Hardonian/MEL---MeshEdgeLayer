@@ -26,3 +26,24 @@ DELETE FROM transport_alerts WHERE active=0 AND resolved_at != '' AND resolved_a
 COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows, esc(cutoffSQL))
 	return d.Exec(sql)
 }
+
+func (d *DB) PruneControlHistory(cutoff time.Time, maxRows int) error {
+	if d == nil {
+		return nil
+	}
+	if maxRows <= 0 {
+		maxRows = 50000
+	}
+	cutoffSQL := cutoff.UTC().Format(time.RFC3339)
+	sql := fmt.Sprintf(`BEGIN IMMEDIATE;
+DELETE FROM control_actions WHERE created_at < '%s';
+DELETE FROM control_actions WHERE id IN (
+	SELECT id FROM control_actions ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET %d
+);
+DELETE FROM control_decisions WHERE created_at < '%s';
+DELETE FROM control_decisions WHERE id IN (
+	SELECT id FROM control_decisions ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET %d
+);
+COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows)
+	return d.Exec(sql)
+}

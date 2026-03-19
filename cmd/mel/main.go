@@ -17,6 +17,7 @@ import (
 
 	"github.com/mel-project/mel/internal/backup"
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
@@ -71,6 +72,8 @@ func main() {
 		logsCmd(os.Args[2:])
 	case "policy":
 		policyCmd(os.Args[2:])
+	case "control":
+		controlCmd(os.Args[2:])
 	case "privacy":
 		privacyCmd(os.Args[2:])
 	case "backup":
@@ -113,6 +116,8 @@ func usage() {
   replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
   privacy audit [--format json|text] --config <path>
   policy explain --config <path>
+  control status --config <path>
+  control history --config <path> [--transport <name>] [--limit <n>]
   export --config <path> [--out path]
   import validate --bundle <path>
   backup create --config <path> [--out path]
@@ -475,6 +480,47 @@ func logsCmd(args []string) {
 		panic(err)
 	}
 	mustPrint(rows)
+}
+
+func controlCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel control status|history --config <path>")
+	}
+	switch args[0] {
+	case "status":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		eval, err := control.Evaluate(cfg, d, nil, time.Now().UTC())
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(eval.Explanation)
+	case "history":
+		f := fs("control-history")
+		path := f.String("config", "configs/mel.example.json", "config")
+		transportName := f.String("transport", "", "filter by transport")
+		start := f.String("start", "", "start time RFC3339")
+		end := f.String("end", "", "end time RFC3339")
+		limit := f.Int("limit", 50, "max rows")
+		offset := f.Int("offset", 0, "offset")
+		_ = f.Parse(args[1:])
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		actions, err := d.ControlActions(*transportName, "", *start, *end, *limit, *offset)
+		if err != nil {
+			panic(err)
+		}
+		decisions, err := d.ControlDecisions(*transportName, "", *start, *end, *limit, *offset)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"actions": actions, "decisions": decisions, "transport": *transportName, "start": *start, "end": *end, "pagination": map[string]any{"limit": *limit, "offset": *offset}})
+	default:
+		panic("usage: mel control status|history --config <path>")
+	}
 }
 
 func policyCmd(args []string) {

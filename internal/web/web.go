@@ -32,16 +32,28 @@ type Server struct {
 	transportHealth func() []transport.Health
 	recommendations func() []policy.Recommendation
 	statusSnapshot  func() (statuspkg.Snapshot, error)
+	controlStatus   func() (map[string]any, error)
+	controlHistory  func(string, string, string, int, int) (map[string]any, error)
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot ...func() (statuspkg.Snapshot, error)) *Server {
-	var snapFn func() (statuspkg.Snapshot, error)
-	if len(statusSnapshot) > 0 && statusSnapshot[0] != nil {
-		snapFn = statusSnapshot[0]
-	} else {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error)) *Server {
+	snapFn := statusSnapshot
+	if snapFn == nil {
 		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn}
+	controlStatusFn := controlStatus
+	if controlStatusFn == nil {
+		controlStatusFn = func() (map[string]any, error) {
+			return map[string]any{"mode": cfg.Control.Mode, "status": "control unavailable without service control hooks"}, nil
+		}
+	}
+	controlHistoryFn := controlHistory
+	if controlHistoryFn == nil {
+		controlHistoryFn = func(start, end, transport string, limit, offset int) (map[string]any, error) {
+			return map[string]any{"actions": []any{}, "decisions": []any{}, "start": start, "end": end, "transport": transport, "pagination": map[string]any{"limit": limit, "offset": offset}}, nil
+		}
+	}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthz)
 	mux.HandleFunc("/readyz", s.readyz)
@@ -75,6 +87,9 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/audit-logs", s.logs)
 	mux.HandleFunc("/api/v1/dead-letters", s.deadLetters)
 	mux.HandleFunc("/api/v1/incidents", s.incidents)
+	mux.HandleFunc("/api/v1/control/status", s.controlStatusHandler)
+	mux.HandleFunc("/api/v1/control/actions", s.controlActionsHandler)
+	mux.HandleFunc("/api/v1/control/history", s.controlHistoryHandler)
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.ui)
 	}
@@ -283,6 +298,41 @@ func (s *Server) meshInspect(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, drilldown)
+}
+
+func (s *Server) controlStatusHandler(w http.ResponseWriter, _ *http.Request) {
+	payload, err := s.controlStatus()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_status_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
+	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	payload, err := s.controlHistory(start, end, transportName, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_actions_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"actions":    payload["actions"],
+		"transport":  transportName,
+		"start":      start,
+		"end":        end,
+		"pagination": payload["pagination"],
+	})
+}
+
+func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	payload, err := s.controlHistory(start, end, transportName, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_history_failed", "message": err.Error()}})
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func historyParams(cfg config.Config, r *http.Request) (string, string, string, int, int) {

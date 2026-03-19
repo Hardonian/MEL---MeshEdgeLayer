@@ -30,5 +30,9 @@ func Run(database *db.DB, cfg config.Config) error {
 	if err := database.PruneTransportIntelligence(time.Now().UTC().AddDate(0, 0, -cfg.Intelligence.Retention.HealthSnapshotDays), cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
 		return err
 	}
+	controlCutoff := time.Now().UTC().AddDate(0, 0, -cfg.Control.RetentionDays)
+	if err := database.PruneControlHistory(controlCutoff, cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
+		return err
+	}
 	return database.Exec("INSERT INTO retention_jobs(job_name,last_run,last_status,details) VALUES('default', datetime('now'), 'ok', 'retention sweep complete incl. transport intelligence pruning');")
 }
