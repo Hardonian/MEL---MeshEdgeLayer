@@ -1,0 +1,34 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Layout } from './components/layout/Layout'
+import { Dashboard } from './pages/Dashboard'
+import { Status } from './pages/Status'
+import { Nodes } from './pages/Nodes'
+import { Messages } from './pages/Messages'
+import { Privacy } from './pages/Privacy'
+import { DeadLetters } from './pages/DeadLetters'
+import { Recommendations } from './pages/Recommendations'
+import { Events } from './pages/Events'
+import { SettingsPage } from './pages/Settings'
+import { ApiProvider } from './hooks/useApi'
+
+export default function App() {
+  return (
+    <ApiProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/status" element={<Status />} />
+          <Route path="/nodes" element={<Nodes />} />
+          <Route path="/nodes/:nodeId" element={<Nodes />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/dead-letters" element={<DeadLetters />} />
+          <Route path="/recommendations" element={<Recommendations />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </ApiProvider>
+  )
+}
