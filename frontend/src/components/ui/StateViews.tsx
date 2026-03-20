@@ -1,4 +1,4 @@
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
 // Fade-in wrapper for content transitions
@@ -8,12 +8,21 @@ interface FadeInProps {
   delay?: number
 }
 
+const delayClasses: Record<number, string> = {
+  0: 'delay-0',
+  50: 'delay-50',
+  100: 'delay-100',
+  150: 'delay-150',
+  200: 'delay-200',
+  250: 'delay-250',
+  300: 'delay-300',
+  400: 'delay-400',
+  500: 'delay-500',
+}
+
 export function FadeIn({ children, className, delay = 0 }: FadeInProps) {
   return (
-    <div 
-      className={clsx('animate-fade-in', className)}
-      style={{ animationDelay: `${delay}ms` }}
-    >
+    <div className={clsx('animate-fade-in', delayClasses[delay] || 'delay-0', className)}>
       {children}
     </div>
   )
@@ -28,10 +37,7 @@ interface SlideInProps {
 
 export function SlideIn({ children, className, delay = 0 }: SlideInProps) {
   return (
-    <div 
-      className={clsx('animate-slide-up', className)}
-      style={{ animationDelay: `${delay}ms` }}
-    >
+    <div className={clsx('animate-slide-up', delayClasses[delay] || 'delay-0', className)}>
       {children}
     </div>
   )
