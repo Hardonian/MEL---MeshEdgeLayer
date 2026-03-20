@@ -4,7 +4,7 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { AlertTriangle, CheckCircle, Info, Tool } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Info, Settings } from 'lucide-react'
 
 export function Diagnostics() {
   const { data, loading, error, refresh } = useDiagnostics()
@@ -133,7 +133,7 @@ function FindingCard({ finding }: { finding: { component: string, severity: stri
       <CardContent>
         <p className="mb-2">{finding.message}</p>
         <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3">
-          <Tool className="h-4 w-4 flex-shrink-0 mt-1" />
+          <Settings className="h-4 w-4 flex-shrink-0 mt-1" />
           <p className="text-sm text-muted-foreground">{finding.guidance}</p>
         </div>
       </CardContent>

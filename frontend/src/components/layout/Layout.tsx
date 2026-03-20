@@ -1,217 +1,133 @@
-import { ReactNode, useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   LayoutDashboard,
-  Activity,
   Radio,
   MessageSquare,
-  Shield,
-  AlertTriangle,
-  Lightbulb,
-  ScrollText,
+  Inbox,
   Settings,
+  Shield,
+  FileText,
   Menu,
-  RefreshCw,
-  Wifi,
-  WifiOff,
-  ChevronRight,
-  Tool,
+  X,
+  HelpCircle,
+  Activity,
 } from 'lucide-react'
-import { useApi } from '@/hooks/useApi'
-import { HelpMenu, VersionInfo } from '@/components/ui/HelpMenu'
 
-interface LayoutProps {
-  children: ReactNode
+interface NavItem {
+  label: string
+  href: string
+  icon: React.ElementType
 }
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, description: 'System overview' },
-  { path: '/status', label: 'Status', icon: Activity, description: 'Transport health' },
-  { path: '/nodes', label: 'Nodes', icon: Radio, description: 'Device inventory' },
-  { path: '/messages', label: 'Messages', icon: MessageSquare, description: 'Mesh messages' },
-  { path: '/privacy', label: 'Privacy', icon: Shield, description: 'Security posture' },
-  { path: '/diagnostics', label: 'Diagnostics', icon: Tool, description: 'System health checks' },
-  { path: '/dead-letters', label: 'Dead Letters', icon: AlertTriangle, description: 'Failed messages' },
-  { path: '/recommendations', label: 'Recommendations', icon: Lightbulb, description: 'Action items' },
-  { path: '/events', label: 'Events', icon: ScrollText, description: 'Audit logs' },
-  { path: '/settings', label: 'Settings', icon: Settings, description: 'Configuration' },
+const navItems: NavItem[] = [
+  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Status', href: '/status', icon: Activity },
+  { label: 'Nodes', href: '/nodes', icon: Radio },
+  { label: 'Messages', href: '/messages', icon: MessageSquare },
+  { label: 'Dead Letters', href: '/dead-letters', icon: Inbox },
+  { label: 'Events', href: '/events', icon: FileText },
+  { label: 'Diagnostics', href: '/diagnostics', icon: Shield },
+  { label: 'Privacy', href: '/privacy', icon: Shield },
+  { label: 'Recommendations', href: '/recommendations', icon: Activity },
+  { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function Layout({ children }: LayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
-  const { refreshAll, status } = useApi()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
-  const isConnected = status.data?.transports?.some(t => t.effective_state === 'connected') ?? false
-  const currentPage = navItems.find(n => n.path === location.pathname)
-
-  // Handle escape key to close sidebar
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && sidebarOpen) {
-        setSidebarOpen(false)
-      }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
     }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [sidebarOpen])
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
-  // Trap focus in sidebar when open on mobile
+  // Close mobile menu on route change
   useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [sidebarOpen])
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Skip to main content link for accessibility */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-background focus:text-foreground"
-      >
-        Skip to main content
-      </a>
+      {/* Top navigation */}
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="rounded-md p-2 hover:bg-muted md:hidden"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <Link to="/" className="flex items-center gap-2">
+              <Radio className="h-6 w-6 text-primary" />
+              <span className="font-bold text-lg hidden sm:inline">MEL</span>
+            </Link>
+          </div>
 
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="hidden sm:inline">MeshEdgeLayer</span>
+          </div>
+        </div>
+      </header>
 
-      {/* Sidebar */}
-      <aside
-        className={clsx(
-          'fixed top-0 left-0 z-50 h-full w-64 border-r bg-card transition-transform duration-200 ease-in-out lg:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      <div className="flex">
+        {/* Sidebar navigation - desktop */}
+        <aside className={clsx(
+          "fixed inset-y-0 left-0 z-40 w-64 transform border-r bg-background transition-transform duration-200 ease-in-out md:translate-x-0",
+          isMobile && isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          <nav className="flex flex-col gap-1 p-4 pt-16">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.href || 
+                (item.href !== '/' && location.pathname.startsWith(item.href))
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className={clsx(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+
+          {/* Bottom section */}
+          <div className="absolute bottom-0 left-0 right-0 border-t p-4">
+            <Link
+              to="/settings"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" />
+              Help & Support
+            </Link>
+          </div>
+        </aside>
+
+        {/* Mobile menu overlay */}
+        {isMobile && isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
         )}
-      >
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-2 border-b px-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Radio className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-foreground">MEL</span>
-            <span className="text-xs text-muted-foreground">MeshEdgeLayer</span>
-          </div>
-        </div>
 
-        {/* Navigation */}
-        <nav className="space-y-1 p-3">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )
-              }
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span className="flex-1">{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Connection status */}
-        <div className="absolute bottom-0 left-0 right-0 border-t bg-card/50 p-4 backdrop-blur">
-          <div className="flex items-center gap-3 mb-3">
-            <div className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-              isConnected ? 'bg-success/10' : 'bg-muted'
-            )}>
-              {isConnected ? (
-                <Wifi className="h-4 w-4 text-success" />
-              ) : (
-                <WifiOff className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={clsx(
-                'text-sm font-medium',
-                isConnected ? 'text-success' : 'text-muted-foreground'
-              )}>
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {status.data?.transports?.length || 0} transport{status.data?.transports?.length !== 1 ? 's' : ''} configured
-              </p>
-            </div>
-          </div>
-          <VersionInfo />
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
-          {/* Mobile menu button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-
-            {/* Breadcrumb */}
-            <nav className="hidden sm:flex items-center gap-1.5 text-sm">
-              {location.pathname !== '/' && (
-                <>
-                  <NavLink 
-                    to="/" 
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Home
-                  </NavLink>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-                  <span className="font-medium text-foreground">
-                    {currentPage?.label || 'Page'}
-                  </span>
-                </>
-              )}
-              {location.pathname === '/' && (
-                <span className="font-medium text-foreground">Dashboard</span>
-              )}
-            </nav>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <HelpMenu />
-            <span className="hidden md:block text-xs text-muted-foreground mr-2">
-              Last updated: {status.lastUpdated ? new Date(status.lastUpdated).toLocaleTimeString() : '—'}
-            </span>
-            <button
-              onClick={() => refreshAll()}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              title="Refresh all data"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main id="main-content" className="p-4 lg:p-6" role="main" tabIndex={-1}>
+        {/* Main content */}
+        <main className="flex-1 p-4 md:p-6 md:ml-64">
           {children}
         </main>
       </div>
