@@ -452,14 +452,16 @@ func analyzeRootCause(intel TransportIntelligence, correlated []CorrelatedFailur
 			}
 		}
 	}
+	// Only transport Reason constants are used here; drop causes (ingest_queue_saturation,
+	// observation_queue_saturation, event_bus_drops) are tracked via DropCauses metadata and
+	// contribute to internal_saturation through the anomaly summary path above, not via
+	// CorrelatedFailure.Reason in this switch.
 	for _, failure := range correlated {
 		switch failure.Reason {
 		case transport.ReasonMalformedPublish, transport.ReasonMalformedFrame, transport.ReasonDecodeFailure:
 			counts["upstream_data_issue"] += 3
 		case transport.ReasonTimeoutFailure, transport.ReasonTimeoutStall, transport.ReasonRetryThresholdExceeded, "heartbeat_loss":
 			counts["connectivity_issue"] += 3
-		case "ingest_queue_saturation", "observation_queue_saturation", "event_bus_drops":
-			counts["internal_saturation"] += 3
 		case transport.ReasonHandlerRejection, transport.ReasonRejectedPublish, transport.ReasonRejectedSend:
 			counts["downstream_processing_issue"] += 3
 		}

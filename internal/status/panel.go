@@ -23,6 +23,7 @@ type PanelMetric struct {
 	Messages   uint64 `json:"messages"`
 	LastIngest string `json:"last_ingest,omitempty"`
 	Detail     string `json:"detail"`
+	Score      *int   `json:"score,omitempty"`
 }
 
 type DeviceMenu struct {
@@ -55,14 +56,18 @@ func BuildPanel(snap Snapshot) Panel {
 		if label == "" {
 			label = "?"
 		}
-		panel.Transports = append(panel.Transports, PanelMetric{
+		metric := PanelMetric{
 			Name:       tr.Name,
 			Label:      label,
 			State:      tr.EffectiveState,
 			Messages:   maxUint64(tr.TotalMessages, tr.PersistedMessages),
 			LastIngest: tr.LastIngestAt,
 			Detail:     tr.Detail,
-		})
+		}
+		if tr.Health.LastEvaluatedAt != "" {
+			metric.Score = &tr.Health.Score
+		}
+		panel.Transports = append(panel.Transports, metric)
 	}
 	return panel
 }

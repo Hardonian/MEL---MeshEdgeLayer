@@ -44,7 +44,29 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	controlStatusFn := controlStatus
 	if controlStatusFn == nil {
 		controlStatusFn = func() (map[string]any, error) {
-			return map[string]any{"mode": cfg.Control.Mode, "status": "control unavailable without service control hooks"}, nil
+			return map[string]any{
+				"mode":            cfg.Control.Mode,
+				"active_actions":  []any{},
+				"recent_actions":  []any{},
+				"pending_actions": []any{},
+				"denied_actions":  []any{},
+				"policy_summary": map[string]any{
+					"mode":                    cfg.Control.Mode,
+					"allowed_actions":         cfg.Control.AllowedActions,
+					"max_actions_per_window":  cfg.Control.MaxActionsPerWindow,
+					"cooldown_per_target":     cfg.Control.CooldownPerTargetSeconds,
+					"require_min_confidence":  cfg.Control.RequireMinConfidence,
+					"allow_mesh_level":        cfg.Control.AllowMeshLevelActions,
+					"allow_transport_restart": cfg.Control.AllowTransportRestart,
+					"allow_source_suppression": cfg.Control.AllowSourceSuppression,
+					"action_window_seconds":   cfg.Control.ActionWindowSeconds,
+					"restart_cap_per_window":  cfg.Control.RestartCapPerWindow,
+				},
+				"reality_matrix":    []any{},
+				"reasons_for_denial": []any{},
+				"emergency_disable": cfg.Control.EmergencyDisable,
+				"status":            "control unavailable without service control hooks",
+			}, nil
 		}
 	}
 	controlHistoryFn := controlHistory
@@ -138,13 +160,32 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "status_failed", "message": err.Error()}})
 		return
 	}
-	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
-	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
-	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
+	persistedMessages, msgErr := s.db.Scalar("SELECT COUNT(*) FROM messages;")
+	persistedNodes, nodeErr := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
+	lastPersistedIngest, ingestErr := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
+
+	if msgErr != nil {
+		s.log.Error("db_query_failed", "failed to query persisted messages count", map[string]any{"error": msgErr.Error()})
+	}
+	if nodeErr != nil {
+		s.log.Error("db_query_failed", "failed to query persisted nodes count", map[string]any{"error": nodeErr.Error()})
+	}
+	if ingestErr != nil {
+		s.log.Error("db_query_failed", "failed to query last persisted ingest time", map[string]any{"error": ingestErr.Error()})
+	}
+
+	persistedSummary := map[string]any{
+		"messages":    persistedMessages,
+		"nodes":       persistedNodes,
+		"last_ingest": lastPersistedIngest,
+	}
+	if msgErr != nil || nodeErr != nil || ingestErr != nil {
+		persistedSummary["error"] = "persisted data unavailable due to query errors"
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshot":           s.state.Snapshot(),
-		"runtime_snapshot":   s.state.Snapshot(),
-		"persisted_summary":  map[string]any{"messages": persistedMessages, "nodes": persistedNodes, "last_ingest": lastPersistedIngest},
+		"persisted_summary":  persistedSummary,
 		"status":             snap,
 		"panel":              statuspkg.BuildPanel(snap),
 		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
@@ -309,6 +350,7 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
+// controlActionsHandler returns both actions and decisions history (mirrors CLI behavior)
 func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 	transportName, start, end, limit, offset := historyParams(s.cfg, r)
 	payload, err := s.controlHistory(start, end, transportName, limit, offset)
@@ -317,11 +359,14 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"actions":    payload["actions"],
-		"transport":  transportName,
-		"start":      start,
-		"end":        end,
-		"pagination": payload["pagination"],
+		"actions":        payload["actions"],
+		"decisions":      payload["decisions"],
+		"in_flight":      payload["in_flight"],
+		"reality_matrix": payload["reality_matrix"],
+		"transport":      transportName,
+		"start":          start,
+		"end":            end,
+		"pagination":     payload["pagination"],
 	})
 }
 

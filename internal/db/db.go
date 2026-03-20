@@ -15,6 +15,15 @@ import (
 	"github.com/mel-project/mel/internal/config"
 )
 
+// DB provides access to the SQLite database.
+//
+// Table status:
+//   Active tables (populated): nodes, messages, telemetry_samples, audit_logs,
+//     config_apply_history, transport_runtime_status, transport_runtime_evidence,
+//     dead_letters, retention_jobs, schema_migrations
+//   Dead tables (exist for future use, not currently populated): channels,
+//     topology_edges, trust_records
+
 type DB struct{ Path string }
 
 type TransportRuntime struct {
