@@ -312,7 +312,7 @@ func levelValue(level string) int {
 		return 10
 	case LevelInfo, "":
 		return 20
-	case LevelWarn, "warning":
+	case LevelWarn:
 		return 25
 	case LevelError:
 		return 30

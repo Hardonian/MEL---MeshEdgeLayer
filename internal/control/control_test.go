@@ -15,6 +15,7 @@ import (
 func TestEvaluateGuardedAutoAllowsRestartWithPersistentEvidence(t *testing.T) {
 	cfg := config.Default()
 	cfg.Control.Mode = ModeGuardedAuto
+cfg.Control.AllowTransportRestart = true
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
 	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
 	cfg.Transports = []config.TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-test"}}
@@ -176,6 +177,7 @@ func TestDefaultActionRealityMatrixKeepsOnlySafeActuatorsExecutable(t *testing.T
 func TestEvaluateGuardedAutoDeniesRoutingWithoutAlternatePath(t *testing.T) {
 	cfg := config.Default()
 	cfg.Control.Mode = ModeGuardedAuto
+cfg.Control.AllowTransportRestart = true
 	cfg.Control.AllowMeshLevelActions = true
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
 	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
@@ -216,6 +218,7 @@ func TestEvaluateGuardedAutoDeniesRoutingWithoutAlternatePath(t *testing.T) {
 func TestEvaluateGuardedAutoDeniesSuppressionWithWeakAttribution(t *testing.T) {
 	cfg := config.Default()
 	cfg.Control.Mode = ModeGuardedAuto
+cfg.Control.AllowTransportRestart = true
 	cfg.Control.AllowMeshLevelActions = true
 	cfg.Control.AllowSourceSuppression = true
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")

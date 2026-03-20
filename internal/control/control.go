@@ -1010,3 +1010,9 @@ func MarshalJSONMap(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
 }
+
+// ResetStartupTimeForTests sets the startup time to a specific value for testing.
+// This should only be used in tests to bypass the startup grace period.
+func ResetStartupTimeForTests(t time.Time) {
+	startupTime = t
+}

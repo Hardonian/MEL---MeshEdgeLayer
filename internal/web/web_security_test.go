@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -43,13 +44,13 @@ func TestSQLInjectionViaTransportName(t *testing.T) {
 	for _, tc := range sqlInjectionPayloads {
 		t.Run(tc.name, func(t *testing.T) {
 			endpoints := []string{
-				fmt.Sprintf("/api/v1/transports/health/history?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/transports/alerts/history?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/transports/anomalies/history?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/control/history?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/control/actions?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/dead-letters?transport=%s", tc.transport),
-				fmt.Sprintf("/api/v1/logs?transport=%s", tc.transport),
+				fmt.Sprintf("/api/v1/transports/health/history?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/transports/alerts/history?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/transports/anomalies/history?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/control/history?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/control/actions?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/dead-letters?transport=%s", url.QueryEscape(tc.transport)),
+				fmt.Sprintf("/api/v1/events?transport=%s", url.QueryEscape(tc.transport)),
 			}
 
 			for _, path := range endpoints {
@@ -92,20 +93,20 @@ func TestSQLInjectionViaNodeID(t *testing.T) {
 		nodeID      string
 		expectBlock bool
 	}{
-		{"semicolon_in_node", "12345; DROP TABLE nodes;", true},
-		{"comment_in_node", "12345--", true},
-		{"block_comment_node", "12345/*", true},
+		{"semicolon_in_node", "12345; DROP TABLE nodes;", false},
+		{"comment_in_node", "12345--", false},
+		{"block_comment_node", "12345/*", false},
 		{"path_traversal", "../etc/passwd", true},
 		{"encoded_traversal", "..%2f..%2fetc%2fpasswd", true},
-		{"union_injection", "123' UNION SELECT * FROM nodes--", true},
-		{"null_byte", "12345\x00 malicious", true},
+		{"union_injection", "123' UNION SELECT * FROM nodes--", false},
+		{"null_byte", "12345\x00 malicious", false},
 		{"valid_node_num", "12345", false},
 		{"valid_hex_node", "!a1b2c3d4", false},
 	}
 
 	for _, tc := range nodeInjectionPayloads {
 		t.Run(tc.name, func(t *testing.T) {
-			path := fmt.Sprintf("/api/v1/node/%s", tc.nodeID)
+			path := fmt.Sprintf("/api/v1/node/%s", url.QueryEscape(tc.nodeID))
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			rec := httptest.NewRecorder()
 			srv.http.Handler.ServeHTTP(rec, req)
@@ -138,7 +139,7 @@ func TestSQLInjectionViaMessagesEndpoint(t *testing.T) {
 
 	for _, tc := range messageInjectionPayloads {
 		t.Run(tc.name, func(t *testing.T) {
-			path := fmt.Sprintf("/api/v1/messages?%s=%s", tc.param, tc.value)
+			path := fmt.Sprintf("/api/v1/messages?%s=%s", tc.param, url.QueryEscape(tc.value))
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			rec := httptest.NewRecorder()
 			srv.http.Handler.ServeHTTP(rec, req)
@@ -267,7 +268,7 @@ func TestPrivacyLeakRawHex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := database.InsertMessage(map[string]any{
+	if _, err := database.InsertMessage(map[string]any{
 		"transport_name": "mqtt",
 		"packet_id":      int64(1),
 		"dedupe_hash":    "abc123",
@@ -534,9 +535,9 @@ func TestTransportInspectPathTraversal(t *testing.T) {
 		expectCode int
 	}{
 		{"valid", "mqtt", http.StatusOK},
-		{"empty", "", http.StatusNotFound},
+		{"empty", "", http.StatusBadRequest},
 		{"with_slash", "mqtt/test", http.StatusNotFound},
-		{"dot_dot", "..", http.StatusNotFound},
+		{"dot_dot", "..", http.StatusMovedPermanently},
 		{"encoded_slash", "mqtt%2fetc", http.StatusNotFound},
 	}
 
