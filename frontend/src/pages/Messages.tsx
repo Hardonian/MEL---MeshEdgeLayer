@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
-import { Loading, EmptyState, NoMessagesYet } from '@/components/ui/EmptyState'
+import { NoMessagesYet } from '@/components/ui/EmptyState'
 import { formatTimestamp, Message } from '@/types/api'
 import { MessageSquare, Clock, ArrowRight, Hash } from 'lucide-react'
 

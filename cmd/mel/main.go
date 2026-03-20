@@ -25,6 +25,7 @@ import (
 	"github.com/mel-project/mel/internal/service"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
+	"github.com/mel-project/mel/internal/ui"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -82,20 +83,13 @@ func main() {
 		replayCmd(os.Args[2:])
 	case "dev-simulate-mqtt":
 		simulateCmd(os.Args[2:])
+	case "ui":
+		uiCmd(os.Args[2:])
+	case "gui":
+		guiCmd(os.Args[2:])
 	default:
 		usage()
 		os.Exit(1)
-	}
-}
-
-func recoverMessage(v any) string {
-	switch x := v.(type) {
-	case error:
-		return x.Error()
-	case string:
-		return x
-	default:
-		return fmt.Sprint(x)
 	}
 }
 
@@ -124,6 +118,8 @@ func usage() {
   backup restore --bundle <path> --dry-run (required) [--destination dir]
   logs tail --config <path>
   db vacuum --config <path>
+  ui --config <path>
+  gui --config <path>
   dev-simulate-mqtt`)
 }
 
@@ -769,43 +765,6 @@ func enabledTransportNames(cfg config.Config) []string {
 	return names
 }
 
-func doctorNextSteps(cfg config.Config, findings []map[string]string, observations []map[string]any) []string {
-	steps := make([]string, 0)
-	if len(enabledTransportNames(cfg)) == 0 {
-		steps = append(steps, "Enable one transport before expecting MEL to store packets.")
-	}
-	for _, finding := range findings {
-		if guidance := finding["guidance"]; guidance != "" {
-			steps = appendUnique(steps, guidance)
-		}
-	}
-	for _, observation := range observations {
-		state := fmt.Sprint(observation["state"])
-		name := fmt.Sprint(observation["name"])
-		switch state {
-		case transport.StateConfigured:
-			steps = appendUnique(steps, fmt.Sprintf("Start `mel serve` and watch %s move from configured to idle or live.", name))
-		case transport.StateIdle:
-			steps = appendUnique(steps, fmt.Sprintf("%s connected successfully but has not stored a packet yet; generate real mesh traffic or confirm the MQTT topic / direct endpoint is correct.", name))
-		case transport.StateHistoricalOnly:
-			steps = appendUnique(steps, fmt.Sprintf("%s has historical packets only; rerun `mel serve` and look for a fresh stored message timestamp before treating ingest as live.", name))
-		case transport.StateFailed, transport.StateRetrying:
-			lastErr := fmt.Sprint(observation["last_error"])
-			if lastErr == "" {
-				lastErr = "inspect `mel logs tail` for the runtime error details"
-			}
-			steps = appendUnique(steps, fmt.Sprintf("%s is in error: %s.", name, lastErr))
-		}
-		if tType := fmt.Sprint(observation["type"]); tType == "serial" || tType == "tcp" || tType == "serialtcp" {
-			steps = appendUnique(steps, fmt.Sprintf("%s is a direct transport: treat it as implemented but not hardware-verified in this build context until you store packets from your own node.", name))
-		}
-	}
-	if len(steps) == 0 {
-		steps = append(steps, "Doctor found no blocking issues; start MEL and confirm a stored packet timestamp before declaring ingest live.")
-	}
-	return steps
-}
-
 func appendUnique(in []string, value string) []string {
 	for _, existing := range in {
 		if existing == value {
@@ -936,4 +895,16 @@ func writeRemaining(buf *bytes.Buffer, n int) {
 			break
 		}
 	}
+}
+func uiCmd(args []string) {
+	cfg, _ := loadCfg(args)
+	if err := ui.Run(cfg, openDB(cfg)); err != nil {
+		panic(err)
+	}
+}
+
+func guiCmd(_ []string) {
+	fmt.Println("Minimal Local GUI mode is not yet implemented in this release candidate.")
+	fmt.Println("To help justify its existence, provide a field use-case not satisfied by the TUI.")
+	os.Exit(0)
 }

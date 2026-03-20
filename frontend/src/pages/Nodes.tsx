@@ -5,9 +5,9 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
-import { Loading, EmptyState, NoNodesYet } from '@/components/ui/EmptyState'
+import { NoNodesYet } from '@/components/ui/EmptyState'
 import { formatRelativeTime, NodeInfo } from '@/types/api'
-import { Radio, Clock, MapPin, User, Terminal } from 'lucide-react'
+import { Radio, Clock, MapPin } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export function Nodes() {

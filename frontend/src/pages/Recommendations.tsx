@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
-import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
-import { Loading, EmptyState, SystemHealthy } from '@/components/ui/EmptyState'
+import { AlertCard } from '@/components/ui/AlertCard'
+import { Loading } from '@/components/ui/StateViews'
+import { SystemHealthy } from '@/components/ui/EmptyState'
 import { Recommendation } from '@/types/api'
-import { Lightbulb, CheckCircle2, ArrowRight, Zap, BookOpen, Settings, AlertTriangle } from 'lucide-react'
+import { Lightbulb, ArrowRight, Zap, BookOpen, Settings, AlertTriangle } from 'lucide-react'
 import { clsx } from 'clsx'
-import { Link } from 'react-router-dom'
+
 
 export function Recommendations() {
   const { data, loading, error, refresh } = useRecommendations()

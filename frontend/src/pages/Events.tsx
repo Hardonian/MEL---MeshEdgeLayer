@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
-import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
-import { Loading, EmptyState } from '@/components/ui/EmptyState'
+import { AlertCard } from '@/components/ui/AlertCard'
+import { Loading } from '@/components/ui/StateViews'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { formatTimestamp, AuditLog } from '@/types/api'
-import { ScrollText, Clock, AlertTriangle, Info, AlertCircle, HelpCircle, FileText } from 'lucide-react'
+import { ScrollText, Clock, AlertTriangle, Info, AlertCircle, FileText, HelpCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
 export function Events() {
@@ -41,7 +42,6 @@ export function Events() {
   // Calculate stats
   const errorCount = events.filter(e => e.level?.toLowerCase() === 'error').length
   const warningCount = events.filter(e => e.level?.toLowerCase() === 'warning').length
-  const infoCount = events.filter(e => e.level?.toLowerCase() === 'info').length
   const categories = [...new Set(events.map(e => e.category).filter(Boolean))]
 
   return (
@@ -158,7 +158,7 @@ function EventRow({ event }: { event: AuditLog }) {
     debug: 'secondary',
   } as const
 
-  const Icon = levelIcons[event.level?.toLowerCase() as keyof typeof levelIcons] || Info
+  const icon = levelIcons[event.level?.toLowerCase() as keyof typeof levelIcons] || Info
 
   return (
     <div className={clsx(

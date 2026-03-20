@@ -4,7 +4,8 @@ import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge, HealthBadge, ConnectionBadge, TransportBadge } from '@/components/ui/Badge'
 import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
-import { Loading, EmptyState, NoTransportsConfigured } from '@/components/ui/EmptyState'
+import { Loading } from '@/components/ui/StateViews'
+import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { getHealthState, formatRelativeTime, TransportHealth } from '@/types/api'
 import { Wifi, WifiOff, AlertCircle, Activity, Clock, MessageSquare, TrendingUp, CheckCircle2, HelpCircle } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -86,7 +87,7 @@ export function Status() {
               value={healthyCount}
               description={unhealthyCount > 0 ? `${unhealthyCount} unhealthy` : degradedCount > 0 ? `${degradedCount} degraded` : 'All systems operational'}
               icon={<Activity className="h-4 w-4" />}
-              variant={healthyCount === hasTransports && hasTransports ? 'success' : unhealthyCount > 0 ? 'critical' : 'warning'}
+              variant={healthyCount === transports.length && transports.length > 0 ? 'success' : unhealthyCount > 0 ? 'critical' : 'warning'}
             />
           </div>
         </CardContent>

@@ -1,5 +1,4 @@
-import { ReactNode } from 'react'
-import { Loader2, AlertCircle, Inbox, Search, Wifi, Settings } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface LoadingProps {
@@ -56,35 +55,6 @@ export function ErrorView({
           Try again
         </button>
       )}
-    </div>
-  )
-}
-
-interface EmptyStateProps {
-  icon?: ReactNode
-  title: string
-  description?: string
-  action?: ReactNode
-  className?: string
-}
-
-export function EmptyState({
-  icon,
-  title,
-  description,
-  action,
-  className
-}: EmptyStateProps) {
-  return (
-    <div className={clsx('flex flex-col items-center justify-center gap-4 p-8 text-center', className)}>
-      {icon || <Inbox className="h-12 w-12 text-muted-foreground/50" />}
-      <div>
-        <h3 className="font-semibold text-foreground">{title}</h3>
-        {description && (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        )}
-      </div>
-      {action && <div>{action}</div>}
     </div>
   )
 }

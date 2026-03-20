@@ -4,11 +4,12 @@ import { clsx } from 'clsx'
 interface CardProps {
   children: ReactNode
   className?: string
+  id?: string
 }
 
-export function Card({ children, className }: CardProps) {
+export function Card({ children, className, id }: CardProps) {
   return (
-    <div className={clsx('rounded-xl border bg-card text-card-foreground shadow', className)}>
+    <div id={id} className={clsx('rounded-xl border bg-card text-card-foreground shadow', className)}>
       {children}
     </div>
   )

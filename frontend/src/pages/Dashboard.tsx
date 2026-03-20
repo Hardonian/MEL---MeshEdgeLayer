@@ -12,29 +12,28 @@ import {
   AlertCircle,
   Zap,
   Clock,
-  Database,
-  Wifi,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Badge, HealthBadge, SeverityBadge, ConnectionBadge } from '@/components/ui/Badge'
+import { Badge, HealthBadge, SeverityBadge } from '@/components/ui/Badge'
 import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
-import { Loading, EmptyState, SystemHealthy, NoTransportsConfigured } from '@/components/ui/EmptyState'
+import { Loading } from '@/components/ui/StateViews'
+import { EmptyState, SystemHealthy, NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters } from '@/hooks/useApi'
-import { getHealthState, formatRelativeTime } from '@/types/api'
+import { getHealthState, formatRelativeTime, TransportHealth } from '@/types/api'
 
 export function Dashboard() {
   const status = useStatus()
   const nodes = useNodes()
-  const messages = useMessages()
+  const { data: messagesData, loading: messagesLoading, error: messagesError } = useMessages()
   const privacy = usePrivacyFindings()
   const recommendations = useRecommendations()
   const deadLetters = useDeadLetters()
 
-  const isLoading = status.loading || nodes.loading || messages.loading
-  const hasError = status.error || nodes.error || messages.error
+  const isLoading = status.loading || nodes.loading || messagesLoading
+  const hasError = status.error || nodes.error || messagesError
 
   if (isLoading && !status.data) {
     return <Loading message="Loading system status..." />
@@ -96,7 +95,7 @@ export function Dashboard() {
 
         <StatCard
           title="Messages"
-          value={status.data?.messages || 0}
+          value={messagesData?.length || status.data?.messages || 0}
           description="Runtime message count"
           icon={<MessageSquare className="h-5 w-5" />}
           variant="info"
@@ -333,7 +332,9 @@ export function Dashboard() {
   )
 }
 
-function TransportListItem({ transport }: { transport: ReturnType<typeof useStatus>['data'] extends { transports: infer T } ? T extends Array<infer U> ? U : never : never }) {
+
+
+function TransportListItem({ transport }: { transport: TransportHealth }) {
   const healthState = getHealthState(transport.health)
   
   return (
