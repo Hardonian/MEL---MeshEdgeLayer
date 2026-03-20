@@ -78,6 +78,13 @@ export interface DeadLetter {
   created_at: string
 }
 
+export interface Finding {
+  component: string;
+  severity: string;
+  message: string;
+  guidance: string;
+}
+
 export interface PrivacyFinding {
   severity: 'critical' | 'high' | 'medium' | 'low'
   message: string

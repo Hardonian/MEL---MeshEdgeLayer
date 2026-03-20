@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
-import type { StatusResponse, Message, DeadLetter, PrivacyFinding, Recommendation, AuditLog, NodeInfo } from '@/types/api'
+import type { StatusResponse, Message, DeadLetter, PrivacyFinding, Recommendation, AuditLog, NodeInfo, Finding } from '@/types/api'
 
 // API Base URL - uses relative path for proxy
 const API_BASE = '/api'
@@ -39,6 +39,10 @@ interface ApiContextValue {
   // Events/Logs
   events: ApiState<AuditLog[]>
   refreshEvents: () => Promise<void>
+
+  // Diagnostics
+  diagnostics: ApiState<Finding[]>
+  refreshDiagnostics: () => Promise<void>
   
   // Global refresh
   refreshAll: () => Promise<void>
@@ -54,6 +58,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   const [privacyFindings, setPrivacyFindings] = useState<ApiState<PrivacyFinding[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [recommendations, setRecommendations] = useState<ApiState<Recommendation[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [events, setEvents] = useState<ApiState<AuditLog[]>>({ data: null, loading: true, error: null, lastUpdated: null })
+  const [diagnostics, setDiagnostics] = useState<ApiState<Finding[]>>({ data: null, loading: true, error: null, lastUpdated: null })
 
   const refreshStatus = useCallback(async () => {
     setStatus(s => ({ ...s, loading: true, error: null }))
@@ -139,6 +144,18 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const refreshDiagnostics = useCallback(async () => {
+    setDiagnostics(s => ({ ...s, loading: true, error: null }))
+    try {
+      const res = await fetch(`${API_BASE}/v1/diagnostics`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setDiagnostics({ data: data || [], loading: false, error: null, lastUpdated: new Date() })
+    } catch (e) {
+      setDiagnostics(s => ({ ...s, loading: false, error: e instanceof Error ? e.message : 'Failed to fetch diagnostics' }))
+    }
+  }, [])
+
   const refreshAll = useCallback(async () => {
     await Promise.all([
       refreshStatus(),
@@ -148,8 +165,9 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshPrivacy(),
       refreshRecommendations(),
       refreshEvents(),
+      refreshDiagnostics(),
     ])
-  }, [refreshStatus, refreshNodes, refreshMessages, refreshDeadLetters, refreshPrivacy, refreshRecommendations, refreshEvents])
+  }, [refreshStatus, refreshNodes, refreshMessages, refreshDeadLetters, refreshPrivacy, refreshRecommendations, refreshEvents, refreshDiagnostics])
 
   // Initial load
   useEffect(() => {
@@ -178,6 +196,8 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshRecommendations,
       events,
       refreshEvents,
+      diagnostics,
+      refreshDiagnostics,
       refreshAll,
     }}>
       {children}
@@ -226,4 +246,9 @@ export function useRecommendations() {
 export function useEvents() {
   const { events, refreshEvents } = useApi()
   return { ...events, refresh: refreshEvents }
+}
+
+export function useDiagnostics() {
+    const { diagnostics, refreshDiagnostics } = useApi()
+    return { ...diagnostics, refresh: refreshDiagnostics }
 }

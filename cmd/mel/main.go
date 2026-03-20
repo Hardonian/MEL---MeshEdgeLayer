@@ -19,6 +19,7 @@ import (
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
@@ -81,6 +82,8 @@ func main() {
 		backupCmd(os.Args[2:])
 	case "replay":
 		replayCmd(os.Args[2:])
+	case "diagnostics":
+		diagnosticsCmd(os.Args[2:])
 	case "dev-simulate-mqtt":
 		simulateCmd(os.Args[2:])
 	case "ui":
@@ -381,6 +384,60 @@ func inspectCmd(args []string) {
 		mustPrint(drilldown)
 	default:
 		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path>")
+	}
+}
+
+func diagnosticsCmd(args []string) {
+	f := fs("diagnostics")
+	configPath := f.String("config", "configs/mel.example.json", "path to config file")
+	jsonOutput := f.Bool("json", false, "output as JSON")
+	f.Parse(args)
+
+	cfg, _, err := config.Load(*configPath)
+	if err != nil {
+		panic(fmt.Sprintf("failed to load config: %v", err))
+	}
+
+	database := openDB(cfg)
+
+	report := diagnostics.RunAllChecks(cfg, database, nil, nil, time.Now().UTC())
+
+	if *jsonOutput {
+		mustPrint(report)
+	} else {
+		fmt.Printf("=== MEL Diagnostics Report ===\n")
+		fmt.Printf("Generated: %s\n\n", report.GeneratedAt.Format(time.RFC3339))
+		fmt.Printf("Summary:\n")
+		fmt.Printf("  Total:   %d\n", report.Summary.TotalCount)
+		fmt.Printf("  Critical: %d\n", report.Summary.CriticalCount)
+		fmt.Printf("  Warning: %d\n", report.Summary.WarningCount)
+		fmt.Printf("  Info:    %d\n\n", report.Summary.InfoCount)
+
+		if len(report.Diagnostics) == 0 {
+			fmt.Println("No issues detected.")
+			return
+		}
+
+		fmt.Println("Diagnostics:")
+		for _, d := range report.Diagnostics {
+			fmt.Printf("\n[%s] %s\n", strings.ToUpper(d.Severity), d.Title)
+			fmt.Printf("  Code: %s\n", d.Code)
+			fmt.Printf("  Component: %s\n", d.Component)
+			fmt.Printf("  %s\n", d.Explanation)
+			if len(d.LikelyCauses) > 0 {
+				fmt.Printf("  Likely causes:\n")
+				for _, cause := range d.LikelyCauses {
+					fmt.Printf("    - %s\n", cause)
+				}
+			}
+			if len(d.RecommendedSteps) > 0 {
+				fmt.Printf("  Recommended steps:\n")
+				for _, step := range d.RecommendedSteps {
+					fmt.Printf("    - %s\n", step)
+				}
+			}
+			fmt.Printf("  Auto-recover: %v | Operator action: %v\n", d.CanAutoRecover, d.OperatorActionRequired)
+		}
 	}
 }
 

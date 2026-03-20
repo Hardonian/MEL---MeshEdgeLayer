@@ -16,6 +16,7 @@ import {
   Wifi,
   WifiOff,
   ChevronRight,
+  Tool,
 } from 'lucide-react'
 import { useApi } from '@/hooks/useApi'
 import { HelpMenu, VersionInfo } from '@/components/ui/HelpMenu'
@@ -30,6 +31,7 @@ const navItems = [
   { path: '/nodes', label: 'Nodes', icon: Radio, description: 'Device inventory' },
   { path: '/messages', label: 'Messages', icon: MessageSquare, description: 'Mesh messages' },
   { path: '/privacy', label: 'Privacy', icon: Shield, description: 'Security posture' },
+  { path: '/diagnostics', label: 'Diagnostics', icon: Tool, description: 'System health checks' },
   { path: '/dead-letters', label: 'Dead Letters', icon: AlertTriangle, description: 'Failed messages' },
   { path: '/recommendations', label: 'Recommendations', icon: Lightbulb, description: 'Action items' },
   { path: '/events', label: 'Events', icon: ScrollText, description: 'Audit logs' },

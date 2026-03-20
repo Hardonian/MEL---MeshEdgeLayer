@@ -13,6 +13,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
@@ -23,20 +24,21 @@ import (
 )
 
 type Server struct {
-	cfg             config.Config
-	log             *logging.Logger
-	db              *db.DB
-	state           *meshstate.State
-	bus             *events.Bus
-	http            *http.Server
-	transportHealth func() []transport.Health
-	recommendations func() []policy.Recommendation
-	statusSnapshot  func() (statuspkg.Snapshot, error)
-	controlStatus   func() (map[string]any, error)
-	controlHistory  func(string, string, string, int, int) (map[string]any, error)
+	cfg                 config.Config
+	log                 *logging.Logger
+	db                  *db.DB
+	state               *meshstate.State
+	bus                 *events.Bus
+	http                *http.Server
+	transportHealth     func() []transport.Health
+	recommendations     func() []policy.Recommendation
+	statusSnapshot      func() (statuspkg.Snapshot, error)
+	controlStatus       func() (map[string]any, error)
+	controlHistory      func(string, string, string, int, int) (map[string]any, error)
+	diagnosticsRun      func(config.Config, *db.DB) []diagnostics.Finding
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error)) *Server {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding) *Server {
 	snapFn := statusSnapshot
 	if snapFn == nil {
 		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
@@ -53,7 +55,13 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 			return map[string]any{"actions": []any{}, "decisions": []any{}, "start": start, "end": end, "transport": transport, "pagination": map[string]any{"limit": limit, "offset": offset}}, nil
 		}
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn}
+	diagnosticsRunFn := diagnosticsRun
+	if diagnosticsRunFn == nil {
+		diagnosticsRunFn = func(cfg config.Config, database *db.DB) []diagnostics.Finding {
+			return []diagnostics.Finding{}
+		}
+	}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.requireMethod(s.healthz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/readyz", s.requireMethod(s.readyz, http.MethodGet, http.MethodHead))
@@ -87,6 +95,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))

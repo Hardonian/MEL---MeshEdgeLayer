@@ -22,6 +22,7 @@ const (
 	StateIdle           = "idle"
 	StateRetrying       = "retrying"
 	StateFailed         = "failed"
+	StateDisconnected   = "disconnected"
 	StateHistoricalOnly = "historical_only"
 )
 
@@ -113,7 +114,9 @@ type Health struct {
 	ConsecutiveTimeouts   uint64           `json:"consecutive_timeouts"`
 	FailureCount          uint64           `json:"failure_count"`
 	ObservationDrops      uint64           `json:"observation_drops"`
+	DeadLetterCount       uint64           `json:"dead_letter_count"`
 	EpisodeID             string           `json:"episode_id,omitempty"`
+	LastHeartbeat         time.Time        `json:"-"`
 }
 
 type PacketHandler func(topic string, payload []byte) error
