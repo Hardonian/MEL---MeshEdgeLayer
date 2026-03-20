@@ -26,11 +26,17 @@ func normalizeControl(cfg *Config) {
 	if cfg.Control.MaxQueue <= 0 {
 		cfg.Control.MaxQueue = defaults.MaxQueue
 	}
+	if cfg.Control.MaxQueue > 128 {
+		cfg.Control.MaxQueue = 128
+	}
 	if cfg.Control.ActionTimeoutSeconds <= 0 {
 		cfg.Control.ActionTimeoutSeconds = defaults.ActionTimeoutSeconds
 	}
 	if cfg.Control.RetentionDays <= 0 {
 		cfg.Control.RetentionDays = defaults.RetentionDays
+	}
+	if cfg.Control.RetentionDays > 30 {
+		cfg.Control.RetentionDays = 30
 	}
 }
 
@@ -58,6 +64,9 @@ func validateControl(cfg Config) []string {
 	}
 	if cfg.Control.MaxQueue < 1 {
 		errs = append(errs, "control.max_queue must be at least 1")
+	}
+	if cfg.Control.MaxQueue > 128 {
+		errs = append(errs, "control.max_queue must not exceed 128")
 	}
 	if cfg.Control.ActionTimeoutSeconds < 1 {
 		errs = append(errs, "control.action_timeout_seconds must be at least 1")

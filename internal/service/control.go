@@ -147,6 +147,12 @@ func (a *App) evaluateControl(now time.Time) {
 	if a == nil || a.DB == nil {
 		return
 	}
+	if control.WithinStartupGracePeriod(now) {
+		a.Log.Info("control_startup_grace_period", "skipping control evaluation during startup grace period", map[string]any{
+			"grace_period_remaining_sec": int(control.StartupGracePeriodSeconds - now.Sub(control.StartupTime()).Seconds()),
+		})
+		return
+	}
 	eval, err := control.Evaluate(a.Cfg, a.DB, a.TransportHealth(), now)
 	if err != nil {
 		a.Log.Error("control_evaluation_failed", "failed to evaluate guarded control decisions", map[string]any{"error": err.Error()})
@@ -372,11 +378,18 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	startedAt := time.Now().UTC().Format(time.RFC3339)
 	action.ExecutedAt = startedAt
 	action.LifecycleState = control.LifecycleRunning
-	_ = a.DB.UpsertControlAction(controlActionRecord(action))
+	if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
+		a.Log.Error("control_action_insert_failed", "failed to insert control action", map[string]any{"action_id": action.ID, "error": err.Error()})
+		return
+	}
 
 	timeout := time.Duration(a.Cfg.Control.ActionTimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 10 * time.Second
+	}
+	maxTimeout := time.Duration(control.MaxActionTimeoutSeconds) * time.Second
+	if timeout > maxTimeout {
+		timeout = maxTimeout
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -422,6 +435,13 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	default:
 		result, detail = control.ResultFailedTerminal, "unsupported control action type"
 	}
+
+	if runCtx.Err() == context.DeadlineExceeded {
+		result = control.ResultFailedTransient
+		detail = "action timed out after " + timeout.String()
+		action.ClosureState = control.ClosureSuperseded
+	}
+
 	completedAt := time.Now().UTC().Format(time.RFC3339)
 	action.CompletedAt = completedAt
 	action.LifecycleState = control.LifecycleCompleted

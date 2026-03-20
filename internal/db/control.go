@@ -139,8 +139,9 @@ COALESCE(notes,'') AS notes, COALESCE(updated_at,'') AS updated_at FROM control_
 }
 
 func (d *DB) ControlActions(transportName, actionType, start, end string, limit, offset int) ([]ControlActionRecord, error) {
-	if limit <= 0 {
-		limit = 50
+	limit = clampLimit(limit)
+	if offset < 0 {
+		offset = 0
 	}
 	clauses := []string{"1=1"}
 	if strings.TrimSpace(transportName) != "" {
@@ -168,8 +169,9 @@ FROM control_actions WHERE %s ORDER BY created_at DESC LIMIT %d OFFSET %d;`, str
 }
 
 func (d *DB) ControlDecisions(transportName, actionType, start, end string, limit, offset int) ([]ControlDecisionRecord, error) {
-	if limit <= 0 {
-		limit = 50
+	limit = clampLimit(limit)
+	if offset < 0 {
+		offset = 0
 	}
 	clauses := []string{"1=1"}
 	if strings.TrimSpace(transportName) != "" {
@@ -200,8 +202,13 @@ func (d *DB) ControlActionByID(id string) (ControlActionRecord, bool, error) {
 	if strings.TrimSpace(id) == "" {
 		return ControlActionRecord{}, false, nil
 	}
+	safeID, err := validateSQLInput(id)
+	if err != nil {
+		logSuspiciousSQL(id, err.Error())
+		return ControlActionRecord{}, false, fmt.Errorf("invalid id: %w", err)
+	}
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, COALESCE(decision_id,'') AS decision_id, action_type, COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment, COALESCE(target_node,'') AS target_node, reason, confidence, COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json, COALESCE(episode_id,'') AS episode_id, created_at, COALESCE(executed_at,'') AS executed_at, COALESCE(completed_at,'') AS completed_at, COALESCE(result,'') AS result, reversible, COALESCE(expires_at,'') AS expires_at, COALESCE(outcome_detail,'') AS outcome_detail, mode, COALESCE(policy_rule,'') AS policy_rule, COALESCE(lifecycle_state,'') AS lifecycle_state, COALESCE(advisory_only,0) AS advisory_only, COALESCE(denial_code,'') AS denial_code, COALESCE(closure_state,'') AS closure_state, COALESCE(metadata_json,'{}') AS metadata_json
-FROM control_actions WHERE id='%s' LIMIT 1;`, esc(id)))
+FROM control_actions WHERE id='%s' LIMIT 1;`, safeID))
 	if err != nil {
 		return ControlActionRecord{}, false, err
 	}
@@ -212,9 +219,7 @@ FROM control_actions WHERE id='%s' LIMIT 1;`, esc(id)))
 }
 
 func (d *DB) IncompleteControlActions(limit int) ([]ControlActionRecord, error) {
-	if limit <= 0 {
-		limit = 100
-	}
+	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, COALESCE(decision_id,'') AS decision_id, action_type, COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment, COALESCE(target_node,'') AS target_node, reason, confidence, COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json, COALESCE(episode_id,'') AS episode_id, created_at, COALESCE(executed_at,'') AS executed_at, COALESCE(completed_at,'') AS completed_at, COALESCE(result,'') AS result, reversible, COALESCE(expires_at,'') AS expires_at, COALESCE(outcome_detail,'') AS outcome_detail, mode, COALESCE(policy_rule,'') AS policy_rule, COALESCE(lifecycle_state,'') AS lifecycle_state, COALESCE(advisory_only,0) AS advisory_only, COALESCE(denial_code,'') AS denial_code, COALESCE(closure_state,'') AS closure_state, COALESCE(metadata_json,'{}') AS metadata_json
 FROM control_actions WHERE lifecycle_state IN ('pending','running') ORDER BY created_at ASC LIMIT %d;`, limit))
 	if err != nil {

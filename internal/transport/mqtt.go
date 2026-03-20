@@ -278,6 +278,17 @@ func (m *MQTT) Subscribe(ctx context.Context, handler PacketHandler) error {
 				m.markDropWithState("publish topic did not match configured filter", fmt.Errorf("unexpected topic %s", publish.Topic))
 				continue
 			}
+			if len(publish.Payload) > MaxMessageSize {
+				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonObservationDropped, publish.Payload, false, fmt.Sprintf("payload exceeds maximum allowed size of %d bytes", MaxMessageSize), map[string]any{
+					"endpoint":     m.cfg.Endpoint,
+					"packet_id":    publish.PacketID,
+					"qos":          publish.QoS,
+					"payload_size": len(publish.Payload),
+					"max_size":     MaxMessageSize,
+				}))
+				m.markDropWithState("payload size exceeds MaxMessageSize; dropping", fmt.Errorf("payload size %d exceeds max %d", len(publish.Payload), MaxMessageSize))
+				continue
+			}
 			if err := handler(publish.Topic, publish.Payload); err != nil {
 				m.publishObservation(NewObservation(m.cfg.Name, m.cfg.Type, publish.Topic, ReasonHandlerRejection, publish.Payload, true, err.Error(), map[string]any{
 					"endpoint":  m.cfg.Endpoint,

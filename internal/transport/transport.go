@@ -14,17 +14,6 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 )
 
-// State constants for the transport state machine.
-//
-// State machine flow:
-//   disabled -> configured -> connecting -> live (with ingest)
-//                                    |
-//                                    +----> idle (connected, no recent ingest)
-//                                    |
-//                                    +----> retrying -> failed (terminal)
-//
-// Persisted states (survive restart): disabled, configured, failed, historical_only
-// Transient states (runtime only): connecting, live, idle, retrying
 const (
 	StateDisabled       = "disabled"
 	StateConfigured     = "configured"
@@ -36,16 +25,16 @@ const (
 	StateHistoricalOnly = "historical_only"
 )
 
-// Aliases provide descriptive names for operator-facing reporting.
-// All aliases resolve to the canonical states above.
 const (
-	StateConfiguredNotAttempted = StateConfigured // Configured but never attempted connection
-	StateAttempting             = StateConnecting // Actively establishing connection
-	StateConfiguredOffline      = StateRetrying   // Connection failed, backing off before retry
-	StateConnectedNoIngest      = StateIdle       // Connection OK but no recent ingest (transient)
-	StateIngesting              = StateLive       // Active data flow confirmed
-	StateError                  = StateFailed     // Terminal failure state
+	StateConfiguredNotAttempted = StateConfigured
+	StateAttempting             = StateConnecting
+	StateConfiguredOffline      = StateRetrying
+	StateConnectedNoIngest      = StateIdle
+	StateIngesting              = StateLive
+	StateError                  = StateFailed
 )
+
+const StateConnectedNoData = StateConnectedNoIngest
 
 const (
 	ReasonMalformedFrame         = "malformed_frame"
@@ -65,6 +54,8 @@ const (
 )
 
 const maxObservationPayloadBytes = 96
+
+const MaxMessageSize = 65536
 
 var observationSeq uint64
 

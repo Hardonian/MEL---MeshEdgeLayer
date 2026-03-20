@@ -90,15 +90,32 @@ func (d *DB) ResolveTransportAlertsNotIn(transportName string, activeIDs []strin
 	if strings.TrimSpace(transportName) == "" {
 		return nil
 	}
-	clauses := []string{fmt.Sprintf("transport_name='%s'", esc(transportName)), "active=1"}
+	safeTransport, err := validateSQLInput(transportName)
+	if err != nil {
+		logSuspiciousSQL(transportName, err.Error())
+		return fmt.Errorf("invalid transport name: %w", err)
+	}
+	safeResolvedAt, err := validateSQLInput(resolvedAt)
+	if err != nil {
+		logSuspiciousSQL(resolvedAt, err.Error())
+		return fmt.Errorf("invalid resolved timestamp: %w", err)
+	}
+	clauses := []string{fmt.Sprintf("transport_name='%s'", safeTransport), "active=1"}
 	if len(activeIDs) > 0 {
 		exclusions := make([]string, 0, len(activeIDs))
 		for _, id := range activeIDs {
-			exclusions = append(exclusions, fmt.Sprintf("'%s'", esc(id)))
+			safeID, err := validateSQLInput(id)
+			if err != nil {
+				logSuspiciousSQL(id, err.Error())
+				continue
+			}
+			exclusions = append(exclusions, fmt.Sprintf("'%s'", safeID))
 		}
-		clauses = append(clauses, fmt.Sprintf("id NOT IN (%s)", strings.Join(exclusions, ",")))
+		if len(exclusions) > 0 {
+			clauses = append(clauses, fmt.Sprintf("id NOT IN (%s)", strings.Join(exclusions, ",")))
+		}
 	}
-	sql := fmt.Sprintf("UPDATE transport_alerts SET active=0, resolved_at='%s', last_updated_at='%s' WHERE %s;", esc(resolvedAt), esc(resolvedAt), strings.Join(clauses, " AND "))
+	sql := fmt.Sprintf("UPDATE transport_alerts SET active=0, resolved_at='%s', last_updated_at='%s' WHERE %s;", safeResolvedAt, safeResolvedAt, strings.Join(clauses, " AND "))
 	return d.Exec(sql)
 }
 
@@ -107,7 +124,7 @@ func (d *DB) TransportAlerts(activeOnly bool) ([]TransportAlertRecord, error) {
 	if activeOnly {
 		query += " WHERE active=1"
 	}
-	query += " ORDER BY active DESC, last_updated_at DESC, first_triggered_at DESC;"
+	query += fmt.Sprintf(" ORDER BY active DESC, last_updated_at DESC, first_triggered_at DESC LIMIT %d;", MaxRows)
 	rows, err := d.QueryRows(query)
 	if err != nil {
 		return nil, err
@@ -145,7 +162,12 @@ func alertRecordFromRow(row map[string]any) TransportAlertRecord {
 }
 
 func (d *DB) TransportAlertByID(id string) (TransportAlertRecord, bool, error) {
-	rows, err := d.QueryRows(fmt.Sprintf("SELECT id, transport_name, transport_type, severity, reason, summary, first_triggered_at, last_updated_at, COALESCE(resolved_at,'') AS resolved_at, active, COALESCE(episode_id,'') AS episode_id, COALESCE(cluster_key,'') AS cluster_key, COALESCE(contributing_reasons_json,'[]') AS contributing_reasons_json, COALESCE(cluster_reference,'') AS cluster_reference, COALESCE(penalty_snapshot_json,'[]') AS penalty_snapshot_json, COALESCE(trigger_condition,'') AS trigger_condition FROM transport_alerts WHERE id='%s' LIMIT 1;", esc(id)))
+	safeID, err := validateSQLInput(id)
+	if err != nil {
+		logSuspiciousSQL(id, err.Error())
+		return TransportAlertRecord{}, false, fmt.Errorf("invalid id: %w", err)
+	}
+	rows, err := d.QueryRows(fmt.Sprintf("SELECT id, transport_name, transport_type, severity, reason, summary, first_triggered_at, last_updated_at, COALESCE(resolved_at,'') AS resolved_at, active, COALESCE(episode_id,'') AS episode_id, COALESCE(cluster_key,'') AS cluster_key, COALESCE(contributing_reasons_json,'[]') AS contributing_reasons_json, COALESCE(cluster_reference,'') AS cluster_reference, COALESCE(penalty_snapshot_json,'[]') AS penalty_snapshot_json, COALESCE(trigger_condition,'') AS trigger_condition FROM transport_alerts WHERE id='%s' LIMIT 1;", safeID))
 	if err != nil {
 		return TransportAlertRecord{}, false, err
 	}
@@ -193,8 +215,16 @@ func (d *DB) ActiveAlertCounts() (map[string]int, error) {
 }
 
 func (d *DB) TransportHealthSnapshots(name, start, end string, limit, offset int) ([]TransportHealthSnapshot, error) {
+	limit = clampLimit(limit)
+	if offset < 0 {
+		offset = 0
+	}
+	filter, err := historyFilterSafe("transport_name", name, "snapshot_time", start, end)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT transport_name, transport_type, score, state, snapshot_time, active_alert_count, dead_letter_count_window, observation_drop_count_window
-FROM transport_health_snapshots WHERE %s ORDER BY snapshot_time DESC LIMIT %d OFFSET %d;`, historyFilter("transport_name", name, "snapshot_time", start, end), limit, offset))
+FROM transport_health_snapshots WHERE %s ORDER BY snapshot_time DESC LIMIT %d OFFSET %d;`, filter, limit, offset))
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +249,16 @@ func snapshotFromRow(row map[string]any) TransportHealthSnapshot {
 }
 
 func (d *DB) TransportAlertsHistory(name, start, end string, limit, offset int) ([]TransportAlertRecord, error) {
+	limit = clampLimit(limit)
+	if offset < 0 {
+		offset = 0
+	}
+	filter, err := historyFilterSafe("transport_name", name, "last_updated_at", start, end)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, transport_name, transport_type, severity, reason, summary, first_triggered_at, last_updated_at, COALESCE(resolved_at,'') AS resolved_at, active, COALESCE(episode_id,'') AS episode_id, COALESCE(cluster_key,'') AS cluster_key, COALESCE(contributing_reasons_json,'[]') AS contributing_reasons_json, COALESCE(cluster_reference,'') AS cluster_reference, COALESCE(penalty_snapshot_json,'[]') AS penalty_snapshot_json, COALESCE(trigger_condition,'') AS trigger_condition
-FROM transport_alerts WHERE %s ORDER BY last_updated_at DESC, first_triggered_at DESC LIMIT %d OFFSET %d;`, historyFilter("transport_name", name, "last_updated_at", start, end), limit, offset))
+FROM transport_alerts WHERE %s ORDER BY last_updated_at DESC, first_triggered_at DESC LIMIT %d OFFSET %d;`, filter, limit, offset))
 	if err != nil {
 		return nil, err
 	}
@@ -244,8 +282,16 @@ ON CONFLICT(bucket_start,transport_name,reason) DO UPDATE SET transport_type=exc
 }
 
 func (d *DB) TransportAnomalyHistory(name, start, end string, limit, offset int) ([]TransportAnomalyHistoryPoint, error) {
+	limit = clampLimit(limit)
+	if offset < 0 {
+		offset = 0
+	}
+	filter, err := historyFilterSafe("transport_name", name, "bucket_start", start, end)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT bucket_start, transport_name, transport_type, reason, count, dead_letters, observation_drops, COALESCE(drop_causes_json,'{}') AS drop_causes_json
-FROM transport_anomaly_snapshots WHERE %s ORDER BY bucket_start DESC, transport_name, reason LIMIT %d OFFSET %d;`, historyFilter("transport_name", name, "bucket_start", start, end), limit, offset))
+FROM transport_anomaly_snapshots WHERE %s ORDER BY bucket_start DESC, transport_name, reason LIMIT %d OFFSET %d;`, filter, limit, offset))
 	if err != nil {
 		return nil, err
 	}
@@ -281,9 +327,51 @@ func historyFilter(nameColumn, name, timeColumn, start, end string) string {
 	return strings.Join(clauses, " AND ")
 }
 
+func historyFilterSafe(nameColumn, name, timeColumn, start, end string) (string, error) {
+	if !isSafeIdentifier(nameColumn) {
+		return "", fmt.Errorf("invalid name column: %s", nameColumn)
+	}
+	if !isSafeIdentifier(timeColumn) {
+		return "", fmt.Errorf("invalid time column: %s", timeColumn)
+	}
+	clauses := []string{"1=1"}
+	if strings.TrimSpace(name) != "" {
+		safeName, err := validateSQLInput(name)
+		if err != nil {
+			return "", err
+		}
+		clauses = append(clauses, fmt.Sprintf("%s='%s'", nameColumn, safeName))
+	}
+	if strings.TrimSpace(start) != "" {
+		safeStart, err := validateSQLInput(start)
+		if err != nil {
+			return "", err
+		}
+		clauses = append(clauses, fmt.Sprintf("%s >= '%s'", timeColumn, safeStart))
+	}
+	if strings.TrimSpace(end) != "" {
+		safeEnd, err := validateSQLInput(end)
+		if err != nil {
+			return "", err
+		}
+		clauses = append(clauses, fmt.Sprintf("%s <= '%s'", timeColumn, safeEnd))
+	}
+	return strings.Join(clauses, " AND "), nil
+}
+
 func (d *DB) LatestTransportSnapshotBefore(name, before string) (TransportHealthSnapshot, bool, error) {
+	safeName, err := validateSQLInput(name)
+	if err != nil {
+		logSuspiciousSQL(name, err.Error())
+		return TransportHealthSnapshot{}, false, fmt.Errorf("invalid transport name: %w", err)
+	}
+	safeBefore, err := validateSQLInput(before)
+	if err != nil {
+		logSuspiciousSQL(before, err.Error())
+		return TransportHealthSnapshot{}, false, fmt.Errorf("invalid timestamp: %w", err)
+	}
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT transport_name, transport_type, score, state, snapshot_time, active_alert_count, dead_letter_count_window, observation_drop_count_window
-FROM transport_health_snapshots WHERE transport_name='%s' AND snapshot_time <= '%s' ORDER BY snapshot_time DESC LIMIT 1;`, esc(name), esc(before)))
+FROM transport_health_snapshots WHERE transport_name='%s' AND snapshot_time <= '%s' ORDER BY snapshot_time DESC LIMIT 1;`, safeName, safeBefore))
 	if err != nil {
 		return TransportHealthSnapshot{}, false, err
 	}

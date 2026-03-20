@@ -254,6 +254,15 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 			continue
 		}
 		wrapped := meshtastic.DirectPacketToEnvelope(env.PacketRaw)
+		if len(wrapped) > MaxMessageSize {
+			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonObservationDropped, wrapped, false, fmt.Sprintf("payload exceeds maximum allowed size of %d bytes", MaxMessageSize), map[string]any{
+				"source":       d.cfg.SourceLabel(),
+				"payload_size": len(wrapped),
+				"max_size":     MaxMessageSize,
+			}))
+			d.markDropWithState("payload size exceeds MaxMessageSize; dropping", fmt.Errorf("payload size %d exceeds max %d", len(wrapped), MaxMessageSize))
+			continue
+		}
 		if err := handler(d.cfg.Name, wrapped); err != nil {
 			d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonHandlerRejection, wrapped, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel(), "final": true}))
 			d.markDropWithState("connected; ingest handler rejected packet", err)

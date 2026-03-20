@@ -1,16 +1,31 @@
 package control
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
+)
+
+var (
+	startupTime     = time.Now().UTC()
+	startupTimeOnce sync.Once
+)
+
+const (
+	MaxActionsPerWindowCap     = 100
+	MinCooldownPerTargetSecs   = 10
+	MaxActionTimeoutSeconds    = 300
+	StartupGracePeriodSeconds  = 30
 )
 
 const (
@@ -226,11 +241,23 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 }
 
 func PolicyFromConfig(cfg config.Config) ControlPolicy {
+	maxActions := cfg.Control.MaxActionsPerWindow
+	if maxActions > MaxActionsPerWindowCap {
+		maxActions = MaxActionsPerWindowCap
+	}
+	cooldown := cfg.Control.CooldownPerTargetSeconds
+	if cooldown > 0 && cooldown < MinCooldownPerTargetSecs {
+		cooldown = MinCooldownPerTargetSecs
+	}
+	timeout := cfg.Control.ActionTimeoutSeconds
+	if timeout > MaxActionTimeoutSeconds {
+		timeout = MaxActionTimeoutSeconds
+	}
 	return ControlPolicy{
 		Mode:                   cfg.Control.Mode,
 		AllowedActions:         append([]string(nil), cfg.Control.AllowedActions...),
-		MaxActionsPerWindow:    cfg.Control.MaxActionsPerWindow,
-		CooldownPerTarget:      cfg.Control.CooldownPerTargetSeconds,
+		MaxActionsPerWindow:    maxActions,
+		CooldownPerTarget:      cooldown,
 		RequireMinConfidence:   cfg.Control.RequireMinConfidence,
 		AllowMeshLevelActions:  cfg.Control.AllowMeshLevelActions,
 		AllowTransportRestart:  cfg.Control.AllowTransportRestart,
@@ -238,6 +265,22 @@ func PolicyFromConfig(cfg config.Config) ControlPolicy {
 		ActionWindowSeconds:    cfg.Control.ActionWindowSeconds,
 		RestartCapPerWindow:    cfg.Control.RestartCapPerWindow,
 	}
+}
+
+func generateActionID(prefix string) string {
+	nanos := time.Now().UTC().UnixNano()
+	b := make([]byte, 8)
+	rand.Read(b)
+	randomPart := hex.EncodeToString(b)
+	return fmt.Sprintf("%s-%d-%s", prefix, nanos, randomPart[:16])
+}
+
+func StartupTime() time.Time {
+	return startupTime
+}
+
+func WithinStartupGracePeriod(now time.Time) bool {
+	return now.Sub(startupTime) < StartupGracePeriodSeconds*time.Second
 }
 
 func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.Time) []ControlAction {
@@ -248,7 +291,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 		if correlated.Reason == transport.ReasonRetryThresholdExceeded {
 			for _, target := range correlated.Transports {
 				actions = append(actions, ControlAction{
-					ID:              fmt.Sprintf("ca-%s-restart-%s", sanitizeID(createdAt), target),
+					ID:              generateActionID(fmt.Sprintf("ca-restart-%s", target)),
 					ActionType:      ActionRestartTransport,
 					TargetTransport: target,
 					Reason:          "retry threshold exceeded with no proven recovery",
@@ -265,7 +308,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 		if correlated.Reason == transport.ReasonSubscribeFailure {
 			for _, target := range correlated.Transports {
 				actions = append(actions, ControlAction{
-					ID:              fmt.Sprintf("ca-%s-resub-%s", sanitizeID(createdAt), target),
+					ID:              generateActionID(fmt.Sprintf("ca-resub-%s", target)),
 					ActionType:      ActionResubscribeTransport,
 					TargetTransport: target,
 					Reason:          "subscription failure cluster persists across the active window",
@@ -280,7 +323,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 		if correlated.Reason == transport.ReasonMalformedFrame || correlated.Reason == transport.ReasonMalformedPublish || correlated.Reason == transport.ReasonObservationDropped {
 			for _, target := range correlated.Transports {
 				actions = append(actions, ControlAction{
-					ID:              fmt.Sprintf("ca-%s-backoff-%s-%s", sanitizeID(createdAt), target, correlated.Reason),
+					ID:              generateActionID(fmt.Sprintf("ca-backoff-%s-%s", target, correlated.Reason)),
 					ActionType:      ActionBackoffIncrease,
 					TargetTransport: target,
 					Reason:          fmt.Sprintf("%s cluster suggests saturation or malformed flood pressure", correlated.Reason),
@@ -300,7 +343,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 			continue
 		}
 		actions = append(actions, ControlAction{
-			ID:              fmt.Sprintf("ca-%s-deprioritize-%s", sanitizeID(createdAt), route.TargetTransport),
+			ID:              generateActionID(fmt.Sprintf("ca-deprioritize-%s", route.TargetTransport)),
 			ActionType:      ActionTemporarilyDeprioritize,
 			TargetTransport: route.TargetTransport,
 			Reason:          route.Reason,
@@ -318,7 +361,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 			continue
 		}
 		actions = append(actions, ControlAction{
-			ID:              fmt.Sprintf("ca-%s-suppress-%s", sanitizeID(createdAt), route.TargetTransport),
+			ID:              generateActionID(fmt.Sprintf("ca-suppress-%s", route.TargetTransport)),
 			ActionType:      ActionTemporarilySuppressNoisySource,
 			TargetTransport: route.TargetTransport,
 			Reason:          route.Reason,
@@ -335,7 +378,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 		switch alert.Reason {
 		case transport.ReasonRetryThresholdExceeded:
 			actions = append(actions, ControlAction{
-				ID:              fmt.Sprintf("ca-%s-restart-alert-%s", sanitizeID(createdAt), alert.TransportName),
+				ID:              generateActionID(fmt.Sprintf("ca-restart-alert-%s", alert.TransportName)),
 				ActionType:      ActionRestartTransport,
 				TargetTransport: alert.TransportName,
 				Reason:          "retry threshold exceeded on an active transport alert",
@@ -348,7 +391,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 			})
 		case transport.ReasonSubscribeFailure:
 			actions = append(actions, ControlAction{
-				ID:              fmt.Sprintf("ca-%s-resub-alert-%s", sanitizeID(createdAt), alert.TransportName),
+				ID:              generateActionID(fmt.Sprintf("ca-resub-alert-%s", alert.TransportName)),
 				ActionType:      ActionResubscribeTransport,
 				TargetTransport: alert.TransportName,
 				Reason:          "subscription failure remains active in transport alerts",
@@ -361,7 +404,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 			})
 		case "evidence_loss":
 			actions = append(actions, ControlAction{
-				ID:              fmt.Sprintf("ca-%s-backoff-alert-%s", sanitizeID(createdAt), alert.TransportName),
+				ID:              generateActionID(fmt.Sprintf("ca-backoff-alert-%s", alert.TransportName)),
 				ActionType:      ActionBackoffIncrease,
 				TargetTransport: alert.TransportName,
 				Reason:          "active evidence-loss alert indicates ingest saturation pressure",
@@ -380,7 +423,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 			continue
 		}
 		actions = append(actions, ControlAction{
-			ID:              fmt.Sprintf("ca-%s-recheck-%s", sanitizeID(createdAt), sanitizeID(segment.SegmentID)),
+			ID:              generateActionID(fmt.Sprintf("ca-recheck-%s", sanitizeID(segment.SegmentID))),
 			ActionType:      ActionTriggerHealthRecheck,
 			TargetSegment:   segment.SegmentID,
 			Reason:          "critical degraded segment requires explicit post-action health recheck",
@@ -693,8 +736,17 @@ func cooldownSatisfied(database *db.DB, policy ControlPolicy, candidate ControlA
 		historyCache[key] = rows
 	}
 	for _, row := range rows {
-		ts, ok := parseRFC3339(firstNonEmpty(row.CompletedAt, row.ExecutedAt, row.CreatedAt))
-		if !ok {
+		if row.Result != ResultExecutedSuccessfully && row.Result != ResultExecutedNoop {
+			continue
+		}
+		executedAt, hasExecuted := parseRFC3339(row.ExecutedAt)
+		completedAt, hasCompleted := parseRFC3339(row.CompletedAt)
+		var ts time.Time
+		if hasCompleted {
+			ts = completedAt
+		} else if hasExecuted {
+			ts = executedAt
+		} else {
 			continue
 		}
 		if now.Sub(ts) < time.Duration(policy.CooldownPerTarget)*time.Second {
@@ -709,23 +761,29 @@ func budgetSatisfied(database *db.DB, policy ControlPolicy, candidate ControlAct
 		return true
 	}
 	start := now.Add(-time.Duration(policy.ActionWindowSeconds) * time.Second).UTC().Format(time.RFC3339)
-	rows, err := database.ControlActions("", "", start, "", policy.MaxActionsPerWindow+1, 0)
+	rows, err := database.ControlActions("", "", start, "", policy.MaxActionsPerWindow+10, 0)
 	if err != nil {
 		return false
 	}
-	if len(rows) >= policy.MaxActionsPerWindow {
+	executedCount := 0
+	for _, row := range rows {
+		if row.Result == ResultExecutedSuccessfully || row.Result == ResultExecutedNoop {
+			executedCount++
+		}
+	}
+	if executedCount >= policy.MaxActionsPerWindow {
 		return false
 	}
 	if candidate.ActionType != ActionRestartTransport || policy.RestartCapPerWindow <= 0 {
 		return true
 	}
-	count := 0
+	restartCount := 0
 	for _, row := range rows {
-		if row.ActionType == ActionRestartTransport {
-			count++
+		if row.ActionType == ActionRestartTransport && (row.Result == ResultExecutedSuccessfully || row.Result == ResultExecutedNoop) {
+			restartCount++
 		}
 	}
-	return count < policy.RestartCapPerWindow
+	return restartCount < policy.RestartCapPerWindow
 }
 
 func overrideActive(cfg config.Config, candidate ControlAction) bool {
