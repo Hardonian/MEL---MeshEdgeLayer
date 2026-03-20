@@ -97,6 +97,8 @@ func TestQueueRecoveryActionsSchedulesBackoffResetOnlyForRealRollback(t *testing
 }
 
 func TestGuardedControlChaosLifecycle(t *testing.T) {
+	// Reset startup time to bypass grace period for testing
+	control.ResetStartupTimeForTests(time.Date(2026, 3, 19, 11, 0, 0, 0, time.UTC))
 	cfg := config.Default()
 	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
 	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
@@ -142,6 +144,7 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 
 	// Switch to guarded_auto for execution phases.
 	app.Cfg.Control.Mode = control.ModeGuardedAuto
+	app.Cfg.Control.AllowTransportRestart = true
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
