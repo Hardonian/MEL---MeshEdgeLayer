@@ -36,7 +36,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substring(2, 9)
+    const id = crypto.randomUUID()
     setToasts(prev => [...prev, { ...toast, id }])
     
     // Auto-remove after duration (default 5 seconds)
