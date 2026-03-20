@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useApi } from '@/hooks/useApi'
+import { HelpMenu, VersionInfo } from '@/components/ui/HelpMenu'
 
 interface LayoutProps {
   children: ReactNode
@@ -127,7 +128,7 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Connection status */}
         <div className="absolute bottom-0 left-0 right-0 border-t bg-card/50 p-4 backdrop-blur">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-3">
             <div className={clsx(
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
               isConnected ? 'bg-success/10' : 'bg-muted'
@@ -150,6 +151,7 @@ export function Layout({ children }: LayoutProps) {
               </p>
             </div>
           </div>
+          <VersionInfo />
         </div>
       </aside>
 
@@ -191,6 +193,7 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            <HelpMenu />
             <span className="hidden md:block text-xs text-muted-foreground mr-2">
               Last updated: {status.lastUpdated ? new Date(status.lastUpdated).toLocaleTimeString() : '—'}
             </span>

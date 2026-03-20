@@ -10,11 +10,13 @@ import { Recommendations } from './pages/Recommendations'
 import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { ApiProvider } from './hooks/useApi'
+import { ToastProvider } from './components/ui/Toast'
 
 export default function App() {
   return (
     <ApiProvider>
-      <Layout>
+      <ToastProvider>
+        <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/status" element={<Status />} />
@@ -29,6 +31,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
+      </ToastProvider>
     </ApiProvider>
   )
 }
