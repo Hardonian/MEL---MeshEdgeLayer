@@ -1,0 +1,1239 @@
+# MEL API Reference
+
+This document provides a comprehensive reference for the MEL (MeshEdgeLayer) HTTP API. All endpoints return JSON responses unless otherwise noted.
+
+**Base URL:** Determined by `bind.api` configuration (default: `localhost:8080`)
+
+## Authentication
+
+When `auth.enabled` is `true` in the configuration, all endpoints require HTTP Basic Authentication:
+- Username: `auth.ui_user`
+- Password: `auth.ui_password`
+
+Unauthenticated requests receive:
+```json
+{
+  "error": {
+    "code": "auth_required",
+    "message": "authentication is required for this MEL endpoint"
+  }
+}
+```
+
+---
+
+## Health & Readiness Endpoints
+
+### GET /healthz
+Basic health check endpoint.
+
+**Response:**
+```json
+{
+  "ok": true
+}
+```
+
+**Error Responses:**
+- `503 Service Unavailable` - Service is not healthy
+
+---
+
+### GET /readyz
+Readiness check with detailed ingest status.
+
+**Response:**
+```json
+{
+  "ready": true,
+  "process_ready": true,
+  "ingest_ready": true,
+  "operator_state": "ready",
+  "summary": "Live ingest is confirmed by SQLite writes.",
+  "transports": [
+    {
+      "name": "mqtt-primary",
+      "type": "mqtt",
+      "effective_state": "live",
+      "runtime_state": "live",
+      "health": {
+        "score": 100,
+        "state": "healthy",
+        "primary_reason": "",
+        "explanation": {...}
+      },
+      "active_alerts": [],
+      "recent_anomalies": [],
+      "failure_clusters": [],
+      "last_failure_at": "",
+      "episode_id": "",
+      "failure_count": 0,
+      "observation_drops": 0
+    }
+  ]
+}
+```
+
+**Fields:**
+- `ready` - Overall readiness status
+- `process_ready` - Process is running
+- `ingest_ready` - At least one transport is in `ingesting` state
+- `operator_state` - One of: `idle`, `degraded`, `ready`
+- `summary` - Human-readable status summary
+- `transports` - Array of transport health reports
+
+**Error Responses:**
+- `500 Internal Server Error` - Status snapshot failed
+
+---
+
+## Metrics Endpoints
+
+### GET /metrics
+Prometheus-compatible JSON metrics endpoint.
+
+**Response:**
+```json
+{
+  "generated_at": "2026-03-20T12:00:00Z",
+  "window_seconds": 300,
+  "total_messages": 15432,
+  "last_ingest_time": "2026-03-20T11:59:55Z",
+  "transport_metrics": [...],
+  "ingest_rate_per_sec": {
+    "mqtt-primary": 2.5,
+    "serial-local": 0.1
+  },
+  "dead_letters_total": 3,
+  "control_metrics": {
+    "decisions_total": 150,
+    "executions_total": 45,
+    "denials_total": 105,
+    "cooldown_denials": 20,
+    "override_denials": 5,
+    "missing_actuator_denials": 10,
+    "active_actions": 2,
+    "queue_depth": 1,
+    "execution_latency_seconds": 1.25,
+    "denials_by_reason": {
+      "policy": 30,
+      "mode": 15,
+      "override": 5,
+      "low_confidence": 10,
+      "transient": 8,
+      "cooldown": 20,
+      "budget": 5,
+      "missing_actuator": 10,
+      "unknown_blast_radius": 2,
+      "no_alternate_path": 3,
+      "irreversible": 7,
+      "conflict": 8,
+      "attribution_weak": 4
+    }
+  }
+}
+```
+
+**Note:** `control_metrics` is only present when database is available.
+
+---
+
+## v0 Compatibility API
+
+These endpoints are maintained for backward compatibility. New code should use v1 endpoints.
+
+### GET /api/status
+Legacy status endpoint (identical to `/api/v1/status`).
+
+### GET /api/nodes
+Legacy nodes endpoint (identical to `/api/v1/nodes`).
+
+### GET /api/transports
+Legacy transports endpoint (identical to `/api/v1/transports`).
+
+### GET /api/privacy/audit
+Legacy privacy audit endpoint (identical to `/api/v1/privacy/audit`).
+
+### GET /api/recommendations
+Legacy recommendations endpoint (identical to `/api/v1/policy/explain`).
+
+### GET /api/logs
+Legacy audit logs endpoint (identical to `/api/v1/events`).
+
+### GET /api/dead-letters
+Legacy dead letters endpoint (identical to `/api/v1/dead-letters`).
+
+---
+
+## v1 API
+
+### GET /api/v1/status
+Full system status with persisted summary.
+
+**Response:**
+```json
+{
+  "snapshot": {
+    "messages": 15432,
+    "nodes": [
+      {
+        "num": 12345,
+        "id": "!abcd1234",
+        "long_name": "Base Station",
+        "short_name": "BS",
+        "last_seen": "2026-03-20T11:59:00Z",
+        "gateway_id": "!gateway01",
+        "lat_redacted": false,
+        "lon_redacted": false,
+        "altitude": 150,
+        "last_snr": 12.5,
+        "last_rssi": -85
+      }
+    ]
+  },
+  "persisted_summary": {
+    "messages": "15432",
+    "nodes": "45",
+    "last_ingest": "2026-03-20T11:59:55Z"
+  },
+  "status": {
+    "generated_at": "2026-03-20T12:00:00Z",
+    "bind": "localhost:8080",
+    "bind_local_only": true,
+    "schema_version": "1.2.3",
+    "configured_transport_modes": ["mqtt", "serial"],
+    "messages": 15432,
+    "nodes": 45,
+    "last_successful_ingest": "2026-03-20T11:59:55Z",
+    "transports": [...],
+    "recent_transport_incidents": [...],
+    "active_transport_alerts": [...],
+    "mesh": {...}
+  },
+  "panel": {
+    "generated_at": "2026-03-20T12:00:00Z",
+    "operator_state": "ready",
+    "summary": "Live ingest is confirmed by SQLite writes.",
+    "short_commands": ["S=Status", "T=Transports", "N=Nodes", "R=Replay", "D=Doctor"],
+    "web_hints": [...],
+    "device_menu": [...],
+    "transports": [...]
+  },
+  "privacy_summary": {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 0,
+    "info": 1
+  },
+  "bind_local_default": true
+}
+```
+
+**Error Responses:**
+- `500 Internal Server Error` - Status collection failed
+
+---
+
+### GET /api/v1/nodes
+List all observed nodes with message counts.
+
+**Response:**
+```json
+{
+  "nodes": [
+    {
+      "node_num": 12345,
+      "node_id": "!abcd1234",
+      "long_name": "Base Station",
+      "short_name": "BS",
+      "last_seen": "2026-03-20T11:59:00Z",
+      "last_gateway_id": "!gateway01",
+      "lat_redacted": 0,
+      "lon_redacted": 0,
+      "altitude": 150,
+      "last_snr": 12.5,
+      "last_rssi": -85,
+      "message_count": 342
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `500 Internal Server Error` - Database query failed
+
+---
+
+### GET /api/v1/node/{id}
+Get detailed information for a specific node.
+
+**Path Parameters:**
+- `id` - Node number (integer) or node ID (string like `!abcd1234`)
+
+**Response:**
+```json
+{
+  "node": {
+    "node_num": 12345,
+    "node_id": "!abcd1234",
+    "long_name": "Base Station",
+    "short_name": "BS",
+    "last_seen": "2026-03-20T11:59:00Z",
+    "last_gateway_id": "!gateway01",
+    "lat_redacted": 0,
+    "lon_redacted": 0,
+    "altitude": 150,
+    "last_snr": 12.5,
+    "last_rssi": -85,
+    "message_count": 342
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Missing node identifier
+- `404 Not Found` - Node not found in local observations
+- `500 Internal Server Error` - Database query failed
+
+---
+
+### GET /api/v1/transports
+List all configured transports with health status.
+
+**Response:**
+```json
+{
+  "transports": [
+    {
+      "name": "mqtt-primary",
+      "type": "mqtt",
+      "source": "broker.example.com:1883",
+      "enabled": true,
+      "effective_state": "live",
+      "runtime_state": "live",
+      "persisted_state": "live",
+      "status_scope": "runtime+persisted",
+      "detail": "Live ingest is confirmed by successful database writes.",
+      "guidance": "Live ingest is confirmed by successful database writes.",
+      "last_attempt_at": "2026-03-20T11:55:00Z",
+      "last_ingest_at": "2026-03-20T11:59:55Z",
+      "last_heartbeat_at": "2026-03-20T11:59:55Z",
+      "last_error": "",
+      "last_failure_at": "",
+      "episode_id": "",
+      "failure_count": 0,
+      "observation_drops": 0,
+      "total_messages": 15432,
+      "persisted_messages": 15432,
+      "error_count": 0,
+      "dropped_count": 0,
+      "reconnect_attempts": 0,
+      "consecutive_timeouts": 0,
+      "dead_letters": 0,
+      "retry_status": "live evidence present; no retry pending",
+      "capabilities": {
+        "ingest_supported": true,
+        "send_supported": true,
+        "metadata_fetch_supported": false,
+        "node_fetch_supported": false,
+        "health_supported": true,
+        "config_apply_supported": false,
+        "implementation_status": "stable",
+        "notes": ""
+      },
+      "health": {
+        "transport_name": "mqtt-primary",
+        "transport_type": "mqtt",
+        "score": 100,
+        "state": "healthy",
+        "last_evaluated_at": "2026-03-20T12:00:00Z",
+        "primary_reason": "",
+        "signals": {
+          "recent_failures": 0,
+          "dead_letter_count": 0,
+          "retry_count": 0,
+          "last_heartbeat_delta_seconds": 5,
+          "anomaly_rate": 0.0,
+          "observation_drops": 0,
+          "active_episode": false
+        },
+        "explanation": {...}
+      },
+      "active_alerts": [],
+      "recent_anomalies": [],
+      "failure_clusters": []
+    }
+  ],
+  "configured_modes": ["mqtt", "serial"],
+  "recent_transport_incidents": [...],
+  "active_transport_alerts": [...]
+}
+```
+
+**Transport States:**
+- `disabled` - Transport is disabled in configuration
+- `configured` / `configured_not_attempted` - Configured but never attempted
+- `connecting` / `attempting` - Actively establishing connection
+- `live` / `ingesting` - Active data flow confirmed
+- `idle` / `connected_no_ingest` - Connected but no recent ingest
+- `retrying` / `configured_offline` - Connection failed, backing off
+- `failed` / `error` - Terminal failure state
+- `historical_only` - Past messages exist but current live connectivity unproven
+
+---
+
+### GET /api/v1/transports/health
+Transport health summary.
+
+**Response:**
+```json
+{
+  "transport_health": [
+    {
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "runtime_state": "live",
+      "effective_state": "live",
+      "health": {
+        "score": 100,
+        "state": "healthy",
+        "primary_reason": "no dominant reason",
+        "explanation": {...}
+      },
+      "active_alerts": [],
+      "recent_anomalies": [],
+      "failure_clusters": [],
+      "last_failure_at": "",
+      "episode_id": "",
+      "failure_count": 0,
+      "observation_drops": 0
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/transports/alerts
+Active transport alerts.
+
+**Response:**
+```json
+{
+  "transport_alerts": [
+    {
+      "id": "alert-001",
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "severity": "warn",
+      "reason": "timeout_failure",
+      "summary": "Connection timeout detected",
+      "first_triggered_at": "2026-03-20T11:30:00Z",
+      "last_updated_at": "2026-03-20T11:35:00Z",
+      "active": true,
+      "episode_id": "ep-001",
+      "cluster_key": "cluster-001",
+      "contributing_reasons": ["timeout_failure", "retry_threshold_exceeded"],
+      "cluster_reference": "ref-001",
+      "penalty_snapshot": [
+        {
+          "reason": "timeout_failure",
+          "penalty": 15,
+          "count": 3,
+          "window": "5m"
+        }
+      ],
+      "trigger_condition": "consecutive_timeouts > 3"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/transports/anomalies
+Recent transport anomalies.
+
+**Response:**
+```json
+{
+  "transport_anomalies": [
+    {
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "recent_anomalies": [
+        {
+          "transport_name": "mqtt-primary",
+          "window": "5m",
+          "counts_by_reason": {
+            "timeout_failure": 3,
+            "retry_threshold_exceeded": 1
+          },
+          "dead_letters": 0,
+          "retry_events": 1,
+          "anomaly_rate": 0.8,
+          "observation_drops": 0,
+          "active_episode_ids": ["ep-001"],
+          "drop_causes": {}
+        }
+      ],
+      "failure_clusters": [
+        {
+          "transport_name": "mqtt-primary",
+          "transport_type": "mqtt",
+          "reason": "timeout_failure",
+          "count": 5,
+          "first_seen": "2026-03-20T11:25:00Z",
+          "last_seen": "2026-03-20T11:35:00Z",
+          "severity": "warn",
+          "episode_id": "ep-001",
+          "includes_dead_letter": false,
+          "includes_observation_drops": false,
+          "cluster_key": "mqtt-primary|timeout_failure|ep-001"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/transports/health/history
+Historical health snapshots for transports.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `transport` | string | "" (all) | Filter by transport name |
+| `start` | string (RFC3339) | "" | Start time |
+| `end` | string (RFC3339) | "" | End time |
+| `limit` | integer | `cfg.intelligence.queries.default_limit` | Max results (capped by `max_limit`) |
+| `offset` | integer | 0 | Pagination offset |
+
+**Response:**
+```json
+{
+  "history": [
+    {
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "health_score": 85,
+      "health_state": "degraded",
+      "primary_reason": "timeout_failure",
+      "recorded_at": "2026-03-20T11:30:00Z",
+      "episode_id": "ep-001",
+      "failure_count": 3,
+      "observation_drops": 0
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0
+  },
+  "transport": "mqtt-primary",
+  "start": "2026-03-20T10:00:00Z",
+  "end": "2026-03-20T12:00:00Z"
+}
+```
+
+---
+
+### GET /api/v1/transports/alerts/history
+Historical alerts for transports.
+
+**Query Parameters:** Same as `/api/v1/transports/health/history`
+
+**Response:**
+```json
+{
+  "history": [
+    {
+      "id": "alert-001",
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "severity": "warn",
+      "reason": "timeout_failure",
+      "summary": "Connection timeout detected",
+      "first_triggered_at": "2026-03-20T11:30:00Z",
+      "last_updated_at": "2026-03-20T11:35:00Z",
+      "active": false,
+      "episode_id": "ep-001",
+      "cluster_key": "cluster-001",
+      "contributing_reasons": ["timeout_failure"],
+      "cluster_reference": "ref-001",
+      "trigger_condition": "consecutive_timeouts > 3"
+    }
+  ],
+  "pagination": {...},
+  "transport": "mqtt-primary",
+  "start": "2026-03-20T10:00:00Z",
+  "end": "2026-03-20T12:00:00Z"
+}
+```
+
+---
+
+### GET /api/v1/transports/anomalies/history
+Historical anomaly data for transports.
+
+**Query Parameters:** Same as `/api/v1/transports/health/history`
+
+**Response:**
+```json
+{
+  "history": [
+    {
+      "transport_name": "mqtt-primary",
+      "window_label": "5m",
+      "recorded_at": "2026-03-20T11:30:00Z",
+      "counts_by_reason": {
+        "timeout_failure": 3
+      },
+      "dead_letter_count": 0,
+      "retry_event_count": 1,
+      "observation_drops": 0,
+      "drop_causes": {}
+    }
+  ],
+  "pagination": {...},
+  "transport": "mqtt-primary",
+  "start": "2026-03-20T10:00:00Z",
+  "end": "2026-03-20T12:00:00Z"
+}
+```
+
+---
+
+### GET /api/v1/transports/inspect/{name}
+Detailed drilldown for a specific transport.
+
+**Path Parameters:**
+- `name` - Transport name (exact match, case-sensitive)
+
+**Response:**
+```json
+{
+  "transport_name": "mqtt-primary",
+  "transport_type": "mqtt",
+  "health": {
+    "transport_name": "mqtt-primary",
+    "transport_type": "mqtt",
+    "score": 85,
+    "state": "degraded",
+    "last_evaluated_at": "2026-03-20T12:00:00Z",
+    "primary_reason": "timeout_failure",
+    "signals": {...},
+    "explanation": {...}
+  },
+  "health_explanation": {
+    "transport_name": "mqtt-primary",
+    "score": 85,
+    "state": "degraded",
+    "top_penalties": [...],
+    "active_cluster_reason": "timeout_failure",
+    "active_cluster_count": 5,
+    "active_episode_id": "ep-001",
+    "failure_count": 3,
+    "observation_drops": 0,
+    "dead_letter_count": 0,
+    "recovery_blockers": ["runtime_state:retrying", "active_failure_episode:ep-001 (3 failures)"]
+  },
+  "recent_clusters": [...],
+  "recent_alerts": [...],
+  "anomaly_summary": [...],
+  "last_incidents": [...],
+  "episode_history": [...],
+  "health_history": [...],
+  "alert_history": [...],
+  "anomaly_history": [...],
+  "transport_connected": true
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Missing transport name
+- `404 Not Found` - Transport not found
+
+---
+
+### GET /api/v1/mesh
+Current mesh state.
+
+**Response:**
+```json
+{
+  "mesh_health": {
+    "score": 85,
+    "state": "degraded",
+    "degraded_segments": [...],
+    "critical_segments": [...],
+    "dominant_failure_reason": "timeout_failure"
+  },
+  "mesh_health_explanation": {
+    "mesh_score": 85,
+    "mesh_state": "degraded",
+    "dominant_failure_reason": "timeout_failure",
+    "affected_transports": ["mqtt-primary"],
+    "affected_nodes": [],
+    "top_penalties": [...],
+    "active_clusters": [...],
+    "active_alerts": [...],
+    "degraded_segments": [...],
+    "evidence_loss_summary": {
+      "ingest_drops": 0,
+      "observation_drops": 0,
+      "bus_drops": 0
+    },
+    "recovery_blockers": [...]
+  },
+  "correlated_failures": [
+    {
+      "reason": "timeout_failure",
+      "transports": ["mqtt-primary", "mqtt-backup"],
+      "node_ids": [],
+      "count": 10,
+      "window": "5m",
+      "severity": "warn",
+      "explanation": "timeout_failure observed across 2 transports within 5m"
+    }
+  ],
+  "degraded_segments": [...],
+  "root_cause_analysis": {
+    "primary_cause": "connectivity_issue",
+    "confidence": "high",
+    "supporting_evidence": [...],
+    "explanation": "Timeout, retry-threshold, or heartbeat-loss evidence dominates across transports, which points to a connectivity issue."
+  },
+  "operator_recommendations": [
+    {
+      "action": "Check network connectivity",
+      "reason": "Timeout, retry-threshold, or heartbeat-loss evidence is correlated across transports.",
+      "confidence": "high",
+      "related_transports": ["mqtt-primary", "mqtt-backup"],
+      "related_segments": ["segment:timeout_failure:mesh/messages"]
+    }
+  ],
+  "routing_recommendations": [
+    {
+      "action": "deprioritize_degraded_transport",
+      "target_transport": "mqtt-primary",
+      "reason": "mqtt-primary is degraded with score=85; keep routing advisory-only and visible to operators.",
+      "confidence": "medium"
+    }
+  ],
+  "active_alerts": [...],
+  "recent_clusters": [...],
+  "history_summary": {
+    "health_points": 144,
+    "alert_points": 12,
+    "anomaly_points": 48,
+    "retained_since": "2026-03-13T12:00:00Z",
+    "retention_boundary": "bounded by intelligence.retention.health_snapshot_days=7 and intelligence.retention.health_snapshot_max_rows=10000"
+  }
+}
+```
+
+---
+
+### GET /api/v1/mesh/inspect
+Detailed mesh inspection with recommendations.
+
+**Response:** Same structure as `/api/v1/mesh` (full MeshDrilldown)
+
+---
+
+### GET /api/v1/messages
+List recent messages with optional filtering.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `node` | string | "" | Filter by node (number or ID) |
+| `type` | string | "" | Filter by message type (searches payload_json) |
+| `limit` | integer | 100 | Max results (max 500) |
+
+**Response:**
+```json
+{
+  "messages": [
+    {
+      "transport_name": "mqtt-primary",
+      "packet_id": 12345,
+      "from_node": 98765,
+      "to_node": 12345,
+      "portnum": 1,
+      "payload_text": "Hello mesh!",
+      "payload_json": "{\"message_type\":\"text\",\"text\":\"Hello mesh!\"}",
+      "rx_time": "2026-03-20T11:59:55Z",
+      "created_at": "2026-03-20T11:59:56Z"
+    }
+  ],
+  "filters": {
+    "limit": ["100"]
+  }
+}
+```
+
+---
+
+### GET /api/v1/panel
+Compact operator panel summary.
+
+**Response:**
+```json
+{
+  "generated_at": "2026-03-20T12:00:00Z",
+  "operator_state": "ready",
+  "summary": "Live ingest is confirmed by SQLite writes.",
+  "short_commands": ["S=Status", "T=Transports", "N=Nodes", "R=Replay", "D=Doctor"],
+  "web_hints": [
+    "Open /api/v1/status for full transport truth.",
+    "Open /api/v1/panel for compact operator state.",
+    "Use the Web UI to verify live ingest versus historical-only evidence."
+  ],
+  "device_menu": [
+    {
+      "key": "A",
+      "label": "State",
+      "action": "Show operator state and overall ingest truth"
+    },
+    {
+      "key": "B",
+      "label": "Link",
+      "action": "Cycle transport states and last errors"
+    },
+    {
+      "key": "C",
+      "label": "Msgs",
+      "action": "Show persisted and runtime message counters"
+    },
+    {
+      "key": "D",
+      "label": "Retry",
+      "action": "Show reconnect attempts and offline guidance"
+    }
+  ],
+  "transports": [
+    {
+      "name": "mqtt-primary",
+      "label": "M",
+      "state": "live",
+      "messages": 15432,
+      "last_ingest": "2026-03-20T11:59:55Z",
+      "detail": "Live ingest is confirmed by successful database writes.",
+      "score": 100
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/privacy/audit
+Privacy audit findings.
+
+**Response:**
+```json
+{
+  "findings": [
+    {
+      "id": "export-redaction-disabled",
+      "severity": "medium",
+      "message": "Exports are configured without redaction.",
+      "remediation": "Enable privacy.redact_exports for operator-safe exports.",
+      "evidence": ["privacy.redact_exports=false"]
+    },
+    {
+      "id": "empty-trust-list",
+      "severity": "info",
+      "message": "No trust list is configured.",
+      "remediation": "Leave it empty if intentional, or add known node IDs for stricter export and policy workflows.",
+      "evidence": ["privacy.trust_list=[]"]
+    }
+  ],
+  "summary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 0,
+    "info": 1
+  }
+}
+```
+
+**Finding Severities:** `critical`, `high`, `medium`, `low`, `info`
+
+---
+
+### GET /api/v1/policy/explain
+Policy recommendations.
+
+**Response:**
+```json
+{
+  "recommendations": [
+    {
+      "id": "disable-precise-position-storage",
+      "summary": "Disable precise position storage unless your workflow truly requires it.",
+      "severity": "high",
+      "reason": "Position history can be sensitive personal data and is rarely required for local observability.",
+      "evidence": ["privacy.store_precise_positions=true"],
+      "remediation": "Turn off privacy.store_precise_positions or require operator approval plus storage key management."
+    },
+    {
+      "id": "require-mqtt-encryption",
+      "summary": "Require MQTT transport encryption or disable MQTT for privacy-sensitive deployments.",
+      "severity": "high",
+      "reason": "Broker hops can expose message content and metadata when transport encryption is not enforced.",
+      "evidence": ["privacy.mqtt_encryption_required=false"],
+      "remediation": "Keep MQTT local, add TLS via a local tunnel, or disable the transport."
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/events
+Audit logs/events.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `transport` | string | "" | Filter by transport name |
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "category": "transport",
+      "level": "warn",
+      "message": "timeout_failure",
+      "details_json": "{\"transport\":\"mqtt-primary\",\"type\":\"mqtt\",\"episode_id\":\"ep-001\"}",
+      "created_at": "2026-03-20T11:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/audit-logs
+Alias for `/api/v1/events`.
+
+---
+
+### GET /api/v1/dead-letters
+Dead letter queue entries.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `transport` | string | "" | Filter by transport name |
+
+**Response:**
+```json
+{
+  "dead_letters": [
+    {
+      "transport_name": "mqtt-primary",
+      "transport_type": "mqtt",
+      "topic": "mesh/messages",
+      "reason": "retry_threshold_exceeded",
+      "payload_hex": "080112...",
+      "details_json": "{\"episode_id\":\"ep-001\",\"final\":true}",
+      "created_at": "2026-03-20T11:25:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/incidents
+Recent transport incidents.
+
+**Response:**
+```json
+{
+  "recent_transport_incidents": [
+    {
+      "id": "inc-001",
+      "transport_name": "mqtt-primary",
+      "severity": "warn",
+      "reason": "timeout_failure",
+      "episode_id": "ep-001",
+      "started_at": "2026-03-20T11:25:00Z",
+      "ended_at": "2026-03-20T11:35:00Z",
+      "duration_seconds": 600
+    }
+  ]
+}
+```
+
+---
+
+## Control Plane Endpoints
+
+### GET /api/v1/control/status
+Control plane status and configuration.
+
+**Response:**
+```json
+{
+  "mode": "advisory",
+  "active_actions": [],
+  "recent_actions": [],
+  "pending_actions": [],
+  "denied_actions": [],
+  "policy_summary": {
+    "mode": "advisory",
+    "allowed_actions": ["transport_restart", "source_suppression"],
+    "max_actions_per_window": 5,
+    "cooldown_per_target": 300,
+    "require_min_confidence": 0.7,
+    "allow_mesh_level": true,
+    "allow_transport_restart": true,
+    "allow_source_suppression": true,
+    "action_window_seconds": 3600,
+    "restart_cap_per_window": 3
+  },
+  "reality_matrix": [],
+  "reasons_for_denial": [],
+  "emergency_disable": false,
+  "status": "control unavailable without service control hooks"
+}
+```
+
+**Note:** When service control hooks are not configured, the status indicates this explicitly. The control plane operates in "advisory" mode by default, meaning it will log recommendations but not execute actions automatically.
+
+**Control Modes:**
+- `disabled` - Control plane is completely disabled
+- `advisory` - Recommendations logged, no automatic actions
+- `assisted` - Some automatic actions with operator confirmation
+- `automatic` - Full automatic remediation (requires confidence thresholds)
+
+---
+
+### GET /api/v1/control/actions
+Control actions and decisions history.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `transport` | string | "" | Filter by transport name |
+| `start` | string (RFC3339) | "" | Start time |
+| `end` | string (RFC3339) | "" | End time |
+| `limit` | integer | default | Max results |
+| `offset` | integer | 0 | Pagination offset |
+
+**Response:**
+```json
+{
+  "actions": [
+    {
+      "id": "action-001",
+      "transport_name": "mqtt-primary",
+      "action_type": "transport_restart",
+      "trigger_reason": "failure_threshold_exceeded",
+      "lifecycle_state": "completed",
+      "result": "executed_successfully",
+      "executed_at": "2026-03-20T11:30:00Z",
+      "completed_at": "2026-03-20T11:30:05Z",
+      "reversible": true,
+      "expires_at": ""
+    }
+  ],
+  "decisions": [
+    {
+      "id": "decision-001",
+      "transport_name": "mqtt-primary",
+      "proposed_action": "transport_restart",
+      "allowed": false,
+      "denial_code": "cooldown",
+      "denial_reason": "Action is within cooldown period for target",
+      "confidence": 0.8,
+      "created_at": "2026-03-20T11:35:00Z"
+    }
+  ],
+  "in_flight": [],
+  "reality_matrix": [],
+  "transport": "mqtt-primary",
+  "start": "2026-03-20T10:00:00Z",
+  "end": "2026-03-20T12:00:00Z",
+  "pagination": {
+    "limit": 100,
+    "offset": 0
+  }
+}
+```
+
+**Denial Codes:**
+- `policy` - Action violates policy
+- `mode` - Current mode doesn't allow this action
+- `override` - Operator override denied
+- `low_confidence` - Confidence below threshold
+- `transient` - Transient condition prevented execution
+- `cooldown` - Action in cooldown period
+- `budget` - Action budget exceeded
+- `missing_actuator` - No actuator available
+- `unknown_blast_radius` - Cannot determine impact
+- `no_alternate_path` - No alternate routing path
+- `irreversible` - Action is irreversible
+- `conflict` - Conflicting action in progress
+- `attribution_weak` - Cannot attribute issue to target
+
+---
+
+### GET /api/v1/control/history
+Control history (same data as `/api/v1/control/actions` but without the structured wrapper).
+
+**Query Parameters:** Same as `/api/v1/control/actions`
+
+**Response:** Raw payload from control history function (structure varies by implementation)
+
+---
+
+## Common Data Structures
+
+### Transport Health
+```json
+{
+  "transport_name": "mqtt-primary",
+  "transport_type": "mqtt",
+  "score": 85,
+  "state": "degraded",
+  "last_evaluated_at": "2026-03-20T12:00:00Z",
+  "primary_reason": "timeout_failure",
+  "signals": {
+    "recent_failures": 3,
+    "dead_letter_count": 0,
+    "retry_count": 2,
+    "last_heartbeat_delta_seconds": 65,
+    "anomaly_rate": 0.6,
+    "observation_drops": 0,
+    "active_episode": true
+  },
+  "explanation": {
+    "transport_name": "mqtt-primary",
+    "score": 85,
+    "state": "degraded",
+    "top_penalties": [
+      {
+        "reason": "timeout_failure",
+        "penalty": 15,
+        "count": 3,
+        "window": "5m"
+      }
+    ],
+    "active_cluster_reason": "timeout_failure",
+    "active_cluster_count": 5,
+    "active_episode_id": "ep-001",
+    "failure_count": 3,
+    "observation_drops": 0,
+    "dead_letter_count": 0,
+    "recovery_blockers": ["runtime_state:retrying", "active_failure_episode:ep-001 (3 failures)"]
+  }
+}
+```
+
+### Failure Cluster
+```json
+{
+  "transport_name": "mqtt-primary",
+  "transport_type": "mqtt",
+  "reason": "timeout_failure",
+  "count": 5,
+  "first_seen": "2026-03-20T11:25:00Z",
+  "last_seen": "2026-03-20T11:35:00Z",
+  "severity": "warn",
+  "episode_id": "ep-001",
+  "includes_dead_letter": false,
+  "includes_observation_drops": false,
+  "cluster_key": "mqtt-primary|timeout_failure|ep-001"
+}
+```
+
+### Transport Alert
+```json
+{
+  "id": "alert-001",
+  "transport_name": "mqtt-primary",
+  "transport_type": "mqtt",
+  "severity": "warn",
+  "reason": "timeout_failure",
+  "summary": "Connection timeout detected",
+  "first_triggered_at": "2026-03-20T11:30:00Z",
+  "last_updated_at": "2026-03-20T11:35:00Z",
+  "active": true,
+  "episode_id": "ep-001",
+  "cluster_key": "cluster-001",
+  "contributing_reasons": ["timeout_failure", "retry_threshold_exceeded"],
+  "cluster_reference": "ref-001",
+  "penalty_snapshot": [
+    {
+      "reason": "timeout_failure",
+      "penalty": 15,
+      "count": 3,
+      "window": "5m"
+    }
+  ],
+  "trigger_condition": "consecutive_timeouts > 3"
+}
+```
+
+### Health States
+- `healthy` (score >= 90)
+- `degraded` (score 70-89)
+- `unstable` (score 40-69)
+- `failed` (score < 40)
+
+### Alert Severities
+- `critical` - Immediate action required
+- `warn` - Attention needed
+- `info` - Informational
+
+## Error Response Format
+
+All errors follow this format:
+```json
+{
+  "error": {
+    "code": "error_code",
+    "message": "Human-readable error description"
+  }
+}
+```
+
+**Common Error Codes:**
+- `auth_required` - Authentication needed
+- `db_query_failed` - Database operation failed
+- `status_failed` - Status collection failed
+- `panel_failed` - Panel generation failed
+- `missing_node` - Node identifier required
+- `node_not_found` - Node not in observations
+- `missing_transport` - Transport name required
+- `transport_not_found` - Transport not found
+- `mesh_inspect_failed` - Mesh inspection failed
+- `control_status_failed` - Control status retrieval failed
+- `control_actions_failed` - Control actions retrieval failed
+- `control_history_failed` - Control history retrieval failed
+
+## Web UI
+
+When `features.web_ui` is enabled, the root path `/` serves an HTML dashboard with:
+- Onboarding guide
+- Status overview
+- Instrument panel
+- Transport health table
+- Dead letters
+- Node inventory
+- Recent messages
+- Privacy findings
+- Config recommendations
+- Event logs
+
+The Web UI uses the same API endpoints and respects authentication settings.

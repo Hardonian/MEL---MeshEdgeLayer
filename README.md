@@ -132,11 +132,45 @@ MEL currently stores and labels these message classes:
 
 ## Operator docs
 
+- [docs/ops/first-10-minutes.md](docs/ops/first-10-minutes.md)
 - [docs/ops/configuration.md](docs/ops/configuration.md)
+- [docs/ops/api-reference.md](docs/ops/api-reference.md)
+- [docs/ops/cli-reference.md](docs/ops/cli-reference.md)
+- [docs/ops/control-plane.md](docs/ops/control-plane.md)
 - [docs/ops/diagnostics.md](docs/ops/diagnostics.md)
-- [docs/ops/transport-matrix.md](docs/ops/transport-matrix.md)
+- [docs/ops/runbooks.md](docs/ops/runbooks.md)
+- [docs/ops/incident-triage.md](docs/ops/incident-triage.md)
+- [docs/ops/glossary.md](docs/ops/glossary.md)
+- [docs/ops/support-matrix.md](docs/ops/support-matrix.md)
+- [docs/ops/known-issues.md](docs/ops/known-issues.md)
 - [docs/ops/known-limitations.md](docs/ops/known-limitations.md)
+- [docs/ops/diagnostics-collection.md](docs/ops/diagnostics-collection.md)
+- [docs/ops/transport-matrix.md](docs/ops/transport-matrix.md)
 - [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md)
+
+## Control Plane (Optional)
+
+MEL has an optional control plane for automated remediation:
+- Default mode is `advisory` (observes but doesn't act)
+- `guarded_auto` mode can execute safe actions
+- Many actions remain advisory-only (no actuator)
+
+See [docs/ops/control-plane.md](docs/ops/control-plane.md) for details.
+
+## Support
+
+To get help:
+- Check [docs/ops/first-10-minutes.md](docs/ops/first-10-minutes.md) for quick troubleshooting
+- Review [docs/ops/known-issues.md](docs/ops/known-issues.md) for common problems
+- Consult [docs/ops/runbooks.md](docs/ops/runbooks.md) for operational procedures
+
+When reporting issues, collect:
+- Output of `mel doctor --config <path>`
+- Output of `mel status --config <path>`
+- Relevant log excerpts from `mel logs tail --config <path>`
+- Transport configuration (redact credentials)
+
+See [docs/ops/diagnostics-collection.md](docs/ops/diagnostics-collection.md) for the full diagnostics collection guide.
 
 ## Contributor docs
 
