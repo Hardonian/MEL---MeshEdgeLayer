@@ -8,7 +8,6 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { NoNodesYet } from '@/components/ui/EmptyState'
 import { formatRelativeTime, NodeInfo } from '@/types/api'
 import { Radio, Clock, MapPin } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 export function Nodes() {
   const { data, loading, error, refresh } = useNodes()

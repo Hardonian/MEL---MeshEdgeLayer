@@ -1,5 +1,55 @@
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
+
+// Fade-in wrapper for content transitions
+interface FadeInProps {
+  children: React.ReactNode
+  className?: string
+  delay?: number
+}
+
+export function FadeIn({ children, className, delay = 0 }: FadeInProps) {
+  return (
+    <div 
+      className={clsx('animate-fade-in', className)}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  )
+}
+
+// Slide-in from bottom for panels
+interface SlideInProps {
+  children: React.ReactNode
+  className?: string
+  delay?: number
+}
+
+export function SlideIn({ children, className, delay = 0 }: SlideInProps) {
+  return (
+    <div 
+      className={clsx('animate-slide-up', className)}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  )
+}
+
+// Expand animation for cards/panels
+interface ExpandInProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function ExpandIn({ children, className }: ExpandInProps) {
+  return (
+    <div className={clsx('animate-expand-in', className)}>
+      {children}
+    </div>
+  )
+}
 
 interface LoadingProps {
   message?: string

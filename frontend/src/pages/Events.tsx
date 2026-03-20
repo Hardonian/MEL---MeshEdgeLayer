@@ -7,7 +7,7 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatTimestamp, AuditLog } from '@/types/api'
-import { ScrollText, Clock, AlertTriangle, Info, AlertCircle, FileText, HelpCircle } from 'lucide-react'
+import { ScrollText, Clock, AlertTriangle, AlertCircle, FileText, HelpCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
 export function Events() {
@@ -144,21 +144,12 @@ function EventRow({ event }: { event: AuditLog }) {
     debug: 'border-l-muted bg-muted/30',
   }
 
-  const levelIcons = {
-    info: Info,
-    warning: AlertTriangle,
-    error: AlertCircle,
-    debug: FileText,
-  }
-
   const levelBadge = {
     info: 'default',
     warning: 'warning',
     error: 'critical',
     debug: 'secondary',
   } as const
-
-  const icon = levelIcons[event.level?.toLowerCase() as keyof typeof levelIcons] || Info
 
   return (
     <div className={clsx(

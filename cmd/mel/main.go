@@ -764,16 +764,6 @@ func enabledTransportNames(cfg config.Config) []string {
 	}
 	return names
 }
-
-func appendUnique(in []string, value string) []string {
-	for _, existing := range in {
-		if existing == value {
-			return in
-		}
-	}
-	return append(in, value)
-}
-
 func redactMessages(rows []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {

@@ -1,5 +1,5 @@
 import { useStatus } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { ProgressBar, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge, HealthBadge, ConnectionBadge, TransportBadge } from '@/components/ui/Badge'
@@ -226,17 +226,11 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Health Score</p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className={clsx(
-                      'h-full rounded-full',
-                      healthState === 'healthy' ? 'bg-success' :
-                      healthState === 'degraded' ? 'bg-warning' :
-                      'bg-critical'
-                    )}
-                    style={{ width: `${transport.health.score}%` }}
-                  />
-                </div>
+                <ProgressBar 
+                  value={transport.health.score} 
+                  variant={healthState === 'healthy' ? 'success' : healthState === 'degraded' ? 'warning' : 'critical'}
+                  className="mt-1"
+                />
                 <span className="text-sm font-mono font-medium">{transport.health.score}</span>
               </div>
               {transport.health.primary_reason && (

@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "statuspkg",
+    "mqtt",
+    "MQTT",
+    "readback",
+    "Meshtastic",
+    "meshtastic",
+    "rssi",
+    "drilldown",
+    "portnum",
+    "dialout",
+    "uucp",
+    "serialtcp",
+    "uvarint",
+    "packetid",
+    "dmesg",
+    "chmod"
+  ]
+}
