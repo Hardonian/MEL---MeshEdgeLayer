@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table exists for future use but is not currently populated
 CREATE TABLE IF NOT EXISTS channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   channel_id TEXT NOT NULL UNIQUE,
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS telemetry_samples (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table exists for future use but is not currently populated
 CREATE TABLE IF NOT EXISTS topology_edges (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_node INTEGER NOT NULL,
@@ -67,6 +69,7 @@ CREATE TABLE IF NOT EXISTS topology_edges (
   UNIQUE(source_node, target_node, source_type)
 );
 
+-- Table exists for future use but is not currently populated
 CREATE TABLE IF NOT EXISTS trust_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   node_num INTEGER,

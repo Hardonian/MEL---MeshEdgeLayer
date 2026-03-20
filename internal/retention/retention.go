@@ -34,5 +34,23 @@ func Run(database *db.DB, cfg config.Config) error {
 	if err := database.PruneControlHistory(controlCutoff, cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
 		return err
 	}
+	// Retention for runtime status and evidence: 90 days aligns with operational telemetry window
+	runtimeCutoff := time.Now().UTC().AddDate(0, 0, -90).Format(time.RFC3339)
+	if err := database.Exec(fmt.Sprintf("DELETE FROM transport_runtime_status WHERE updated_at < '%s';", runtimeCutoff)); err != nil {
+		return err
+	}
+	if err := database.Exec(fmt.Sprintf("DELETE FROM transport_runtime_evidence WHERE updated_at < '%s';", runtimeCutoff)); err != nil {
+		return err
+	}
+	// Retention for config apply history: 90 days allows rollback context for recent changes
+	configCutoff := time.Now().UTC().AddDate(0, 0, -90).Format(time.RFC3339)
+	if err := database.Exec(fmt.Sprintf("DELETE FROM config_apply_history WHERE applied_at < '%s';", configCutoff)); err != nil {
+		return err
+	}
+	// Retention for retention_jobs itself: 30 days prevents unbounded growth of job metadata
+	retentionJobsCutoff := time.Now().UTC().AddDate(0, 0, -30).Format(time.RFC3339)
+	if err := database.Exec(fmt.Sprintf("DELETE FROM retention_jobs WHERE last_run < '%s';", retentionJobsCutoff)); err != nil {
+		return err
+	}
 	return database.Exec("INSERT INTO retention_jobs(job_name,last_run,last_status,details) VALUES('default', datetime('now'), 'ok', 'retention sweep complete incl. transport intelligence pruning');")
 }

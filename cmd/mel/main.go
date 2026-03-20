@@ -121,7 +121,7 @@ func usage() {
   export --config <path> [--out path]
   import validate --bundle <path>
   backup create --config <path> [--out path]
-  backup restore --bundle <path> --dry-run [--destination dir]
+  backup restore --bundle <path> --dry-run (required) [--destination dir]
   logs tail --config <path>
   db vacuum --config <path>
   dev-simulate-mqtt`)
@@ -284,7 +284,11 @@ func printPanelText(panel statuspkg.Panel) {
 	fmt.Println(panel.Summary)
 	fmt.Println()
 	for _, metric := range panel.Transports {
-		fmt.Printf("[%s] %-16s %-22s msgs=%d", metric.Label, metric.Name, metric.State, metric.Messages)
+		scoreStr := "n/a"
+		if metric.Score != nil {
+			scoreStr = formatHealthScore(*metric.Score)
+		}
+		fmt.Printf("[%s] %-16s %s score=%s msgs=%d", metric.Label, metric.Name, metric.State, scoreStr, metric.Messages)
 		if metric.LastIngest != "" {
 			fmt.Printf(" last=%s", metric.LastIngest)
 		}
@@ -301,6 +305,17 @@ func printPanelText(panel statuspkg.Panel) {
 	fmt.Println("8-bit device menu:")
 	for _, item := range panel.DeviceMenu {
 		fmt.Printf("  %s %-5s %s\n", item.Key, item.Label, item.Action)
+	}
+}
+
+func formatHealthScore(score int) string {
+	switch {
+	case score >= 90:
+		return fmt.Sprintf("%d*", score)
+	case score >= 70:
+		return fmt.Sprintf("%d!", score)
+	default:
+		return fmt.Sprintf("%d**", score)
 	}
 }
 
@@ -572,15 +587,15 @@ func backupCmd(args []string) {
 		mustPrint(manifest)
 	case "restore":
 		f := fs("backup-restore")
-		bundlePath := f.String("bundle", "", "bundle path")
-		dryRun := f.Bool("dry-run", false, "validate only")
+		bundlePath := f.String("bundle", "", "bundle path (required)")
+		dryRun := f.Bool("dry-run", false, "validate only (required - restore without --dry-run is not implemented)")
 		destination := f.String("destination", ".", "restore directory")
 		_ = f.Parse(args[1:])
 		if *bundlePath == "" {
 			panic("--bundle is required")
 		}
 		if !*dryRun {
-			panic("only --dry-run restore is implemented in this release candidate")
+			panic("--dry-run is required; restore without --dry-run is not implemented in this release candidate")
 		}
 		report, err := backup.ValidateRestore(*bundlePath, *destination)
 		if err != nil {
