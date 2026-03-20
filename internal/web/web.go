@@ -44,29 +44,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	controlStatusFn := controlStatus
 	if controlStatusFn == nil {
 		controlStatusFn = func() (map[string]any, error) {
-			return map[string]any{
-				"mode":            cfg.Control.Mode,
-				"active_actions":  []any{},
-				"recent_actions":  []any{},
-				"pending_actions": []any{},
-				"denied_actions":  []any{},
-				"policy_summary": map[string]any{
-					"mode":                    cfg.Control.Mode,
-					"allowed_actions":         cfg.Control.AllowedActions,
-					"max_actions_per_window":  cfg.Control.MaxActionsPerWindow,
-					"cooldown_per_target":     cfg.Control.CooldownPerTargetSeconds,
-					"require_min_confidence":  cfg.Control.RequireMinConfidence,
-					"allow_mesh_level":        cfg.Control.AllowMeshLevelActions,
-					"allow_transport_restart": cfg.Control.AllowTransportRestart,
-					"allow_source_suppression": cfg.Control.AllowSourceSuppression,
-					"action_window_seconds":   cfg.Control.ActionWindowSeconds,
-					"restart_cap_per_window":  cfg.Control.RestartCapPerWindow,
-				},
-				"reality_matrix":    []any{},
-				"reasons_for_denial": []any{},
-				"emergency_disable": cfg.Control.EmergencyDisable,
-				"status":            "control unavailable without service control hooks",
-			}, nil
+			return map[string]any{"mode": cfg.Control.Mode, "status": "control unavailable without service control hooks"}, nil
 		}
 	}
 	controlHistoryFn := controlHistory
@@ -77,64 +55,107 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	}
 	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", s.healthz)
-	mux.HandleFunc("/readyz", s.readyz)
-	mux.HandleFunc("/metrics", s.metrics)
-	mux.HandleFunc("/api/status", s.status)
-	mux.HandleFunc("/api/nodes", s.nodes)
-	mux.HandleFunc("/api/transports", s.transports)
-	mux.HandleFunc("/api/privacy/audit", s.audit)
-	mux.HandleFunc("/api/recommendations", s.recs)
-	mux.HandleFunc("/api/logs", s.logs)
-	mux.HandleFunc("/api/dead-letters", s.deadLetters)
-	mux.HandleFunc("/api/v1/status", s.status)
-	mux.HandleFunc("/api/v1/nodes", s.nodes)
-	mux.HandleFunc("/api/v1/node/", s.nodeDetail)
-	mux.HandleFunc("/api/v1/transports", s.transports)
-	mux.HandleFunc("/api/v1/transports/health", s.transportHealthSummary)
-	mux.HandleFunc("/api/v1/transports/alerts", s.transportAlerts)
-	mux.HandleFunc("/api/v1/transports/anomalies", s.transportAnomalies)
-	mux.HandleFunc("/api/v1/transports/health/history", s.transportHealthHistory)
-	mux.HandleFunc("/api/v1/transports/alerts/history", s.transportAlertsHistory)
-	mux.HandleFunc("/api/v1/transports/anomalies/history", s.transportAnomaliesHistory)
-	mux.HandleFunc("/api/v1/transports/inspect/", s.transportInspect)
-	mux.HandleFunc("/api/v1/mesh", s.mesh)
-	mux.HandleFunc("/api/v1/mesh/inspect", s.meshInspect)
-	mux.HandleFunc("/api/v1/messages", s.messages)
-	mux.HandleFunc("/api/v1/metrics", s.metrics)
-	mux.HandleFunc("/api/v1/panel", s.panel)
-	mux.HandleFunc("/api/v1/privacy/audit", s.audit)
-	mux.HandleFunc("/api/v1/policy/explain", s.recs)
-	mux.HandleFunc("/api/v1/events", s.logs)
-	mux.HandleFunc("/api/v1/audit-logs", s.logs)
-	mux.HandleFunc("/api/v1/dead-letters", s.deadLetters)
-	mux.HandleFunc("/api/v1/incidents", s.incidents)
-	mux.HandleFunc("/api/v1/control/status", s.controlStatusHandler)
-	mux.HandleFunc("/api/v1/control/actions", s.controlActionsHandler)
-	mux.HandleFunc("/api/v1/control/history", s.controlHistoryHandler)
+	mux.HandleFunc("/healthz", s.requireMethod(s.healthz, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/readyz", s.requireMethod(s.readyz, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/status", s.requireMethod(s.status, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/nodes", s.requireMethod(s.nodes, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/transports", s.requireMethod(s.transports, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/privacy/audit", s.requireMethod(s.audit, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/recommendations", s.requireMethod(s.recs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/status", s.requireMethod(s.status, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/nodes", s.requireMethod(s.nodes, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/node/", s.requireMethod(s.nodeDetail, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports", s.requireMethod(s.transports, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/health", s.requireMethod(s.transportHealthSummary, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/alerts", s.requireMethod(s.transportAlerts, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/anomalies", s.requireMethod(s.transportAnomalies, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/health/history", s.requireMethod(s.transportHealthHistory, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/alerts/history", s.requireMethod(s.transportAlertsHistory, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/anomalies/history", s.requireMethod(s.transportAnomaliesHistory, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/transports/inspect/", s.requireMethod(s.transportInspect, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/mesh", s.requireMethod(s.mesh, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/mesh/inspect", s.requireMethod(s.meshInspect, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/messages", s.requireMethod(s.messages, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/panel", s.requireMethod(s.panel, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/privacy/audit", s.requireMethod(s.audit, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/policy/explain", s.requireMethod(s.recs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/events", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
 	if cfg.Features.WebUI {
-		mux.HandleFunc("/", s.ui)
+		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))
 	}
-	s.http = &http.Server{Addr: cfg.Bind.API, Handler: s.withAuth(mux), ReadHeaderTimeout: 5 * time.Second}
+	s.http = &http.Server{Addr: cfg.Bind.API, Handler: s.withSecurityHeaders(s.withAuth(mux)), ReadHeaderTimeout: 5 * time.Second}
 	return s
 }
+
+func (s *Server) requireMethod(handler http.HandlerFunc, allowedMethods ...string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, method := range allowedMethods {
+			if r.Method == method {
+				handler(w, r)
+				return
+			}
+		}
+		w.Header().Set("Allow", strings.Join(allowedMethods, ", "))
+		s.log.Security("http_method_not_allowed", "invalid HTTP method attempted", "medium", map[string]any{
+			"method":     r.Method,
+			"path":       r.URL.Path,
+			"remote":     remoteClient(r),
+			"allowed":    allowedMethods,
+		})
+		writeJSON(w, http.StatusMethodNotAllowed, logging.APIErrorResponse(
+			logging.NewSafeError(fmt.Sprintf("Method %s is not allowed for this endpoint", r.Method), nil, "http", false),
+		))
+	}
+}
+
+func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		if r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) Start(ctx context.Context) {
 	go func() { <-ctx.Done(); _ = s.http.Shutdown(context.Background()) }()
 	s.log.Info("web_start", "web starting", map[string]any{"addr": s.cfg.Bind.API})
 	_ = s.http.ListenAndServe()
 }
+
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
 func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
-func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ready": false, "error": err.Error()})
+		s.log.Error("readyz_failed", "readiness check failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"ready": false,
+			"error": "Service temporarily unavailable",
+		})
 		return
 	}
 	panel := statuspkg.BuildPanel(snap)
@@ -154,83 +175,113 @@ func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
 		"transports":     snap.Transports,
 	})
 }
-func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "status_failed", "message": err.Error()}})
+		s.log.Error("status_snapshot_failed", "status snapshot failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
-	persistedMessages, msgErr := s.db.Scalar("SELECT COUNT(*) FROM messages;")
-	persistedNodes, nodeErr := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
-	lastPersistedIngest, ingestErr := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
-
-	if msgErr != nil {
-		s.log.Error("db_query_failed", "failed to query persisted messages count", map[string]any{"error": msgErr.Error()})
-	}
-	if nodeErr != nil {
-		s.log.Error("db_query_failed", "failed to query persisted nodes count", map[string]any{"error": nodeErr.Error()})
-	}
-	if ingestErr != nil {
-		s.log.Error("db_query_failed", "failed to query last persisted ingest time", map[string]any{"error": ingestErr.Error()})
-	}
-
-	persistedSummary := map[string]any{
-		"messages":    persistedMessages,
-		"nodes":       persistedNodes,
-		"last_ingest": lastPersistedIngest,
-	}
-	if msgErr != nil || nodeErr != nil || ingestErr != nil {
-		persistedSummary["error"] = "persisted data unavailable due to query errors"
-	}
-
+	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
+	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
+	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshot":           s.state.Snapshot(),
-		"persisted_summary":  persistedSummary,
+		"runtime_snapshot":   s.state.Snapshot(),
+		"persisted_summary":  map[string]any{"messages": persistedMessages, "nodes": persistedNodes, "last_ingest": lastPersistedIngest},
 		"status":             snap,
 		"panel":              statuspkg.BuildPanel(snap),
 		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
 		"bind_local_default": !s.cfg.Bind.AllowRemote,
 	})
 }
-func (s *Server) nodes(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.db.QueryRows("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n ORDER BY n.updated_at DESC;")
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"nodes": rows})
 }
+
 func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 	nodeID := strings.TrimPrefix(r.URL.Path, "/api/v1/node/")
 	if nodeID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"code": "missing_node", "message": "node identifier is required"}})
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+			logging.NewSafeError("node identifier is required", nil, "validation", false),
+		))
+		return
+	}
+	if containsPathTraversal(nodeID) {
+		s.log.Security("suspicious_input", "path traversal attempt detected", "high", map[string]any{
+			"path":   r.URL.Path,
+			"input":  logging.SanitizeStringForLog(nodeID, 100),
+			"remote": remoteClient(r),
+		})
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+			logging.NewSafeError("node identifier contains invalid characters", nil, "validation", false),
+		))
 		return
 	}
 	query := fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE CAST(n.node_num AS TEXT)='%s' OR n.node_id='%s' LIMIT 1;", escape(nodeID), escape(nodeID))
 	rows, err := s.db.QueryRows(query)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	if len(rows) == 0 {
-		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"code": "node_not_found", "message": "node not present in local observations"}})
+		writeJSON(w, http.StatusNotFound, logging.APIErrorResponse(
+			logging.NewSafeError("node not present in local observations", nil, "not_found", false),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"node": rows[0]})
 }
-func (s *Server) transports(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) transports(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("transports_failed", "transport data retrieval failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_transport_incidents": snap.RecentTransportIncidents, "active_transport_alerts": snap.ActiveTransportAlerts})
 }
 
-func (s *Server) transportHealthSummary(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) transportHealthSummary(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("transport_health_failed", "transport health data retrieval failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	health := make([]any, 0, len(snap.Transports))
@@ -253,19 +304,31 @@ func (s *Server) transportHealthSummary(w http.ResponseWriter, _ *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"transport_health": health})
 }
 
-func (s *Server) transportAlerts(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) transportAlerts(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("transport_alerts_failed", "transport alerts retrieval failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transport_alerts": snap.ActiveTransportAlerts})
 }
 
-func (s *Server) transportAnomalies(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) transportAnomalies(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("transport_anomalies_failed", "transport anomalies retrieval failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	rows := make([]any, 0, len(snap.Transports))
@@ -279,31 +342,62 @@ func (s *Server) transportAnomalies(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transport_anomalies": rows})
 }
+
 func (s *Server) transportHealthHistory(w http.ResponseWriter, r *http.Request) {
-	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	transportName, start, end, limit, offset, err := historyParams(s.cfg, r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
+		return
+	}
 	rows, err := s.db.TransportHealthSnapshots(transportName, start, end, limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
 }
 
 func (s *Server) transportAlertsHistory(w http.ResponseWriter, r *http.Request) {
-	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	transportName, start, end, limit, offset, err := historyParams(s.cfg, r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
+		return
+	}
 	rows, err := s.db.TransportAlertsHistory(transportName, start, end, limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
 }
 
 func (s *Server) transportAnomaliesHistory(w http.ResponseWriter, r *http.Request) {
-	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	transportName, start, end, limit, offset, err := historyParams(s.cfg, r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
+		return
+	}
 	rows, err := s.db.TransportAnomalyHistory(transportName, start, end, limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"history": rows, "pagination": map[string]any{"limit": limit, "offset": offset}, "transport": transportName, "start": start, "end": end})
@@ -312,91 +406,152 @@ func (s *Server) transportAnomaliesHistory(w http.ResponseWriter, r *http.Reques
 func (s *Server) transportInspect(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/api/v1/transports/inspect/")
 	if strings.TrimSpace(name) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"code": "missing_transport", "message": "transport name is required"}})
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+			logging.NewSafeError("transport name is required", nil, "validation", false),
+		))
 		return
 	}
 	drilldown, err := statuspkg.InspectTransport(s.cfg, s.db, s.transportHealth(), name, time.Now().UTC())
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"code": "transport_not_found", "message": err.Error()}})
+		writeJSON(w, http.StatusNotFound, logging.APIErrorResponse(
+			logging.NewSafeError("transport not found", err, "not_found", false),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, drilldown)
 }
 
-func (s *Server) mesh(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) mesh(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("mesh_failed", "mesh data retrieval failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, snap.Mesh)
 }
 
-func (s *Server) meshInspect(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) meshInspect(w http.ResponseWriter, r *http.Request) {
 	drilldown, err := statuspkg.InspectMesh(s.cfg, s.db, s.transportHealth(), time.Now().UTC())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "mesh_inspect_failed", "message": err.Error()}})
+		s.log.Error("mesh_inspect_failed", "mesh inspection failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, drilldown)
 }
 
-func (s *Server) controlStatusHandler(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 	payload, err := s.controlStatus()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_status_failed", "message": err.Error()}})
+		s.log.Error("control_status_failed", "control status query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// controlActionsHandler returns both actions and decisions history (mirrors CLI behavior)
 func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
-	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	transportName, start, end, limit, offset, err := historyParams(s.cfg, r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
+		return
+	}
 	payload, err := s.controlHistory(start, end, transportName, limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_actions_failed", "message": err.Error()}})
+		s.log.Error("control_history_failed", "control history query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"actions":        payload["actions"],
-		"decisions":      payload["decisions"],
-		"in_flight":      payload["in_flight"],
-		"reality_matrix": payload["reality_matrix"],
-		"transport":      transportName,
-		"start":          start,
-		"end":            end,
-		"pagination":     payload["pagination"],
+		"actions":    payload["actions"],
+		"transport":  transportName,
+		"start":      start,
+		"end":        end,
+		"pagination": payload["pagination"],
 	})
 }
 
 func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
-	transportName, start, end, limit, offset := historyParams(s.cfg, r)
+	transportName, start, end, limit, offset, err := historyParams(s.cfg, r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
+		return
+	}
 	payload, err := s.controlHistory(start, end, transportName, limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "control_history_failed", "message": err.Error()}})
+		s.log.Error("control_history_failed", "control history query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
-func historyParams(cfg config.Config, r *http.Request) (string, string, string, int, int) {
+func historyParams(cfg config.Config, r *http.Request) (string, string, string, int, int, error) {
 	transportName := strings.TrimSpace(r.URL.Query().Get("transport"))
+	if transportName != "" && !isValidTransportName(transportName) {
+		return "", "", "", 0, 0, logging.NewSafeError("invalid transport name: contains forbidden characters", nil, "validation", false)
+	}
 	start := strings.TrimSpace(r.URL.Query().Get("start"))
 	end := strings.TrimSpace(r.URL.Query().Get("end"))
 	limit := cfg.Intelligence.Queries.DefaultLimit
 	if raw := r.URL.Query().Get("limit"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= cfg.Intelligence.Queries.MaxLimit {
-			limit = parsed
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			if parsed > cfg.Intelligence.Queries.MaxLimit {
+				limit = cfg.Intelligence.Queries.MaxLimit
+			} else {
+				limit = parsed
+			}
 		}
 	}
 	offset := 0
 	if raw := r.URL.Query().Get("offset"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			if parsed < 0 {
+				return "", "", "", 0, 0, logging.NewSafeError("offset must be >= 0", nil, "validation", false)
+			}
 			offset = parsed
 		}
 	}
-	return transportName, start, end, limit, offset
+	return transportName, start, end, limit, offset, nil
+}
+
+func isValidTransportName(name string) bool {
+	if strings.Contains(name, ";") {
+		return false
+	}
+	if strings.Contains(name, "--") {
+		return false
+	}
+	if strings.Contains(name, "/*") || strings.Contains(name, "*/") {
+		return false
+	}
+	return true
 }
 
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
@@ -408,31 +563,72 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	}
 	clauses := []string{"1=1"}
 	if node := r.URL.Query().Get("node"); node != "" {
+		if !isSafeIdentifier(node) {
+			s.log.Security("suspicious_input", "invalid characters in node parameter", "medium", map[string]any{
+				"path":   r.URL.Path,
+				"remote": remoteClient(r),
+				"param":  "node",
+			})
+			writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+				logging.NewSafeError("node parameter contains invalid characters", nil, "validation", false),
+			))
+			return
+		}
 		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(node), escape(node)))
 	}
 	if messageType := r.URL.Query().Get("type"); messageType != "" {
+		if !isSafeIdentifier(messageType) {
+			s.log.Security("suspicious_input", "invalid characters in type parameter", "medium", map[string]any{
+				"path":   r.URL.Path,
+				"remote": remoteClient(r),
+				"param":  "type",
+			})
+			writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+				logging.NewSafeError("type parameter contains invalid characters", nil, "validation", false),
+			))
+			return
+		}
 		clauses = append(clauses, fmt.Sprintf("payload_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"message_type\":\"%s\"`, messageType))))
 	}
 	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), limit))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "filters": r.URL.Query()})
 }
-func (s *Server) panel(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) panel(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "panel_failed", "message": err.Error()}})
+		s.log.Error("panel_failed", "panel generation failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, statuspkg.BuildPanel(snap))
 }
 
-func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		s.log.Error("metrics_failed", "metrics generation failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
 		return
 	}
 	cutoff := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
@@ -484,30 +680,57 @@ func (s *Server) metrics(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, metrics)
 }
+
 func (s *Server) audit(w http.ResponseWriter, _ *http.Request) {
 	findings := privacy.Audit(s.cfg)
 	writeJSON(w, http.StatusOK, map[string]any{"findings": findings, "summary": privacy.Summary(findings)})
 }
+
 func (s *Server) recs(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"recommendations": s.recommendations()})
 }
+
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT category,level,message,details_json,created_at FROM audit_logs"
 	if transportName := strings.TrimSpace(r.URL.Query().Get("transport")); transportName != "" {
+		if !isValidTransportName(transportName) {
+			s.log.Security("suspicious_input", "invalid transport name in query", "medium", map[string]any{
+				"path":      r.URL.Path,
+				"remote":    remoteClient(r),
+				"transport": transportName,
+			})
+			writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+				logging.NewSafeError("transport parameter contains invalid characters", nil, "validation", false),
+			))
+			return
+		}
 		query += fmt.Sprintf(" WHERE details_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"transport\":\"%s\"`, transportName)))
 	}
 	query += " ORDER BY id DESC LIMIT 100;"
 	rows, err := s.db.QueryRows(query)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": rows})
 }
-func (s *Server) incidents(w http.ResponseWriter, _ *http.Request) {
+
+func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 	incidents, err := s.db.RecentTransportIncidents(100)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"recent_transport_incidents": incidents})
@@ -516,16 +739,34 @@ func (s *Server) incidents(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT transport_name,transport_type,topic,reason,payload_hex,details_json,created_at FROM dead_letters"
 	if transportName := strings.TrimSpace(r.URL.Query().Get("transport")); transportName != "" {
+		if !isValidTransportName(transportName) {
+			s.log.Security("suspicious_input", "invalid transport name in query", "medium", map[string]any{
+				"path":      r.URL.Path,
+				"remote":    remoteClient(r),
+				"transport": transportName,
+			})
+			writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
+				logging.NewSafeError("transport parameter contains invalid characters", nil, "validation", false),
+			))
+			return
+		}
 		query += fmt.Sprintf(" WHERE transport_name='%s'", escape(transportName))
 	}
 	query += " ORDER BY id DESC LIMIT 100;"
 	rows, err := s.db.QueryRows(query)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "db_query_failed", "message": err.Error()}})
+		s.log.Error("db_query_failed", "database query failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.SanitizeDBError(err),
+		))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"dead_letters": rows})
 }
+
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	snap := s.state.Snapshot()
 	statusSnap, _ := s.statusSnapshot()
@@ -597,6 +838,7 @@ code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto
 	fmt.Fprint(w, `</section><section id="recommendations"><h2>Config recommendations</h2><pre>`+asJSON(s.recommendations())+`</pre></section>`)
 	fmt.Fprint(w, `<section id="events"><h2>Logs / events</h2><pre>`+asJSON(logs)+`</pre></section></body></html>`)
 }
+
 func asJSON(v any) string { b, _ := json.MarshalIndent(v, "", "  "); return string(b) }
 
 func (s *Server) withAuth(next http.Handler) http.Handler {
@@ -610,8 +852,24 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		severity := "warning"
+		if ok {
+			severity = "high"
+			s.log.Security("auth_failure", "authentication failed with invalid credentials", severity, map[string]any{
+				"path":   r.URL.Path,
+				"remote": remoteClient(r),
+				"user":   user,
+			})
+		} else {
+			s.log.Security("auth_required", "authentication required but not provided", severity, map[string]any{
+				"path":   r.URL.Path,
+				"remote": remoteClient(r),
+			})
+		}
 		w.Header().Set("WWW-Authenticate", `Basic realm="mel"`)
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": map[string]any{"code": "auth_required", "message": "authentication is required for this MEL endpoint"}})
+		writeJSON(w, http.StatusUnauthorized, logging.APIErrorResponse(
+			logging.NewSafeError("authentication is required for this MEL endpoint", nil, "auth", false),
+		))
 	})
 }
 
@@ -630,7 +888,40 @@ func totalDeadLetters(transports []statuspkg.TransportReport) uint64 {
 	return total
 }
 
-func escape(v string) string { return strings.ReplaceAll(v, "'", "''") }
+func escape(v string) string {
+	v = strings.ReplaceAll(v, "'", "''")
+	v = strings.ReplaceAll(v, "\x00", "")
+	return v
+}
+
+func isSafeIdentifier(v string) bool {
+	if strings.Contains(v, ";") {
+		return false
+	}
+	if strings.Contains(v, "--") {
+		return false
+	}
+	if strings.Contains(v, "/*") || strings.Contains(v, "*/") {
+		return false
+	}
+	if strings.Contains(v, "\x00") {
+		return false
+	}
+	return true
+}
+
+func containsPathTraversal(v string) bool {
+	if strings.Contains(v, "..") {
+		return true
+	}
+	if strings.Contains(v, "..") {
+		return true
+	}
+	if strings.Contains(v, "%2e%2e") || strings.Contains(v, "%2E%2E") {
+		return true
+	}
+	return false
+}
 
 func remoteClient(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

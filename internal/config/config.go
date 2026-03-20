@@ -26,6 +26,7 @@ type Config struct {
 	RateLimits   RateLimitConfig    `json:"rate_limits"`
 	Intelligence IntelligenceConfig `json:"intelligence"`
 	Control      ControlConfig      `json:"control"`
+	StrictMode   bool               `json:"strict_mode"`
 }
 
 type BindConfig struct {
@@ -55,10 +56,11 @@ type LoggingConfig struct {
 }
 
 type RetentionConfig struct {
-	MessagesDays        int `json:"messages_days"`
-	TelemetryDays       int `json:"telemetry_days"`
-	AuditDays           int `json:"audit_days"`
-	PrecisePositionDays int `json:"precise_position_days"`
+	Enabled             bool `json:"enabled"`
+	MessagesDays        int  `json:"messages_days"`
+	TelemetryDays       int  `json:"telemetry_days"`
+	AuditDays           int  `json:"audit_days"`
+	PrecisePositionDays int  `json:"precise_position_days"`
 }
 
 type PrivacyConfig struct {
@@ -144,29 +146,37 @@ type Lint struct {
 
 func Default() Config {
 	return Config{
-		Bind:    BindConfig{API: "127.0.0.1:8080", Metrics: ""},
-		Auth:    AuthConfig{Enabled: false, UIUser: "admin", UIPassword: "change-me"},
-		Storage: StorageConfig{DataDir: "./data", DatabasePath: "./data/mel.db", EncryptionKeyEnv: "MEL_STORAGE_KEY"},
+		Bind:    BindConfig{API: "127.0.0.1:8080", Metrics: "", AllowRemote: false},
+		Auth:    AuthConfig{Enabled: false, UIUser: "admin", UIPassword: "change-me", AllowInsecureRemote: false},
+		Storage: StorageConfig{DataDir: "./data", DatabasePath: "./data/mel.db", EncryptionKeyEnv: "MEL_STORAGE_KEY", EncryptionRequired: false},
 		Logging: LoggingConfig{Level: "info", Format: "json"},
 		Retention: RetentionConfig{
+			Enabled:             true,
 			MessagesDays:        30,
 			TelemetryDays:       30,
 			AuditDays:           90,
 			PrecisePositionDays: 7,
 		},
-		Privacy:      PrivacyConfig{MQTTEncryptionRequired: true, RedactExports: true, TrustList: []string{}},
+		Privacy: PrivacyConfig{
+			StorePrecisePositions:  false,
+			MQTTEncryptionRequired: true,
+			MapReportingAllowed:    false,
+			RedactExports:          true,
+			TrustList:              []string{},
+		},
 		Transports:   []TransportConfig{},
-		Features:     FeatureConfig{WebUI: true, Metrics: false},
+		Features:     FeatureConfig{WebUI: true, Metrics: false, BLEExperimental: false},
 		RateLimits:   RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
 		Intelligence: defaultIntelligenceConfig(),
 		Control: ControlConfig{
 			Mode:                     "advisory",
+			EmergencyDisable:         false,
 			AllowedActions:           []string{"restart_transport", "resubscribe_transport", "backoff_increase", "backoff_reset", "temporarily_deprioritize_transport", "temporarily_suppress_noisy_source", "clear_suppression", "trigger_health_recheck"},
 			MaxActionsPerWindow:      8,
 			CooldownPerTargetSeconds: 300,
 			RequireMinConfidence:     0.75,
 			AllowMeshLevelActions:    false,
-			AllowTransportRestart:    true,
+			AllowTransportRestart:    false,
 			AllowSourceSuppression:   false,
 			ActionWindowSeconds:      900,
 			RestartCapPerWindow:      2,
@@ -174,6 +184,7 @@ func Default() Config {
 			ActionTimeoutSeconds:     10,
 			RetentionDays:            14,
 		},
+		StrictMode: false,
 	}
 }
 
@@ -193,15 +204,36 @@ func Load(path string) (Config, []byte, error) {
 	if err := normalize(&cfg); err != nil {
 		return cfg, b, err
 	}
-	return cfg, b, Validate(cfg)
+	if err := Validate(cfg); err != nil {
+		return cfg, b, err
+	}
+	if cfg.StrictMode {
+		if err := ValidateStrict(cfg); err != nil {
+			return cfg, b, err
+		}
+	}
+	return cfg, b, nil
 }
 
 func normalize(cfg *Config) error {
+	defaults := Default()
 	if cfg.Storage.DataDir == "" && cfg.Storage.DatabasePath != "" {
 		cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
 	}
 	if cfg.Storage.DatabasePath == "" {
 		cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	}
+	if cfg.Retention.MessagesDays == 0 {
+		cfg.Retention.MessagesDays = defaults.Retention.MessagesDays
+	}
+	if cfg.Retention.TelemetryDays == 0 {
+		cfg.Retention.TelemetryDays = defaults.Retention.TelemetryDays
+	}
+	if cfg.Retention.AuditDays == 0 {
+		cfg.Retention.AuditDays = defaults.Retention.AuditDays
+	}
+	if cfg.Retention.PrecisePositionDays == 0 {
+		cfg.Retention.PrecisePositionDays = defaults.Retention.PrecisePositionDays
 	}
 	for i := range cfg.Transports {
 		t := &cfg.Transports[i]
@@ -530,7 +562,218 @@ func applyEnv(cfg *Config) {
 	setBool("MEL_PRIVACY_STORE_PRECISE_POSITIONS", &cfg.Privacy.StorePrecisePositions)
 	setBool("MEL_PRIVACY_MAP_REPORTING_ALLOWED", &cfg.Privacy.MapReportingAllowed)
 	setBool("MEL_PRIVACY_MQTT_ENCRYPTION_REQUIRED", &cfg.Privacy.MQTTEncryptionRequired)
+	setBool("MEL_PRIVACY_REDACT_EXPORTS", &cfg.Privacy.RedactExports)
+	setBool("MEL_RETENTION_ENABLED", &cfg.Retention.Enabled)
 	setInt("MEL_RETENTION_MESSAGES_DAYS", &cfg.Retention.MessagesDays)
+	setInt("MEL_RETENTION_TELEMETRY_DAYS", &cfg.Retention.TelemetryDays)
+	setInt("MEL_RETENTION_AUDIT_DAYS", &cfg.Retention.AuditDays)
+	setBool("MEL_CONTROL_EMERGENCY_DISABLE", &cfg.Control.EmergencyDisable)
+	setBool("MEL_CONTROL_ALLOW_TRANSPORT_RESTART", &cfg.Control.AllowTransportRestart)
+	setBool("MEL_CONTROL_ALLOW_SOURCE_SUPPRESSION", &cfg.Control.AllowSourceSuppression)
+	setInt("MEL_CONTROL_MAX_QUEUE", &cfg.Control.MaxQueue)
+	setBool("MEL_STRICT_MODE", &cfg.StrictMode)
+}
+
+type SafetyViolation struct {
+	Field   string `json:"field"`
+	Issue   string `json:"issue"`
+	Current string `json:"current"`
+	Safe    string `json:"safe"`
+}
+
+func ValidateSafeDefaults(cfg Config) []SafetyViolation {
+	var violations []SafetyViolation
+
+	if cfg.Control.Mode != "advisory" && cfg.Control.Mode != "disabled" {
+		violations = append(violations, SafetyViolation{
+			Field:   "control.mode",
+			Issue:   "non-advisory control mode enabled",
+			Current: cfg.Control.Mode,
+			Safe:    "advisory or disabled",
+		})
+	}
+
+	if cfg.Control.EmergencyDisable {
+		violations = append(violations, SafetyViolation{
+			Field:   "control.emergency_disable",
+			Issue:   "emergency disable is active",
+			Current: "true",
+			Safe:    "false",
+		})
+	}
+
+	if cfg.Control.AllowTransportRestart {
+		violations = append(violations, SafetyViolation{
+			Field:   "control.allow_transport_restart",
+			Issue:   "automatic transport restart enabled",
+			Current: "true",
+			Safe:    "false",
+		})
+	}
+
+	if cfg.Control.AllowSourceSuppression {
+		violations = append(violations, SafetyViolation{
+			Field:   "control.allow_source_suppression",
+			Issue:   "automatic source suppression enabled",
+			Current: "true",
+			Safe:    "false",
+		})
+	}
+
+	if cfg.Bind.AllowRemote {
+		if !cfg.Auth.Enabled {
+			violations = append(violations, SafetyViolation{
+				Field:   "bind.allow_remote",
+				Issue:   "remote bind without authentication",
+				Current: "true (auth disabled)",
+				Safe:    "false or enable auth",
+			})
+		}
+		if cfg.Auth.AllowInsecureRemote {
+			violations = append(violations, SafetyViolation{
+				Field:   "auth.allow_insecure_remote",
+				Issue:   "insecure remote override enabled",
+				Current: "true",
+				Safe:    "false",
+			})
+		}
+	}
+
+	if cfg.Retention.MessagesDays > 90 {
+		violations = append(violations, SafetyViolation{
+			Field:   "retention.messages_days",
+			Issue:   "excessive message retention",
+			Current: strconv.Itoa(cfg.Retention.MessagesDays),
+			Safe:    "<= 90",
+		})
+	}
+
+	if cfg.Retention.TelemetryDays > 90 {
+		violations = append(violations, SafetyViolation{
+			Field:   "retention.telemetry_days",
+			Issue:   "excessive telemetry retention",
+			Current: strconv.Itoa(cfg.Retention.TelemetryDays),
+			Safe:    "<= 90",
+		})
+	}
+
+	if !cfg.Retention.Enabled {
+		violations = append(violations, SafetyViolation{
+			Field:   "retention.enabled",
+			Issue:   "retention job disabled",
+			Current: "false",
+			Safe:    "true",
+		})
+	}
+
+	if cfg.Privacy.StorePrecisePositions {
+		violations = append(violations, SafetyViolation{
+			Field:   "privacy.store_precise_positions",
+			Issue:   "precise position storage enabled",
+			Current: "true",
+			Safe:    "false",
+		})
+	}
+
+	if !cfg.Privacy.MQTTEncryptionRequired {
+		violations = append(violations, SafetyViolation{
+			Field:   "privacy.mqtt_encryption_required",
+			Issue:   "MQTT encryption not required",
+			Current: "false",
+			Safe:    "true",
+		})
+	}
+
+	if cfg.Privacy.MapReportingAllowed {
+		violations = append(violations, SafetyViolation{
+			Field:   "privacy.map_reporting_allowed",
+			Issue:   "map reporting enabled",
+			Current: "true",
+			Safe:    "false",
+		})
+	}
+
+	if !cfg.Privacy.RedactExports {
+		violations = append(violations, SafetyViolation{
+			Field:   "privacy.redact_exports",
+			Issue:   "export redaction disabled",
+			Current: "false",
+			Safe:    "true",
+		})
+	}
+
+	if cfg.Control.MaxQueue > 64 {
+		violations = append(violations, SafetyViolation{
+			Field:   "control.max_queue",
+			Issue:   "excessive action queue size",
+			Current: strconv.Itoa(cfg.Control.MaxQueue),
+			Safe:    "<= 64",
+		})
+	}
+
+	if cfg.RateLimits.HTTPRPS > 100 {
+		violations = append(violations, SafetyViolation{
+			Field:   "rate_limits.http_rps",
+			Issue:   "excessive HTTP rate limit",
+			Current: strconv.Itoa(cfg.RateLimits.HTTPRPS),
+			Safe:    "<= 100",
+		})
+	}
+
+	if cfg.RateLimits.TransportReconnectSeconds < 5 {
+		violations = append(violations, SafetyViolation{
+			Field:   "rate_limits.transport_reconnect_seconds",
+			Issue:   "reconnect interval too short",
+			Current: strconv.Itoa(cfg.RateLimits.TransportReconnectSeconds),
+			Safe:    ">= 5",
+		})
+	}
+
+	return violations
+}
+
+func ValidateStrict(cfg Config) error {
+	violations := ValidateSafeDefaults(cfg)
+	if len(violations) > 0 {
+		var msgs []string
+		for _, v := range violations {
+			msgs = append(msgs, fmt.Sprintf("%s: %s (current=%s, safe=%s)", v.Field, v.Issue, v.Current, v.Safe))
+		}
+		return errors.New("strict mode validation failed: " + strings.Join(msgs, "; "))
+	}
+	return nil
+}
+
+type SecurityPosture struct {
+	Mode               string   `json:"mode"`
+	ControlMode        string   `json:"control_mode"`
+	AuthEnabled        bool     `json:"auth_enabled"`
+	RemoteBind         bool     `json:"remote_bind"`
+	EncryptionRequired bool     `json:"encryption_required"`
+	PrecisePositions   bool     `json:"precise_positions"`
+	MapReporting       bool     `json:"map_reporting"`
+	Violations         []string `json:"violations,omitempty"`
+	Safe               bool     `json:"safe"`
+}
+
+func SecurityBanner(cfg Config) SecurityPosture {
+	violations := ValidateSafeDefaults(cfg)
+	var violationMsgs []string
+	for _, v := range violations {
+		violationMsgs = append(violationMsgs, v.Issue)
+	}
+
+	return SecurityPosture{
+		Mode:               "production",
+		ControlMode:        cfg.Control.Mode,
+		AuthEnabled:        cfg.Auth.Enabled,
+		RemoteBind:         cfg.Bind.AllowRemote,
+		EncryptionRequired: cfg.Storage.EncryptionRequired,
+		PrecisePositions:   cfg.Privacy.StorePrecisePositions,
+		MapReporting:       cfg.Privacy.MapReportingAllowed,
+		Violations:         violationMsgs,
+		Safe:               len(violations) == 0,
+	}
 }
 
 func SHA256(raw []byte) string {

@@ -3,9 +3,11 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -13,16 +15,14 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/logging"
 )
 
-// DB provides access to the SQLite database.
-//
-// Table status:
-//   Active tables (populated): nodes, messages, telemetry_samples, audit_logs,
-//     config_apply_history, transport_runtime_status, transport_runtime_evidence,
-//     dead_letters, retention_jobs, schema_migrations
-//   Dead tables (exist for future use, not currently populated): channels,
-//     topology_edges, trust_records
+const (
+	MaxRows          = 10000
+	MaxFieldLength   = 4096
+	MaxIdentifierLen = 128
+)
 
 type DB struct{ Path string }
 
@@ -130,7 +130,7 @@ func (d *DB) Exec(sql string) error {
 	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path, sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("sqlite exec failed: %w: %s", err, out)
+		return logging.NewSafeError("database operation failed", fmt.Errorf("sqlite exec failed: %w: %s", err, out), "database", isTransientDBError(err))
 	}
 	return nil
 }
@@ -139,14 +139,14 @@ func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
 	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path, sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("sqlite query failed: %w: %s", err, out)
+		return nil, logging.NewSafeError("database query failed", fmt.Errorf("sqlite query failed: %w: %s", err, out), "database", isTransientDBError(err))
 	}
 	rows := make([]map[string]any, 0)
 	if len(out) == 0 {
 		return rows, nil
 	}
 	if err := json.Unmarshal(out, &rows); err != nil {
-		return nil, err
+		return nil, logging.NewSafeError("failed to parse query results", err, "database", false)
 	}
 	return rows, nil
 }
@@ -185,10 +185,75 @@ func (d *DB) SchemaVersion() (string, error) {
 	return d.Scalar("SELECT version FROM schema_migrations ORDER BY applied_at DESC, version DESC LIMIT 1;")
 }
 
-func esc(v string) string { return strings.ReplaceAll(v, "'", "''") }
+var safeIdentifierRegex = regexp.MustCompile("^[a-zA-Z0-9_]+$")
+
+func isSafeIdentifier(v string) bool {
+	if v == "" || len(v) > MaxIdentifierLen {
+		return false
+	}
+	return safeIdentifierRegex.MatchString(v)
+}
+
+type SQLValidationError struct {
+	Input   string
+	Reason  string
+	Blocked bool
+}
+
+func (e SQLValidationError) Error() string {
+	return fmt.Sprintf("SQL validation failed: %s (input length: %d)", e.Reason, len(e.Input))
+}
+
+func validateSQLInput(v string) (string, error) {
+	if len(v) > MaxFieldLength {
+		return "", SQLValidationError{Input: v, Reason: fmt.Sprintf("input exceeds max length of %d", MaxFieldLength), Blocked: true}
+	}
+	if strings.ContainsRune(v, 0x00) {
+		return "", SQLValidationError{Input: v, Reason: "input contains NULL byte", Blocked: true}
+	}
+	if strings.Contains(v, "--") {
+		return "", SQLValidationError{Input: v, Reason: "input contains SQL comment marker (--)", Blocked: true}
+	}
+	if strings.Contains(v, "/*") || strings.Contains(v, "*/") {
+		return "", SQLValidationError{Input: v, Reason: "input contains block comment marker (/* or */)", Blocked: true}
+	}
+	if strings.Contains(v, ";") {
+		return "", SQLValidationError{Input: v, Reason: "input contains statement terminator (;)", Blocked: true}
+	}
+	return strings.ReplaceAll(v, "'", "''"), nil
+}
+
+func esc(v string) string {
+	sanitized, err := validateSQLInput(v)
+	if err != nil {
+		logSuspiciousSQL(v, err.Error())
+		return ""
+	}
+	return sanitized
+}
+
+func logSuspiciousSQL(input, reason string) {
+	slog.Warn("suspicious_sql_input_rejected",
+		"reason", reason,
+		"input_preview", truncateForLog(input, 200),
+		"timestamp", time.Now().UTC().Format(time.RFC3339),
+	)
+}
+
+func truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
 
 func sqlStringNonNull(v string) string {
-	return fmt.Sprintf("'%s'", esc(v))
+	sanitized, err := validateSQLInput(v)
+	if err != nil {
+		logSuspiciousSQL(v, err.Error())
+		return "''"
+	}
+	return fmt.Sprintf("'%s'", sanitized)
 }
 
 func (d *DB) InsertMessage(m map[string]any) (bool, error) {
@@ -342,9 +407,7 @@ type TransportIncident struct {
 }
 
 func (d *DB) RecentTransportIncidents(limit int) ([]TransportIncident, error) {
-	if limit <= 0 {
-		limit = 20
-	}
+	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT transport_name, reason, COUNT(*) AS incident_count, MAX(created_at) AS last_occurrence, MAX(CASE WHEN dead_letter = 1 THEN 1 ELSE 0 END) AS dead_letter FROM (
 		SELECT COALESCE(json_extract(details_json,'$.transport'), '') AS transport_name, message AS reason, created_at, COALESCE(json_extract(details_json,'$.dead_letter'), 0) AS dead_letter
 		FROM audit_logs
@@ -439,7 +502,12 @@ func sqlString(v string) string {
 	if v == "" {
 		return "NULL"
 	}
-	return fmt.Sprintf("'%s'", esc(v))
+	sanitized, err := validateSQLInput(v)
+	if err != nil {
+		logSuspiciousSQL(v, err.Error())
+		return "NULL"
+	}
+	return fmt.Sprintf("'%s'", sanitized)
 }
 
 func boolInt(v bool) int {
@@ -447,4 +515,49 @@ func boolInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	if limit > MaxRows {
+		return MaxRows
+	}
+	return limit
+}
+
+func validateOrderBy(orderBy string) string {
+	if !isSafeIdentifier(orderBy) {
+		return ""
+	}
+	return orderBy
+}
+
+func buildSafeWhereClause(column, value string) (string, error) {
+	if !isSafeIdentifier(column) {
+		return "", logging.NewSafeError("invalid query parameters", fmt.Errorf("invalid column name: %s", column), "validation", false)
+	}
+	sanitized, err := validateSQLInput(value)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s='%s'", column, sanitized), nil
+}
+
+func isTransientDBError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	transient := []string{
+		"locked", "busy", "timeout", "temporary", "retry",
+		"database is locked", "busy timeout",
+	}
+	for _, pattern := range transient {
+		if strings.Contains(msg, pattern) {
+			return true
+		}
+	}
+	return false
 }

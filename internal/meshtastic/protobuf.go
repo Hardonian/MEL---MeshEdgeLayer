@@ -11,6 +11,122 @@ import (
 	"strings"
 )
 
+const (
+	// MaxMessageSize is the maximum allowed protobuf message size (64KB).
+	// Messages larger than this are rejected to prevent memory exhaustion.
+	MaxMessageSize = 64 * 1024
+
+	// MaxFields is the maximum number of fields allowed per message.
+	// This prevents resource exhaustion from malicious messages with excessive fields.
+	MaxFields = 1000
+
+	// MaxNestingDepth is the maximum nesting depth for nested protobuf messages.
+	// This prevents stack overflow from malicious deeply nested messages.
+	MaxNestingDepth = 10
+
+	// MaxAllocBytes is the maximum bytes that can be allocated during a single parse operation.
+	// This includes all byte slice allocations from length-delimited fields.
+	MaxAllocBytes = 1 * 1024 * 1024 // 1MB
+)
+
+var (
+	// ErrMessageTooLarge is returned when a message exceeds MaxMessageSize.
+	ErrMessageTooLarge = errors.New("protobuf message exceeds maximum size")
+
+	// ErrTooManyFields is returned when a message exceeds MaxFields.
+	ErrTooManyFields = errors.New("protobuf message has too many fields")
+
+	// ErrNestingTooDeep is returned when message nesting exceeds MaxNestingDepth.
+	ErrNestingTooDeep = errors.New("protobuf message nesting exceeds maximum depth")
+
+	// ErrAllocationExceeded is returned when total allocations exceed MaxAllocBytes.
+	ErrAllocationExceeded = errors.New("protobuf parse allocation limit exceeded")
+)
+
+// ParseLimits defines security boundaries for protobuf parsing.
+// All limits are defensive and prevent resource exhaustion from hostile input.
+type ParseLimits struct {
+	// MaxMessageSize is the maximum input size in bytes. Default: 64KB
+	MaxMessageSize int
+
+	// MaxFields is the maximum number of fields per message. Default: 1000
+	MaxFields int
+
+	// MaxNestingDepth is the maximum message nesting depth. Default: 10
+	MaxNestingDepth int
+
+	// MaxAllocBytes is the maximum total allocation during parsing. Default: 1MB
+	MaxAllocBytes int
+}
+
+// DefaultParseLimits returns safe default parsing limits.
+func DefaultParseLimits() ParseLimits {
+	return ParseLimits{
+		MaxMessageSize:  MaxMessageSize,
+		MaxFields:       MaxFields,
+		MaxNestingDepth: MaxNestingDepth,
+		MaxAllocBytes:   MaxAllocBytes,
+	}
+}
+
+// parseState tracks parsing progress and enforces limits.
+type parseState struct {
+	limits      ParseLimits
+	depth       int
+	fieldCount  int
+	allocBytes  int
+}
+
+// newParseState creates a new parse state with the given limits.
+func newParseState(limits ParseLimits) *parseState {
+	return &parseState{
+		limits:     limits,
+		depth:      0,
+		fieldCount: 0,
+		allocBytes: 0,
+	}
+}
+
+// checkMessageSize validates that the input size is within limits.
+func (s *parseState) checkMessageSize(size int) error {
+	if size > s.limits.MaxMessageSize {
+		return fmt.Errorf("%w: %d bytes (max %d)", ErrMessageTooLarge, size, s.limits.MaxMessageSize)
+	}
+	return nil
+}
+
+// enter increments the nesting depth and checks the limit.
+func (s *parseState) enter() error {
+	s.depth++
+	if s.depth > s.limits.MaxNestingDepth {
+		return fmt.Errorf("%w: %d (max %d)", ErrNestingTooDeep, s.depth, s.limits.MaxNestingDepth)
+	}
+	return nil
+}
+
+// exit decrements the nesting depth.
+func (s *parseState) exit() {
+	s.depth--
+}
+
+// addField increments the field count and checks the limit.
+func (s *parseState) addField() error {
+	s.fieldCount++
+	if s.fieldCount > s.limits.MaxFields {
+		return fmt.Errorf("%w: %d (max %d)", ErrTooManyFields, s.fieldCount, s.limits.MaxFields)
+	}
+	return nil
+}
+
+// alloc tracks a byte slice allocation and checks the limit.
+func (s *parseState) alloc(size int) error {
+	s.allocBytes += size
+	if s.allocBytes > s.limits.MaxAllocBytes {
+		return fmt.Errorf("%w: %d bytes (max %d)", ErrAllocationExceeded, s.allocBytes, s.limits.MaxAllocBytes)
+	}
+	return nil
+}
+
 type Envelope struct {
 	ChannelID, GatewayID string
 	Packet               Packet
@@ -152,9 +268,28 @@ type wire struct {
 	Type    int
 }
 
-func parse(raw []byte) (map[int][]wire, error) {
+// parseWithLimits parses a protobuf message with configurable security limits.
+// It tracks message size, field count, nesting depth, and memory allocation.
+// Returns detailed errors when any limit is exceeded.
+func parseWithLimits(raw []byte, state *parseState) (map[int][]wire, error) {
+	// Check message size limit
+	if err := state.checkMessageSize(len(raw)); err != nil {
+		return nil, err
+	}
+
+	// Check nesting depth limit
+	if err := state.enter(); err != nil {
+		return nil, err
+	}
+	defer state.exit()
+
 	out := map[int][]wire{}
 	for i := 0; i < len(raw); {
+		// Track and check field count
+		if err := state.addField(); err != nil {
+			return nil, err
+		}
+
 		tag, n := binary.Uvarint(raw[i:])
 		if n <= 0 {
 			return nil, errors.New("invalid varint tag")
@@ -185,6 +320,10 @@ func parse(raw []byte) (map[int][]wire, error) {
 			if i+int(ln) > len(raw) {
 				return nil, errors.New("short bytes")
 			}
+			// Track and check allocation for this byte slice
+			if err := state.alloc(int(ln)); err != nil {
+				return nil, err
+			}
 			w.Bytes = append([]byte(nil), raw[i:i+int(ln)]...)
 			i += int(ln)
 		case 5:
@@ -199,6 +338,14 @@ func parse(raw []byte) (map[int][]wire, error) {
 		out[fieldNum] = append(out[fieldNum], w)
 	}
 	return out, nil
+}
+
+// parse parses a protobuf message using safe default limits.
+// This is the legacy API that maintains backward compatibility.
+// For configurable limits, use parseWithLimits directly.
+func parse(raw []byte) (map[int][]wire, error) {
+	state := newParseState(DefaultParseLimits())
+	return parseWithLimits(raw, state)
 }
 
 func applyUser(p *Packet, raw []byte) {
