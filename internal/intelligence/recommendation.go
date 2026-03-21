@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/models"
 )
 
@@ -20,7 +19,7 @@ const (
 )
 
 // RecommendActions for a set of prioritized problems
-func RecommendActions(priorities []PriorityItem) []Recommendation {
+func RecommendActions(priorities []models.PriorityItem) []Recommendation {
 	var out []Recommendation
 	seen := make(map[string]bool)
 
@@ -38,7 +37,7 @@ func RecommendActions(priorities []PriorityItem) []Recommendation {
 }
 
 // RecommendationsFor a single prioritized problem
-func RecommendationsFor(p PriorityItem) []Recommendation {
+func RecommendationsFor(p models.PriorityItem) []Recommendation {
 	switch p.Category {
 	case "transport":
 		return recommendationsForTransport(p)
@@ -65,7 +64,7 @@ func RecommendationsFor(p PriorityItem) []Recommendation {
 	}
 }
 
-func recommendationsForTransport(p PriorityItem) []Recommendation {
+func recommendationsForTransport(p models.PriorityItem) []Recommendation {
 	transportName, _ := p.Metadata["resource_id"].(string)
 	if transportName == "" {
 		transportName, _ = p.Metadata["affected_transport"].(string)
@@ -112,7 +111,7 @@ func recommendationsForTransport(p PriorityItem) []Recommendation {
 	return recs
 }
 
-func recommendationsForDatabase(p PriorityItem) []Recommendation {
+func recommendationsForDatabase(p models.PriorityItem) []Recommendation {
 	return []Recommendation{
 		{
 			Code:              "verify_database_permissions",
@@ -135,7 +134,7 @@ func recommendationsForDatabase(p PriorityItem) []Recommendation {
 	}
 }
 
-func recommendationsForConfig(p PriorityItem) []Recommendation {
+func recommendationsForConfig(p models.PriorityItem) []Recommendation {
 	return []Recommendation{
 		{
 			Code:              "audit_config_safeguards",
@@ -149,7 +148,7 @@ func recommendationsForConfig(p PriorityItem) []Recommendation {
 	}
 }
 
-func recommendationsForSecurity(p PriorityItem) []Recommendation {
+func recommendationsForSecurity(p models.PriorityItem) []Recommendation {
 	return []Recommendation{
 		{
 			Code:              "rotate_credentials",
@@ -164,7 +163,7 @@ func recommendationsForSecurity(p PriorityItem) []Recommendation {
 	}
 }
 
-func recommendationsForControl(p PriorityItem) []Recommendation {
+func recommendationsForControl(p models.PriorityItem) []Recommendation {
 	return []Recommendation{
 		{
 			Code:              "acknowledge_control_noise",

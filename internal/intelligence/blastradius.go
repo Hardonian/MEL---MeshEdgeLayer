@@ -6,7 +6,7 @@ import (
 )
 
 // EstimateBlastRadius for a set of priority items
-func EstimateBlastRadius(priorities []PriorityItem, nodes []models.Node) (float64, string) {
+func EstimateBlastRadius(priorities []models.PriorityItem, nodes []models.Node) (float64, string) {
     if len(priorities) == 0 {
         return 0.0, "Isolated: No active issues detected"
     }

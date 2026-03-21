@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-)
-
 // Recommendation represents a safe next step for an operator
 type Recommendation struct {
 	Code              string         `json:"code"`

@@ -3,11 +3,13 @@ package intelligence
 import (
 	"sort"
 	"strings"
+
+	"github.com/mel-project/mel/internal/models"
 )
 
 // SequenceRecoveryActions given a set of recommendations
-func SequenceRecoveryActions(recommendations []Recommendation) []RecoveryStep {
-	var stages []RecoveryStep
+func SequenceRecoveryActions(recommendations []Recommendation) []models.RecoveryStep {
+	var stages []models.RecoveryStep
 
 	// Temporary buckets
 	verification := []Recommendation{}
@@ -33,7 +35,7 @@ func SequenceRecoveryActions(recommendations []Recommendation) []RecoveryStep {
 	currentStage := 1
 	// Stage 1: Verification first
 	for _, rec := range verification {
-		stages = append(stages, RecoveryStep{
+		stages = append(stages, models.RecoveryStep{
 			Stage:         currentStage,
 			Action:        rec.Action,
 			Justification: rec.Rationale + " before attempting recovery actions",
@@ -44,7 +46,7 @@ func SequenceRecoveryActions(recommendations []Recommendation) []RecoveryStep {
 
 	// Stage 2: Infrastructure
 	for _, rec := range infrastructure {
-		stages = append(stages, RecoveryStep{
+		stages = append(stages, models.RecoveryStep{
 			Stage:         currentStage,
 			Action:        rec.Action,
 			Justification: "Critical system component must be healthy first",
@@ -56,7 +58,7 @@ func SequenceRecoveryActions(recommendations []Recommendation) []RecoveryStep {
 
 	// Stage 3: Connectivity
 	for _, rec := range connectivity {
-		stages = append(stages, RecoveryStep{
+		stages = append(stages, models.RecoveryStep{
 			Stage:         currentStage,
 			Action:        rec.Action,
 			Justification: "Restore transport connectivity",
@@ -68,7 +70,7 @@ func SequenceRecoveryActions(recommendations []Recommendation) []RecoveryStep {
 
 	// Stage 4: Operations
 	for _, rec := range operational {
-		stages = append(stages, RecoveryStep{
+		stages = append(stages, models.RecoveryStep{
 			Stage:         currentStage,
 			Action:        rec.Action,
 			Justification: "Clear operational noise and stabilize control plane",

@@ -17,8 +17,8 @@ const (
 )
 
 // RankOperationalIssues takes all operational problems and ranks them by priority
-func RankOperationalIssues(incidents []models.Incident, findings []diagnostics.Finding, now time.Time) []PriorityItem {
-	var items []PriorityItem
+func RankOperationalIssues(incidents []models.Incident, findings []diagnostics.Finding, now time.Time) []models.PriorityItem {
+	var items []models.PriorityItem
 
 	// Translate Incidents to PriorityItems
 	for _, incident := range incidents {
@@ -40,7 +40,7 @@ func RankOperationalIssues(incidents []models.Incident, findings []diagnostics.F
 	return items
 }
 
-func priorityFromIncident(inc models.Incident, now time.Time) PriorityItem {
+func priorityFromIncident(inc models.Incident, now time.Time) models.PriorityItem {
 	rank := scoreSeverity(inc.Severity)
 	rank *= scoreCategory(inc.Category)
 
@@ -60,7 +60,7 @@ func priorityFromIncident(inc models.Incident, now time.Time) PriorityItem {
 		freshness = "Low"
 	}
 
-	return PriorityItem{
+	return models.PriorityItem{
 		ID:                inc.ID,
 		Category:          inc.Category,
 		Severity:          inc.Severity,
@@ -71,12 +71,11 @@ func priorityFromIncident(inc models.Incident, now time.Time) PriorityItem {
 		EvidenceFreshness: freshness,
 		IsActionable:      true,
 		BlocksRecovery:    inc.Severity == "critical",
-		GeneratedAt:       now,
 		Metadata:          inc.Metadata,
 	}
 }
 
-func priorityFromFinding(f diagnostics.Finding, now time.Time) PriorityItem {
+func priorityFromFinding(f diagnostics.Finding, now time.Time) models.PriorityItem {
 	rank := scoreSeverity(f.Severity)
 	rank *= scoreCategory(f.Component)
 
@@ -93,7 +92,7 @@ func priorityFromFinding(f diagnostics.Finding, now time.Time) PriorityItem {
 		freshness = "Medium"
 	}
 
-	return PriorityItem{
+	return models.PriorityItem{
 		ID:                f.Code + ":" + f.Component + ":" + f.AffectedTransport,
 		Category:          f.Component,
 		Severity:          f.Severity,
@@ -104,7 +103,6 @@ func priorityFromFinding(f diagnostics.Finding, now time.Time) PriorityItem {
 		EvidenceFreshness: freshness,
 		IsActionable:      true,
 		BlocksRecovery:    f.Severity == "critical" && (f.Component == "database" || f.Component == "config"),
-		GeneratedAt:       now,
 		Metadata:          f.Evidence,
 	}
 }
@@ -141,9 +139,9 @@ func scoreCategory(c string) float64 {
 	}
 }
 
-func dedupePriorityItems(items []PriorityItem) []PriorityItem {
+func dedupePriorityItems(items []models.PriorityItem) []models.PriorityItem {
 	seen := make(map[string]int)
-	var out []PriorityItem
+	var out []models.PriorityItem
 	for _, item := range items {
 		if i, ok := seen[item.ID]; ok {
 			// If already seen, take the one with higher rank
@@ -158,11 +156,8 @@ func dedupePriorityItems(items []PriorityItem) []PriorityItem {
 	return out
 }
 
-func sortItems(items []PriorityItem) {
+func sortItems(items []models.PriorityItem) {
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].Rank == items[j].Rank {
-			return items[i].GeneratedAt.After(items[j].GeneratedAt)
-		}
 		return items[i].Rank > items[j].Rank
 	})
 }
