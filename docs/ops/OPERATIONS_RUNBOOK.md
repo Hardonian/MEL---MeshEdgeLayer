@@ -150,10 +150,18 @@ mel timeline \
 ```
 
 Event types in the timeline:
-- `control_action` — autonomous or manual control actions.
-- `freeze_created` / `freeze_cleared` — freeze lifecycle.
-- `maintenance_scheduled` / `maintenance_cancelled` — maintenance windows.
-- `operator_note` — annotations added by operators.
+- `action` — control action proposed or updated (from `control_actions` table).
+- `action_approved` — operator approved a pending-approval action.
+- `action_rejected` — operator rejected a pending-approval action.
+- `action_expired` — pending-approval action expired without approval.
+- `freeze_created` — automation freeze installed.
+- `freeze_cleared` — automation freeze removed.
+- `freeze_expired` — freeze removed by expiry timer.
+- `maintenance_created` — maintenance window scheduled.
+- `maintenance_cancelled` — maintenance window cancelled early.
+- `approval_backlog_warn` — system emitted a warning about high approval queue depth.
+- `incident` — incident opened or updated.
+- `note` — operator added a note to any resource.
 
 Add post-incident notes to relevant actions:
 ```bash
@@ -172,11 +180,26 @@ mel notes add \
 MEL reports on its own health via the `health` command:
 
 ```bash
-mel health internal   --config mel.json
-mel health freshness  --config mel.json
-mel health slo        --config mel.json
-mel health metrics    --config mel.json
+mel health internal   --config mel.json   # component health registry
+mel health freshness  --config mel.json   # data freshness per component
+mel health slo        --config mel.json   # SLO compliance
+mel health metrics    --config mel.json   # pipeline latency, queue depths
+mel health trust      --config mel.json   # control-plane trust: mode, freezes, backlog
 ```
+
+The `mel health trust` command shows:
+- **Automation mode** — `normal`, `frozen`, or `maintenance`
+- **Active freezes** — count of active freeze records
+- **Approval backlog** — number of actions awaiting operator approval
+
+For live systems with the API running, trust health is also available at:
+```
+GET /api/v1/health/trust
+```
+
+The trust health degrades (`degraded` status) when:
+- Global automation is frozen
+- Approval backlog exceeds 5 pending actions
 
 Also available via the `doctor` command which runs all checks and includes
 transport-level diagnostics:
@@ -220,3 +243,4 @@ All CLI operations have HTTP API counterparts:
 | `mel maintenance cancel <id>` | `DELETE /api/v1/control/maintenance/<id>` |
 | `mel timeline` | `GET /api/v1/timeline` |
 | `mel notes add` | `POST /api/v1/operator/notes` |
+| `mel health trust` | `GET /api/v1/health/trust` |

@@ -25,6 +25,8 @@ func healthCmd(args []string) {
 		healthSLOCmd(args[1:])
 	case "metrics":
 		healthMetricsCmd(args[1:])
+	case "trust":
+		healthTrustCmd(args[1:])
 	default:
 		healthUsage()
 		os.Exit(1)
@@ -38,6 +40,7 @@ func healthUsage() {
 	fmt.Println("  freshness  Show freshness status")
 	fmt.Println("  slo        Show SLO status")
 	fmt.Println("  metrics    Show internal metrics")
+	fmt.Println("  trust      Show control-plane trust health (freeze, backlog, mode)")
 }
 
 // healthInternalCmd shows internal component health
@@ -215,6 +218,72 @@ func healthMetricsCmd(args []string) {
 	resources := data["resource_usage"].(map[string]any)
 	fmt.Printf("  Memory: %d bytes\n", int(resources["memory_used_bytes"].(float64)))
 	fmt.Printf("  Goroutines: %d\n", int(resources["goroutines"].(float64)))
+}
+
+// healthTrustCmd shows control-plane trust health: freeze status, approval backlog, mode.
+func healthTrustCmd(args []string) {
+	cfg, _ := loadCfg(args)
+	if cfg.Bind.API != "" {
+		// Prefer hitting the live API if configured.
+		resp, err := http.Get(fmt.Sprintf("http://%s/api/v1/health/trust", cfg.Bind.API))
+		if err == nil {
+			defer resp.Body.Close()
+			var data map[string]any
+			if err2 := json.NewDecoder(resp.Body).Decode(&data); err2 == nil {
+				printTrustHealthFromAPI(data)
+				return
+			}
+		}
+	}
+
+	// Fallback: read directly from the DB.
+	d := openDB(cfg)
+	state, err := d.ControlPlaneStateSnapshot(time.Now().UTC())
+	if err != nil {
+		fmt.Printf("Error loading trust state: %v\n", err)
+		os.Exit(1)
+	}
+	printTrustHealthFromState(state)
+}
+
+func printTrustHealthFromAPI(data map[string]any) {
+	trustHealth, _ := data["trust_health"].(string)
+	componentHealth, _ := data["component_health"].(string)
+	fmt.Printf("Trust Health:     %s\n", trustHealth)
+	fmt.Printf("Component Health: %s\n", componentHealth)
+	if opState, ok := data["operational_state"].(map[string]any); ok {
+		printTrustHealthFromState(opState)
+	}
+}
+
+func printTrustHealthFromState(state map[string]any) {
+	mode, _ := state["automation_mode"].(string)
+	freezeCount := 0
+	if v, ok := state["freeze_count"].(float64); ok {
+		freezeCount = int(v)
+	}
+	backlog := 0
+	if v, ok := state["approval_backlog"].(float64); ok {
+		backlog = int(v)
+	}
+	modeIcon := "✓"
+	if mode == "frozen" {
+		modeIcon = "✗"
+	} else if mode == "maintenance" {
+		modeIcon = "⚠"
+	}
+	backlogIcon := "✓"
+	if backlog > 0 {
+		backlogIcon = "⚠"
+	}
+	fmt.Printf("\nControl-Plane Trust Status:\n")
+	fmt.Printf("  %s Automation Mode:  %s\n", modeIcon, mode)
+	fmt.Printf("  %s Active Freezes:   %d\n", map[bool]string{true: "✗", false: "✓"}[freezeCount > 0], freezeCount)
+	fmt.Printf("  %s Approval Backlog: %d pending\n", backlogIcon, backlog)
+	snapshotAt, _ := state["snapshot_at"].(string)
+	if snapshotAt != "" {
+		fmt.Printf("  Snapshot at:       %s\n", snapshotAt)
+	}
 }
 
 // printLocalHealth prints health status using local selfobs package

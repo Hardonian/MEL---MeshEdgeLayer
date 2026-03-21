@@ -104,3 +104,56 @@ All mutations carry an actor identity:
 
 Actor IDs are stored in `approved_by`, `rejected_by`, `created_by`,
 `cleared_by`, and in the `audit_logs` table.
+
+## Timeline Events
+
+Every trust-layer mutation emits an explicit event into the `timeline_events`
+table (migration 0018). This supplements the UNION-query view of the timeline
+with durable first-class rows that survive source-table retention pruning.
+
+Events emitted automatically:
+- `action_approved` — on `ApproveAction`
+- `action_rejected` — on `RejectAction`
+- `freeze_created` — on `CreateFreeze`
+- `freeze_cleared` — on `ClearFreeze`
+- `maintenance_created` — on `CreateMaintenanceWindow`
+- `maintenance_cancelled` — on `CancelMaintenanceWindow`
+- `approval_backlog_warn` — when cleanup loop detects ≥ 5 pending-approval actions
+
+All events carry `event_time`, `event_type`, `summary`, `severity`,
+`actor_id`, `resource_id`, and a `details_json` blob.
+
+## Self-Observability
+
+The `trust` component is tracked in the selfobs health registry. It records:
+- **success** on each successful cleanup-loop run (expiry + freeze expiry)
+- **failure** when cleanup fails due to DB errors
+
+The `trust` component freshness is updated via `selfobs.MarkFresh("trust")`
+each cycle, allowing the freshness tracker to detect if the cleanup loop stops.
+
+Trust health is available at:
+- `GET /api/v1/health/trust` — mode, freeze count, backlog, component health
+- `mel health trust --config <path>` — human-readable CLI summary
+
+Trust health degrades when:
+- `automation_mode` is `frozen`
+- `approval_backlog` ≥ 5 pending actions
+
+## InspectAction
+
+`InspectAction` (service layer) / `GET /api/v1/control/actions/<id>/inspect` /
+`mel control inspect <id>` returns:
+
+```json
+{
+  "action":          { ...ControlActionRecord },
+  "decision":        { ...ControlDecisionRecord | null },
+  "evidence_bundle": { ...EvidenceBundleRecord | null },
+  "notes":           [ ...OperatorNoteRecord ],
+  "inspected_at":    "2026-03-21T12:00:00Z"
+}
+```
+
+The decision lookup uses the direct-by-ID query `ControlDecisionByID`
+(added to `internal/db/control.go`) for O(1) retrieval.
