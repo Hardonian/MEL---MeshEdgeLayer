@@ -29,7 +29,7 @@ func healthInternalCmd(args []string) {
 	
 	var data map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		fmt.Printf("Error decoding response: %v\n",", err)
+		fmt.Printf("Error decoding response: %v\n", err)
 		os.Exit(1)
 	}
 	

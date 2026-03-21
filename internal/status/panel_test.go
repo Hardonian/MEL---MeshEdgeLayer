@@ -21,7 +21,7 @@ func TestBuildPanelReflectsHistoricalOnlyState(t *testing.T) {
 	if panel.OperatorState != "degraded" {
 		t.Fatalf("expected degraded operator state, got %+v", panel)
 	}
-	if panel.Summary == "" || len(panel.ShortCommands) == 0 || len(panel.DeviceMenu) == 0 {
+	if panel.Summary == "" || len(panel.ShortCommands) == 0 || len(panel.OperatorMenu) == 0 {
 		t.Fatalf("expected compact panel metadata, got %+v", panel)
 	}
 }
