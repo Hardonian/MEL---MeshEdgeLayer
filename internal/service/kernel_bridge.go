@@ -312,7 +312,7 @@ func (kb *kernelBridge) takeSnapshot(a *App) {
 	})
 
 	// Prune old snapshots
-	if err := kb.snapStore.Prune(time.Now().Add(-24*time.Hour), 10); err != nil {
+	if err := kb.snapStore.Prune(time.Now().UTC().AddDate(0, 0, -7), 10); err != nil {
 		a.Log.Warn("kernel_snapshot_prune_failed", "failed to prune snapshots", map[string]any{"error": err.Error()})
 	}
 }

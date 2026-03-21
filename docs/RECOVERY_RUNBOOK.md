@@ -89,6 +89,22 @@ GET /api/v1/kernel/backpressure
 5. Sync catches up any events missed during downtime
 6. Verify: `GET /api/v1/federation/status` on each node
 
+## Scenario: State Divergence After Partition Recovery
+
+### Detection
+After a split-brain resolves, peer states may have diverged. The consistency model (`internal/consistency`) detects this automatically during sync.
+
+### Verification Steps
+1. Check convergence between local and remote state using `CheckConvergence()`
+2. Review divergence report: critical (action lifecycle, freezes, policy), major (classification mismatch), minor (score drift)
+3. `CompareAndResolve()` automatically resolves using strategy-specific rules:
+   - Score dominance: takes the worse score (conservative safety)
+   - Lifecycle advancement: takes the more advanced action state
+   - Union merge: keeps all active freezes from both sides
+   - Policy precedence: higher version wins
+4. If critical divergences remain unresolved, operator intervention required
+5. Verify bounded staleness: `CheckStaleness()` confirms peers are within acceptable drift bounds (clock drift < 1000, sequence lag < 500, time drift < 5 minutes)
+
 ## Scenario: Region Degraded
 
 ### Detection

@@ -117,6 +117,25 @@ GET /api/v1/topology/region/{region_id}
 - Cross-region fallback to healthiest region
 - No data loss (events queued for sync)
 
+## Consistency Verification
+
+### Check Convergence Between Peers
+
+After sync events or partition recovery, verify that peer states have converged using the consistency model (`internal/consistency`):
+
+- **Bounded staleness**: `CheckStaleness()` evaluates clock drift, sequence lag, and time drift against configurable bounds
+- **Divergence detection**: `CompareAndResolve()` identifies and resolves conflicts using strategy-specific resolution (score dominance, lifecycle advancement, union merge, policy precedence)
+- **Convergence report**: `CheckConvergence()` returns whether two states have converged with critical/major/minor divergence counts
+
+Resolution strategies:
+| Category | Strategy | Rule |
+|----------|----------|------|
+| Node/transport scores | Score dominance | Take worse (lower) score — conservative |
+| Action lifecycle | Lifecycle advancement | Take more advanced state — no regression |
+| Active freezes | Union merge | Keep all freezes — safety-critical |
+| Policy version | Policy precedence | Higher version wins |
+| Node registry | Last-write-wins | Newer `last_seen` wins |
+
 ## Monitoring Checklist
 
 | Check | Endpoint | Alert Threshold |
