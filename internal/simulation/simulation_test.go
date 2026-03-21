@@ -343,8 +343,8 @@ func TestBlastRadiusPrediction(t *testing.T) {
 		t.Errorf("Impact score %v out of range [0, 1]", result.BlastRadius.Score)
 	}
 
-	// Verify classification is valid
-	validClasses := []string{"Isolated", "Segmented", "Systemic", "Unknown"}
+	// Verify classification is valid (see BlastRadiusPredictor.classifyBlastRadius)
+	validClasses := []string{"systemic", "mesh_wide", "segmented", "multi_transport", "local_transport", "unknown"}
 	found := false
 	for _, c := range validClasses {
 		if result.BlastRadius.Classification == c {

@@ -142,9 +142,16 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 		}
 	}
 
+	// ResetStartupTimeForTests uses a fixed past instant so Evaluate sees a wide
+	// "grace" window in wall-clock terms; other packages' tests can fill the
+	// control budget in that window. Re-anchor to now before guarded phases.
+	control.ResetStartupTimeForTests(time.Now().UTC().Add(-1 * time.Minute))
+
 	// Switch to guarded_auto for execution phases.
 	app.Cfg.Control.Mode = control.ModeGuardedAuto
 	app.Cfg.Control.AllowTransportRestart = true
+	// Isolate budgeting from cross-test pollution when the global startup anchor is wide.
+	app.Cfg.Control.ActionWindowSeconds = 24 * 3600
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -210,10 +217,13 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 	backoff.ExpiresAt = phaseNow.Add(30 * time.Second).Format(time.RFC3339)
 	backoff.CreatedAt = phaseNow.Add(-20 * time.Minute).Format(time.RFC3339)
 	_ = app.DB.UpsertControlAction(backoff)
-	if err := app.DB.UpsertTransportAnomalySnapshot(db.TransportAnomalySnapshot{BucketStart: phaseNow.Add(9 * time.Minute).Format(time.RFC3339), TransportName: "mqtt-alt", TransportType: "mqtt", Reason: transport.ReasonMalformedFrame, Count: 0, DeadLetters: 0, ObservationDrops: 0}); err != nil {
+	// Recovery must run late enough that storm anomaly buckets (phaseNow+~4.5–5.5m) fall
+	// outside quietSinceExpiry's trailing 5m window; otherwise backoff reset never schedules.
+	recoveryAt := phaseNow.Add(12 * time.Minute)
+	if err := app.DB.UpsertTransportAnomalySnapshot(db.TransportAnomalySnapshot{BucketStart: recoveryAt.Add(-2 * time.Minute).Format(time.RFC3339), TransportName: "mqtt-alt", TransportType: "mqtt", Reason: transport.ReasonMalformedFrame, Count: 0, DeadLetters: 0, ObservationDrops: 0}); err != nil {
 		t.Fatal(err)
 	}
-	app.queueRecoveryActions(phaseNow.Add(6 * time.Minute))
+	app.queueRecoveryActions(recoveryAt)
 	waitFor(t, 2*time.Second, func() bool {
 		row, ok, err := app.DB.ControlActionByID(backoff.ID + "-reset")
 		return err == nil && ok && row.Result == control.ResultExecutedSuccessfully
