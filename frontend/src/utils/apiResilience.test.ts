@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { safeArray, normalizeEnum, evaluateTimeState, formatOperatorTime, safeDenialReason } from './apiResilience';
+import { safeArray, normalizeEnum, evaluateTimeState, safeDenialReason } from './apiResilience';
 
 describe('apiResilience', () => {
   describe('safeArray', () => {

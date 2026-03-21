@@ -12,7 +12,7 @@ This document defines the compatibility guarantees, migration expectations, and 
 
 MEL follows [Semantic Versioning 2.0.0](https://semver.org/):
 
-```
+```text
 MAJOR.MINOR.PATCH
 
 MAJOR - Breaking changes requiring operator action
@@ -23,6 +23,7 @@ PATCH - Bug fixes, backward compatible
 ### Pre-1.0 Exception
 
 Until MEL reaches 1.0:
+
 - MINOR versions may include breaking changes
 - Migration guides provided for MINOR changes
 - No long-term support for pre-1.0 releases
@@ -34,7 +35,7 @@ Until MEL reaches 1.0:
 ### Database Schema
 
 | Change Type | Compatibility | Migration Required | Example |
-|-------------|---------------|-------------------|---------|
+| ------------- | --------------- | ------------------- | --------- |
 | New table | Backward | No | Adding `users` table |
 | New column (nullable) | Backward | No | Adding `metadata` column |
 | New column (non-nullable) | Breaking | Yes | Adding required `site_id` |
@@ -46,12 +47,14 @@ Until MEL reaches 1.0:
 ### Schema Migration Guarantees
 
 **Forward migrations:**
+
 - Always provided via [`migrations/`](migrations/) directory
 - Sequential numbering ensures order
 - Transaction-wrapped for atomicity
 - Idempotent (safe to re-run)
 
 **Rollback:**
+
 - Not automatically supported
 - Restore from backup recommended
 - Downgrade migrations provided for critical fixes only
@@ -64,6 +67,7 @@ SELECT version, applied_at FROM schema_migrations ORDER BY version;
 ```
 
 MEL refuses to start if:
+
 - Database schema version > expected version (downgrade required)
 - Migration fails (manual intervention required)
 
@@ -75,7 +79,7 @@ MEL refuses to start if:
 
 Migrations must be applied in strict order:
 
-```
+```text
 0001_init.sql
 0002_runtime_truth.sql
 0003_dead_letters.sql
@@ -88,7 +92,7 @@ Migrations must be applied in strict order:
 ### Migration Safety
 
 | Operation | Safe? | Notes |
-|-----------|-------|-------|
+| ----------- | ------- | ------- |
 | CREATE TABLE | Yes | No existing data affected |
 | CREATE INDEX | Yes | May be slow on large tables |
 | ALTER TABLE ADD COLUMN | Yes | With DEFAULT or NULL |
@@ -100,6 +104,7 @@ Migrations must be applied in strict order:
 ### Migration Testing
 
 Before release:
+
 1. Migration tested on empty database
 2. Migration tested on populated database
 3. Rollback tested (if provided)
@@ -112,7 +117,7 @@ Before release:
 ### Rollback Scenarios
 
 | Scenario | Rollback Method | Data Loss Risk |
-|----------|----------------|----------------|
+| ---------- | ---------------- | ---------------- |
 | Failed upgrade | Automatic backup restore | Low (since last backup) |
 | Performance regression | Version downgrade | None if no schema changes |
 | Functional regression | Version downgrade | None if no schema changes |
@@ -121,11 +126,13 @@ Before release:
 ### Backup Before Upgrade
 
 MEL automatically creates backups before:
+
 - Schema migrations
 - Control action execution (optional)
 - Explicit `mel backup create` command
 
 **Operator responsibility:**
+
 - Regular scheduled backups
 - Backup verification
 - Offsite backup storage
@@ -133,6 +140,7 @@ MEL automatically creates backups before:
 ### Rollback Procedures
 
 **Standard rollback:**
+
 ```bash
 # 1. Stop MEL
 sudo systemctl stop mel
@@ -145,6 +153,7 @@ mel backup restore --bundle mel-backup-20260321.zip --destination ./data
 ```
 
 **Emergency rollback (data loss):**
+
 ```bash
 # 1. Stop MEL
 # 2. Restore database file directly
@@ -159,6 +168,7 @@ cp backups/mel.db.pre-upgrade ./data/mel.db
 ### What Constitutes a Breaking Change
 
 **API:**
+
 - Removal of endpoints
 - Change in request/response format
 - Change in authentication method
@@ -166,23 +176,27 @@ cp backups/mel.db.pre-upgrade ./data/mel.db
 - Change in error response format
 
 **CLI:**
+
 - Removal of commands
 - Change in required flags
 - Change in output format (JSON structure)
 - Removal of environment variables
 
 **Config:**
+
 - Removal of configuration keys
 - Change in key semantics
 - New required keys without defaults
 - Removal of valid values from enums
 
 **Database:**
+
 - Non-backward-compatible schema changes
 - Removal of tables/columns used by operators
 - Change in primary keys
 
 **Behavior:**
+
 - Change in default values that affect operation
 - Change in security boundaries
 - Removal of features
@@ -215,6 +229,7 @@ The `old_option` configuration key is deprecated as of v0.9.0.
 ### Config Versioning
 
 Configs are not versioned explicitly. Compatibility determined by:
+
 - Key existence checks
 - Type validation
 - Unknown key warnings (with `strict_mode`)
@@ -227,6 +242,7 @@ mel config validate --config configs/mel.json
 ```
 
 Validation checks:
+
 - Required keys present
 - Types correct
 - Values in valid ranges
@@ -261,7 +277,7 @@ mel config validate --config configs/mel.migrated.json
 ### API Stability Levels
 
 | Endpoint Category | Stability | Guarantee |
-|-------------------|-----------|-----------|
+| ------------------- | ----------- | ----------- |
 | `/api/v1/status` | Stable | No breaking changes in minor releases |
 | `/api/v1/messages` | Stable | Pagination format stable |
 | `/api/v1/control/*` | Evolving | May change in minor pre-1.0 |
@@ -279,11 +295,13 @@ Future breaking changes: `/api/v2/`
 ### UI Compatibility
 
 Web UI:
+
 - Backward compatible with same-version API
 - May require browser refresh on upgrade
 - No explicit versioning
 
 CLI:
+
 - Output format stable (JSON)
 - Human-readable text may change
 - Exit codes stable
@@ -291,6 +309,7 @@ CLI:
 ### WebSocket Compatibility
 
 WebSocket protocol:
+
 - Event format stable within major version
 - Reconnection handling client responsibility
 - No protocol negotiation
@@ -302,7 +321,7 @@ WebSocket protocol:
 ### Supported Upgrade Paths
 
 | From | To | Supported? | Notes |
-|------|-----|------------|-------|
+| ------ | ----- | ------------ | ------- |
 | 0.8.x | 0.9.x | Yes | Direct upgrade |
 | 0.8.x | 0.10.x | Yes | Via 0.9.x recommended |
 | 0.7.x | 0.9.x | No | Upgrade via intermediate |
@@ -311,7 +330,7 @@ WebSocket protocol:
 ### Cross-Version Compatibility
 
 | Component | Compatibility |
-|-----------|---------------|
+| ----------- | --------------- |
 | Database | Forward only |
 | Config | Forward with validation |
 | API | Backward within major version |
@@ -325,7 +344,7 @@ WebSocket protocol:
 ### Support Periods (Post-1.0)
 
 | Version Type | Support Period | Notes |
-|--------------|----------------|-------|
+| -------------- | ---------------- | ------- |
 | Major (x.0.0) | 12 months | Long-term support |
 | Minor (x.y.0) | 3 months | Until next minor |
 | Patch (x.y.z) | Until next patch | Immediate replacement |
@@ -333,12 +352,14 @@ WebSocket protocol:
 ### End-of-Life Announcement
 
 EOL announced:
+
 - 3 months before EOL for major versions
 - 1 month before EOL for minor versions
 
 ### Security Fixes
 
 Security patches backported to:
+
 - Current major version
 - Previous major version (6 months overlap)
 
@@ -395,7 +416,7 @@ mel doctor --config configs/mel.json
 ### CI/CD Compatibility Testing
 
 | Test | Frequency | Scope |
-|------|-----------|-------|
+| ------ | ----------- | ------- |
 | Migration tests | Every PR | All migrations |
 | API compatibility | Every release | Public endpoints |
 | Config validation | Every PR | All config paths |
@@ -404,7 +425,7 @@ mel doctor --config configs/mel.json
 ### Compatibility Test Matrix
 
 | From Version | To Version | Test Result |
-|--------------|------------|-------------|
+| -------------- | ------------ | ------------- |
 | v0.8.0 | v0.9.0 | [Test result] |
 | v0.8.0 | v0.9.1 | [Test result] |
 | v0.9.0 | v0.10.0 | [Test result] |
