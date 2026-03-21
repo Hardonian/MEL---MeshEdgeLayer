@@ -20,9 +20,9 @@ Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only r
 
 ### Core Capabilities
 
-- **Multi-Transport Ingest**: Simultaneous support for Serial-direct, TCP-direct, and MQTT transports.
+- **Multi-Transport Ingest**: Simultaneous support for Serial, TCP, and MQTT transports.
 - **Relentless Persistence**: Deterministic SQLite storage with audit logging and dead-letter handling.
-- **Operator Observability**: authoritative CLI (`mel doctor`), a real-time TUI, and a modern Web Dashboard.
+- **Operator Observability**: Authoritative CLI (`mel doctor`), a real-time TUI, and a modern Web Dashboard.
 - **Privacy by Design**: Built-in redaction, privacy audits, and local-first data ownership.
 - **Guarded Remediation**: A sophisticated [Control Plane](docs/architecture/control-plane.md) that can suggest or execute mesh-tuning actions safely.
 
@@ -87,6 +87,7 @@ MEL is designed to be up and running in under 5 minutes.
 **Linux / macOS:**
 
 ```bash
+# Native install (AMD64/ARM64)
 curl -sSL https://mel.sh/install.sh | sh
 ```
 
@@ -102,13 +103,15 @@ iwr https://mel.sh/install.ps1 | iex
 
 ```bash
 mel init
-mel doctor
+# This creates configs/mel.generated.json
+
+mel doctor --config configs/mel.generated.json
 ```
 
 ### 3. Start the Control Plane
 
 ```bash
-mel serve --config mel.json
+mel serve --config configs/mel.generated.json
 ```
 
 Visit **<http://localhost:8080>** to see your mesh come alive.
@@ -119,9 +122,9 @@ Visit **<http://localhost:8080>** to see your mesh come alive.
 
 | Transport | Status | Verification |
 | :--- | :--- | :--- |
-| **Serial Direct-Node** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
-| **TCP Direct-Node** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
-| **MQTT Ingest** | ✅ Supported | `mel status`, Web UI, `/metrics` |
+| **Serial** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
+| **TCP** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
+| **MQTT** | ✅ Supported | `mel status`, Web UI, `/metrics` |
 | **BLE / HTTP** | ❌ Unsupported | N/A |
 
 ---
@@ -137,7 +140,7 @@ Visit **<http://localhost:8080>** to see your mesh come alive.
 
 ## Documentation
 
-- [**Getting Started**](docs/getting-started/README.md) - Full setup and first 10 minutes.
+- [**Getting Started**](docs/getting-started/first-10-minutes.md) - Full setup and first 10 minutes.
 - [**Architecture**](docs/architecture/overview.md) - Deep dive into subsystems.
 - [**Operator Guide**](docs/ops/README.md) - Running MEL in production.
 - [**API Reference**](docs/ops/api-reference.md) - Integrating with MEL.
