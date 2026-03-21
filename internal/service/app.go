@@ -554,9 +554,8 @@ func (a *App) escalateToIncident(obs transport.Observation) {
 			"details":        obs.Details,
 		},
 	}
-	if obs.DeadLetter {
+	if obs.DeadLetter && incident.Category == "transport" && severity == "warning" {
 		incident.Category = "data_integrity"
-		incident.Severity = "warning" // Dead letters are often warnings unless they are systemic
 	}
 
 	if err := a.DB.UpsertIncident(incident); err != nil {

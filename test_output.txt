@@ -1,1 +1,60 @@
 === RUN   TestIncidentEscalation
+    incident_test.go:43: No incident found in DB! Found 1 incidents.
+    incident_test.go:45: INC[0]: {ID:inc-mqtt-primary-retry_threshold_exceeded Category:data_integrity Severity:warning Title:Transport Incident: retry_threshold_exceeded Summary:access denied by broker ResourceType:transport ResourceID:mqtt-primary State:open ActorID: OccurredAt:2026-03-21T01:34:46.727907Z UpdatedAt:2026-03-21T01:34:46Z ResolvedAt: Metadata:map[dead_letter:true details:map[code:403 final:true] episode_id: observation_id:obs-1774056886727907000-1]}
+    incident_test.go:48: Audit logs: [map[category:transport message:retry_threshold_exceeded]]
+--- FAIL: TestIncidentEscalation (5.26s)
+=== RUN   TestConsumeTransportEventsPersistsFinalObservationDeadLetter
+--- PASS: TestConsumeTransportEventsPersistsFinalObservationDeadLetter (0.80s)
+=== RUN   TestRunTransportPersistsRetryThresholdDeadLetter
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:4403","transport":"direct-primary","ts":"2026-03-21T01:34:52.7856325Z","type":"tcp"}
+2026/03/20 21:34:52 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:52Z
+{"debug_enabled":true,"episode_id":"direct-primary-episode-1","error":"dial tcp 127.0.0.1:4403: connect: connection refused","event_type":"transport_failed","failure_count":1,"level":"error","msg":"transport connect failed","transport":"direct-primary","ts":"2026-03-21T01:34:52.8087326Z","type":"tcp"}
+2026/03/20 21:34:52 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:52Z
+2026/03/20 21:34:53 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:53Z
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:4403","transport":"direct-primary","ts":"2026-03-21T01:34:54.0002892Z","type":"tcp"}
+2026/03/20 21:34:54 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 79)" input_preview="retry threshold exceeded; operator intervention or successful recovery required" timestamp=2026-03-21T01:34:54Z
+{"debug_enabled":true,"episode_id":"direct-primary-episode-1","error":"dial tcp 127.0.0.1:4403: connect: connection refused","event_type":"transport_failed","failure_count":2,"level":"error","msg":"transport connect failed","transport":"direct-primary","ts":"2026-03-21T01:34:54.0201592Z","type":"tcp"}
+--- PASS: TestRunTransportPersistsRetryThresholdDeadLetter (1.99s)
+=== RUN   TestRunTransportDoesNotDuplicateRetryThresholdDeadLetter
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:4403","transport":"direct-primary","ts":"2026-03-21T01:34:54.7975792Z","type":"tcp"}
+2026/03/20 21:34:54 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:54Z
+{"debug_enabled":true,"episode_id":"direct-primary-episode-1","error":"dial tcp 127.0.0.1:4403: connect: connection refused","event_type":"transport_failed","failure_count":1,"level":"error","msg":"transport connect failed","transport":"direct-primary","ts":"2026-03-21T01:34:54.8177292Z","type":"tcp"}
+2026/03/20 21:34:54 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:54Z
+2026/03/20 21:34:55 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:55Z
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:4403","transport":"direct-primary","ts":"2026-03-21T01:34:56.0112796Z","type":"tcp"}
+2026/03/20 21:34:56 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 79)" input_preview="retry threshold exceeded; operator intervention or successful recovery required" timestamp=2026-03-21T01:34:56Z
+{"debug_enabled":true,"episode_id":"direct-primary-episode-1","error":"dial tcp 127.0.0.1:4403: connect: connection refused","event_type":"transport_failed","failure_count":2,"level":"error","msg":"transport connect failed","transport":"direct-primary","ts":"2026-03-21T01:34:56.0310122Z","type":"tcp"}
+--- PASS: TestRunTransportDoesNotDuplicateRetryThresholdDeadLetter (3.17s)
+=== RUN   TestRunTransportRecoveryResetsRetryThresholdEpisode
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:34:57.9908848Z","type":"mqtt"}
+2026/03/20 21:34:57 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:57Z
+{"debug_enabled":true,"episode_id":"mqtt-primary-episode-1","error":"connect refused 1","event_type":"transport_failed","failure_count":1,"level":"error","msg":"transport connect failed","transport":"mqtt-primary","ts":"2026-03-21T01:34:58.0102222Z","type":"mqtt"}
+2026/03/20 21:34:58 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:58Z
+2026/03/20 21:34:59 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:34:59Z
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:34:59.2049141Z","type":"mqtt"}
+2026/03/20 21:34:59 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 79)" input_preview="retry threshold exceeded; operator intervention or successful recovery required" timestamp=2026-03-21T01:34:59Z
+{"debug_enabled":true,"episode_id":"mqtt-primary-episode-1","error":"connect refused 2","event_type":"transport_failed","failure_count":2,"level":"error","msg":"transport connect failed","transport":"mqtt-primary","ts":"2026-03-21T01:34:59.2287985Z","type":"mqtt"}
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:35:01.5596986Z","type":"mqtt"}
+{"debug_enabled":true,"event_type":"transport_connected","level":"info","msg":"transport connected","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:35:01.5596986Z","type":"mqtt"}
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:35:02.7796534Z","type":"mqtt"}
+2026/03/20 21:35:02 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:35:02Z
+{"debug_enabled":true,"episode_id":"mqtt-primary-episode-2","error":"connect refused 3","event_type":"transport_failed","failure_count":1,"level":"error","msg":"transport connect failed","transport":"mqtt-primary","ts":"2026-03-21T01:35:02.7980596Z","type":"mqtt"}
+2026/03/20 21:35:02 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:35:02Z
+2026/03/20 21:35:03 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 36)" input_preview="connect failed; retry backoff active" timestamp=2026-03-21T01:35:03Z
+{"debug_enabled":true,"event_type":"transport_attempt","level":"debug","msg":"attempting transport connect","source":"127.0.0.1:1883","transport":"mqtt-primary","ts":"2026-03-21T01:35:03.9999588Z","type":"mqtt"}
+2026/03/20 21:35:03 WARN suspicious_sql_input_rejected reason="SQL validation failed: input contains statement terminator (;) (input length: 79)" input_preview="retry threshold exceeded; operator intervention or successful recovery required" timestamp=2026-03-21T01:35:03Z
+{"debug_enabled":true,"episode_id":"mqtt-primary-episode-2","error":"connect refused 4","event_type":"transport_failed","failure_count":2,"level":"error","msg":"transport connect failed","transport":"mqtt-primary","ts":"2026-03-21T01:35:04.0224891Z","type":"mqtt"}
+--- PASS: TestRunTransportRecoveryResetsRetryThresholdEpisode (6.81s)
+=== RUN   TestEnqueueIngestDropsWhenQueueFull
+{"debug_enabled":true,"error":"sqlite exec failed: exit status 1: Error: unable to open database \"C:\\Users\\scott\\AppData\\Local\\Temp\\TestRunTransportRecoveryResetsRetryThresholdEpisode4218141136\\001\\data\\mel.db\": unable to open database file\r\n","event_type":"incident_escalation_failed","incident_id":"inc-mqtt-primary-retry_threshold_exceeded","level":"error","msg":"failed to escalate observation to incident","ts":"2026-03-21T01:35:04.1144726Z"}
+{"category":"transport","debug_enabled":true,"error":"sqlite exec failed: exit status 1: Error: unable to open database \"C:\\Users\\scott\\AppData\\Local\\Temp\\TestRunTransportRecoveryResetsRetryThresholdEpisode4218141136\\001\\data\\mel.db\": unable to open database file\r\n","event_type":"audit_log_persist_failed","level":"error","message":"retry_threshold_exceeded","msg":"failed to persist audit log","ts":"2026-03-21T01:35:04.1303674Z"}
+--- PASS: TestEnqueueIngestDropsWhenQueueFull (0.78s)
+=== RUN   TestObservationPipelineHandlesBurstWithoutDeadlock
+{"debug_enabled":true,"event_type":"transport_observation_dropped","level":"error","msg":"dropped observation because persistence worker is saturated","reason":"timeout_stall","transport":"mqtt-primary","ts":"2026-03-21T01:35:05.6540183Z"}
+{"debug_enabled":true,"event_type":"transport_observation_dropped","level":"error","msg":"dropped observation because persistence worker is saturated","reason":"timeout_stall","transport":"mqtt-primary","ts":"2026-03-21T01:35:05.7147317Z"}
+--- PASS: TestObservationPipelineHandlesBurstWithoutDeadlock (0.87s)
+=== RUN   TestWorkerShutdownCompletes
+--- PASS: TestWorkerShutdownCompletes (0.68s)
+FAIL
+FAIL	command-line-arguments	20.981s
+FAIL
