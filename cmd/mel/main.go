@@ -88,6 +88,8 @@ func main() {
 		healthCmd(os.Args[2:])
 	case "dev-simulate-mqtt":
 		simulateCmd(os.Args[2:])
+	case "simulate":
+		actionSimulateCmd(os.Args[2:])
 	case "ui":
 		uiCmd(os.Args[2:])
 	case "gui":
@@ -126,6 +128,7 @@ func usage() {
   health internal|freshness|slo|metrics --config <path>
   ui --config <path>
   gui --config <path>
+  simulate action <type> --transport <name> --config <path>
   dev-simulate-mqtt`)
 }
 
