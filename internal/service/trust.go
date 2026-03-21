@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/selfobs"
 )
 
 // ─── Execution mode helpers ───────────────────────────────────────────────────
@@ -226,6 +227,15 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		"action_id": actionID,
 		"actor":     actorID,
 	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "action_approved",
+		Summary:    "action approved: " + actionID,
+		Severity:   "info",
+		ActorID:    actorID,
+		ResourceID: actionID,
+		Details:    map[string]any{"action_id": actionID, "note": note},
+	})
 
 	// Re-load the action and queue for execution
 	updated, ok, err := a.DB.ControlActionByID(actionID)
@@ -286,6 +296,15 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 		"action_id": actionID,
 		"actor":     actorID,
 	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "action_rejected",
+		Summary:    "action rejected: " + actionID,
+		Severity:   "warning",
+		ActorID:    actorID,
+		ResourceID: actionID,
+		Details:    map[string]any{"action_id": actionID, "note": note},
+	})
 	return nil
 }
 
@@ -326,6 +345,15 @@ func (a *App) CreateFreeze(scopeType, scopeValue, reason, createdBy string, expi
 		"scope_value": scopeValue,
 		"reason":      reason,
 	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "freeze_created",
+		Summary:    "freeze created: " + scopeType + " " + scopeValue,
+		Severity:   "warning",
+		ActorID:    createdBy,
+		ResourceID: id,
+		Details:    map[string]any{"freeze_id": id, "scope_type": scopeType, "scope_value": scopeValue, "reason": reason},
+	})
 	return id, nil
 }
 
@@ -348,8 +376,17 @@ func (a *App) ClearFreeze(freezeID, clearedBy string) error {
 		Timestamp:    time.Now().UTC(),
 	})
 	a.Log.Info("control_freeze_cleared", "automation freeze cleared", map[string]any{
-		"freeze_id": freezeID,
+		"freeze_id":  freezeID,
 		"cleared_by": clearedBy,
+	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "freeze_cleared",
+		Summary:    "freeze cleared: " + freezeID,
+		Severity:   "info",
+		ActorID:    clearedBy,
+		ResourceID: freezeID,
+		Details:    map[string]any{"freeze_id": freezeID},
 	})
 	return nil
 }
@@ -391,9 +428,18 @@ func (a *App) CreateMaintenanceWindow(title, reason, scopeType, scopeValue, crea
 		Timestamp:    time.Now().UTC(),
 	})
 	a.Log.Info("maintenance_window_created", "maintenance window created", map[string]any{
-		"window_id":  id,
-		"starts_at":  startsAt,
-		"ends_at":    endsAt,
+		"window_id": id,
+		"starts_at": startsAt,
+		"ends_at":   endsAt,
+	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "maintenance_created",
+		Summary:    "maintenance window created: " + title,
+		Severity:   "info",
+		ActorID:    createdBy,
+		ResourceID: id,
+		Details:    map[string]any{"window_id": id, "title": title, "starts_at": startsAt, "ends_at": endsAt},
 	})
 	return id, nil
 }
@@ -415,6 +461,15 @@ func (a *App) CancelMaintenanceWindow(windowID, cancelledBy string) error {
 		ResourceID:   windowID,
 		Result:       auth.AuditResultSuccess,
 		Timestamp:    time.Now().UTC(),
+	})
+	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+		ID:         newTrustID("tl"),
+		EventType:  "maintenance_cancelled",
+		Summary:    "maintenance window cancelled: " + windowID,
+		Severity:   "info",
+		ActorID:    cancelledBy,
+		ResourceID: windowID,
+		Details:    map[string]any{"window_id": windowID},
 	})
 	return nil
 }
@@ -475,17 +530,9 @@ func (a *App) InspectAction(actionID string) (map[string]any, error) {
 
 	var decision *db.ControlDecisionRecord
 	if strings.TrimSpace(action.DecisionID) != "" {
-		// Query decisions and find the one matching the action's decision ID.
-		// We use a broad query since there's no direct-by-ID convenience method.
-		rows, err2 := a.DB.ControlDecisions(action.TargetTransport, "", "", "", 50, 0)
-		if err2 == nil {
-			for i := range rows {
-				if rows[i].ID == action.DecisionID {
-					d := rows[i]
-					decision = &d
-					break
-				}
-			}
+		d, ok2, err2 := a.DB.ControlDecisionByID(action.DecisionID)
+		if err2 == nil && ok2 {
+			decision = &d
 		}
 	}
 
@@ -527,17 +574,48 @@ func (a *App) OperationalState() (map[string]any, error) {
 
 // ─── Approval expiry cleanup ──────────────────────────────────────────────────
 
-// cleanupExpiredApprovals is called periodically to expire stale pending-approval actions.
+// approvalBacklogWarnThreshold is the number of pending-approval actions above
+// which a warning timeline event is emitted.
+const approvalBacklogWarnThreshold = 5
+
+// cleanupExpiredApprovals is called periodically to expire stale pending-approval
+// actions and time-expired freezes. It also emits self-observability signals and
+// trust-layer warning events if the approval backlog is high.
 func (a *App) cleanupExpiredApprovals() {
 	if a == nil || a.DB == nil {
 		return
 	}
 	now := time.Now().UTC()
+	failed := false
 	if err := a.DB.ExpireStaleApprovalActions(now); err != nil {
 		a.Log.Error("approval_expiry_cleanup_failed", "could not expire stale approval actions", map[string]any{"error": err.Error()})
+		selfobs.GetGlobalRegistry().RecordFailure("trust")
+		failed = true
 	}
 	if err := a.DB.ExpireOldFreezes(now); err != nil {
 		a.Log.Error("freeze_expiry_cleanup_failed", "could not expire old freezes", map[string]any{"error": err.Error()})
+		selfobs.GetGlobalRegistry().RecordFailure("trust")
+		failed = true
+	}
+	if !failed {
+		selfobs.GetGlobalRegistry().RecordSuccess("trust")
+		selfobs.MarkFresh("trust")
+
+		// Check for high approval backlog and emit a warning timeline event.
+		pending, err := a.DB.PendingApprovalActions(approvalBacklogWarnThreshold + 1)
+		if err == nil && len(pending) >= approvalBacklogWarnThreshold {
+			a.Log.Warn("approval_backlog_high", "pending-approval action backlog is high", map[string]any{
+				"count": len(pending),
+			})
+			_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
+				ID:        newTrustID("tl"),
+				EventType: "approval_backlog_warn",
+				Summary:   fmt.Sprintf("approval backlog: %d actions awaiting operator approval", len(pending)),
+				Severity:  "warning",
+				ActorID:   "system",
+				Details:   map[string]any{"backlog_count": len(pending)},
+			})
+		}
 	}
 }
 

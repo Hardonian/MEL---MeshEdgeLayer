@@ -352,3 +352,32 @@ func copyBoolMap(in map[string]bool) map[string]bool {
 func copyAnyMap(in map[string]any) map[string]any {
 	return copyMap(in)
 }
+
+// ControlDecisionByID returns the control decision with the given ID, or
+// (zero, false, nil) if not found.
+func (d *DB) ControlDecisionByID(id string) (ControlDecisionRecord, bool, error) {
+	if strings.TrimSpace(id) == "" {
+		return ControlDecisionRecord{}, false, nil
+	}
+	safeID, err := ValidateSQLInput(id)
+	if err != nil {
+		logSuspiciousSQL(id, err.Error())
+		return ControlDecisionRecord{}, false, fmt.Errorf("invalid id: %w", err)
+	}
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, candidate_action_id, action_type,
+COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment,
+reason, confidence, allowed,
+COALESCE(denial_reason,'') AS denial_reason, COALESCE(denial_code,'') AS denial_code,
+COALESCE(safety_checks_json,'{}') AS safety_checks_json,
+COALESCE(decision_inputs_json,'{}') AS decision_inputs_json,
+COALESCE(policy_summary_json,'{}') AS policy_summary_json,
+created_at, mode, operator_override
+FROM control_decisions WHERE id='%s' LIMIT 1;`, safeID))
+	if err != nil {
+		return ControlDecisionRecord{}, false, err
+	}
+	if len(rows) == 0 {
+		return ControlDecisionRecord{}, false, nil
+	}
+	return controlDecisionFromRow(rows[0]), true, nil
+}

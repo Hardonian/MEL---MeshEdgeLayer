@@ -580,6 +580,12 @@ FROM (
     'note on '||ref_type||': '||SUBSTR(content,1,80) AS summary, 'info' AS severity,
     actor_id, ref_id AS resource_id
   FROM operator_notes
+
+  UNION ALL
+
+  SELECT event_time, event_type, id AS event_id,
+    summary, severity, actor_id, resource_id
+  FROM timeline_events
 ) AS tl
 %s
 ORDER BY event_time DESC LIMIT %d;`, where, limit)
@@ -602,6 +608,39 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 		})
 	}
 	return out, nil
+}
+
+// ─── Explicit Timeline Event Insertion ───────────────────────────────────────
+
+// InsertTimelineEvent inserts an explicit event into the timeline_events table.
+// This is for operator-visible events that cannot be derived from other tables —
+// e.g. action_approved, freeze_created, control_stale, approval_backlog_warn.
+// Safe-fail: if the table does not exist yet (pre-migration), the error is
+// swallowed and nil is returned so callers need not guard on migration version.
+func (d *DB) InsertTimelineEvent(ev TimelineEvent) error {
+	if strings.TrimSpace(ev.ID) == "" {
+		return fmt.Errorf("timeline event id is required")
+	}
+	if ev.EventTime == "" {
+		ev.EventTime = time.Now().UTC().Format(time.RFC3339)
+	}
+	if ev.EventType == "" {
+		return fmt.Errorf("timeline event type is required")
+	}
+	if ev.ActorID == "" {
+		ev.ActorID = "system"
+	}
+	detailsJSON, _ := json.Marshal(ev.Details)
+	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json)
+VALUES('%s','%s','%s','%s','%s','%s','%s','%s');`,
+		esc(ev.ID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
+		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)))
+	err := d.Exec(sql)
+	// Treat "no such table" as safe-fail during startup before migrations run.
+	if err != nil && strings.Contains(err.Error(), "no such table") {
+		return nil
+	}
+	return err
 }
 
 // ─── Control Plane State ──────────────────────────────────────────────────────

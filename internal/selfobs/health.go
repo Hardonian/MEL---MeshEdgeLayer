@@ -46,6 +46,7 @@ var KnownComponents = []string{
 	"control",
 	"retention",
 	"backup",
+	"trust", // approval lifecycle, freeze checks, evidence capture
 }
 
 // HealthRegistry tracks health of all internal components
