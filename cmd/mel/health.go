@@ -107,7 +107,7 @@ func healthFreshnessCmd(args []string) {
 	if len(stale) > 0 {
 		fmt.Printf("⚠ STALE COMPONENTS: %s\n\n", strings.Join(staleToStrings(stale), ", "))
 	} else {
-		fmt.Println("✓ All components fresh\n")
+		fmt.Println("✓ All components fresh")
 	}
 
 	fmt.Println("Component Freshness:")
