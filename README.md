@@ -2,6 +2,8 @@
 
 **Truthful, local-first mesh observability and operator control plane for Meshtastic.**
 
+![MEL Hero](assets/hero.png)
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/mel-project/mel)](https://goreportcard.com/report/github.com/mel-project/mel)
 [![License](https://img.shields.io/github/license/mel-project/mel)](LICENSE)
 [![Status](https://img.shields.io/badge/status-0.1.0--rc1-blue.svg)](docs/roadmap/ROADMAP_EXECUTION.md)
@@ -14,7 +16,7 @@
 
 MEL is a heavy-duty ingest, persistence, and observability layer designed for **production-oriented Meshtastic deployments**. It provides operators with high-fidelity visibility into mesh health, packet traffic, and node telemetry without relying on cloud services or external dependencies.
 
-Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only reports data it has successfully persisted and verified.
+Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only reports data it has successfully persisted and verified in its local state.
 
 ### Core Capabilities
 
@@ -22,7 +24,7 @@ Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only r
 - **Relentless Persistence**: Deterministic SQLite storage with audit logging and dead-letter handling.
 - **Operator Observability**: authoritative CLI (`mel doctor`), a real-time TUI, and a modern Web Dashboard.
 - **Privacy by Design**: Built-in redaction, privacy audits, and local-first data ownership.
-- **Guarded Remediation**: An optional control plane that can suggest or execute mesh-tuning actions safely.
+- **Guarded Remediation**: A sophisticated [Control Plane](docs/architecture/control-plane.md) that can suggest or execute mesh-tuning actions safely.
 
 ---
 
@@ -46,7 +48,7 @@ graph TD
     subgraph "MEL Core Engine"
         IG[Ingest Worker]
         DB[(SQLite Persistence)]
-        IL[Intelligence Layer]
+        IL[[Intelligence Layer]]
     end
 
     subgraph "Operator Interfaces"
@@ -71,6 +73,8 @@ graph TD
     DB --> TUI
     DB --> WEB
 ```
+
+Learn more about the [**Intelligence Layer**](docs/architecture/intelligence-layer.md) and [**Control Plane**](docs/architecture/control-plane.md).
 
 ---
 
@@ -137,6 +141,7 @@ Visit **<http://localhost:8080>** to see your mesh come alive.
 - [**Architecture**](docs/architecture/overview.md) - Deep dive into subsystems.
 - [**Operator Guide**](docs/ops/README.md) - Running MEL in production.
 - [**API Reference**](docs/ops/api-reference.md) - Integrating with MEL.
+- [**CLI Control**](docs/ops/control-cli.md) - Direct Control Plane operations.
 
 ---
 

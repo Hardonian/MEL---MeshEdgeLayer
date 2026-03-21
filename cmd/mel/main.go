@@ -27,7 +27,6 @@ import (
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/ui"
-	"github.com/mel-project/mel/internal/upgrade"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -46,7 +45,7 @@ func main() {
 	case "init":
 		initCmd(os.Args[2:])
 	case "version":
-		fmt.Println(version.GetVersionString())
+		fmt.Println(version.GetFullVersionString())
 	case "config":
 		configCmd(os.Args[2:])
 	case "serve":

@@ -23,8 +23,6 @@ import (
 	"github.com/mel-project/mel/internal/security"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
-	"github.com/mel-project/mel/internal/upgrade"
-	"github.com/mel-project/mel/internal/version"
 )
 
 type Server struct {
