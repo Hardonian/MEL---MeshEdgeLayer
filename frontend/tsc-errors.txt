@@ -1,0 +1,6 @@
+src/App.tsx(12,10): error TS2305: Module '"./pages/Diagnostics"' has no exported member 'Diagnostics'.
+src/pages/Diagnostics.tsx(2,37): error TS2307: Cannot find module '../components/diagnostics/SupportBundleExport' or its corresponding type declarations.
+src/pages/Diagnostics.tsx(3,36): error TS2307: Cannot find module '../components/states/OperatorEmptyState' or its corresponding type declarations.
+src/pages/Diagnostics.tsx(4,27): error TS2307: Cannot find module '../utils/apiResilience' or its corresponding type declarations.
+src/pages/Diagnostics.tsx(83,54): error TS7006: Parameter 'step' implicitly has an 'any' type.
+src/pages/Diagnostics.tsx(83,60): error TS7006: Parameter 'sIdx' implicitly has an 'any' type.

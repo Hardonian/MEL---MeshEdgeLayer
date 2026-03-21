@@ -47,7 +47,7 @@ export function Control() {
               <div key={action.id} className="rounded-lg border p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{action.command}</span>
-                  <Badge variant={action.result === 'executed_successfully' ? 'success' : 'destructive'}>
+                  <Badge variant={action.result === 'executed_successfully' ? 'success' : 'critical'}>
                     {action.result}
                   </Badge>
                 </div>

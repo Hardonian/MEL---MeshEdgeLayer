@@ -169,3 +169,36 @@ export function StatSkeleton() {
     </div>
   )
 }
+
+export function StaleBanner({ timestamp, message = "Data may be stale" }: { timestamp?: string; message?: string }) {
+  if (!timestamp) return null
+  
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  
+  // Consider stale if > 5 minutes (300000 ms)
+  if (diffMs < 300000) return null
+  
+  let timeStr = 'never'
+  try {
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 60) timeStr = `${diffMins}m ago`
+    else if (diffHours < 24) timeStr = `${diffHours}h ago`
+    else if (diffDays < 7) timeStr = `${diffDays}d ago`
+    else timeStr = date.toLocaleDateString()
+  } catch {
+    timeStr = timestamp
+  }
+  
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:border-amber-900/50 dark:text-amber-400">
+      <AlertCircle className="h-4 w-4 shrink-0" />
+      <span className="font-medium">{message}</span>
+      <span className="text-amber-600 dark:text-amber-500 text-xs ml-auto">Last updated: {timeStr}</span>
+    </div>
+  )
+}
