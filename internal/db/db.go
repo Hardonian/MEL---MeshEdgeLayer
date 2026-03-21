@@ -300,6 +300,32 @@ func (d *DB) InsertConfigApply(actor, summary, sha string, diff any) error {
 	return d.Exec(sql)
 }
 
+// InsertRBACAuditLog inserts an RBAC audit log entry into the audit_log table.
+// This provides action attribution for control actions and configuration changes.
+func (d *DB) InsertRBACAuditLog(entry auth.AuditEntry) error {
+	detailsJSON := ""
+	if entry.Details != nil {
+		detailsBytes, _ := json.Marshal(entry.Details)
+		detailsJSON = string(detailsBytes)
+	}
+
+	sql := fmt.Sprintf(`INSERT INTO audit_log(id,timestamp,actor_id,action_class,action_detail,resource_type,resource_id,reason,result,details,session_id,remote_addr)
+		VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
+		esc(entry.ID),
+		esc(entry.Timestamp.Format(time.RFC3339)),
+		esc(string(entry.ActorID)),
+		esc(string(entry.ActionClass)),
+		esc(entry.ActionDetail),
+		esc(entry.ResourceType),
+		esc(entry.ResourceID),
+		esc(entry.Reason),
+		esc(string(entry.Result)),
+		esc(detailsJSON),
+		esc(entry.SessionID),
+		esc(entry.RemoteAddr))
+	return d.Exec(sql)
+}
+
 func (d *DB) UpsertTransportRuntime(tr TransportRuntime) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	sql := fmt.Sprintf(`BEGIN IMMEDIATE;
