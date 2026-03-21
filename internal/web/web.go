@@ -247,7 +247,7 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 
 	where := "1=1"
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		safeQ, err := validateSQLInput(q)
+		safeQ, err := db.ValidateSQLInput(q)
 		if err == nil {
 			where = fmt.Sprintf("(n.node_id LIKE '%%%s%%' OR n.long_name LIKE '%%%s%%' OR n.short_name LIKE '%%%s%%')", safeQ, safeQ, safeQ)
 		}
@@ -700,7 +700,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(node), escape(node)))
 	}
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		safeQ, err := validateSQLInput(q)
+		safeQ, err := db.ValidateSQLInput(q)
 		if err == nil {
 			clauses = append(clauses, fmt.Sprintf("(payload_text LIKE '%%%s%%' OR payload_json LIKE '%%%s%%')", safeQ, safeQ))
 		}
