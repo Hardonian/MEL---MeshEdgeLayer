@@ -44,10 +44,46 @@ type Server struct {
 	diagnosticsRun      func(config.Config, *db.DB) []diagnostics.Finding
 	operatorBriefing    func() models.OperatorBriefingDTO
 	queueDepths         func() map[string]int
+
+	// Trust / operability hooks (wired from service layer)
+	approveAction           func(actionID, actorID, note string) error
+	rejectAction            func(actionID, actorID, note string) error
+	createFreeze            func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
+	clearFreeze             func(freezeID, clearedBy string) error
+	createMaintenanceWindow func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
+	cancelMaintenanceWindow func(windowID, cancelledBy string) error
+	addOperatorNote         func(refType, refID, actorID, content string) (string, error)
+	timeline                func(start, end string, limit int) ([]db.TimelineEvent, error)
+	inspectAction           func(actionID string) (map[string]any, error)
+	operationalState        func() (map[string]any, error)
 }
 
 func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
 	s.queueDepths = f
+}
+
+func (s *Server) SetTrustFuncs(
+	approve func(string, string, string) error,
+	reject func(string, string, string) error,
+	createFreeze func(string, string, string, string, string) (string, error),
+	clearFreeze func(string, string) error,
+	createMW func(string, string, string, string, string, string, string) (string, error),
+	cancelMW func(string, string) error,
+	addNote func(string, string, string, string) (string, error),
+	timeline func(string, string, int) ([]db.TimelineEvent, error),
+	inspect func(string) (map[string]any, error),
+	opState func() (map[string]any, error),
+) {
+	s.approveAction = approve
+	s.rejectAction = reject
+	s.createFreeze = createFreeze
+	s.clearFreeze = clearFreeze
+	s.createMaintenanceWindow = createMW
+	s.cancelMaintenanceWindow = cancelMW
+	s.addOperatorNote = addNote
+	s.timeline = timeline
+	s.inspectAction = inspect
+	s.operationalState = opState
 }
 
 func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
@@ -130,6 +166,17 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))
+
+	// Trust / operability endpoints
+	mux.HandleFunc("/api/v1/control/operational-state", s.requireMethod(s.operationalStateHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/actions/", s.requireMethod(s.controlActionSubHandler, http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/control/freeze", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeHandler), http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/control/freeze/", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeItemHandler), http.MethodDelete))
+	mux.HandleFunc("/api/v1/control/maintenance", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceHandler), http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/control/maintenance/", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceItemHandler), http.MethodDelete))
+	mux.HandleFunc("/api/v1/timeline", s.requireMethod(s.timelineHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/operator/notes", s.requireMethod(s.operatorNotesHandler, http.MethodGet, http.MethodPost))
+
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))
 	}
@@ -180,6 +227,14 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, code int, msg, detail string) {
+	body := map[string]any{"error": msg}
+	if detail != "" {
+		body["detail"] = detail
+	}
+	writeJSON(w, code, body)
 }
 
 func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {

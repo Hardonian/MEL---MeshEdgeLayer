@@ -76,6 +76,14 @@ func main() {
 		policyCmd(os.Args[2:])
 	case "control":
 		controlCmd(os.Args[2:])
+	case "timeline":
+		timelineCmd(os.Args[2:])
+	case "freeze":
+		freezeCmd(os.Args[2:])
+	case "maintenance":
+		maintenanceCmd(os.Args[2:])
+	case "notes":
+		notesCmd(os.Args[2:])
 	case "privacy":
 		privacyCmd(os.Args[2:])
 	case "backup":
@@ -119,6 +127,20 @@ func usage() {
   policy explain --config <path>
   control status --config <path>
   control history --config <path> [--transport <name>] [--limit <n>]
+  control approve <action-id> --config <path> [--note "..."]
+  control reject <action-id> --config <path> [--note "..."]
+  control pending --config <path>
+  control inspect <action-id> --config <path>
+  control operational-state --config <path>
+  freeze create --config <path> --reason "..." [--scope-type global|transport|action_type] [--scope-value <name>] [--expires-at <RFC3339>]
+  freeze list --config <path>
+  freeze clear <freeze-id> --config <path>
+  maintenance create --config <path> --starts-at <RFC3339> --ends-at <RFC3339> [--title "..."] [--reason "..."]
+  maintenance list --config <path>
+  maintenance cancel <window-id> --config <path>
+  timeline --config <path> [--start <RFC3339>] [--end <RFC3339>] [--limit <n>]
+  notes add --config <path> --ref-type <type> --ref-id <id> --content "..."
+  notes list --config <path> --ref-type <type> --ref-id <id>
   export --config <path> [--out path]
   import validate --bundle <path>
   backup create --config <path> [--out path]
@@ -622,8 +644,285 @@ func controlCmd(args []string) {
 			panic(err)
 		}
 		mustPrint(map[string]any{"actions": actions, "decisions": decisions, "transport": *transportName, "start": *start, "end": *end, "pagination": map[string]any{"limit": *limit, "offset": *offset}})
+	case "pending":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		pending, err := d.PendingApprovalActions(100)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"pending_approval": pending, "count": len(pending)})
+	case "approve":
+		if len(args) < 2 {
+			panic("usage: mel control approve <action-id> --config <path> [--note '...']")
+		}
+		actionID := args[1]
+		f := fs("control-approve")
+		path := f.String("config", "configs/mel.example.json", "config")
+		note := f.String("note", "", "approval note")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[2:])
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		if err := d.ApproveControlAction(actionID, *actor, *note); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "approved", "action_id": actionID, "actor": *actor})
+	case "reject":
+		if len(args) < 2 {
+			panic("usage: mel control reject <action-id> --config <path> [--note '...']")
+		}
+		actionID := args[1]
+		f := fs("control-reject")
+		path := f.String("config", "configs/mel.example.json", "config")
+		note := f.String("note", "", "rejection reason")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[2:])
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		if err := d.RejectControlAction(actionID, *actor, *note); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "rejected", "action_id": actionID, "actor": *actor})
+	case "inspect":
+		if len(args) < 2 {
+			panic("usage: mel control inspect <action-id> --config <path>")
+		}
+		actionID := args[1]
+		cfg, _ := loadCfg(args[2:])
+		d := openDB(cfg)
+		action, ok, err := d.ControlActionByID(actionID)
+		if err != nil {
+			panic(err)
+		}
+		if !ok {
+			panic("action not found: " + actionID)
+		}
+		bundle, bundleOK, _ := d.EvidenceBundleByActionID(actionID)
+		notes, _ := d.OperatorNotesByRef("action", actionID, 50)
+		out := map[string]any{
+			"action":          action,
+			"evidence_bundle": nil,
+			"notes":           notes,
+		}
+		if bundleOK {
+			out["evidence_bundle"] = bundle
+		}
+		mustPrint(out)
+	case "operational-state":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		state, err := d.ControlPlaneStateSnapshot(time.Now().UTC())
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(state)
 	default:
-		panic("usage: mel control status|history --config <path>")
+		panic("usage: mel control status|history|pending|approve|reject|inspect|operational-state --config <path>")
+	}
+}
+
+func timelineCmd(args []string) {
+	f := fs("timeline")
+	path := f.String("config", "configs/mel.example.json", "config")
+	start := f.String("start", "", "start time RFC3339")
+	end := f.String("end", "", "end time RFC3339")
+	limit := f.Int("limit", 100, "max events")
+	_ = f.Parse(args)
+	cfg, _, err := config.Load(*path)
+	if err != nil {
+		panic(err)
+	}
+	d := openDB(cfg)
+	events, err := d.TimelineEvents(*start, *end, *limit)
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(map[string]any{"events": events, "count": len(events), "start": *start, "end": *end})
+}
+
+func freezeCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel freeze create|list|clear --config <path>")
+	}
+	switch args[0] {
+	case "list":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		freezes, err := d.ActiveFreezes()
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"freezes": freezes, "count": len(freezes)})
+	case "create":
+		f := fs("freeze-create")
+		path := f.String("config", "configs/mel.example.json", "config")
+		reason := f.String("reason", "", "reason for freeze (required)")
+		scopeType := f.String("scope-type", "global", "global|transport|action_type")
+		scopeValue := f.String("scope-value", "", "transport name or action type (if scoped)")
+		expiresAt := f.String("expires-at", "", "optional expiry RFC3339")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[1:])
+		if *reason == "" {
+			panic("--reason is required")
+		}
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		id := fmt.Sprintf("frz-%d", time.Now().UnixNano())
+		if err := d.CreateFreeze(db.FreezeRecord{
+			ID: id, ScopeType: *scopeType, ScopeValue: *scopeValue,
+			Reason: *reason, CreatedBy: *actor, ExpiresAt: *expiresAt,
+		}); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "created", "freeze_id": id, "scope_type": *scopeType, "scope_value": *scopeValue, "reason": *reason})
+	case "clear":
+		if len(args) < 2 {
+			panic("usage: mel freeze clear <freeze-id> --config <path>")
+		}
+		freezeID := args[1]
+		f := fs("freeze-clear")
+		path := f.String("config", "configs/mel.example.json", "config")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[2:])
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		if err := d.ClearFreeze(freezeID, *actor); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "cleared", "freeze_id": freezeID, "actor": *actor})
+	default:
+		panic("usage: mel freeze create|list|clear --config <path>")
+	}
+}
+
+func maintenanceCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel maintenance create|list|cancel --config <path>")
+	}
+	switch args[0] {
+	case "list":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		windows, err := d.AllMaintenanceWindows(50)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"maintenance_windows": windows, "count": len(windows)})
+	case "create":
+		f := fs("maintenance-create")
+		path := f.String("config", "configs/mel.example.json", "config")
+		title := f.String("title", "Scheduled Maintenance", "window title")
+		reason := f.String("reason", "", "reason for maintenance")
+		scopeType := f.String("scope-type", "global", "global|transport|action_type")
+		scopeValue := f.String("scope-value", "", "transport name or action type (if scoped)")
+		startsAt := f.String("starts-at", "", "start time RFC3339 (required)")
+		endsAt := f.String("ends-at", "", "end time RFC3339 (required)")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[1:])
+		if *startsAt == "" || *endsAt == "" {
+			panic("--starts-at and --ends-at are required")
+		}
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		id := fmt.Sprintf("mw-%d", time.Now().UnixNano())
+		if err := d.CreateMaintenanceWindow(db.MaintenanceWindowRecord{
+			ID: id, Title: *title, Reason: *reason,
+			ScopeType: *scopeType, ScopeValue: *scopeValue,
+			StartsAt: *startsAt, EndsAt: *endsAt, CreatedBy: *actor,
+		}); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "created", "window_id": id, "title": *title, "starts_at": *startsAt, "ends_at": *endsAt})
+	case "cancel":
+		if len(args) < 2 {
+			panic("usage: mel maintenance cancel <window-id> --config <path>")
+		}
+		windowID := args[1]
+		f := fs("maintenance-cancel")
+		path := f.String("config", "configs/mel.example.json", "config")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[2:])
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		if err := d.CancelMaintenanceWindow(windowID, *actor); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "cancelled", "window_id": windowID, "actor": *actor})
+	default:
+		panic("usage: mel maintenance create|list|cancel --config <path>")
+	}
+}
+
+func notesCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel notes add|list --config <path>")
+	}
+	switch args[0] {
+	case "add":
+		f := fs("notes-add")
+		path := f.String("config", "configs/mel.example.json", "config")
+		refType := f.String("ref-type", "", "resource type (action|incident|transport) (required)")
+		refID := f.String("ref-id", "", "resource ID (required)")
+		content := f.String("content", "", "note content (required)")
+		actor := f.String("actor", "cli-operator", "operator identity")
+		_ = f.Parse(args[1:])
+		if *refType == "" || *refID == "" || *content == "" {
+			panic("--ref-type, --ref-id, and --content are required")
+		}
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		id := fmt.Sprintf("note-%d", time.Now().UnixNano())
+		if err := d.CreateOperatorNote(db.OperatorNoteRecord{
+			ID: id, RefType: *refType, RefID: *refID,
+			ActorID: *actor, Content: *content,
+		}); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "created", "note_id": id, "ref_type": *refType, "ref_id": *refID})
+	case "list":
+		f := fs("notes-list")
+		path := f.String("config", "configs/mel.example.json", "config")
+		refType := f.String("ref-type", "", "resource type (required)")
+		refID := f.String("ref-id", "", "resource ID (required)")
+		limit := f.Int("limit", 50, "max notes")
+		_ = f.Parse(args[1:])
+		if *refType == "" || *refID == "" {
+			panic("--ref-type and --ref-id are required")
+		}
+		cfg, _, err := config.Load(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		notes, err := d.OperatorNotesByRef(*refType, *refID, *limit)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"notes": notes, "count": len(notes), "ref_type": *refType, "ref_id": *refID})
+	default:
+		panic("usage: mel notes add|list --config <path>")
 	}
 }
 

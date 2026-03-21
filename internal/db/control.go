@@ -32,6 +32,18 @@ type ControlActionRecord struct {
 	DenialCode      string         `json:"denial_code,omitempty"`
 	ClosureState    string         `json:"closure_state,omitempty"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
+
+	// Trust / approval fields (migration 0017)
+	ExecutionMode     string `json:"execution_mode,omitempty"`
+	ProposedBy        string `json:"proposed_by,omitempty"`
+	ApprovedBy        string `json:"approved_by,omitempty"`
+	ApprovedAt        string `json:"approved_at,omitempty"`
+	RejectedBy        string `json:"rejected_by,omitempty"`
+	RejectedAt        string `json:"rejected_at,omitempty"`
+	ApprovalNote      string `json:"approval_note,omitempty"`
+	ApprovalExpiresAt string `json:"approval_expires_at,omitempty"`
+	BlastRadiusClass  string `json:"blast_radius_class,omitempty"`
+	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
 }
 
 type ControlDecisionRecord struct {
@@ -75,10 +87,20 @@ func (d *DB) UpsertControlAction(action ControlActionRecord) error {
 	}
 	triggerJSON, _ := json.Marshal(action.TriggerEvidence)
 	metadataJSON, _ := json.Marshal(action.Metadata)
-	sql := fmt.Sprintf(`INSERT INTO control_actions(id,decision_id,action_type,target_transport,target_segment,target_node,reason,confidence,trigger_evidence_json,episode_id,created_at,executed_at,completed_at,result,reversible,expires_at,outcome_detail,mode,policy_rule,lifecycle_state,advisory_only,denial_code,closure_state,metadata_json)
-VALUES('%s',%s,'%s',%s,%s,%s,'%s',%f,'%s',%s,'%s',%s,%s,%s,%d,%s,%s,'%s','%s','%s',%d,%s,%s,'%s')
-ON CONFLICT(id) DO UPDATE SET decision_id=excluded.decision_id,action_type=excluded.action_type,target_transport=excluded.target_transport,target_segment=excluded.target_segment,target_node=excluded.target_node,reason=excluded.reason,confidence=excluded.confidence,trigger_evidence_json=excluded.trigger_evidence_json,episode_id=excluded.episode_id,created_at=excluded.created_at,executed_at=excluded.executed_at,completed_at=excluded.completed_at,result=excluded.result,reversible=excluded.reversible,expires_at=excluded.expires_at,outcome_detail=excluded.outcome_detail,mode=excluded.mode,policy_rule=excluded.policy_rule,lifecycle_state=excluded.lifecycle_state,advisory_only=excluded.advisory_only,denial_code=excluded.denial_code,closure_state=excluded.closure_state,metadata_json=excluded.metadata_json;`,
-		esc(action.ID), sqlString(action.DecisionID), esc(action.ActionType), sqlString(action.TargetTransport), sqlString(action.TargetSegment), sqlString(action.TargetNode), esc(action.Reason), action.Confidence, esc(string(triggerJSON)), sqlString(action.EpisodeID), esc(action.CreatedAt), sqlString(action.ExecutedAt), sqlString(action.CompletedAt), sqlString(action.Result), boolInt(action.Reversible), sqlString(action.ExpiresAt), sqlString(action.OutcomeDetail), esc(action.Mode), esc(action.PolicyRule), esc(action.LifecycleState), boolInt(action.AdvisoryOnly), sqlString(action.DenialCode), sqlString(action.ClosureState), esc(string(metadataJSON)))
+	if action.ExecutionMode == "" {
+		action.ExecutionMode = "auto"
+	}
+	if action.ProposedBy == "" {
+		action.ProposedBy = "system"
+	}
+	if action.BlastRadiusClass == "" {
+		action.BlastRadiusClass = "unknown"
+	}
+	sql := fmt.Sprintf(`INSERT INTO control_actions(id,decision_id,action_type,target_transport,target_segment,target_node,reason,confidence,trigger_evidence_json,episode_id,created_at,executed_at,completed_at,result,reversible,expires_at,outcome_detail,mode,policy_rule,lifecycle_state,advisory_only,denial_code,closure_state,metadata_json,execution_mode,proposed_by,approved_by,approved_at,rejected_by,rejected_at,approval_note,approval_expires_at,blast_radius_class,evidence_bundle_id)
+VALUES('%s',%s,'%s',%s,%s,%s,'%s',%f,'%s',%s,'%s',%s,%s,%s,%d,%s,%s,'%s','%s','%s',%d,%s,%s,'%s','%s','%s',%s,%s,%s,%s,%s,%s,%s,%s)
+ON CONFLICT(id) DO UPDATE SET decision_id=excluded.decision_id,action_type=excluded.action_type,target_transport=excluded.target_transport,target_segment=excluded.target_segment,target_node=excluded.target_node,reason=excluded.reason,confidence=excluded.confidence,trigger_evidence_json=excluded.trigger_evidence_json,episode_id=excluded.episode_id,created_at=excluded.created_at,executed_at=excluded.executed_at,completed_at=excluded.completed_at,result=excluded.result,reversible=excluded.reversible,expires_at=excluded.expires_at,outcome_detail=excluded.outcome_detail,mode=excluded.mode,policy_rule=excluded.policy_rule,lifecycle_state=excluded.lifecycle_state,advisory_only=excluded.advisory_only,denial_code=excluded.denial_code,closure_state=excluded.closure_state,metadata_json=excluded.metadata_json,execution_mode=excluded.execution_mode,proposed_by=excluded.proposed_by,approved_by=excluded.approved_by,approved_at=excluded.approved_at,rejected_by=excluded.rejected_by,rejected_at=excluded.rejected_at,approval_note=excluded.approval_note,approval_expires_at=excluded.approval_expires_at,blast_radius_class=excluded.blast_radius_class,evidence_bundle_id=excluded.evidence_bundle_id;`,
+		esc(action.ID), sqlString(action.DecisionID), esc(action.ActionType), sqlString(action.TargetTransport), sqlString(action.TargetSegment), sqlString(action.TargetNode), esc(action.Reason), action.Confidence, esc(string(triggerJSON)), sqlString(action.EpisodeID), esc(action.CreatedAt), sqlString(action.ExecutedAt), sqlString(action.CompletedAt), sqlString(action.Result), boolInt(action.Reversible), sqlString(action.ExpiresAt), sqlString(action.OutcomeDetail), esc(action.Mode), esc(action.PolicyRule), esc(action.LifecycleState), boolInt(action.AdvisoryOnly), sqlString(action.DenialCode), sqlString(action.ClosureState), esc(string(metadataJSON)),
+		esc(action.ExecutionMode), esc(action.ProposedBy), sqlString(action.ApprovedBy), sqlString(action.ApprovedAt), sqlString(action.RejectedBy), sqlString(action.RejectedAt), sqlString(action.ApprovalNote), sqlString(action.ApprovalExpiresAt), esc(action.BlastRadiusClass), sqlString(action.EvidenceBundleID))
 	return d.Exec(sql)
 }
 
@@ -156,7 +178,7 @@ func (d *DB) ControlActions(transportName, actionType, start, end string, limit,
 	if strings.TrimSpace(end) != "" {
 		clauses = append(clauses, fmt.Sprintf("created_at <= '%s'", esc(end)))
 	}
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, COALESCE(decision_id,'') AS decision_id, action_type, COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment, COALESCE(target_node,'') AS target_node, reason, confidence, COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json, COALESCE(episode_id,'') AS episode_id, created_at, COALESCE(executed_at,'') AS executed_at, COALESCE(completed_at,'') AS completed_at, COALESCE(result,'') AS result, reversible, COALESCE(expires_at,'') AS expires_at, COALESCE(outcome_detail,'') AS outcome_detail, mode, COALESCE(policy_rule,'') AS policy_rule, COALESCE(lifecycle_state,'') AS lifecycle_state, COALESCE(advisory_only,0) AS advisory_only, COALESCE(denial_code,'') AS denial_code, COALESCE(closure_state,'') AS closure_state, COALESCE(metadata_json,'{}') AS metadata_json
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id
 FROM control_actions WHERE %s ORDER BY created_at DESC LIMIT %d OFFSET %d;`, strings.Join(clauses, " AND "), limit, offset))
 	if err != nil {
 		return nil, err
@@ -207,7 +229,7 @@ func (d *DB) ControlActionByID(id string) (ControlActionRecord, bool, error) {
 		logSuspiciousSQL(id, err.Error())
 		return ControlActionRecord{}, false, fmt.Errorf("invalid id: %w", err)
 	}
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, COALESCE(decision_id,'') AS decision_id, action_type, COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment, COALESCE(target_node,'') AS target_node, reason, confidence, COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json, COALESCE(episode_id,'') AS episode_id, created_at, COALESCE(executed_at,'') AS executed_at, COALESCE(completed_at,'') AS completed_at, COALESCE(result,'') AS result, reversible, COALESCE(expires_at,'') AS expires_at, COALESCE(outcome_detail,'') AS outcome_detail, mode, COALESCE(policy_rule,'') AS policy_rule, COALESCE(lifecycle_state,'') AS lifecycle_state, COALESCE(advisory_only,0) AS advisory_only, COALESCE(denial_code,'') AS denial_code, COALESCE(closure_state,'') AS closure_state, COALESCE(metadata_json,'{}') AS metadata_json
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id
 FROM control_actions WHERE id='%s' LIMIT 1;`, safeID))
 	if err != nil {
 		return ControlActionRecord{}, false, err
@@ -220,7 +242,7 @@ FROM control_actions WHERE id='%s' LIMIT 1;`, safeID))
 
 func (d *DB) IncompleteControlActions(limit int) ([]ControlActionRecord, error) {
 	limit = clampLimit(limit)
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, COALESCE(decision_id,'') AS decision_id, action_type, COALESCE(target_transport,'') AS target_transport, COALESCE(target_segment,'') AS target_segment, COALESCE(target_node,'') AS target_node, reason, confidence, COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json, COALESCE(episode_id,'') AS episode_id, created_at, COALESCE(executed_at,'') AS executed_at, COALESCE(completed_at,'') AS completed_at, COALESCE(result,'') AS result, reversible, COALESCE(expires_at,'') AS expires_at, COALESCE(outcome_detail,'') AS outcome_detail, mode, COALESCE(policy_rule,'') AS policy_rule, COALESCE(lifecycle_state,'') AS lifecycle_state, COALESCE(advisory_only,0) AS advisory_only, COALESCE(denial_code,'') AS denial_code, COALESCE(closure_state,'') AS closure_state, COALESCE(metadata_json,'{}') AS metadata_json
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id
 FROM control_actions WHERE lifecycle_state IN ('pending','running') ORDER BY created_at ASC LIMIT %d;`, limit))
 	if err != nil {
 		return nil, err
@@ -260,6 +282,23 @@ func controlActionFromRow(row map[string]any) ControlActionRecord {
 	}
 	_ = json.Unmarshal([]byte(asString(row["trigger_evidence_json"])), &record.TriggerEvidence)
 	_ = json.Unmarshal([]byte(asString(row["metadata_json"])), &record.Metadata)
+	// Trust fields (may be absent for rows predating migration 0017)
+	record.ExecutionMode = asString(row["execution_mode"])
+	record.ProposedBy = asString(row["proposed_by"])
+	record.ApprovedBy = asString(row["approved_by"])
+	record.ApprovedAt = asString(row["approved_at"])
+	record.RejectedBy = asString(row["rejected_by"])
+	record.RejectedAt = asString(row["rejected_at"])
+	record.ApprovalNote = asString(row["approval_note"])
+	record.ApprovalExpiresAt = asString(row["approval_expires_at"])
+	record.BlastRadiusClass = asString(row["blast_radius_class"])
+	record.EvidenceBundleID = asString(row["evidence_bundle_id"])
+	if record.ExecutionMode == "" {
+		record.ExecutionMode = "auto"
+	}
+	if record.BlastRadiusClass == "" {
+		record.BlastRadiusClass = "unknown"
+	}
 	return record
 }
 

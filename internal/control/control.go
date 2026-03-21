@@ -73,6 +73,54 @@ const (
 	DenialIrreversible       = "irreversible"
 	DenialConflict           = "conflict"
 	DenialAttributionWeak    = "attribution_weak"
+
+	// ─── Execution modes ───────────────────────────────────────────────────────
+	// ExecutionModeAuto: system executes automatically when safety checks pass.
+	ExecutionModeAuto             = "auto"
+	// ExecutionModeApprovalRequired: action is held in pending_approval state
+	// until an operator explicitly approves it via API/CLI.
+	ExecutionModeApprovalRequired = "approval_required"
+	// ExecutionModeManualOnly: action is never executed autonomously; operator
+	// must execute it through an explicit API/CLI call.
+	ExecutionModeManualOnly       = "manual_only"
+	// ExecutionModeDryRun: action goes through the full lifecycle but is never
+	// sent to the actuator; used for testing policy and evidence capture.
+	ExecutionModeDryRun           = "dry_run"
+
+	// ─── Additional lifecycle states ──────────────────────────────────────────
+	// LifecyclePendingApproval: action proposed, waiting for operator approval.
+	LifecyclePendingApproval = "pending_approval"
+
+	// ─── Additional result codes ──────────────────────────────────────────────
+	ResultPendingApproval   = "pending_approval"
+	ResultApproved          = "approved"
+	ResultRejected          = "rejected"
+	ResultDeniedByFreeze    = "denied_by_freeze"
+	ResultDeniedByMaintenance = "denied_by_maintenance"
+	ResultApprovalExpired   = "approval_expired"
+	ResultDryRun            = "dry_run_only"
+
+	// ─── Additional denial codes ──────────────────────────────────────────────
+	DenialFreeze           = "freeze"
+	DenialMaintenance      = "maintenance_window"
+	DenialApprovalRequired = "approval_required"
+	DenialApprovalExpired  = "approval_expired"
+	DenialManualOnly       = "manual_only"
+	DenialDryRun           = "dry_run"
+
+	// ─── Blast radius classes ─────────────────────────────────────────────────
+	BlastRadiusLocal     = "local"
+	BlastRadiusTransport = "transport"
+	BlastRadiusMesh      = "mesh"
+	BlastRadiusGlobal    = "global"
+	BlastRadiusUnknown   = "unknown"
+
+	// ─── Additional closure states ────────────────────────────────────────────
+	ClosureRejectedByOperator = "rejected_by_operator"
+	ClosureApprovalExpired    = "approval_expired"
+	ClosureBlockedByFreeze    = "blocked_by_freeze"
+	ClosureBlockedByMaintenance = "blocked_by_maintenance"
+	ClosureDryRun             = "dry_run_completed"
 )
 
 type ControlAction struct {
@@ -100,6 +148,20 @@ type ControlAction struct {
 	DenialCode      string         `json:"denial_code,omitempty"`
 	ClosureState    string         `json:"closure_state,omitempty"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
+
+	// Trust / approval fields (populated from migration 0017)
+	ExecutionMode      string `json:"execution_mode,omitempty"`
+	ProposedBy         string `json:"proposed_by,omitempty"`
+	ApprovedBy         string `json:"approved_by,omitempty"`
+	ApprovedAt         string `json:"approved_at,omitempty"`
+	RejectedBy         string `json:"rejected_by,omitempty"`
+	RejectedAt         string `json:"rejected_at,omitempty"`
+	ApprovalNote       string `json:"approval_note,omitempty"`
+	ApprovalExpiresAt  string `json:"approval_expires_at,omitempty"`
+	BlastRadiusClass   string `json:"blast_radius_class,omitempty"`
+	BeforeStateJSON    string `json:"before_state_json,omitempty"`
+	AfterStateJSON     string `json:"after_state_json,omitempty"`
+	EvidenceBundleID   string `json:"evidence_bundle_id,omitempty"`
 }
 
 type ControlPolicy struct {

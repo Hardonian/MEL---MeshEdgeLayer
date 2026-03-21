@@ -38,6 +38,13 @@ func normalizeControl(cfg *Config) {
 	if cfg.Control.RetentionDays > 30 {
 		cfg.Control.RetentionDays = 30
 	}
+	// Approval timeout: 0 = disabled, positive = seconds, max 24h
+	if cfg.Control.ApprovalTimeoutSeconds < 0 {
+		cfg.Control.ApprovalTimeoutSeconds = 0
+	}
+	if cfg.Control.ApprovalTimeoutSeconds > 86400 {
+		cfg.Control.ApprovalTimeoutSeconds = 86400
+	}
 }
 
 func validateControl(cfg Config) []string {
@@ -76,6 +83,9 @@ func validateControl(cfg Config) []string {
 	}
 	if len(cfg.Control.AllowedActions) == 0 {
 		errs = append(errs, "control.allowed_actions must not be empty")
+	}
+	if cfg.Control.ApprovalTimeoutSeconds < 0 || cfg.Control.ApprovalTimeoutSeconds > 86400 {
+		errs = append(errs, "control.approval_timeout_seconds must be between 0 (disabled) and 86400 (24h)")
 	}
 	return errs
 }

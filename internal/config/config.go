@@ -149,6 +149,17 @@ type ControlConfig struct {
 	MaxQueue                 int      `json:"max_queue"`
 	ActionTimeoutSeconds     int      `json:"action_timeout_seconds"`
 	RetentionDays            int      `json:"retention_days"`
+
+	// Trust / approval fields (migration 0017)
+	// RequireApprovalForActionTypes: action types that require explicit operator
+	// approval before execution, regardless of control mode.
+	RequireApprovalForActionTypes []string `json:"require_approval_for_action_types"`
+	// RequireApprovalForHighBlastRadius: when true, any action classified as
+	// blast_radius_class=mesh or blast_radius_class=global requires approval.
+	RequireApprovalForHighBlastRadius bool `json:"require_approval_for_high_blast_radius"`
+	// ApprovalTimeoutSeconds: how long a pending-approval action waits before
+	// being automatically expired. 0 = no timeout.
+	ApprovalTimeoutSeconds int `json:"approval_timeout_seconds"`
 }
 
 type Lint struct {

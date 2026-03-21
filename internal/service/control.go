@@ -186,6 +186,70 @@ func (a *App) evaluateControl(now time.Time) {
 			}
 			continue
 		}
+
+		// ── Trust gate: check freeze and maintenance window before enqueuing ──
+		if blocked, reason, denialCode := a.isExecutionBlocked(action); blocked {
+			action.ExecutedAt = now.UTC().Format(time.RFC3339)
+			action.CompletedAt = action.ExecutedAt
+			action.LifecycleState = control.LifecycleCompleted
+			action.Result = func() string {
+				if denialCode == control.DenialFreeze {
+					return control.ResultDeniedByFreeze
+				}
+				return control.ResultDeniedByMaintenance
+			}()
+			action.DenialCode = denialCode
+			action.ClosureState = func() string {
+				if denialCode == control.DenialFreeze {
+					return control.ClosureBlockedByFreeze
+				}
+				return control.ClosureBlockedByMaintenance
+			}()
+			action.OutcomeDetail = reason
+			if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
+				a.Log.Error("control_action_upsert_failed", "failed to persist freeze-blocked control action", map[string]any{"action_id": action.ID, "error": err.Error()})
+			}
+			a.Log.Info("control_action_blocked", "control action blocked by trust gate", map[string]any{
+				"action_id":   action.ID,
+				"action_type": action.ActionType,
+				"denial_code": denialCode,
+				"reason":      reason,
+			})
+			continue
+		}
+
+		// ── Trust gate: resolve execution mode and check for approval_required ──
+		execMode := a.resolveExecutionMode(action)
+		action.ExecutionMode = execMode
+		action.ProposedBy = "system"
+
+		if execMode == control.ExecutionModeApprovalRequired {
+			// Compute approval expiry
+			approvalExpiry := ""
+			if a.Cfg.Control.ApprovalTimeoutSeconds > 0 {
+				approvalExpiry = now.UTC().Add(time.Duration(a.Cfg.Control.ApprovalTimeoutSeconds) * time.Second).Format(time.RFC3339)
+			}
+			action.ApprovalExpiresAt = approvalExpiry
+			action.LifecycleState = control.LifecyclePendingApproval
+			action.Result = control.ResultPendingApproval
+
+			// Capture evidence bundle immediately so operator can review it
+			thHealth := a.transportHealthJSON(action.TargetTransport)
+			bundleID := a.captureEvidenceBundle(action, thHealth)
+			action.EvidenceBundleID = bundleID
+
+			if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
+				a.Log.Error("control_action_upsert_failed", "failed to persist approval-required action", map[string]any{"action_id": action.ID, "error": err.Error()})
+			}
+			a.Log.Info("control_action_pending_approval", "control action held pending operator approval", map[string]any{
+				"action_id":         action.ID,
+				"action_type":       action.ActionType,
+				"approval_expires":  approvalExpiry,
+				"evidence_bundle_id": bundleID,
+			})
+			continue
+		}
+
 		if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
 			a.Log.Error("control_action_upsert_failed", "failed to persist control action", map[string]any{"action_id": action.ID, "error": err.Error()})
 			continue
@@ -364,6 +428,36 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	if a == nil || a.DB == nil {
 		return
 	}
+
+	// Re-check freeze and maintenance window at execution time
+	// (state may have changed between proposal and execution)
+	if blocked, reason, denialCode := a.isExecutionBlocked(action); blocked {
+		now := time.Now().UTC().Format(time.RFC3339)
+		action.ExecutedAt = now
+		action.CompletedAt = now
+		action.LifecycleState = control.LifecycleCompleted
+		action.DenialCode = denialCode
+		action.Result = func() string {
+			if denialCode == control.DenialFreeze {
+				return control.ResultDeniedByFreeze
+			}
+			return control.ResultDeniedByMaintenance
+		}()
+		action.ClosureState = func() string {
+			if denialCode == control.DenialFreeze {
+				return control.ClosureBlockedByFreeze
+			}
+			return control.ClosureBlockedByMaintenance
+		}()
+		action.OutcomeDetail = reason
+		_ = a.DB.UpsertControlAction(controlActionRecord(action))
+		a.Log.Info("control_action_blocked_at_execution", "action blocked by freeze at execution time", map[string]any{
+			"action_id":   action.ID,
+			"denial_code": denialCode,
+		})
+		return
+	}
+
 	if advisoryDenied(action.ActionType) {
 		now := time.Now().UTC().Format(time.RFC3339)
 		action.ExecutedAt = now
@@ -500,31 +594,53 @@ func (a *App) interruptCh(transportName string) <-chan struct{} {
 }
 
 func controlActionRecord(action control.ControlAction) db.ControlActionRecord {
+	execMode := action.ExecutionMode
+	if execMode == "" {
+		execMode = control.ExecutionModeAuto
+	}
+	proposedBy := action.ProposedBy
+	if proposedBy == "" {
+		proposedBy = "system"
+	}
+	blastClass := action.BlastRadiusClass
+	if blastClass == "" {
+		blastClass = control.BlastRadiusUnknown
+	}
 	return db.ControlActionRecord{
-		ID:              action.ID,
-		DecisionID:      action.DecisionID,
-		ActionType:      action.ActionType,
-		TargetTransport: action.TargetTransport,
-		TargetSegment:   action.TargetSegment,
-		TargetNode:      action.TargetNode,
-		Reason:          action.Reason,
-		Confidence:      action.Confidence,
-		TriggerEvidence: append([]string(nil), action.TriggerEvidence...),
-		EpisodeID:       action.EpisodeID,
-		CreatedAt:       action.CreatedAt,
-		ExecutedAt:      action.ExecutedAt,
-		CompletedAt:     action.CompletedAt,
-		Result:          action.Result,
-		Reversible:      action.Reversible,
-		ExpiresAt:       action.ExpiresAt,
-		OutcomeDetail:   action.OutcomeDetail,
-		Mode:            action.Mode,
-		PolicyRule:      action.PolicyRule,
-		LifecycleState:  action.LifecycleState,
-		AdvisoryOnly:    action.AdvisoryOnly,
-		DenialCode:      action.DenialCode,
-		ClosureState:    action.ClosureState,
-		Metadata:        action.Metadata,
+		ID:                action.ID,
+		DecisionID:        action.DecisionID,
+		ActionType:        action.ActionType,
+		TargetTransport:   action.TargetTransport,
+		TargetSegment:     action.TargetSegment,
+		TargetNode:        action.TargetNode,
+		Reason:            action.Reason,
+		Confidence:        action.Confidence,
+		TriggerEvidence:   append([]string(nil), action.TriggerEvidence...),
+		EpisodeID:         action.EpisodeID,
+		CreatedAt:         action.CreatedAt,
+		ExecutedAt:        action.ExecutedAt,
+		CompletedAt:       action.CompletedAt,
+		Result:            action.Result,
+		Reversible:        action.Reversible,
+		ExpiresAt:         action.ExpiresAt,
+		OutcomeDetail:     action.OutcomeDetail,
+		Mode:              action.Mode,
+		PolicyRule:        action.PolicyRule,
+		LifecycleState:    action.LifecycleState,
+		AdvisoryOnly:      action.AdvisoryOnly,
+		DenialCode:        action.DenialCode,
+		ClosureState:      action.ClosureState,
+		Metadata:          action.Metadata,
+		ExecutionMode:     execMode,
+		ProposedBy:        proposedBy,
+		ApprovedBy:        action.ApprovedBy,
+		ApprovedAt:        action.ApprovedAt,
+		RejectedBy:        action.RejectedBy,
+		RejectedAt:        action.RejectedAt,
+		ApprovalNote:      action.ApprovalNote,
+		ApprovalExpiresAt: action.ApprovalExpiresAt,
+		BlastRadiusClass:  blastClass,
+		EvidenceBundleID:  action.EvidenceBundleID,
 	}
 }
 
