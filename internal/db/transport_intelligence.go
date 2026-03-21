@@ -90,12 +90,12 @@ func (d *DB) ResolveTransportAlertsNotIn(transportName string, activeIDs []strin
 	if strings.TrimSpace(transportName) == "" {
 		return nil
 	}
-	safeTransport, err := validateSQLInput(transportName)
+	safeTransport, err := ValidateSQLInput(transportName)
 	if err != nil {
 		logSuspiciousSQL(transportName, err.Error())
 		return fmt.Errorf("invalid transport name: %w", err)
 	}
-	safeResolvedAt, err := validateSQLInput(resolvedAt)
+	safeResolvedAt, err := ValidateSQLInput(resolvedAt)
 	if err != nil {
 		logSuspiciousSQL(resolvedAt, err.Error())
 		return fmt.Errorf("invalid resolved timestamp: %w", err)
@@ -104,7 +104,7 @@ func (d *DB) ResolveTransportAlertsNotIn(transportName string, activeIDs []strin
 	if len(activeIDs) > 0 {
 		exclusions := make([]string, 0, len(activeIDs))
 		for _, id := range activeIDs {
-			safeID, err := validateSQLInput(id)
+			safeID, err := ValidateSQLInput(id)
 			if err != nil {
 				logSuspiciousSQL(id, err.Error())
 				continue
@@ -162,7 +162,7 @@ func alertRecordFromRow(row map[string]any) TransportAlertRecord {
 }
 
 func (d *DB) TransportAlertByID(id string) (TransportAlertRecord, bool, error) {
-	safeID, err := validateSQLInput(id)
+	safeID, err := ValidateSQLInput(id)
 	if err != nil {
 		logSuspiciousSQL(id, err.Error())
 		return TransportAlertRecord{}, false, fmt.Errorf("invalid id: %w", err)
@@ -336,21 +336,21 @@ func historyFilterSafe(nameColumn, name, timeColumn, start, end string) (string,
 	}
 	clauses := []string{"1=1"}
 	if strings.TrimSpace(name) != "" {
-		safeName, err := validateSQLInput(name)
+		safeName, err := ValidateSQLInput(name)
 		if err != nil {
 			return "", err
 		}
 		clauses = append(clauses, fmt.Sprintf("%s='%s'", nameColumn, safeName))
 	}
 	if strings.TrimSpace(start) != "" {
-		safeStart, err := validateSQLInput(start)
+		safeStart, err := ValidateSQLInput(start)
 		if err != nil {
 			return "", err
 		}
 		clauses = append(clauses, fmt.Sprintf("%s >= '%s'", timeColumn, safeStart))
 	}
 	if strings.TrimSpace(end) != "" {
-		safeEnd, err := validateSQLInput(end)
+		safeEnd, err := ValidateSQLInput(end)
 		if err != nil {
 			return "", err
 		}
@@ -360,12 +360,12 @@ func historyFilterSafe(nameColumn, name, timeColumn, start, end string) (string,
 }
 
 func (d *DB) LatestTransportSnapshotBefore(name, before string) (TransportHealthSnapshot, bool, error) {
-	safeName, err := validateSQLInput(name)
+	safeName, err := ValidateSQLInput(name)
 	if err != nil {
 		logSuspiciousSQL(name, err.Error())
 		return TransportHealthSnapshot{}, false, fmt.Errorf("invalid transport name: %w", err)
 	}
-	safeBefore, err := validateSQLInput(before)
+	safeBefore, err := ValidateSQLInput(before)
 	if err != nil {
 		logSuspiciousSQL(before, err.Error())
 		return TransportHealthSnapshot{}, false, fmt.Errorf("invalid timestamp: %w", err)

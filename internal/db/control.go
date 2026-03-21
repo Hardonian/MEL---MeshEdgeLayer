@@ -202,7 +202,7 @@ func (d *DB) ControlActionByID(id string) (ControlActionRecord, bool, error) {
 	if strings.TrimSpace(id) == "" {
 		return ControlActionRecord{}, false, nil
 	}
-	safeID, err := validateSQLInput(id)
+	safeID, err := ValidateSQLInput(id)
 	if err != nil {
 		logSuspiciousSQL(id, err.Error())
 		return ControlActionRecord{}, false, fmt.Errorf("invalid id: %w", err)

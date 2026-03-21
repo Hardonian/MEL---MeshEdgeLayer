@@ -205,7 +205,7 @@ func (e SQLValidationError) Error() string {
 	return fmt.Sprintf("SQL validation failed: %s (input length: %d)", e.Reason, len(e.Input))
 }
 
-func validateSQLInput(v string) (string, error) {
+func ValidateSQLInput(v string) (string, error) {
 	if len(v) > MaxFieldLength {
 		return "", SQLValidationError{Input: v, Reason: fmt.Sprintf("input exceeds max length of %d", MaxFieldLength), Blocked: true}
 	}
@@ -225,7 +225,7 @@ func validateSQLInput(v string) (string, error) {
 }
 
 func esc(v string) string {
-	sanitized, err := validateSQLInput(v)
+	sanitized, err := ValidateSQLInput(v)
 	if err != nil {
 		logSuspiciousSQL(v, err.Error())
 		return ""
@@ -249,7 +249,7 @@ func truncateForLog(s string, maxLen int) string {
 }
 
 func sqlStringNonNull(v string) string {
-	sanitized, err := validateSQLInput(v)
+	sanitized, err := ValidateSQLInput(v)
 	if err != nil {
 		logSuspiciousSQL(v, err.Error())
 		return "''"
@@ -584,7 +584,7 @@ func sqlString(v string) string {
 	if v == "" {
 		return "NULL"
 	}
-	sanitized, err := validateSQLInput(v)
+	sanitized, err := ValidateSQLInput(v)
 	if err != nil {
 		logSuspiciousSQL(v, err.Error())
 		return "NULL"
@@ -620,7 +620,7 @@ func buildSafeWhereClause(column, value string) (string, error) {
 	if !isSafeIdentifier(column) {
 		return "", logging.NewSafeError("invalid query parameters", fmt.Errorf("invalid column name: %s", column), "validation", false)
 	}
-	sanitized, err := validateSQLInput(value)
+	sanitized, err := ValidateSQLInput(value)
 	if err != nil {
 		return "", err
 	}
