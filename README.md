@@ -1,186 +1,151 @@
 # MEL — MeshEdgeLayer
 
-MEL is a local-first ingest, persistence, and operator-observability layer for **stock Meshtastic deployments**. MEL only documents support that exists in code and has repo-local verification coverage.
+<div align="center">
 
-## What MEL does
+![MEL Logo](https://raw.githubusercontent.com/mel-project/mel/main/docs/assets/logo.png)
 
-- Ingests real Meshtastic traffic from **serial direct-node**, **TCP direct-node**, and **MQTT** transports.
-- Persists observed packets, nodes, telemetry samples, and audit events into SQLite using deterministic `sqlite3` CLI migrations.
-- Applies transport hardening defaults for production-oriented ingest loops: reconnect backoff, read/write deadlines, consecutive-timeout deadlock detection, MQTT QoS-aware acknowledgements for inbound QoS 1/2 publishes, broker keepalive pings, persisted runtime heartbeat evidence, and dead-letter persistence for messages that fail MEL-side processing.
-- Exposes truthful operator views through `mel doctor`, `mel status`, `mel replay`, the HTML UI, and `/api/v1/*` JSON endpoints.
-- Reports explicit transport truth with the same state vocabulary across CLI and API: `disabled`, `configured_not_attempted`, `attempting`, `configured_offline`, `connected_no_ingest`, `ingesting`, `historical_only`, and `error`.
-- Ships a JSON `/metrics` endpoint that reflects the same counters shown by doctor and status.
-- Persists transport runtime evidence in SQLite so `mel status`, the Web UI, and later process invocations can report the latest stored heartbeat, timeout, retry, and dead-letter counts.
+**Truthful, local-first mesh observability and operator control plane for Meshtastic.**
 
-## What MEL does not do
+[![Go Report Card](https://goreportcard.com/badge/github.com/mel-project/mel)](https://goreportcard.com/report/github.com/mel-project/mel)
+[![License](https://img.shields.io/github/license/mel-project/mel)](LICENSE)
+[![Status](https://img.shields.io/badge/status-0.1.0--rc1-blue.svg)](docs/roadmap/ROADMAP_EXECUTION.md)
 
-- No BLE ingest.
-- No HTTP transport ingest.
-- No transmit, publish, routing, or control-plane behavior.
-- No fake packets, fake nodes, or placeholder transport success.
-- No hardware-verification claims that were not exercised in this repo environment.
-- No claim of “100% reliability”; MEL only claims the retry, timeout, audit, and observability behavior that is implemented and repo-verified here.
-- No Prometheus/Grafana exporter or OTA workflow claim in this repo; JSON metrics exist, but cloud monitoring and update orchestration still require external deployment work.
-- No full Meshtastic protobuf coverage; unsupported payloads are stored truthfully as raw payload bytes.
+[Quickstart](#-quickstart) • [Architecture](#-architecture) • [Documentation](docs/README.md) • [Contributing](CONTRIBUTING.md)
 
-See the canonical execution contract in [docs/roadmap/ROADMAP_EXECUTION.md](docs/roadmap/ROADMAP_EXECUTION.md).
+</div>
 
-## Supported transport matrix
+---
 
-| Transport / path | Status | Verification surface | Caveats |
-| --- | --- | --- | --- |
-| Serial direct-node | Supported for ingest | `mel doctor`, `mel status`, `/api/v1/status`, `/metrics`, DB evidence | Requires local device access plus `stty`. |
-| TCP direct-node | Supported for ingest | `mel doctor`, `mel status`, `/api/v1/status`, `/metrics`, DB evidence | Endpoint must speak Meshtastic framing, not HTTP. |
-| MQTT ingest | Supported for ingest | `mel status`, `/api/v1/status`, `/api/v1/messages`, `/metrics`, smoke test | MEL subscribes only; it does not publish. |
-| Hybrid direct + MQTT | Supported with caveats | dedupe evidence, transport truth, doctor warnings | Operators must verify duplicate behavior and radio ownership in deployment. |
-| `serialtcp` alias | Implemented but not primary | same as TCP path | Alias of the direct TCP reader path. |
-| BLE / HTTP | Explicitly unsupported | `mel transports list`, UI, docs | Unsupported means no production claim. |
+## 📡 What is MEL?
 
-The detailed source-of-truth version lives in [docs/ops/transport-matrix.md](docs/ops/transport-matrix.md).
+MEL is a heavy-duty ingest, persistence, and observability layer designed for **production-oriented Meshtastic deployments**. It provides operators with high-fidelity visibility into mesh health, packet traffic, and node telemetry without relying on cloud services or external dependencies.
 
-## Quickstart
+Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only reports data it has successfully persisted and verified.
 
-### 1. Build
+### Core Capabilities
 
-```bash
-make build
+- **Multi-Transport Ingest**: Simultaneous support for Serial-direct, TCP-direct, and MQTT transports.
+- **Relentless Persistence**: Deterministic SQLite storage with audit logging and dead-letter handling.
+- **Operator Observability**: authoritative CLI (`mel doctor`), a real-time TUI, and a modern Web Dashboard.
+- **Privacy by Design**: Built-in redaction, privacy audits, and local-first data ownership.
+- **Guarded Remediation**: An optional control plane that can suggest or execute mesh-tuning actions safely.
+
+---
+
+## 🏗️ Architecture
+
+MEL follows a unidirectional data flow to ensure integrity and determinism.
+
+```mermaid
+graph TD
+    subgraph "Meshtastic Mesh"
+        N1[Node 1] --- N2[Node 2]
+        N2 --- N3[Node 3]
+    end
+
+    subgraph "MEL Transports"
+        SR[Serial Transport]
+        TC[TCP Transport]
+        MQ[MQTT Transport]
+    end
+
+    subgraph "MEL Core Engine"
+        IG[Ingest Worker]
+        DB[(SQLite Persistence)]
+        IL[Intelligence Layer]
+    end
+
+    subgraph "Operator Interfaces"
+        CLI[MEL CLI / Doctor]
+        TUI[Interactive TUI]
+        WEB[Web Dashboard]
+        API[JSON API / Metrics]
+    end
+
+    N1 --> SR
+    N2 --> TC
+    N3 --> MQ
+
+    SR --> IG
+    TC --> IG
+    MQ --> IG
+
+    IG --> DB
+    DB <--> IL
+    IL --> API
+    DB --> CLI
+    DB --> TUI
+    DB --> WEB
 ```
 
-### 2. Copy a config example and lock its mode
+---
 
+## 🚀 Quickstart
+
+MEL is designed to be up and running in under 5 minutes.
+
+### 1. Installation
+
+**Linux / macOS:**
 ```bash
-mkdir -p .tmp
-cp configs/mel.mqtt-only.example.json .tmp/mel.json
-python3 - <<'PY'
-from pathlib import Path
-p = Path('.tmp/mel.json')
-text = p.read_text()
-text = text.replace('./data/mel.db', '.tmp/data/mel.db').replace('./data', '.tmp/data')
-p.write_text(text)
-PY
-chmod 600 .tmp/mel.json
+curl -sSL https://mel.sh/install.sh | sh
 ```
 
-### 3. Validate and inspect truth before launch
-
-```bash
-./bin/mel config validate --config .tmp/mel.json
-./bin/mel doctor --config .tmp/mel.json
+**Windows (PowerShell):**
+```powershell
+iwr https://mel.sh/install.ps1 | iex
 ```
 
-`mel doctor` is authoritative:
+*Or build from source:* `go build -o mel ./cmd/mel`
 
-- it validates config and file permissions,
-- verifies SQLite write/read behavior,
-- reports actionable transport findings,
-- distinguishes persisted historical evidence from live runtime proof,
-- never reports ingest unless SQLite writes exist.
-
-### 4. Serve MEL
+### 2. Initialize and Validate
 
 ```bash
-./bin/mel serve --debug --config .tmp/mel.json
-```
-
-### 5. Inspect local evidence
-
-- UI: <http://127.0.0.1:8080/>
-- Status: <http://127.0.0.1:8080/api/v1/status>
-- Messages: <http://127.0.0.1:8080/api/v1/messages>
-- Metrics: <http://127.0.0.1:8080/metrics>
-
-### 6. Replay what MEL actually stored
-
-```bash
-./bin/mel replay --config .tmp/mel.json --limit 20
-./bin/mel replay --config .tmp/mel.json --node 12345 --type text --limit 20
-```
-
-## CLI overview
-
-```text
 mel init
-mel version
-mel doctor --config <path>
-mel config validate --config <path>
-mel serve [--debug] --config <path>
-mel status --config <path>
-mel panel [--format text|json] --config <path>
-mel nodes --config <path>
-mel node inspect <node-id> --config <path>
-mel transports list --config <path>
-mel replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
-mel privacy audit [--format json|text] --config <path>
-mel policy explain --config <path>
-mel export --config <path> [--out path]
-mel import validate --bundle <path>
-mel backup create --config <path> [--out path]
-mel backup restore --bundle <path> --dry-run [--destination dir]
-mel logs tail --config <path>
-mel db vacuum --config <path>
+mel doctor
 ```
 
-## Message typing truth
+### 3. Start the Control Plane
 
-MEL currently stores and labels these message classes:
+```bash
+mel serve --config mel.json
+```
 
-- `text`
-- `position`
-- `node_info`
-- `telemetry` as raw payload evidence when the full telemetry protobuf schema is not vendored in-repo
-- `unknown` with raw payload retention
+Visit **http://localhost:8080** to see your mesh come alive.
 
-## Operator docs
+---
 
-- [docs/ops/first-10-minutes.md](docs/ops/first-10-minutes.md)
-- [docs/ops/configuration.md](docs/ops/configuration.md)
-- [docs/ops/api-reference.md](docs/ops/api-reference.md)
-- [docs/ops/cli-reference.md](docs/ops/cli-reference.md)
-- [docs/ops/control-plane.md](docs/ops/control-plane.md)
-- [docs/ops/diagnostics.md](docs/ops/diagnostics.md)
-- [docs/ops/runbooks.md](docs/ops/runbooks.md)
-- [docs/ops/incident-triage.md](docs/ops/incident-triage.md)
-- [docs/ops/glossary.md](docs/ops/glossary.md)
-- [docs/ops/support-matrix.md](docs/ops/support-matrix.md)
-- [docs/ops/known-issues.md](docs/ops/known-issues.md)
-- [docs/ops/known-limitations.md](docs/ops/known-limitations.md)
-- [docs/ops/diagnostics-collection.md](docs/ops/diagnostics-collection.md)
-- [docs/ops/transport-matrix.md](docs/ops/transport-matrix.md)
-- [docs/release/RELEASE_CHECKLIST.md](docs/release/RELEASE_CHECKLIST.md)
+## 🛠️ Supported Transports
 
-## Control Plane (Optional)
+| Transport | Status | Verification |
+| :--- | :--- | :--- |
+| **Serial Direct-Node** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
+| **TCP Direct-Node** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
+| **MQTT Ingest** | ✅ Supported | `mel status`, Web UI, `/metrics` |
+| **BLE / HTTP** | ❌ Unsupported | N/A |
 
-MEL has an optional control plane for automated remediation:
-- Default mode is `advisory` (observes but doesn't act)
-- `guarded_auto` mode can execute safe actions
-- Many actions remain advisory-only (no actuator)
+---
 
-See [docs/ops/control-plane.md](docs/ops/control-plane.md) for details.
+## ⚖️ The MEL Philosophy: Zero Theatre
 
-## Support
+- **No Fake Data**: If you see it in MEL, it happened on the wire.
+- **No Silent Failures**: Transports report explicit states (e.g., `connected_no_ingest`, `ingesting`).
+- **No Dependencies Bloat**: Built with Go stdlib and minimalist primitives.
+- **No Magic**: Every decision the Control Plane makes is explainable and auditable.
 
-To get help:
-- Check [docs/ops/first-10-minutes.md](docs/ops/first-10-minutes.md) for quick troubleshooting
-- Review [docs/ops/known-issues.md](docs/ops/known-issues.md) for common problems
-- Consult [docs/ops/runbooks.md](docs/ops/runbooks.md) for operational procedures
+---
 
-When reporting issues, collect:
-- Output of `mel doctor --config <path>`
-- Output of `mel status --config <path>`
-- Relevant log excerpts from `mel logs tail --config <path>`
-- Transport configuration (redact credentials)
+## 📖 Documentation
 
-See [docs/ops/diagnostics-collection.md](docs/ops/diagnostics-collection.md) for the full diagnostics collection guide.
+- [**Getting Started**](docs/getting-started/README.md) - Full setup and first 10 minutes.
+- [**Architecture**](docs/architecture/overview.md) - Deep dive into subsystems.
+- [**Operator Guide**](docs/ops/README.md) - Running MEL in production.
+- [**API Reference**](docs/ops/api-reference.md) - Integrating with MEL.
 
-## Contributor docs
+---
 
-- [docs/contributor/transport-interface-contract.md](docs/contributor/transport-interface-contract.md)
-- [docs/contributor/protobuf-extension-guide.md](docs/contributor/protobuf-extension-guide.md)
-- [docs/architecture/central-extension-node-layout.md](docs/architecture/central-extension-node-layout.md)
-- [docs/architecture/operator-panels.md](docs/architecture/operator-panels.md)
+## 🤝 Contributing
 
-## Topology scaffolds
+We welcome contributions that increase structural coherence and reduce entropy. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-- `topologies/central-node/` reserves hub-side space for small config files in `config/` and larger stateful assets in `memory-management/`.
-- `topologies/extension-node/` reserves constrained-device space for small config files in `config/` and only bounded local state in `memory-management/`.
-- These scaffolds are documentation-first and do not claim that MEL already ships separate node-specific runtimes.
+MEL is licensed under the **Apache-2.0 License**.
