@@ -20,14 +20,15 @@ type Node struct {
 
 // TransportSummary represents a transport's health and alert status for the list view
 type TransportSummary struct {
-	Name              string   `json:"name"`
-	Type              string   `json:"type"`
-	RuntimeState      string   `json:"runtime_state"`
-	EffectiveState    string   `json:"effective_state"`
-	Health            int      `json:"health"`
-	ActiveAlerts      []string `json:"active_alerts"`
-	RecentAnomalies   int      `json:"recent_anomalies"`
-	LastFailureAt     string   `json:"last_failure_at"`
+	Name               string   `json:"name"`
+	Type               string   `json:"type"`
+	RuntimeState       string   `json:"runtime_state"`
+	EffectiveState     string   `json:"effective_state"`
+	Health             int      `json:"health"`
+	ActiveAlertCount   int      `json:"active_alert_count"`
+	RecentAnomalyCount int      `json:"recent_anomaly_count"`
+	LastFailureAt      string   `json:"last_failure_at"`
+	ActiveAlertReasons []string `json:"active_alert_reasons,omitempty"`
 }
 
 // Incident represents a system incident or alert
@@ -67,4 +68,14 @@ type ActionRecord struct {
 	ExecutedAt     string         `json:"executed_at,omitempty"`
 	CompletedAt    string         `json:"completed_at,omitempty"`
 	Details        map[string]any `json:"details,omitempty"`
+}
+
+// FreshnessReport represents the freshness of a system component
+type FreshnessReport struct {
+	Component       string `json:"component"`
+	LastUpdate      string `json:"last_update"`
+	IntervalSeconds int    `json:"expected_interval_seconds"`
+	StaleThreshold  int    `json:"stale_threshold_seconds"`
+	Status          string `json:"status"` // fresh, stale, unknown
+	AgeSeconds      int    `json:"age_seconds"`
 }

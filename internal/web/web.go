@@ -344,21 +344,28 @@ func (s *Server) transportHealthSummary(w http.ResponseWriter, r *http.Request) 
 		))
 		return
 	}
-	health := make([]any, 0, len(snap.Transports))
+	health := make([]models.TransportSummary, 0, len(snap.Transports))
 	for _, tr := range snap.Transports {
-		health = append(health, map[string]any{
-			"transport_name":    tr.Name,
-			"transport_type":    tr.Type,
-			"runtime_state":     tr.RuntimeState,
-			"effective_state":   tr.EffectiveState,
-			"health":            tr.Health,
-			"active_alerts":     tr.ActiveAlerts,
-			"recent_anomalies":  tr.RecentAnomalies,
-			"failure_clusters":  tr.FailureClusters,
-			"last_failure_at":   tr.LastFailureAt,
-			"episode_id":        tr.EpisodeID,
-			"failure_count":     tr.FailureCount,
-			"observation_drops": tr.ObservationDrops,
+		reasons := make([]string, 0, len(tr.ActiveAlerts))
+		for _, alert := range tr.ActiveAlerts {
+			reasons = append(reasons, alert.Reason)
+		}
+		anomalyCount := 0
+		for _, w := range tr.RecentAnomalies {
+			for _, count := range w.CountsByReason {
+				anomalyCount += int(count)
+			}
+		}
+		health = append(health, models.TransportSummary{
+			Name:               tr.Name,
+			Type:               tr.Type,
+			RuntimeState:       tr.RuntimeState,
+			EffectiveState:     tr.EffectiveState,
+			Health:             tr.Health.Score,
+			ActiveAlertCount:   len(tr.ActiveAlerts),
+			RecentAnomalyCount: anomalyCount,
+			LastFailureAt:      tr.LastFailureAt,
+			ActiveAlertReasons: reasons,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transport_health": health})
@@ -543,8 +550,26 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+
+	rawActions, _ := payload["actions"].([]map[string]any)
+	actions := make([]models.ActionRecord, 0, len(rawActions))
+	for _, row := range rawActions {
+		actions = append(actions, models.ActionRecord{
+			ID:             asString(row["id"]),
+			TransportName:  asString(row["transport_name"]),
+			ActionType:     asString(row["action_type"]),
+			LifecycleState: asString(row["lifecycle_state"]),
+			Result:         asString(row["result"]),
+			CreatedAt:      asString(row["created_at"]),
+			ExecutedAt:     asString(row["executed_at"]),
+			CompletedAt:    asString(row["completed_at"]),
+			Details:        map[string]any{}, // Can add deeper parsing if needed
+		})
+		// If details were persisted as JSON string, we might need to unmarshal
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"actions":    payload["actions"],
+		"actions":    actions,
 		"transport":  transportName,
 		"start":      start,
 		"end":        end,
