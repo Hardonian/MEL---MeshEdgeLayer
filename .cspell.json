@@ -8,6 +8,7 @@
     "dialout",
     "dmesg",
     "drilldown",
+    "healthz",
     "meshstate",
     "meshtastic",
     "Meshtastic",
