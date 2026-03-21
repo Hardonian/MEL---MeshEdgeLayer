@@ -119,11 +119,9 @@ func (t *SLOTracker) RecordFailure(metric string) {
 	t.metricWindows[metric] = append(t.metricWindows[metric], time.Time{})
 }
 
-// EvaluateSLO calculates the current SLO compliance for a specific SLO
-func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
+// evaluateSLOInternal calculates the current SLO compliance for a specific SLO
+// Caller must hold t.mu lock.
+func (t *SLOTracker) evaluateSLOInternal(sloName string) *SLOStatus {
 	def, ok := t.definitions[sloName]
 	if !ok {
 		return &SLOStatus{
@@ -186,6 +184,13 @@ func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 	}
 }
 
+// EvaluateSLO calculates the current SLO compliance for a specific SLO
+func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.evaluateSLOInternal(sloName)
+}
+
 // EvaluateAllSLOs calculates compliance for all registered SLOs
 func (t *SLOTracker) EvaluateAllSLOs() []*SLOStatus {
 	t.mu.Lock()
@@ -193,7 +198,7 @@ func (t *SLOTracker) EvaluateAllSLOs() []*SLOStatus {
 
 	var results []*SLOStatus
 	for name := range t.definitions {
-		results = append(results, t.EvaluateSLO(name))
+		results = append(results, t.evaluateSLOInternal(name))
 	}
 	return results
 }
