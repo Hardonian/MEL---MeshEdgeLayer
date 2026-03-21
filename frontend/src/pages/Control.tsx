@@ -185,7 +185,7 @@ export function Control() {
           {actions.length === 0 ? (
             <OperatorEmptyState 
               title="No control history" 
-              description="No automated or manual commands have been issued in the current session." 
+              description="No automated or manual commands have been recorded in the database." 
             />
           ) : (
             <div className="space-y-4">
