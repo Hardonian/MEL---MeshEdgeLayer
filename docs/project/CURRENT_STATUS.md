@@ -1,6 +1,6 @@
 # MEL Current Status (RC1)
 
-*Last updated: 2026-03-21*
+## Last updated: 2026-03-21
 
 MEL is currently in **Release Candidate 1 (RC1)**. It is stable for field testing and local-first observability but should be used with an understanding of its current scope and boundaries.
 
@@ -29,6 +29,7 @@ MEL is currently in **Release Candidate 1 (RC1)**. It is stable for field testin
 ## 🚀 How to Help
 
 We are looking for field testers to:
+
 1. Run `mel doctor` in diverse host environments (RPi, ARM, x86).
 2. Verify MQTT ingest stability over high-latency links.
 3. Test Control Plane "Guarded Auto" mode with flaky Serial/TCP connections.
