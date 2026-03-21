@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mel-project/mel/internal/version"
 
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
@@ -560,7 +563,7 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) manifestHandler(w http.ResponseWriter, r *http.Request) {
 	manifest := models.SupportManifest{
 		ID:        fmt.Sprintf("MEL-%d", time.Now().Unix()),
-		Version:   s.cfg.Build.Version,
+		Version:   version.Version,
 		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		Features:  s.cfg.Features.Active(),

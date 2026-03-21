@@ -47,3 +47,23 @@ DELETE FROM control_decisions WHERE id IN (
 COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows)
 	return d.Exec(sql)
 }
+func (d *DB) PruneAuditLogs(cutoff time.Time) error {
+	if d == nil {
+		return nil
+	}
+	return d.Exec(fmt.Sprintf("DELETE FROM audit_logs WHERE created_at < '%s';", cutoff.UTC().Format(time.RFC3339)))
+}
+
+func (d *DB) PruneMessages(cutoff time.Time) error {
+	if d == nil {
+		return nil
+	}
+	return d.Exec(fmt.Sprintf("DELETE FROM messages WHERE created_at < '%s';", cutoff.UTC().Format(time.RFC3339)))
+}
+
+func (d *DB) PruneTelemetry(cutoff time.Time) error {
+	if d == nil {
+		return nil
+	}
+	return d.Exec(fmt.Sprintf("DELETE FROM telemetry_samples WHERE observed_at < '%s';", cutoff.UTC().Format(time.RFC3339)))
+}

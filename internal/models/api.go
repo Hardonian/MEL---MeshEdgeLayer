@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 // Node represents a Mesh Node for the API
 type Node struct {
 	NodeNum       int64   `json:"node_num"`
