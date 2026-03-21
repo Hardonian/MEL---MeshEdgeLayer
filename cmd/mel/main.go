@@ -123,6 +123,7 @@ func usage() {
   backup restore --bundle <path> --dry-run (required) [--destination dir]
   logs tail --config <path>
   db vacuum --config <path>
+  health internal|freshness|slo|metrics --config <path>
   ui --config <path>
   gui --config <path>
   dev-simulate-mqtt`)
@@ -256,6 +257,16 @@ func doctorCmd(args []string) {
 		},
 	}
 	mustPrint(out)
+
+	// Add self-observability output
+	fmt.Println()
+	fmt.Println("=== Self-Observability ===")
+	printLocalHealth()
+	fmt.Println()
+	printLocalFreshness()
+	fmt.Println()
+	printLocalSLO()
+
 	if len(findings) > 0 {
 		os.Exit(1)
 	}
@@ -521,7 +532,7 @@ func exportCmd(args []string) {
 	}
 	bundle := map[string]any{"exported_at": time.Now().UTC().Format(time.RFC3339), "redacted": cfg.Privacy.RedactExports, "nodes": nodes, "messages": messages, "dead_letters": deadLetters, "audit_logs": auditLogs}
 	if cfg.Privacy.RedactExports {
-		bundle["messages"] = redactMessages(messages)
+		bundle["messages"] = privacy.RedactMessages(messages)
 	}
 	writeOutput(bundle, *outPath)
 }
@@ -835,18 +846,6 @@ func enabledTransportNames(cfg config.Config) []string {
 	}
 	return names
 }
-func redactMessages(rows []map[string]any) []map[string]any {
-	out := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		cloned := map[string]any{}
-		for k, v := range row {
-			cloned[k] = v
-		}
-		cloned["payload_text"] = "[redacted]"
-		out = append(out, cloned)
-	}
-	return out
-}
 
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
@@ -865,7 +864,7 @@ func sortedKeys(m map[string]any) []string {
 	return keys
 }
 
-func escape(v string) string { return strings.ReplaceAll(v, "'", "''") }
+func escape(v string) string { return db.EscString(v) }
 
 func firstError(err error, fallback string) string {
 	if err != nil {

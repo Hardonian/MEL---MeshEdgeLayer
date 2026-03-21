@@ -328,10 +328,10 @@ func historyFilter(nameColumn, name, timeColumn, start, end string) string {
 }
 
 func historyFilterSafe(nameColumn, name, timeColumn, start, end string) (string, error) {
-	if !isSafeIdentifier(nameColumn) {
+	if !IsSafeIdentifier(nameColumn) {
 		return "", fmt.Errorf("invalid name column: %s", nameColumn)
 	}
-	if !isSafeIdentifier(timeColumn) {
+	if !IsSafeIdentifier(timeColumn) {
 		return "", fmt.Errorf("invalid time column: %s", timeColumn)
 	}
 	clauses := []string{"1=1"}

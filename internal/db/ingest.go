@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/mel-project/mel/internal/selfobs"
 )
 
 type IngestRecord struct {
@@ -47,6 +49,9 @@ SELECT COALESCE(MAX(message_inserted),0) AS message_inserted FROM _mel_ingest_st
 	}
 	if len(rows) == 0 {
 		return false, nil
+	}
+	if asInt(rows[0]["message_inserted"]) > 0 {
+		selfobs.MarkFresh("ingest")
 	}
 	return asInt(rows[0]["message_inserted"]) > 0, nil
 }

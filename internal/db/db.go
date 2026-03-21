@@ -186,13 +186,24 @@ func (d *DB) SchemaVersion() (string, error) {
 	return d.Scalar("SELECT version FROM schema_migrations ORDER BY applied_at DESC, version DESC LIMIT 1;")
 }
 
-var safeIdentifierRegex = regexp.MustCompile("^[a-zA-Z0-9_]+$")
+var safeIdentifierRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+var safeNodeIDRegex = regexp.MustCompile(`^!?[a-zA-Z0-9]{4,12}$`)
 
-func isSafeIdentifier(v string) bool {
+// IsSafeIdentifier returns true if the input string is a valid, safe SQL identifier
+// (alphanumeric and underscore only, limited length).
+func IsSafeIdentifier(v string) bool {
 	if v == "" || len(v) > MaxIdentifierLen {
 		return false
 	}
 	return safeIdentifierRegex.MatchString(v)
+}
+
+// IsSafeNodeID returns true if the input is a valid Meshtastic Node ID.
+func IsSafeNodeID(v string) bool {
+	if v == "" || len(v) > 16 {
+		return false
+	}
+	return safeNodeIDRegex.MatchString(v)
 }
 
 type SQLValidationError struct {
@@ -205,6 +216,9 @@ func (e SQLValidationError) Error() string {
 	return fmt.Sprintf("SQL validation failed: %s (input length: %d)", e.Reason, len(e.Input))
 }
 
+// ValidateSQLInput provides a baseline for sanitizing strings meant for SQL queries.
+// It returns a string escaped for SQLite single-quote context or an error if the input
+// contains suspicious characters like null bytes or comment sequences.
 func ValidateSQLInput(v string) (string, error) {
 	if len(v) > MaxFieldLength {
 		return "", SQLValidationError{Input: v, Reason: fmt.Sprintf("input exceeds max length of %d", MaxFieldLength), Blocked: true}
@@ -212,6 +226,7 @@ func ValidateSQLInput(v string) (string, error) {
 	if strings.ContainsRune(v, 0x00) {
 		return "", SQLValidationError{Input: v, Reason: "input contains NULL byte", Blocked: true}
 	}
+	// Common SQL injection markers
 	if strings.Contains(v, "--") {
 		return "", SQLValidationError{Input: v, Reason: "input contains SQL comment marker (--)", Blocked: true}
 	}
@@ -221,10 +236,13 @@ func ValidateSQLInput(v string) (string, error) {
 	if strings.Contains(v, ";") {
 		return "", SQLValidationError{Input: v, Reason: "input contains statement terminator (;)", Blocked: true}
 	}
+	// Basic single quote escaping for SQLite
 	return strings.ReplaceAll(v, "'", "''"), nil
 }
 
-func esc(v string) string {
+// EscString returns a sanitized version of the string for use in SQL single quotes.
+// If validation fails, it returns an empty string and logs a warning.
+func EscString(v string) string {
 	sanitized, err := ValidateSQLInput(v)
 	if err != nil {
 		logSuspiciousSQL(v, err.Error())
@@ -232,6 +250,17 @@ func esc(v string) string {
 	}
 	return sanitized
 }
+
+// EscIdentifier returns a sanitized identifier (table or column name).
+// If the identifier is not safe, it returns an empty string.
+func EscIdentifier(v string) string {
+	if !IsSafeIdentifier(v) {
+		return ""
+	}
+	return v
+}
+
+func esc(v string) string { return EscString(v) }
 
 func logSuspiciousSQL(input, reason string) {
 	slog.Warn("suspicious_sql_input_rejected",
@@ -610,14 +639,14 @@ func clampLimit(limit int) int {
 }
 
 func validateOrderBy(orderBy string) string {
-	if !isSafeIdentifier(orderBy) {
+	if !IsSafeIdentifier(orderBy) {
 		return ""
 	}
 	return orderBy
 }
 
 func buildSafeWhereClause(column, value string) (string, error) {
-	if !isSafeIdentifier(column) {
+	if !IsSafeIdentifier(column) {
 		return "", logging.NewSafeError("invalid query parameters", fmt.Errorf("invalid column name: %s", column), "validation", false)
 	}
 	sanitized, err := ValidateSQLInput(value)
