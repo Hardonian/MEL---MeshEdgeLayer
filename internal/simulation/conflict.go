@@ -404,11 +404,11 @@ func (cd *ConflictDetector) detectStaleData(
 				Resolution:  fmt.Sprintf("Wait for fresh %s data or verify current state through alternative means", report.Component),
 				Timestamp:   timestamp,
 				Metadata: map[string]any{
-					"component":      report.Component,
-					"data_status":    report.Status,
-					"data_age":       report.AgeSeconds,
-					"action_type":    proposed.ActionType,
-					"last_update":    report.LastUpdate,
+					"component":   report.Component,
+					"data_status": report.Status,
+					"data_age":    report.AgeSeconds,
+					"action_type": proposed.ActionType,
+					"last_update": report.LastUpdate,
 				},
 			})
 		}
@@ -470,9 +470,9 @@ func (cd *ConflictDetector) detectSelfDegradation(
 			Resolution:  fmt.Sprintf("Address critical segment issue: %s", segment.Explanation),
 			Timestamp:   timestamp,
 			Metadata: map[string]any{
-				"segment_id":    segment.SegmentID,
-				"severity":      segment.Severity,
-				"reason":        segment.Reason,
+				"segment_id":          segment.SegmentID,
+				"severity":            segment.Severity,
+				"reason":              segment.Reason,
 				"affected_transports": segment.Transports,
 			},
 		})
@@ -523,10 +523,10 @@ func (cd *ConflictDetector) detectCooldownViolations(
 			Resolution:  fmt.Sprintf("Wait %v before executing another action on this target", timeUntilClear.Round(time.Second)),
 			Timestamp:   timestamp,
 			Metadata: map[string]any{
-				"action_count":      recentActionCount,
-				"cooldown_window":   cd.cooldownWindow.String(),
-				"max_per_target":    cd.maxActionsPerTarget,
-				"time_until_clear":  timeUntilClear.String(),
+				"action_count":       recentActionCount,
+				"cooldown_window":    cd.cooldownWindow.String(),
+				"max_per_target":     cd.maxActionsPerTarget,
+				"time_until_clear":   timeUntilClear.String(),
 				"most_recent_action": mostRecentAction.Format(time.RFC3339),
 			},
 		})
@@ -669,10 +669,10 @@ func (cd *ConflictDetector) detectSafetyConflicts(
 					Resolution:  "Consider mesh-level recovery instead of individual transport action",
 					Timestamp:   timestamp,
 					Metadata: map[string]any{
-						"failure_reason":    failure.Reason,
-						"affected_count":    len(failure.Transports),
-						"failure_severity":  failure.Severity,
-						"affected_nodes":    failure.NodeIDs,
+						"failure_reason":   failure.Reason,
+						"affected_count":   len(failure.Transports),
+						"failure_severity": failure.Severity,
+						"affected_nodes":   failure.NodeIDs,
 					},
 				})
 			}

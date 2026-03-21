@@ -9,22 +9,22 @@ import (
 type SLODefinition struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
-	Target      float64       `json:"target"`       // Target percentage (e.g., 99.9 for 99.9%)
-	Window      time.Duration `json:"window"`       // Evaluation window (e.g., 24h)
-	Metric      string        `json:"metric"`       // Associated metric name
-	Unit        string        `json:"unit"`         // Display unit (e.g., "ms", "%", "count")
+	Target      float64       `json:"target"` // Target percentage (e.g., 99.9 for 99.9%)
+	Window      time.Duration `json:"window"` // Evaluation window (e.g., 24h)
+	Metric      string        `json:"metric"` // Associated metric name
+	Unit        string        `json:"unit"`   // Display unit (e.g., "ms", "%", "count")
 }
 
 // SLOStatus represents the current status of an SLO
 type SLOStatus struct {
-	Name        string    `json:"name"`
+	Name         string    `json:"name"`
 	CurrentValue float64   `json:"current_value"`
-	Target     float64   `json:"target"`
-	Status     string    `json:"status"`       // "healthy", "at_risk", "breached"
-	BudgetUsed float64   `json:"budget_used"`  // Percentage of error budget used
-	EvaluatedAt time.Time `json:"evaluated_at"`
-	WindowStart time.Time `json:"window_start"`
-	WindowEnd   time.Time `json:"window_end"`
+	Target       float64   `json:"target"`
+	Status       string    `json:"status"`      // "healthy", "at_risk", "breached"
+	BudgetUsed   float64   `json:"budget_used"` // Percentage of error budget used
+	EvaluatedAt  time.Time `json:"evaluated_at"`
+	WindowStart  time.Time `json:"window_start"`
+	WindowEnd    time.Time `json:"window_end"`
 }
 
 // Built-in SLO definitions
@@ -173,14 +173,14 @@ func (t *SLOTracker) evaluateSLOInternal(sloName string) *SLOStatus {
 	}
 
 	return &SLOStatus{
-		Name:        sloName,
+		Name:         sloName,
 		CurrentValue: currentValue,
-		Target:      def.Target,
-		Status:      status,
-		BudgetUsed:  budgetUsed,
-		EvaluatedAt: time.Now(),
-		WindowStart: windowStart,
-		WindowEnd:   time.Now(),
+		Target:       def.Target,
+		Status:       status,
+		BudgetUsed:   budgetUsed,
+		EvaluatedAt:  time.Now(),
+		WindowStart:  windowStart,
+		WindowEnd:    time.Now(),
 	}
 }
 

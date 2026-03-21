@@ -73,16 +73,16 @@ func (e *Engine) Simulate(input SimulationInput) (SimulationResult, error) {
 	}
 
 	return SimulationResult{
-		SimulationID:    input.SimulationID,
-		CompletedAt:     time.Now(),
+		SimulationID:     input.SimulationID,
+		CompletedAt:      time.Now(),
 		PredictedOutcome: predictedOutcome,
-		RiskAssessment:  riskAssessment,
-		PolicyPreview:   policyPreview,
-		Conflicts:       conflicts,
-		BlastRadius:     blastRadius,
-		OutcomeBranches: outcomeBranches,
-		SafeToAct:       safeToAct,
-		Metadata:        metadata,
+		RiskAssessment:   riskAssessment,
+		PolicyPreview:    policyPreview,
+		Conflicts:        conflicts,
+		BlastRadius:      blastRadius,
+		OutcomeBranches:  outcomeBranches,
+		SafeToAct:        safeToAct,
+		Metadata:         metadata,
 	}, nil
 }
 
@@ -670,12 +670,12 @@ func (e *Engine) detectConflicts(input SimulationInput) []ConflictReport {
 			case control.ActionRestartTransport:
 				if alert.Reason != transport.ReasonRetryThresholdExceeded {
 					conflicts = append(conflicts, ConflictReport{
-						ConflictID:  fmt.Sprintf("alert_%s", alert.ID),
-						Severity:    ConflictSeverityMinor,
-						Type:        "active_alert",
-						Description: fmt.Sprintf("Active alert %s exists on target transport", alert.Reason),
-						Resource:    action.TargetTransport,
-						Resolution:  "Verify action addresses the alert condition",
+						ConflictID:     fmt.Sprintf("alert_%s", alert.ID),
+						Severity:       ConflictSeverityMinor,
+						Type:           "active_alert",
+						Description:    fmt.Sprintf("Active alert %s exists on target transport", alert.Reason),
+						Resource:       action.TargetTransport,
+						Resolution:     "Verify action addresses the alert condition",
 						AutoResolvable: false,
 					})
 				}
@@ -743,11 +743,11 @@ func (e *Engine) generateOutcomeBranches(input SimulationInput, predictedOutcome
 			HealthScore: 90,
 		},
 		{
-			Scenario:    "worst_case",
-			Probability: 1.0 - predictedOutcome.SuccessProbability,
-			Description: "Action fails or causes additional issues",
-			SystemState: "degraded",
-			HealthScore: 40,
+			Scenario:     "worst_case",
+			Probability:  1.0 - predictedOutcome.SuccessProbability,
+			Description:  "Action fails or causes additional issues",
+			SystemState:  "degraded",
+			HealthScore:  40,
 			RecoveryTime: 30 * time.Second,
 		},
 	}
@@ -911,12 +911,12 @@ type DependencyAssessment struct {
 // It takes a candidate action and returns a SimulationResult.
 func (e *Engine) SimulateSimple(candidateAction control.ControlAction, mesh status.MeshDrilldown, runtime []transport.Health) (SimulationResult, error) {
 	input := SimulationInput{
-		SimulationID:     fmt.Sprintf("sim-%d", time.Now().UnixNano()),
-		Timestamp:        time.Now(),
-		ProposedAction:   candidateAction,
-		TransportHealth:  runtime,
-		MeshTopology:     mesh,
-		PolicyConfig:     control.PolicyFromConfig(e.cfg),
+		SimulationID:    fmt.Sprintf("sim-%d", time.Now().UnixNano()),
+		Timestamp:       time.Now(),
+		ProposedAction:  candidateAction,
+		TransportHealth: runtime,
+		MeshTopology:    mesh,
+		PolicyConfig:    control.PolicyFromConfig(e.cfg),
 	}
 	return e.Simulate(input)
 }

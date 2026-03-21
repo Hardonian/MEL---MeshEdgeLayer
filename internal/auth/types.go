@@ -62,11 +62,11 @@ type AuthorizationContext struct {
 // This is used when MEL operates without multi-operator authentication.
 func DefaultAdminContext() AuthorizationContext {
 	return AuthorizationContext{
-		OperatorID:  "system",
-		Role:        RoleAdmin,
-		SessionID:   "single-operator-session",
-		Timestamp:   time.Now().UTC(),
-		AuthMethod:  "shared-credentials",
+		OperatorID: "system",
+		Role:       RoleAdmin,
+		SessionID:  "single-operator-session",
+		Timestamp:  time.Now().UTC(),
+		AuthMethod: "shared-credentials",
 	}
 }
 

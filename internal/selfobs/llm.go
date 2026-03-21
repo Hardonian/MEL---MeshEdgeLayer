@@ -500,12 +500,12 @@ func (p *DisabledProvider) Close() error {
 // HTTP/gRPC client for the local LLM service.
 //
 // TO ENABLE:
-//   1. Deploy local LLM (e.g., Ollama with desired model)
-//   2. Implement HTTP client for Ollama API
-//   3. Add prompt templates for classify/explain/suggest operations
-//   4. Implement response parsing
-//   5. Validate privacy redaction rules
-//   6. Set ProviderType to "local" and configure Endpoint
+//  1. Deploy local LLM (e.g., Ollama with desired model)
+//  2. Implement HTTP client for Ollama API
+//  3. Add prompt templates for classify/explain/suggest operations
+//  4. Implement response parsing
+//  5. Validate privacy redaction rules
+//  6. Set ProviderType to "local" and configure Endpoint
 type LocalProvider struct {
 	endpoint   string
 	httpClient interface{} // Placeholder - would be *http.Client
@@ -578,13 +578,13 @@ func (p *LocalProvider) Close() error {
 // HTTP client for the API service.
 //
 // TO ENABLE:
-//   1. Obtain API credentials from provider
-//   2. Implement HTTP client with proper authentication
-//   3. Add prompt templates for classify/explain/suggest operations
-//   4. Implement response parsing and error handling
-//   5. Validate privacy redaction rules meet compliance requirements
-//   6. Configure rate limiting and cost controls
-//   7. Set ProviderType to "api", configure Endpoint and API key
+//  1. Obtain API credentials from provider
+//  2. Implement HTTP client with proper authentication
+//  3. Add prompt templates for classify/explain/suggest operations
+//  4. Implement response parsing and error handling
+//  5. Validate privacy redaction rules meet compliance requirements
+//  6. Configure rate limiting and cost controls
+//  7. Set ProviderType to "api", configure Endpoint and API key
 type APIProvider struct {
 	endpoint   string
 	apiKey     string
@@ -780,15 +780,15 @@ func (r *redactor) RedactString(s string) string {
 // - Audit logging
 // - Thread-safe operation
 type LLMClient struct {
-	config     LLMConfig
-	provider   LLMProvider
-	redactor   *redactor
-	auditLog   []LLMAuditEntry
-	auditMu    sync.RWMutex
-	closed     bool
-	closeMu    sync.RWMutex
-	lastErr    error
-	lastErrMu  sync.RWMutex
+	config    LLMConfig
+	provider  LLMProvider
+	redactor  *redactor
+	auditLog  []LLMAuditEntry
+	auditMu   sync.RWMutex
+	closed    bool
+	closeMu   sync.RWMutex
+	lastErr   error
+	lastErrMu sync.RWMutex
 }
 
 // NewLLMClient creates a new LLM client with the given configuration

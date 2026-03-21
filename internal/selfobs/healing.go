@@ -142,7 +142,7 @@ func (rs *RetryStrategy) Execute(component string) error {
 	rs.strategyMu.RLock()
 	fn := rs.retryFunc
 	rs.strategyMu.RUnlock()
-	
+
 	if fn == nil {
 		return fmt.Errorf("no retry function configured for component %s", component)
 	}
@@ -196,7 +196,7 @@ func (rs *ReconnectStrategy) Execute(component string) error {
 	dcFn := rs.disconnectFunc
 	connFn := rs.connectFunc
 	rs.strategyMu.RUnlock()
-	
+
 	if dcFn != nil {
 		if err := dcFn(component); err != nil {
 			return fmt.Errorf("disconnect failed: %w", err)
@@ -256,7 +256,7 @@ func (rs *ResetStrategy) Execute(component string) error {
 	rs.strategyMu.RLock()
 	fn := rs.resetFunc
 	rs.strategyMu.RUnlock()
-	
+
 	if fn == nil {
 		return fmt.Errorf("no reset function configured for component %s", component)
 	}
@@ -284,11 +284,11 @@ func (rs *ResetStrategy) SetResetFunc(fn func(component string) error) {
 
 // circuitInfo tracks circuit breaker state for a component
 type circuitInfo struct {
-	state          CircuitState
-	failureCount   int
-	lastFailure    time.Time
-	lastAttempt    time.Time
-	openedAt       time.Time
+	state                CircuitState
+	failureCount         int
+	lastFailure          time.Time
+	lastAttempt          time.Time
+	openedAt             time.Time
 	consecutiveSuccesses int
 }
 
@@ -303,47 +303,47 @@ type componentState struct {
 type HealingController struct {
 	// strategies maps component names to their healing strategies
 	strategies map[string]HealingStrategy
-	
+
 	// policy is the default retry policy (can be overridden per component)
 	policy RetryPolicy
-	
+
 	// auditTrail stores all healing actions keyed by component
 	auditTrail map[string][]HealingAction
-	
+
 	// componentStates tracks per-component healing state
 	componentStates map[string]*componentState
-	
+
 	// circuits tracks circuit breaker state per component
 	circuits map[string]*circuitInfo
-	
+
 	// maxAuditEntries limits the size of audit trails per component
 	maxAuditEntries int
-	
+
 	// circuitFailures before opening circuit (default: 5)
 	circuitFailures int
-	
+
 	// circuitTimeout before attempting to half-open circuit (default: 30s)
 	circuitTimeout time.Duration
-	
+
 	mu sync.RWMutex
 }
 
 // NewHealingController creates a new healing controller with default settings
 func NewHealingController() *HealingController {
 	healing := &HealingController{
-		strategies:       make(map[string]HealingStrategy),
-		policy:           DefaultRetryPolicy(),
-		auditTrail:       make(map[string][]HealingAction),
-		componentStates:  make(map[string]*componentState),
-		circuits:         make(map[string]*circuitInfo),
-		maxAuditEntries:  100,
-		circuitFailures:  DefaultCircuitFailures,
-		circuitTimeout:   DefaultCircuitTimeout,
+		strategies:      make(map[string]HealingStrategy),
+		policy:          DefaultRetryPolicy(),
+		auditTrail:      make(map[string][]HealingAction),
+		componentStates: make(map[string]*componentState),
+		circuits:        make(map[string]*circuitInfo),
+		maxAuditEntries: 100,
+		circuitFailures: DefaultCircuitFailures,
+		circuitTimeout:  DefaultCircuitTimeout,
 	}
-	
+
 	// Seed the random number generator for jitter
 	rand.Seed(time.Now().UnixNano())
-	
+
 	return healing
 }
 
@@ -372,11 +372,11 @@ func (hc *HealingController) GetPolicy() RetryPolicy {
 func (hc *HealingController) getOrCreateComponentState(component string) *componentState {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	if state, ok := hc.componentStates[component]; ok {
 		return state
 	}
-	
+
 	state := &componentState{
 		retryCount: 0,
 		auditTrail: make([]HealingAction, 0),
@@ -389,11 +389,11 @@ func (hc *HealingController) getOrCreateComponentState(component string) *compon
 func (hc *HealingController) getOrCreateCircuit(component string) *circuitInfo {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	if circuit, ok := hc.circuits[component]; ok {
 		return circuit
 	}
-	
+
 	circuit := &circuitInfo{
 		state: CircuitClosed,
 	}
@@ -405,15 +405,15 @@ func (hc *HealingController) getOrCreateCircuit(component string) *circuitInfo {
 func (hc *HealingController) updateCircuit(component string, success bool) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	circuit, ok := hc.circuits[component]
 	if !ok {
 		circuit = &circuitInfo{state: CircuitClosed}
 		hc.circuits[component] = circuit
 	}
-	
+
 	circuit.lastAttempt = time.Now()
-	
+
 	if success {
 		circuit.consecutiveSuccesses++
 		if circuit.state == CircuitHalfOpen && circuit.consecutiveSuccesses >= 2 {
@@ -432,7 +432,7 @@ func (hc *HealingController) updateCircuit(component string, success bool) {
 		circuit.consecutiveSuccesses = 0
 		circuit.failureCount++
 		circuit.lastFailure = time.Now()
-		
+
 		if circuit.state == CircuitHalfOpen {
 			// Re-open circuit immediately on failure in half-open state
 			circuit.state = CircuitOpen
@@ -450,11 +450,11 @@ func (hc *HealingController) IsCircuitOpen(component string) bool {
 	hc.mu.RLock()
 	circuit, ok := hc.circuits[component]
 	hc.mu.RUnlock()
-	
+
 	if !ok {
 		return false
 	}
-	
+
 	// Check if we should transition from open to half-open
 	if circuit.state == CircuitOpen && time.Since(circuit.openedAt) > hc.circuitTimeout {
 		hc.mu.Lock()
@@ -462,7 +462,7 @@ func (hc *HealingController) IsCircuitOpen(component string) bool {
 		hc.mu.Unlock()
 		return false // Allow attempt in half-open state
 	}
-	
+
 	return circuit.state == CircuitOpen
 }
 
@@ -471,16 +471,16 @@ func (hc *HealingController) GetCircuitState(component string) CircuitState {
 	hc.mu.RLock()
 	circuit, ok := hc.circuits[component]
 	hc.mu.RUnlock()
-	
+
 	if !ok {
 		return CircuitClosed
 	}
-	
+
 	// Check for timeout transition
 	if circuit.state == CircuitOpen && time.Since(circuit.openedAt) > hc.circuitTimeout {
 		return CircuitHalfOpen
 	}
-	
+
 	return circuit.state
 }
 
@@ -492,7 +492,7 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 		Component: component,
 		Success:   false,
 	}
-	
+
 	// Check if circuit breaker is open
 	if hc.IsCircuitOpen(component) {
 		action.ActionType = ActionCooldown
@@ -500,25 +500,25 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 		hc.recordAction(action)
 		return action
 	}
-	
+
 	// Get the healing strategy for this component
 	hc.mu.RLock()
 	strategy, hasStrategy := hc.strategies[component]
 	hc.mu.RUnlock()
-	
+
 	if !hasStrategy {
 		action.ActionType = ActionCooldown
 		action.ErrorMessage = "no healing strategy registered"
 		hc.recordAction(action)
 		return action
 	}
-	
+
 	action.StrategyName = strategy.Name()
-	
+
 	// Get component health from global registry
 	registry := GetGlobalRegistry()
 	compHealth := registry.GetComponent(component)
-	
+
 	// Check if healing is needed
 	if !strategy.CanHeal(component, compHealth.Health) {
 		action.ActionType = ActionCooldown
@@ -527,10 +527,10 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 		hc.recordAction(action)
 		return action
 	}
-	
+
 	// Get component state
 	state := hc.getOrCreateComponentState(component)
-	
+
 	// Check cooldown period
 	hc.mu.RLock()
 	cooldown := hc.policy.CooldownWindow
@@ -538,18 +538,18 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 		cooldown = strategy.GetCooldown()
 	}
 	hc.mu.RUnlock()
-	
+
 	if !state.lastAttempt.IsZero() && now.Sub(state.lastAttempt) < cooldown {
 		action.ActionType = ActionCooldown
 		action.ErrorMessage = fmt.Sprintf("component in cooldown, next attempt after %v", state.lastAttempt.Add(cooldown))
 		hc.recordAction(action)
 		return action
 	}
-	
+
 	// Update state
 	state.lastAttempt = now
 	action.RetryCount = state.retryCount
-	
+
 	// Determine action type from strategy name
 	switch strategy.Name() {
 	case "retry":
@@ -561,19 +561,19 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 	default:
 		action.ActionType = ActionRetry
 	}
-	
+
 	// Execute healing strategy with retry logic
 	hc.mu.RLock()
 	maxRetries := hc.policy.MaxRetries
 	hc.mu.RUnlock()
-	
+
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		action.RetryCount = attempt
-		
+
 		if err := strategy.Execute(component); err != nil {
 			lastErr = err
-			
+
 			// Don't sleep on last attempt
 			if attempt < maxRetries {
 				hc.mu.RLock()
@@ -587,20 +587,20 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 			state.retryCount = 0
 			hc.updateCircuit(component, true)
 			hc.recordAction(action)
-			
+
 			// Update component health in registry
 			registry.SetHealth(component, HealthHealthy)
-			
+
 			return action
 		}
 	}
-	
+
 	// All retries exhausted
 	action.ErrorMessage = fmt.Sprintf("healing failed after %d retries: %v", maxRetries+1, lastErr)
 	state.retryCount++
 	hc.updateCircuit(component, false)
 	hc.recordAction(action)
-	
+
 	return action
 }
 
@@ -608,23 +608,23 @@ func (hc *HealingController) AttemptHeal(component string) HealingAction {
 func (hc *HealingController) recordAction(action HealingAction) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	// Get existing trail
 	trail, ok := hc.auditTrail[action.Component]
 	if !ok {
 		trail = make([]HealingAction, 0)
 	}
-	
+
 	// Add new action
 	trail = append(trail, action)
-	
+
 	// Trim to max entries
 	if len(trail) > hc.maxAuditEntries {
 		trail = trail[len(trail)-hc.maxAuditEntries:]
 	}
-	
+
 	hc.auditTrail[action.Component] = trail
-	
+
 	// Also update component state audit trail
 	if state, ok := hc.componentStates[action.Component]; ok {
 		state.auditTrail = trail
@@ -635,14 +635,14 @@ func (hc *HealingController) recordAction(action HealingAction) {
 func (hc *HealingController) GetAuditTrail(component string) []HealingAction {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
-	
+
 	if trail, ok := hc.auditTrail[component]; ok {
 		// Return a copy to prevent external modification
 		result := make([]HealingAction, len(trail))
 		copy(result, trail)
 		return result
 	}
-	
+
 	return []HealingAction{}
 }
 
@@ -650,14 +650,14 @@ func (hc *HealingController) GetAuditTrail(component string) []HealingAction {
 func (hc *HealingController) GetAllAuditTrails() map[string][]HealingAction {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
-	
+
 	result := make(map[string][]HealingAction)
 	for component, trail := range hc.auditTrail {
 		trailCopy := make([]HealingAction, len(trail))
 		copy(trailCopy, trail)
 		result[component] = trailCopy
 	}
-	
+
 	return result
 }
 
@@ -665,11 +665,11 @@ func (hc *HealingController) GetAllAuditTrails() map[string][]HealingAction {
 func (hc *HealingController) ResetCircuit(component string) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	hc.circuits[component] = &circuitInfo{
 		state: CircuitClosed,
 	}
-	
+
 	if state, ok := hc.componentStates[component]; ok {
 		state.retryCount = 0
 	}
@@ -679,7 +679,7 @@ func (hc *HealingController) ResetCircuit(component string) {
 func (hc *HealingController) UnregisterStrategy(component string) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	delete(hc.strategies, component)
 }
 
@@ -687,12 +687,12 @@ func (hc *HealingController) UnregisterStrategy(component string) {
 func (hc *HealingController) GetRegisteredComponents() []string {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
-	
+
 	components := make([]string, 0, len(hc.strategies))
 	for component := range hc.strategies {
 		components = append(components, component)
 	}
-	
+
 	return components
 }
 

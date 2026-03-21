@@ -13,18 +13,18 @@ import (
 )
 
 type Snapshot struct {
-	GeneratedAt              string                 `json:"generated_at"`
-	Bind                     string                 `json:"bind,omitempty"`
-	BindLocalOnly            bool                   `json:"bind_local_only"`
-	SchemaVersion            string                 `json:"schema_version,omitempty"`
-	ConfiguredTransportModes []string               `json:"configured_transport_modes"`
-	Messages                 int64                  `json:"messages"`
-	Nodes                    int64                  `json:"nodes"`
-	LastSuccessfulIngest     string                 `json:"last_successful_ingest,omitempty"`
-	Transports               []TransportReport      `json:"transports"`
-	RecentIncidents          []models.Incident      `json:"recent_incidents,omitempty"`
-	ActiveTransportAlerts    []TransportAlert        `json:"active_transport_alerts,omitempty"`
-	Mesh                     MeshDrilldown          `json:"mesh"`
+	GeneratedAt              string            `json:"generated_at"`
+	Bind                     string            `json:"bind,omitempty"`
+	BindLocalOnly            bool              `json:"bind_local_only"`
+	SchemaVersion            string            `json:"schema_version,omitempty"`
+	ConfiguredTransportModes []string          `json:"configured_transport_modes"`
+	Messages                 int64             `json:"messages"`
+	Nodes                    int64             `json:"nodes"`
+	LastSuccessfulIngest     string            `json:"last_successful_ingest,omitempty"`
+	Transports               []TransportReport `json:"transports"`
+	RecentIncidents          []models.Incident `json:"recent_incidents,omitempty"`
+	ActiveTransportAlerts    []TransportAlert  `json:"active_transport_alerts,omitempty"`
+	Mesh                     MeshDrilldown     `json:"mesh"`
 }
 
 type TransportReport struct {

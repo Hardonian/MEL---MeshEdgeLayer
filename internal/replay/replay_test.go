@@ -332,9 +332,9 @@ func TestSnapshotDeltaReplay(t *testing.T) {
 
 	// Full replay to get state at event 30
 	resultFull30, err := engine.Execute(Request{
-		Mode:       ModeFull,
-		Policy:     policy,
-		MaxEvents:  30,
+		Mode:      ModeFull,
+		Policy:    policy,
+		MaxEvents: 30,
 	})
 	if err != nil {
 		t.Fatalf("full replay to 30: %v", err)

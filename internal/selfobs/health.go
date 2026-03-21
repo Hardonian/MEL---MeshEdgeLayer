@@ -21,13 +21,13 @@ const (
 
 // InternalComponent represents the health state of an internal MEL component
 type InternalComponent struct {
-	Name        string         `json:"name"`
-	Health      ComponentHealth `json:"health"`
-	LastSuccess time.Time      `json:"last_success"`
-	LastFailure time.Time      `json:"last_failure"`
-	ErrorCount  int64          `json:"error_count"`
-	SuccessCount int64         `json:"success_count"`
-	TotalOps    int64          `json:"total_ops"`
+	Name         string          `json:"name"`
+	Health       ComponentHealth `json:"health"`
+	LastSuccess  time.Time       `json:"last_success"`
+	LastFailure  time.Time       `json:"last_failure"`
+	ErrorCount   int64           `json:"error_count"`
+	SuccessCount int64           `json:"success_count"`
+	TotalOps     int64           `json:"total_ops"`
 }
 
 // ErrorRate returns the error rate as a percentage (0-100)
@@ -108,7 +108,7 @@ func (r *HealthRegistry) RecordSuccess(name string) {
 	comp.SuccessCount++
 	comp.TotalOps++
 	comp.LastSuccess = time.Now()
-	
+
 	// Update health based on error rate
 	if comp.ErrorCount == 0 {
 		comp.Health = HealthHealthy
@@ -133,7 +133,7 @@ func (r *HealthRegistry) RecordFailure(name string) {
 	comp.ErrorCount++
 	comp.TotalOps++
 	comp.LastFailure = time.Now()
-	
+
 	// Update health based on error rate
 	if comp.ErrorRate() > 20 {
 		comp.Health = HealthFailing
@@ -158,11 +158,11 @@ func (r *HealthRegistry) SetHealth(name string, health ComponentHealth) {
 func (r *HealthRegistry) GetOverallHealth() ComponentHealth {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	hasFailing := false
 	hasDegraded := false
 	hasUnknown := false
-	
+
 	for _, comp := range r.components {
 		switch comp.Health {
 		case HealthFailing:
@@ -173,7 +173,7 @@ func (r *HealthRegistry) GetOverallHealth() ComponentHealth {
 			hasUnknown = true
 		}
 	}
-	
+
 	if hasFailing {
 		return HealthFailing
 	}

@@ -6,14 +6,14 @@ import (
 )
 
 type EffectiveConfig struct {
-	Fingerprint string `json:"fingerprint"`
-	Values      any    `json:"values"`
+	Fingerprint string            `json:"fingerprint"`
+	Values      any               `json:"values"`
 	Violations  []SafetyViolation `json:"violations"`
 }
 
 func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
 	b, _ := json.Marshal(cfg)
-	
+
 	fingerprint := ""
 	if len(loadedFromFile) > 0 {
 		fingerprint = SHA256(loadedFromFile)
@@ -32,7 +32,6 @@ func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
 		Violations:  ValidateSafeDefaults(cfg),
 	}
 }
-
 
 func redactMap(m map[string]any, prefix string) {
 	sensitiveKeys := []string{"password", "secret", "key"}

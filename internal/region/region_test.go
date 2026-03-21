@@ -130,10 +130,10 @@ func TestCrossRegionLink(t *testing.T) {
 	}
 
 	m.UpdateCrossRegionLink(CrossRegionLink{
-		RegionA: "us-east",
-		RegionB: "eu-west",
-		Latency: 85.5,
-		Healthy: true,
+		RegionA:     "us-east",
+		RegionB:     "eu-west",
+		Latency:     85.5,
+		Healthy:     true,
 		LastChecked: time.Now().UTC(),
 	})
 

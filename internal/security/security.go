@@ -17,14 +17,14 @@ const (
 type Capability string
 
 const (
-	CapReadStatus         Capability = "read_status"
-	CapAcknowledgeAlerts  Capability = "acknowledge_alerts"
-	CapEscalateAlerts     Capability = "escalate_alerts"
-	CapSuppressAlerts     Capability = "suppress_alerts"
-	CapExportBundle       Capability = "export_support_bundle"
-	CapExecuteAction      Capability = "execute_control_action"
-	CapInspectConfig      Capability = "inspect_config"
-	CapAdminSystem        Capability = "admin_system"
+	CapReadStatus        Capability = "read_status"
+	CapAcknowledgeAlerts Capability = "acknowledge_alerts"
+	CapEscalateAlerts    Capability = "escalate_alerts"
+	CapSuppressAlerts    Capability = "suppress_alerts"
+	CapExportBundle      Capability = "export_support_bundle"
+	CapExecuteAction     Capability = "execute_control_action"
+	CapInspectConfig     Capability = "inspect_config"
+	CapAdminSystem       Capability = "admin_system"
 )
 
 type Identity struct {
@@ -45,16 +45,16 @@ func (i Identity) Can(c Capability) bool {
 
 // SystemIdentity represents internal MEL automation
 var SystemIdentity = Identity{
-	ActorID:      "mel_system",
-	ActorType:    ActorSystem,
-	DisplayName:  "System",
-	Role:         "system",
+	ActorID:     "mel_system",
+	ActorType:   ActorSystem,
+	DisplayName: "System",
+	Role:        "system",
 	Capabilities: map[Capability]bool{
-		CapReadStatus:         true,
-		CapExecuteAction:      true,
-		CapAcknowledgeAlerts:  true,
-		CapEscalateAlerts:     true,
-		CapSuppressAlerts:     true,
+		CapReadStatus:        true,
+		CapExecuteAction:     true,
+		CapAcknowledgeAlerts: true,
+		CapEscalateAlerts:    true,
+		CapSuppressAlerts:    true,
 	},
 }
 
@@ -120,7 +120,7 @@ func Require(cap Capability, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := GetIdentity(r.Context())
 		if !ok || !id.Can(cap) {
-			
+
 			// For JSON vs HTML response we'd do better, but simple 403 for now.
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
