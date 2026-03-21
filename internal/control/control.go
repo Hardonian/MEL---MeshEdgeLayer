@@ -342,7 +342,13 @@ func StartupTime() time.Time {
 }
 
 func WithinStartupGracePeriod(now time.Time) bool {
-	return now.Sub(startupTime) < StartupGracePeriodSeconds*time.Second
+	delta := now.Sub(startupTime)
+	if delta < 0 {
+		// Historical / synthetic evaluation times (before process start) must not
+		// inherit startup grace; otherwise guarded control never runs in tests or replay.
+		return false
+	}
+	return delta < StartupGracePeriodSeconds*time.Second
 }
 
 func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.Time) []ControlAction {
@@ -464,7 +470,7 @@ func candidateActions(cfg config.Config, mesh statuspkg.MeshDrilldown, now time.
 				Mode:            mode,
 				PolicyRule:      "subscription_alert",
 			})
-		case "evidence_loss":
+		case transport.ReasonEvidenceLoss:
 			actions = append(actions, ControlAction{
 				ID:              generateActionID(fmt.Sprintf("ca-backoff-alert-%s", alert.TransportName)),
 				ActionType:      ActionBackoffIncrease,

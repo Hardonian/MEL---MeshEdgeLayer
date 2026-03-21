@@ -109,10 +109,10 @@ func TestIsMigrationPathSafe(t *testing.T) {
 		t.Error("Expected some safety issues to be reported")
 	}
 
-	// Safe path: just adding tables (1->5)
+	// Path 0->5 crosses migration 0002, which is marked destructive in metadata.
 	safe, _ = IsMigrationPathSafe(0, 5)
-	if !safe {
-		t.Error("Expected migration path 0->5 to be safe")
+	if safe {
+		t.Error("Expected migration path 0->5 to be unsafe (includes destructive migration 0002)")
 	}
 }
 

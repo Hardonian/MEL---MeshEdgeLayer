@@ -99,10 +99,10 @@ func daemonURL(cfg config.Config) string {
 
 func loadCfgForDist(args []string) (config.Config, string, string) {
 	f := flag.NewFlagSet("dist", flag.ExitOnError)
-	cfgPath := f.String("config", "configs/mel.example.json", "config file path")
+	cfgPath := f.String("config", configFlagDefault(), "config file path")
 	urlFlag := f.String("url", "", "daemon URL (overrides config bind.api)")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*cfgPath)
+	cfg, _, err := loadConfigFile(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading config %s: %v\n", *cfgPath, err)
 		os.Exit(1)
@@ -154,7 +154,7 @@ func kernelStatusCmd(args []string) {
 
 func kernelReplayCmd(args []string) {
 	f := flag.NewFlagSet("kernel-replay", flag.ExitOnError)
-	cfgPath := f.String("config", "configs/mel.example.json", "config file path")
+	cfgPath := f.String("config", configFlagDefault(), "config file path")
 	urlFlag := f.String("url", "", "daemon URL (overrides config bind.api)")
 	mode := f.String("mode", "full", "replay mode: full|windowed|scenario|dry_run|verification")
 	fromSeq := f.Uint64("from-seq", 0, "replay from this sequence number")
@@ -167,7 +167,7 @@ func kernelReplayCmd(args []string) {
 	compact := f.Bool("compact", false, "compact output (no effects list)")
 	_ = f.Parse(args)
 
-	cfg, _, err := config.Load(*cfgPath)
+	cfg, _, err := loadConfigFile(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
@@ -254,12 +254,12 @@ func kernelSnapshotCmd(args []string) {
 
 func kernelSnapshotListCmd(args []string) {
 	f := flag.NewFlagSet("kernel-snapshot list", flag.ExitOnError)
-	cfgPath := f.String("config", "configs/mel.example.json", "config file")
+	cfgPath := f.String("config", configFlagDefault(), "config file")
 	urlFlag := f.String("url", "", "daemon URL")
 	limit := f.Int("limit", 10, "max snapshots to list")
 	_ = f.Parse(args)
 
-	cfg, _, err := config.Load(*cfgPath)
+	cfg, _, err := loadConfigFile(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
@@ -348,7 +348,7 @@ func kernelEventlogCmd(args []string) {
 
 func kernelEventlogQueryCmd(args []string) {
 	f := flag.NewFlagSet("kernel-eventlog query", flag.ExitOnError)
-	cfgPath := f.String("config", "configs/mel.example.json", "config file")
+	cfgPath := f.String("config", configFlagDefault(), "config file")
 	urlFlag := f.String("url", "", "daemon URL")
 	eventType := f.String("type", "", "filter by event type")
 	nodeID := f.String("node", "", "filter by source node ID")
@@ -359,7 +359,7 @@ func kernelEventlogQueryCmd(args []string) {
 	limit := f.Int("limit", 50, "max events to return")
 	_ = f.Parse(args)
 
-	cfg, _, err := config.Load(*cfgPath)
+	cfg, _, err := loadConfigFile(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
@@ -479,12 +479,12 @@ func regionCmd(args []string) {
 	switch sub {
 	case "health":
 		f := flag.NewFlagSet("region health", flag.ExitOnError)
-		cfgPath := f.String("config", "configs/mel.example.json", "config file")
+		cfgPath := f.String("config", configFlagDefault(), "config file")
 		urlFlag := f.String("url", "", "daemon URL")
 		regionID := f.String("region", "", "region ID (omit for local region)")
 		_ = f.Parse(rest)
 
-		cfg, _, err := config.Load(*cfgPath)
+		cfg, _, err := loadConfigFile(*cfgPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 			os.Exit(1)

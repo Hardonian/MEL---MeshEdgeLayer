@@ -282,16 +282,9 @@ func (d *DB) IsFrozen(transportName, actionType string) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	now := time.Now().UTC()
 	for _, f := range freezes {
-		// Check expiry
-		if f.ExpiresAt != "" {
-			exp, err2 := time.Parse(time.RFC3339, f.ExpiresAt)
-			if err2 == nil && now.After(exp) {
-				// expired but not yet cleaned up; skip
-				continue
-			}
-		}
+		// Time-expired freezes remain active=1 until ExpireOldFreezes runs; they still
+		// block automation so operators see consistent state with the trust layer.
 		switch f.ScopeType {
 		case "global":
 			return true, f.Reason, nil
@@ -541,7 +534,7 @@ func (d *DB) TimelineEvents(start, end string, limit int) ([]TimelineEvent, erro
 	sql := fmt.Sprintf(`
 SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id
 FROM (
-  SELECT created_at AS event_time, 'action' AS event_type, id AS event_id,
+  SELECT created_at AS event_time, 'control_action' AS event_type, id AS event_id,
     action_type||': '||COALESCE(target_transport,'global')||' ('||COALESCE(lifecycle_state,'')||')' AS summary,
     '' AS severity, COALESCE(proposed_by,'system') AS actor_id,
     COALESCE(target_transport,'') AS resource_id
@@ -555,7 +548,7 @@ FROM (
 
   UNION ALL
 
-  SELECT created_at AS event_time, 'freeze' AS event_type, id AS event_id,
+  SELECT created_at AS event_time, 'freeze_created' AS event_type, id AS event_id,
     'freeze created: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
     'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id
   FROM control_freezes
@@ -576,7 +569,7 @@ FROM (
 
   UNION ALL
 
-  SELECT created_at AS event_time, 'note' AS event_type, id AS event_id,
+  SELECT created_at AS event_time, 'operator_note' AS event_type, id AS event_id,
     'note on '||ref_type||': '||SUBSTR(content,1,80) AS summary, 'info' AS severity,
     actor_id, ref_id AS resource_id
   FROM operator_notes
@@ -705,7 +698,9 @@ func (d *DB) ControlPlaneStateSnapshot(now time.Time) (map[string]any, error) {
 		"automation_mode":     automationMode,
 		"freeze_count":        len(freezes),
 		"freezes":             freezes,
+		"active_freezes":      freezes,
 		"maintenance_windows": maintenanceWindows,
+		"active_maintenance":  maintenanceWindows,
 		"approval_backlog":    len(pendingApproval),
 		"pending_approvals":   pendingApproval,
 		"snapshot_at":         now.UTC().Format(time.RFC3339),

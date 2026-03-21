@@ -1,0 +1,7 @@
+{
+  "control": {
+    "mode": "guarded_auto",
+    "allow_transport_restart": true,
+    "allow_source_suppression": true
+  }
+}

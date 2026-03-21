@@ -7,6 +7,42 @@ import (
 	"testing"
 )
 
+func TestApplyProfileObserve(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "configs", "profiles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	observe := filepath.Join(root, "configs", "profiles", "observe.json")
+	if err := os.WriteFile(observe, []byte(`{"control":{"mode":"disabled"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	cfg := Default()
+	if err := ApplyProfile(&cfg, "observe"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Control.Mode != "disabled" {
+		t.Fatalf("expected observe profile to disable control, got %q", cfg.Control.Mode)
+	}
+}
+
+func TestConfigDiff(t *testing.T) {
+	a := Default()
+	b := Default()
+	b.Control.Mode = "guarded_auto"
+	d := Diff(a, b)
+	if len(d) == 0 {
+		t.Fatal("expected diff entries")
+	}
+}
+
 func TestLoadAndValidate(t *testing.T) {
 	t.Setenv("MEL_BIND_API", "127.0.0.1:18080")
 	cfg, _, err := Load("../../configs/mel.example.json")

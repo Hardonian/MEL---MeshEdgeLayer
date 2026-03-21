@@ -87,6 +87,15 @@ func CheckCompatibility(current, target string) *UpgradeResult {
 		}
 	}
 
+	_, curMinor, _ := ParseVersion(current)
+	_, tgtMinor, _ := ParseVersion(target)
+	if targetMajor < currentMajor || (targetMajor == currentMajor && tgtMinor < curMinor) {
+		result.Allowed = false
+		result.Severity = "error"
+		result.Reason = fmt.Sprintf("Downgrade from %s to %s is not supported", current, target)
+		return result
+	}
+
 	// Check for pre-1.0 instability
 	if currentMajor == 0 || targetMajor == 0 {
 		result.Severity = "warning"
@@ -127,16 +136,16 @@ func IsRollbackSupported(fromVersion, toVersion string) (bool, string) {
 	fromMajor, fromMinor, _ := ParseVersion(fromVersion)
 	toMajor, toMinor, _ := ParseVersion(toVersion)
 
-	// Rollback is not officially supported
-	if fromMajor > toMajor {
-		return false, "Rollback across major versions is not supported. Restore from backup instead."
+	if fromMajor == toMajor && fromMinor == toMinor {
+		return true, "No rollback required; versions match."
 	}
 
-	if fromMajor == toMajor && fromMinor-toMinor > 1 {
-		return false, fmt.Sprintf("Rollback of more than one minor version (%d -> %d) is not supported", fromMinor, toMinor)
+	// Target must be strictly older than current for a rollback discussion.
+	if toMajor > fromMajor || (toMajor == fromMajor && toMinor > fromMinor) {
+		return false, "Target version is newer than current; not a rollback path."
 	}
 
-	return true, "Rollback may work but is not guaranteed. Ensure you have a backup."
+	return false, "Rollback to an older release is not officially supported. Restore from backup instead."
 }
 
 // IsMigrationPathSafe checks if a migration path is safe (no irreversible operations)

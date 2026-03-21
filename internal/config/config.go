@@ -27,6 +27,7 @@ type Config struct {
 	Intelligence IntelligenceConfig `json:"intelligence"`
 	Control      ControlConfig      `json:"control"`
 	Federation   FederationConfig   `json:"federation"`
+	Integration  IntegrationConfig  `json:"integration"`
 	StrictMode   bool               `json:"strict_mode"`
 }
 
@@ -135,6 +136,26 @@ type RateLimitConfig struct {
 	TransportReconnectSeconds int `json:"transport_reconnect_seconds"`
 }
 
+// IntegrationConfig configures optional outbound notifications. Secrets must be supplied via
+// environment variables (telegram_bot_token_env), never committed in config files.
+type IntegrationConfig struct {
+	Enabled bool `json:"enabled"`
+	// Event kinds to forward (each requires a configured destination).
+	Alerts       bool `json:"alerts"`
+	Actions      bool `json:"actions"`
+	StateChanges bool `json:"state_changes"`
+	Anomalies    bool `json:"anomalies"`
+	// MinIntervalSeconds enforces a minimum gap between posts to the same destination (rate limit).
+	MinIntervalSeconds int `json:"min_interval_seconds"`
+	// WebhookURLs receive JSON POST bodies (schema integration.Event).
+	WebhookURLs []string `json:"webhook_urls"`
+	// SlackWebhookURL is a Slack incoming webhook URL (posts {"text": "..."}).
+	SlackWebhookURL string `json:"slack_webhook_url"`
+	// TelegramBotTokenEnv names an environment variable holding the bot token.
+	TelegramBotTokenEnv string `json:"telegram_bot_token_env"`
+	TelegramChatID      string `json:"telegram_chat_id"`
+}
+
 type ControlConfig struct {
 	Mode                     string   `json:"mode"`
 	EmergencyDisable         bool     `json:"emergency_disable"`
@@ -210,12 +231,22 @@ func Default() Config {
 			ActionTimeoutSeconds:     10,
 			RetentionDays:            14,
 		},
-		Federation: defaultFederationConfig(),
-		StrictMode: false,
+		Federation:  defaultFederationConfig(),
+		Integration: IntegrationConfig{MinIntervalSeconds: 60},
+		StrictMode:  false,
 	}
 }
 
+// LoadOptions tweaks config loading (profile overlay before env overrides).
+type LoadOptions struct {
+	Profile string
+}
+
 func Load(path string) (Config, []byte, error) {
+	return LoadWithOptions(path, LoadOptions{})
+}
+
+func LoadWithOptions(path string, opt LoadOptions) (Config, []byte, error) {
 	cfg := Default()
 	if path == "" {
 		path = "configs/mel.example.json"
@@ -226,6 +257,9 @@ func Load(path string) (Config, []byte, error) {
 	}
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return cfg, nil, err
+	}
+	if err := ApplyProfile(&cfg, opt.Profile); err != nil {
+		return cfg, b, err
 	}
 	applyEnv(&cfg)
 	if err := normalize(&cfg); err != nil {
@@ -298,6 +332,7 @@ func normalize(cfg *Config) error {
 	normalizeIntelligence(cfg)
 	normalizeControl(cfg)
 	normalizeFederation(cfg)
+	normalizeIntegration(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
 		if err == nil && host == "" {
@@ -413,6 +448,7 @@ func Validate(cfg Config) error {
 	}
 	errs = append(errs, validateIntelligence(cfg)...)
 	errs = append(errs, validateControl(cfg)...)
+	errs = append(errs, validateIntegration(cfg)...)
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}

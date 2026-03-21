@@ -47,20 +47,24 @@ func TestGetFullVersionString(t *testing.T) {
 
 func TestIsDevBuild(t *testing.T) {
 	// Save original
-	orig := CompatibilityLevel
+	origLevel := CompatibilityLevel
+	origVer := Version
 
 	CompatibilityLevel = "dev"
+	Version = "1.0.0"
 	if !IsDevBuild() {
 		t.Error("Should be dev build with dev compatibility level")
 	}
 
 	CompatibilityLevel = "stable"
+	Version = "1.0.0"
 	if IsDevBuild() {
-		t.Error("Should not be dev build with stable compatibility level")
+		t.Error("Should not be dev build with stable compatibility level and stable version string")
 	}
 
 	// Restore
-	CompatibilityLevel = orig
+	CompatibilityLevel = origLevel
+	Version = origVer
 }
 
 func TestIsStable(t *testing.T) {

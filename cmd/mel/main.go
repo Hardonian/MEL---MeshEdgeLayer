@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/backup"
+	"github.com/mel-project/mel/internal/cliout"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
@@ -41,86 +42,107 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	switch os.Args[1] {
+	rest, g := parseGlobalFlags(os.Args[2:])
+	cliGlobal = g
+	cmd := os.Args[1]
+	switch cmd {
 	case "init":
-		initCmd(os.Args[2:])
+		initCmd(rest)
 	case "version":
 		fmt.Println(version.GetFullVersionString())
 	case "config":
-		configCmd(os.Args[2:])
+		configCmd(rest)
 	case "serve":
-		serveCmd(os.Args[2:])
+		serveCmd(rest)
 	case "doctor":
-		doctorCmd(os.Args[2:])
+		doctorCmd(rest)
 	case "status":
-		statusCmd(os.Args[2:])
+		statusCmd(rest)
 	case "panel":
-		panelCmd(os.Args[2:])
+		panelCmd(rest)
 	case "nodes":
-		nodesCmd(os.Args[2:])
+		nodesCmd(rest)
 	case "node":
-		nodeCmd(os.Args[2:])
+		nodeCmd(rest)
 	case "transports":
-		transportsCmd(os.Args[2:])
+		transportsCmd(rest)
 	case "inspect":
-		inspectCmd(os.Args[2:])
+		inspectCmd(rest)
 	case "db":
-		dbCmd(os.Args[2:])
+		dbCmd(rest)
 	case "export":
-		exportCmd(os.Args[2:])
+		exportCmd(rest)
 	case "import":
-		importCmd(os.Args[2:])
+		importCmd(rest)
 	case "logs":
-		logsCmd(os.Args[2:])
+		logsCmd(rest)
 	case "policy":
-		policyCmd(os.Args[2:])
+		policyCmd(rest)
 	case "control":
-		controlCmd(os.Args[2:])
+		controlCmd(rest)
 	case "timeline":
-		timelineCmd(os.Args[2:])
+		timelineCmd(rest)
 	case "freeze":
-		freezeCmd(os.Args[2:])
+		freezeCmd(rest)
 	case "maintenance":
-		maintenanceCmd(os.Args[2:])
+		maintenanceCmd(rest)
 	case "notes":
-		notesCmd(os.Args[2:])
+		notesCmd(rest)
 	case "privacy":
-		privacyCmd(os.Args[2:])
+		privacyCmd(rest)
 	case "backup":
-		backupCmd(os.Args[2:])
+		backupCmd(rest)
 	case "replay":
-		replayCmd(os.Args[2:])
+		replayCmd(rest)
 	case "diagnostics":
-		diagnosticsCmd(os.Args[2:])
+		diagnosticsCmd(rest)
 	case "health":
-		healthCmd(os.Args[2:])
+		healthCmd(rest)
 	case "dev-simulate-mqtt":
-		simulateCmd(os.Args[2:])
+		simulateCmd(rest)
 	case "simulate":
-		actionSimulateCmd(os.Args[2:])
+		actionSimulateCmd(rest)
 	case "ui":
-		uiCmd(os.Args[2:])
+		uiCmd(rest)
 	case "gui":
-		guiCmd(os.Args[2:])
+		guiCmd(rest)
+	case "alerts":
+		alertsCmd(rest)
+	case "actions":
+		actionsCmd(rest)
+	case "explain":
+		explainCmd(rest)
+	case "support":
+		supportCmd(rest)
+	case "demo":
+		demoCmd(rest)
+	case "dev":
+		devCmd(rest)
+	case "mode":
+		modeCmd(rest)
+	case "integration":
+		integrationCmd(rest)
+	case "trace":
+		traceCmd(rest)
 	// Distributed kernel commands
 	case "kernel-status":
-		kernelStatusCmd(os.Args[2:])
+		kernelStatusCmd(rest)
 	case "kernel-replay":
-		kernelReplayCmd(os.Args[2:])
+		kernelReplayCmd(rest)
 	case "kernel-snapshot":
-		kernelSnapshotCmd(os.Args[2:])
+		kernelSnapshotCmd(rest)
 	case "kernel-backup":
-		kernelBackupCmd(os.Args[2:])
+		kernelBackupCmd(rest)
 	case "kernel-eventlog":
-		kernelEventlogCmd(os.Args[2:])
+		kernelEventlogCmd(rest)
 	case "federation":
-		federationCmd(os.Args[2:])
+		federationCmd(rest)
 	case "peers":
-		peersCmd(os.Args[2:])
+		peersCmd(rest)
 	case "region":
-		regionCmd(os.Args[2:])
+		regionCmd(rest)
 	case "topology":
-		topologyCmd(os.Args[2:])
+		topologyCmd(rest)
 	default:
 		usage()
 		os.Exit(1)
@@ -129,10 +151,12 @@ func main() {
 
 func usage() {
 	fmt.Println(`mel commands:
+Global flags (before subcommand): --config <path> --profile <name> --json|--text --wide --color|--no-color
+
   init
   version
   doctor --config <path>
-  config validate --config <path>
+  config validate|show|inspect|diff|risk|keys --config <path>
   serve [--debug] --config <path>
   status --config <path>
   panel [--format text|json] --config <path>
@@ -141,7 +165,13 @@ func usage() {
   transports list --config <path>
   inspect transport <name> --config <path>
   inspect mesh --config <path>
-  replay --config <path> [--node <id>] [--type <message-type>] [--limit <n>]
+  alerts --config <path> [--active=false] [--since RFC3339] [--filter s] [--limit n]
+  actions list|pending|history --config <path>
+  explain policy --config <path>
+  mode --config <path>
+  replay run --config <path> [--node <id>] [--type <message-type>] [--since RFC3339] [--filter s] [--limit <n>]
+  replay diff --config <a> --against <b> [--url <daemon>] [--mode dry_run|...] [--since|--until RFC3339]
+  replay kernel ... (alias for mel kernel-replay)
   privacy audit [--format json|text] --config <path>
   policy explain --config <path>
   control status --config <path>
@@ -164,9 +194,14 @@ func usage() {
   import validate --bundle <path>
   backup create --config <path> [--out path]
   backup restore --bundle <path> --dry-run (required) [--destination dir]
-  logs tail --config <path>
+  logs tail --config <path> [--limit n] [--category s] [--since RFC3339] [--filter s]
   db vacuum --config <path>
-  health internal|freshness|slo|metrics --config <path>
+  health internal|freshness|slo|metrics|trust --config <path>
+  support bundle --config <path> [--out path.zip]
+  integration test --url <https://hook> [--event-type mel.test]
+  trace <action-id> --config <path>
+  demo run [--endpoint host:port] [--topic msh/...]
+  dev run (prints recommended serve invocation)
   ui --config <path>
   gui --config <path>
   simulate action <type> --transport <name> --config <path>
@@ -195,9 +230,9 @@ func fs(name string) *flag.FlagSet { return flag.NewFlagSet(name, flag.ExitOnErr
 
 func loadCfg(args []string) (config.Config, string) {
 	f := fs("cfg")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := config.LoadWithOptions(*path, config.LoadOptions{Profile: cliGlobal.Profile})
 	if err != nil {
 		panic(err)
 	}
@@ -222,34 +257,142 @@ func initCmd(args []string) {
 }
 
 func configCmd(args []string) {
-	if len(args) == 0 || (args[0] != "validate" && args[0] != "inspect") {
-		panic("usage: mel config validate|inspect --config <path>")
+	if len(args) == 0 {
+		panic("usage: mel config validate|show|inspect|diff|risk|keys [--key prefix] [--format text|json] --config <path>")
 	}
-	f := fs("config-" + args[0])
-	path := f.String("config", "configs/mel.example.json", "config")
-	_ = f.Parse(args[1:])
-	cfg, loadedBytes, err := config.Load(*path)
-	if err != nil {
-		panic(err)
-	}
-
-	if args[0] == "validate" {
+	sub := args[0]
+	rest := args[1:]
+	switch sub {
+	case "validate":
+		f := fs("config-validate")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(rest)
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
 		findings := validateConfigFile(*path, cfg)
 		mustPrint(map[string]any{"status": map[bool]string{true: "valid", false: "invalid"}[len(findings) == 0], "findings": findings, "lints": config.LintConfig(cfg)})
 		if len(findings) > 0 {
 			os.Exit(1)
 		}
-	} else if args[0] == "inspect" {
+	case "inspect":
+		f := fs("config-inspect")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(rest)
+		cfg, loadedBytes, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
 		mustPrint(config.Inspect(cfg, loadedBytes))
+	case "show":
+		f := fs("config-show")
+		path := f.String("config", configFlagDefault(), "config")
+		format := f.String("format", "json", "json|text")
+		_ = f.Parse(rest)
+		cfg, loadedBytes, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		eff := config.Inspect(cfg, loadedBytes)
+		if *format == "text" {
+			fmt.Printf("fingerprint: %s\n", eff.Fingerprint)
+			fmt.Printf("strict_mode: %v\n", cfg.StrictMode)
+			fmt.Printf("control.mode: %s\n", cfg.Control.Mode)
+			fmt.Printf("bind.api: %s\n", cfg.Bind.API)
+			fmt.Printf("integration.enabled: %v\n", cfg.Integration.Enabled)
+			if len(eff.Violations) > 0 {
+				fmt.Println("risk_violations:")
+				for _, v := range eff.Violations {
+					fmt.Printf("  - %s: %s (current=%s safe=%s)\n", v.Field, v.Issue, v.Current, v.Safe)
+				}
+			}
+			return
+		}
+		mustPrint(eff)
+	case "diff":
+		f := fs("config-diff")
+		pathA := f.String("config", configFlagDefault(), "left config file")
+		pathB := f.String("against", "", "right config file (required)")
+		format := f.String("format", "json", "json|text")
+		_ = f.Parse(rest)
+		if strings.TrimSpace(*pathB) == "" {
+			panic("usage: mel config diff --config <a> --against <b>")
+		}
+		cfgA, _, err := loadConfigFile(*pathA)
+		if err != nil {
+			panic(err)
+		}
+		cfgB, _, err := config.LoadWithOptions(*pathB, config.LoadOptions{})
+		if err != nil {
+			panic(err)
+		}
+		if err := config.Validate(cfgA); err != nil {
+			panic(fmt.Errorf("left config invalid: %w", err))
+		}
+		if err := config.Validate(cfgB); err != nil {
+			panic(fmt.Errorf("right config invalid: %w", err))
+		}
+		entries := config.Diff(cfgA, cfgB)
+		if *format == "text" {
+			fmt.Print(config.FormatDiffText(entries))
+			return
+		}
+		mustPrint(map[string]any{"diff": entries, "left": *pathA, "right": *pathB})
+	case "risk":
+		f := fs("config-risk")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(rest)
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		v := config.ValidateSafeDefaults(cfg)
+		l := config.LintConfig(cfg)
+		mustPrint(map[string]any{"violations": v, "lints": l, "strict_mode": cfg.StrictMode})
+	case "keys":
+		f := fs("config-keys")
+		prefix := f.String("key", "", "filter keys by prefix")
+		_ = f.Parse(rest)
+		keys := make([]string, 0, len(config.ConfigKeyHelp))
+		for k := range config.ConfigKeyHelp {
+			keys = append(keys, k)
+		}
+		for i := 0; i < len(keys); i++ {
+			for j := i + 1; j < len(keys); j++ {
+				if keys[j] < keys[i] {
+					keys[i], keys[j] = keys[j], keys[i]
+				}
+			}
+		}
+		p := strings.ToLower(strings.TrimSpace(*prefix))
+		var rows [][]string
+		for _, k := range keys {
+			if p != "" && !strings.HasPrefix(strings.ToLower(k), p) {
+				continue
+			}
+			rows = append(rows, []string{k, config.ConfigKeyHelp[k]})
+		}
+		if cliGlobal.JSON {
+			out := make([]map[string]string, 0, len(rows))
+			for _, r := range rows {
+				out = append(out, map[string]string{"key": r[0], "help": r[1]})
+			}
+			mustPrint(map[string]any{"keys": out})
+			return
+		}
+		cliout.Table(os.Stdout, []string{"key", "help"}, rows, cliGlobal.Wide, 72)
+	default:
+		panic("usage: mel config validate|show|inspect|diff|risk|keys [--key prefix] [--format text|json] --config <path>")
 	}
 }
 
 func serveCmd(args []string) {
 	f := fs("serve")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	debug := f.Bool("debug", false, "enable debug logging")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -353,10 +496,10 @@ func statusCmd(args []string) {
 
 func panelCmd(args []string) {
 	f := fs("panel")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	format := f.String("format", "text", "text|json")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -483,11 +626,11 @@ func inspectCmd(args []string) {
 
 func diagnosticsCmd(args []string) {
 	f := fs("diagnostics")
-	configPath := f.String("config", "configs/mel.example.json", "path to config file")
+	configPath := f.String("config", configFlagDefault(), "path to config file")
 	jsonOutput := f.Bool("json", false, "output as JSON")
 	f.Parse(args)
 
-	cfg, _, err := config.Load(*configPath)
+	cfg, _, err := loadConfigFile(*configPath)
 	if err != nil {
 		panic(fmt.Sprintf("failed to load config: %v", err))
 	}
@@ -536,13 +679,127 @@ func diagnosticsCmd(args []string) {
 }
 
 func replayCmd(args []string) {
-	f := fs("replay")
-	path := f.String("config", "configs/mel.example.json", "config")
+	if len(args) == 0 {
+		replayMessageQueryCmd(nil)
+		return
+	}
+	switch args[0] {
+	case "run":
+		replayMessageQueryCmd(args[1:])
+	case "diff":
+		replayDiffCmd(args[1:])
+	case "kernel":
+		kernelReplayCmd(args[1:])
+	default:
+		replayMessageQueryCmd(args)
+	}
+}
+
+func replayDiffCmd(args []string) {
+	f := fs("replay-diff")
+	cfgPath := f.String("config", configFlagDefault(), "left config file")
+	againstPath := f.String("against", "", "right config file (required)")
+	urlFlag := f.String("url", "", "daemon URL (overrides config bind.api)")
+	mode := f.String("mode", "dry_run", "replay mode passed to kernel API")
+	since := f.String("since", "", "RFC3339")
+	until := f.String("until", "", "RFC3339")
+	maxEvents := f.Int("max-events", 0, "max events (0 = default)")
+	policyMode := f.String("policy-mode", "", "override policy mode")
+	policyVersion := f.String("policy-version", "v1", "policy version")
+	compact := f.Bool("compact", true, "omit effects in comparison payload")
+	_ = f.Parse(args)
+	if strings.TrimSpace(*againstPath) == "" {
+		panic("usage: mel replay diff --config <a> --against <b> [kernel replay flags]")
+	}
+	cfgL, err := loadConfigSide(*cfgPath, cliGlobal.Profile)
+	if err != nil {
+		panic(err)
+	}
+	cfgR, err := loadConfigSide(*againstPath, "")
+	if err != nil {
+		panic(err)
+	}
+	baseL := daemonURL(cfgL)
+	if *urlFlag != "" {
+		baseL = *urlFlag
+	}
+	baseR := daemonURL(cfgR)
+	if *urlFlag != "" {
+		baseR = *urlFlag
+	}
+	reqL := buildKernelReplayRequest(cfgL, *mode, *since, *until, *maxEvents, *policyMode, *policyVersion)
+	reqR := buildKernelReplayRequest(cfgR, *mode, *since, *until, *maxEvents, *policyMode, *policyVersion)
+	left, err := apiPost(baseL, "/api/v1/kernel/replay", reqL)
+	if err != nil {
+		panic(fmt.Errorf("left replay: %w", err))
+	}
+	right, err := apiPost(baseR, "/api/v1/kernel/replay", reqR)
+	if err != nil {
+		panic(fmt.Errorf("right replay: %w", err))
+	}
+	if *compact {
+		stripReplayEffects(left)
+		stripReplayEffects(right)
+	}
+	ml, _ := json.Marshal(left)
+	mr, _ := json.Marshal(right)
+	mustPrint(map[string]any{
+		"mode":              "kernel_replay_diff",
+		"left_config":       *cfgPath,
+		"right_config":      *againstPath,
+		"left_url":          baseL,
+		"right_url":         baseR,
+		"identical":         string(ml) == string(mr),
+		"left_result":       left,
+		"right_result":      right,
+		"replay_parameters": reqL,
+	})
+}
+
+func buildKernelReplayRequest(cfg config.Config, mode, since, until string, maxEvents int, policyMode, policyVersion string) map[string]any {
+	req := map[string]any{
+		"mode": mode,
+		"policy": map[string]any{
+			"version":                policyVersion,
+			"mode":                   policyMode,
+			"require_min_confidence": cfg.Control.RequireMinConfidence,
+			"allowed_actions":        cfg.Control.AllowedActions,
+		},
+	}
+	if since != "" {
+		if t, err := time.Parse(time.RFC3339, since); err == nil {
+			req["since"] = t.Format(time.RFC3339)
+		}
+	}
+	if until != "" {
+		if t, err := time.Parse(time.RFC3339, until); err == nil {
+			req["until"] = t.Format(time.RFC3339)
+		}
+	}
+	if maxEvents > 0 {
+		req["max_events"] = maxEvents
+	}
+	return req
+}
+
+func stripReplayEffects(v any) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	delete(m, "effects")
+}
+
+func replayMessageQueryCmd(args []string) {
+	f := fs("replay-run")
+	path := f.String("config", configFlagDefault(), "config")
 	node := f.String("node", "", "filter by node number")
 	messageType := f.String("type", "", "filter by message type")
 	limit := f.Int("limit", 50, "maximum rows")
+	since := f.String("since", "", "filter rx_time >= RFC3339")
+	filter := f.String("filter", "", "substring match on payload_text|transport")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -554,11 +811,22 @@ func replayCmd(args []string) {
 	if *messageType != "" {
 		clauses = append(clauses, fmt.Sprintf("payload_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"message_type\":\"%s\"`, *messageType))))
 	}
+	if strings.TrimSpace(*since) != "" {
+		clauses = append(clauses, fmt.Sprintf("rx_time >= '%s'", escape(*since)))
+	}
+	if strings.TrimSpace(*filter) != "" {
+		sub := escape(*filter)
+		clauses = append(clauses, fmt.Sprintf("(payload_text LIKE '%%%s%%' OR transport_name LIKE '%%%s%%')", sub, sub))
+	}
 	rows, err := d.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), *limit))
 	if err != nil {
 		panic(err)
 	}
-	mustPrint(map[string]any{"messages": rows, "filters": map[string]any{"node": *node, "type": *messageType, "limit": *limit}})
+	mustPrint(map[string]any{
+		"mode":     "local_message_replay_source",
+		"messages": rows,
+		"filters":  map[string]any{"node": *node, "type": *messageType, "limit": *limit, "since": *since, "filter": *filter},
+	})
 }
 
 func dbCmd(args []string) {
@@ -575,10 +843,10 @@ func dbCmd(args []string) {
 
 func exportCmd(args []string) {
 	f := fs("export")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	outPath := f.String("out", "", "write export bundle to file instead of stdout")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -633,15 +901,37 @@ func importCmd(args []string) {
 
 func logsCmd(args []string) {
 	if len(args) == 0 || args[0] != "tail" {
-		panic("usage: mel logs tail --config <path>")
+		panic("usage: mel logs tail --config <path> [--limit n] [--category s] [--since RFC3339] [--filter substring]")
 	}
-	cfg, _ := loadCfg(args[1:])
-	d := openDB(cfg)
-	rows, err := d.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
+	f := fs("logs-tail")
+	path := f.String("config", configFlagDefault(), "config")
+	limit := f.Int("limit", 50, "max rows")
+	category := f.String("category", "", "filter category prefix")
+	since := f.String("since", "", "created_at >= RFC3339")
+	filter := f.String("filter", "", "substring match on category|level|message")
+	_ = f.Parse(args[1:])
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
-	mustPrint(rows)
+	d := openDB(cfg)
+	clauses := []string{"1=1"}
+	if strings.TrimSpace(*category) != "" {
+		clauses = append(clauses, fmt.Sprintf("category LIKE '%s%%'", escape(*category)))
+	}
+	if strings.TrimSpace(*since) != "" {
+		clauses = append(clauses, fmt.Sprintf("created_at >= '%s'", escape(*since)))
+	}
+	if strings.TrimSpace(*filter) != "" {
+		sub := escape(*filter)
+		clauses = append(clauses, fmt.Sprintf("(category LIKE '%%%s%%' OR level LIKE '%%%s%%' OR message LIKE '%%%s%%')", sub, sub, sub))
+	}
+	q := fmt.Sprintf("SELECT category,level,message,created_at FROM audit_logs WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), *limit)
+	rows, err := d.QueryRows(q)
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(map[string]any{"logs": rows, "count": len(rows), "filters": map[string]any{"category": *category, "since": *since, "filter": *filter, "limit": *limit}})
 }
 
 func controlCmd(args []string) {
@@ -659,14 +949,14 @@ func controlCmd(args []string) {
 		mustPrint(eval.Explanation)
 	case "history":
 		f := fs("control-history")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		transportName := f.String("transport", "", "filter by transport")
 		start := f.String("start", "", "start time RFC3339")
 		end := f.String("end", "", "end time RFC3339")
 		limit := f.Int("limit", 50, "max rows")
 		offset := f.Int("offset", 0, "offset")
 		_ = f.Parse(args[1:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -694,11 +984,11 @@ func controlCmd(args []string) {
 		}
 		actionID := args[1]
 		f := fs("control-approve")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "approval note")
 		actor := f.String("actor", "cli-operator", "operator identity")
 		_ = f.Parse(args[2:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -713,11 +1003,11 @@ func controlCmd(args []string) {
 		}
 		actionID := args[1]
 		f := fs("control-reject")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "rejection reason")
 		actor := f.String("actor", "cli-operator", "operator identity")
 		_ = f.Parse(args[2:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -766,12 +1056,12 @@ func controlCmd(args []string) {
 
 func timelineCmd(args []string) {
 	f := fs("timeline")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	start := f.String("start", "", "start time RFC3339")
 	end := f.String("end", "", "end time RFC3339")
 	limit := f.Int("limit", 100, "max events")
 	_ = f.Parse(args)
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -798,7 +1088,7 @@ func freezeCmd(args []string) {
 		mustPrint(map[string]any{"freezes": freezes, "count": len(freezes)})
 	case "create":
 		f := fs("freeze-create")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		reason := f.String("reason", "", "reason for freeze (required)")
 		scopeType := f.String("scope-type", "global", "global|transport|action_type")
 		scopeValue := f.String("scope-value", "", "transport name or action type (if scoped)")
@@ -808,7 +1098,7 @@ func freezeCmd(args []string) {
 		if *reason == "" {
 			panic("--reason is required")
 		}
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -827,10 +1117,10 @@ func freezeCmd(args []string) {
 		}
 		freezeID := args[1]
 		f := fs("freeze-clear")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		actor := f.String("actor", "cli-operator", "operator identity")
 		_ = f.Parse(args[2:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -859,7 +1149,7 @@ func maintenanceCmd(args []string) {
 		mustPrint(map[string]any{"maintenance_windows": windows, "count": len(windows)})
 	case "create":
 		f := fs("maintenance-create")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		title := f.String("title", "Scheduled Maintenance", "window title")
 		reason := f.String("reason", "", "reason for maintenance")
 		scopeType := f.String("scope-type", "global", "global|transport|action_type")
@@ -871,7 +1161,7 @@ func maintenanceCmd(args []string) {
 		if *startsAt == "" || *endsAt == "" {
 			panic("--starts-at and --ends-at are required")
 		}
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -891,10 +1181,10 @@ func maintenanceCmd(args []string) {
 		}
 		windowID := args[1]
 		f := fs("maintenance-cancel")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		actor := f.String("actor", "cli-operator", "operator identity")
 		_ = f.Parse(args[2:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -915,7 +1205,7 @@ func notesCmd(args []string) {
 	switch args[0] {
 	case "add":
 		f := fs("notes-add")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		refType := f.String("ref-type", "", "resource type (action|incident|transport) (required)")
 		refID := f.String("ref-id", "", "resource ID (required)")
 		content := f.String("content", "", "note content (required)")
@@ -924,7 +1214,7 @@ func notesCmd(args []string) {
 		if *refType == "" || *refID == "" || *content == "" {
 			panic("--ref-type, --ref-id, and --content are required")
 		}
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -939,7 +1229,7 @@ func notesCmd(args []string) {
 		mustPrint(map[string]any{"status": "created", "note_id": id, "ref_type": *refType, "ref_id": *refID})
 	case "list":
 		f := fs("notes-list")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		refType := f.String("ref-type", "", "resource type (required)")
 		refID := f.String("ref-id", "", "resource ID (required)")
 		limit := f.Int("limit", 50, "max notes")
@@ -947,7 +1237,7 @@ func notesCmd(args []string) {
 		if *refType == "" || *refID == "" {
 			panic("--ref-type and --ref-id are required")
 		}
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -975,10 +1265,10 @@ func privacyCmd(args []string) {
 		panic("usage: mel privacy audit [--format json|text] --config <path>")
 	}
 	f := fs("privacy-audit")
-	path := f.String("config", "configs/mel.example.json", "config")
+	path := f.String("config", configFlagDefault(), "config")
 	format := f.String("format", "json", "json|text")
 	_ = f.Parse(args[1:])
-	cfg, _, err := config.Load(*path)
+	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
 	}
@@ -997,10 +1287,10 @@ func backupCmd(args []string) {
 	switch args[0] {
 	case "create":
 		f := fs("backup-create")
-		path := f.String("config", "configs/mel.example.json", "config")
+		path := f.String("config", configFlagDefault(), "config")
 		outPath := f.String("out", "", "bundle output path")
 		_ = f.Parse(args[1:])
-		cfg, _, err := config.Load(*path)
+		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
@@ -1143,14 +1433,6 @@ func openDB(cfg config.Config) *db.DB {
 		panic(err)
 	}
 	return d
-}
-
-func mustPrint(v any) {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(b))
 }
 
 func writeOutput(v any, outPath string) {

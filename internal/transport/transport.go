@@ -52,6 +52,8 @@ const (
 	ReasonSubscribeFailure       = "subscribe_failure"
 	ReasonRetryThresholdExceeded = "retry_threshold_exceeded"
 	ReasonObservationDropped     = "observation_dropped"
+	// ReasonEvidenceLoss matches transport alert reason "evidence_loss" (ingest / observation path).
+	ReasonEvidenceLoss = "evidence_loss"
 )
 
 const maxObservationPayloadBytes = 96

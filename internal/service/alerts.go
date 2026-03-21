@@ -78,8 +78,14 @@ func (a *App) evaluateTransportIntelligence(now time.Time) {
 		ids := make([]string, 0, len(alerts))
 		for _, alert := range alerts {
 			ids = append(ids, alert.ID)
-			if err := a.DB.UpsertTransportAlert(toAlertRecord(alert)); err != nil {
+			rec := toAlertRecord(alert)
+			prev, hadPrev := alertByID[rec.ID]
+			if err := a.DB.UpsertTransportAlert(rec); err != nil {
 				a.Log.Error("transport_alert_upsert_failed", "failed to persist transport alert", map[string]any{"transport": alert.TransportName, "reason": alert.Reason, "error": err.Error()})
+				continue
+			}
+			if !hadPrev || prev.Severity != rec.Severity || prev.Summary != rec.Summary || prev.Active != rec.Active {
+				a.integrationForwardAlert(rec)
 			}
 		}
 		if err := a.DB.ResolveTransportAlertsNotIn(tc.Name, ids, now.UTC().Format(time.RFC3339)); err != nil {
@@ -101,6 +107,10 @@ func (a *App) evaluateTransportIntelligence(now time.Time) {
 		for _, snapshot := range anomalySnapshotsForTransport(tc.Name, tc.Type, recent, now) {
 			if err := a.DB.UpsertTransportAnomalySnapshot(snapshot); err != nil {
 				a.Log.Error("transport_anomaly_snapshot_upsert_failed", "failed to persist transport anomaly snapshot", map[string]any{"transport": tc.Name, "reason": snapshot.Reason, "error": err.Error()})
+				continue
+			}
+			if snapshot.Count > 0 || snapshot.DeadLetters > 0 || snapshot.ObservationDrops > 0 {
+				a.integrationForwardAnomaly(snapshot)
 			}
 		}
 	}

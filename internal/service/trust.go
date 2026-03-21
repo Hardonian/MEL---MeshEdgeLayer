@@ -227,6 +227,11 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		"action_id": actionID,
 		"actor":     actorID,
 	})
+	a.integrationForwardControlAction("action approved: "+actionID, map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+		"decision":  "approved",
+	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
 		EventID:    newTrustID("tl"),
 		EventType:  "action_approved",
@@ -295,6 +300,11 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 	a.Log.Info("action_rejected", "operator rejected pending control action", map[string]any{
 		"action_id": actionID,
 		"actor":     actorID,
+	})
+	a.integrationForwardControlAction("action rejected: "+actionID, map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+		"decision":  "rejected",
 	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
 		EventID:    newTrustID("tl"),
