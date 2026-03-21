@@ -17,6 +17,7 @@ import (
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/models"
 )
 
 const (
@@ -454,23 +455,7 @@ func (d *DB) MessageStatsByTransport(name string) (uint64, string, error) {
 	return uint64(asInt(rows[0]["message_count"])), asString(rows[0]["last_rx_time"]), nil
 }
 
-type IncidentRecord struct {
-	ID           string         `json:"id"`
-	Category     string         `json:"category"`
-	Severity     string         `json:"severity"`
-	Title        string         `json:"title"`
-	Summary      string         `json:"summary"`
-	ResourceType string         `json:"resource_type"`
-	ResourceID   string         `json:"resource_id"`
-	State        string         `json:"state"`
-	ActorID      string         `json:"actor_id,omitempty"`
-	OccurredAt   string         `json:"occurred_at"`
-	UpdatedAt    string         `json:"updated_at,omitempty"`
-	ResolvedAt   string         `json:"resolved_at,omitempty"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
-}
-
-func (d *DB) UpsertIncident(record IncidentRecord) error {
+func (d *DB) UpsertIncident(record models.Incident) error {
 	if strings.TrimSpace(record.ID) == "" {
 		return fmt.Errorf("incident id is required")
 	}
@@ -487,16 +472,16 @@ func (d *DB) UpsertIncident(record IncidentRecord) error {
 	return d.Exec(sql)
 }
 
-func (d *DB) RecentIncidents(limit int) ([]IncidentRecord, error) {
+func (d *DB) RecentIncidents(limit int) ([]models.Incident, error) {
 	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json
 		FROM incidents ORDER BY occurred_at DESC LIMIT %d;`, limit))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]IncidentRecord, 0, len(rows))
+	out := make([]models.Incident, 0, len(rows))
 	for _, row := range rows {
-		item := IncidentRecord{
+		item := models.Incident{
 			ID:           asString(row["id"]),
 			Category:     asString(row["category"]),
 			Severity:     asString(row["severity"]),
@@ -517,17 +502,17 @@ func (d *DB) RecentIncidents(limit int) ([]IncidentRecord, error) {
 	return out, nil
 }
 
-func (d *DB) IncidentByID(id string) (IncidentRecord, bool, error) {
+func (d *DB) IncidentByID(id string) (models.Incident, bool, error) {
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json
 		FROM incidents WHERE id='%s' LIMIT 1;`, esc(id)))
 	if err != nil {
-		return IncidentRecord{}, false, err
+		return models.Incident{}, false, err
 	}
 	if len(rows) == 0 {
-		return IncidentRecord{}, false, nil
+		return models.Incident{}, false, nil
 	}
 	row := rows[0]
-	item := IncidentRecord{
+	item := models.Incident{
 		ID:           asString(row["id"]),
 		Category:     asString(row["category"]),
 		Severity:     asString(row["severity"]),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -18,7 +19,7 @@ type TransportDrilldown struct {
 	RecentClusters     []FailureCluster                  `json:"recent_clusters"`
 	RecentAlerts       []TransportAlert                  `json:"recent_alerts"`
 	AnomalySummary     []TransportAnomalySummary         `json:"anomaly_summary"`
-	LastIncidents      []db.IncidentRecord               `json:"last_incidents"`
+	LastIncidents      []models.Incident                 `json:"last_incidents"`
 	EpisodeHistory     []db.TransportAlertRecord         `json:"episode_history"`
 	HealthHistory      []db.TransportHealthSnapshot      `json:"health_history"`
 	AlertHistory       []db.TransportAlertRecord         `json:"alert_history"`

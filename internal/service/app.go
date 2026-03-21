@@ -14,9 +14,11 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/events"
+	"github.com/mel-project/mel/internal/intelligence"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/meshtastic"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/plugins"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
@@ -77,7 +79,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	bus := events.New()
 	state := meshstate.New()
 	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}}
-	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run)
+	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
 	for _, tc := range cfg.Transports {
 		app.transportControls[tc.Name] = newTransportControlState()
@@ -105,10 +107,40 @@ func (a *App) statusSnapshot() (statuspkg.Snapshot, error) {
 
 func (a *App) getQueueDepths() map[string]int {
 	return map[string]int{
-		"ingest": len(a.ingestCh),
+		"ingest":      len(a.ingestCh),
 		"observation": len(a.observationCh),
-		"control": len(a.controlQueue),
+		"control":     len(a.controlQueue),
 	}
+}
+
+// GenerateBriefing gathers current system state and produces a ranked operational briefing
+func (a *App) GenerateBriefing() models.OperatorBriefingDTO {
+	now := time.Now().UTC()
+	var incidents []models.Incident
+	if a.DB != nil {
+		incidents, _ = a.DB.RecentIncidents(20)
+	}
+
+	findings := diagnostics.Run(a.Cfg, a.DB)
+	priorities := intelligence.RankOperationalIssues(incidents, findings, now)
+	recommendations := intelligence.RecommendActions(priorities)
+	sequence := intelligence.SequenceRecoveryActions(recommendations)
+
+	snapshot := a.State.Snapshot()
+	var nodes []models.Node
+	for _, n := range snapshot.Nodes {
+		nodes = append(nodes, models.Node{
+			NodeNum:  n.Num,
+			NodeID:   n.ID,
+			LongName: n.LongName,
+			LastSeen: n.LastSeen,
+		})
+	}
+
+	_, blastMessage := intelligence.EstimateBlastRadius(priorities, nodes)
+
+	briefing := intelligence.GenerateBriefing(priorities, recommendations, sequence, blastMessage, now)
+	return briefing
 }
 
 func (a *App) Start(ctx context.Context) error {
@@ -537,7 +569,7 @@ func (a *App) escalateToIncident(obs transport.Observation) {
 		incidentID = fmt.Sprintf("%s-%d", incidentID, time.Now().Unix())
 	}
 
-	incident := db.IncidentRecord{
+	incident := models.Incident{
 		ID:           incidentID,
 		Category:     "transport",
 		Severity:     severity,

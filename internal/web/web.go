@@ -42,6 +42,7 @@ type Server struct {
 	controlStatus       func() (map[string]any, error)
 	controlHistory      func(string, string, string, int, int) (map[string]any, error)
 	diagnosticsRun      func(config.Config, *db.DB) []diagnostics.Finding
+	operatorBriefing    func() models.OperatorBriefingDTO
 	queueDepths         func() map[string]int
 }
 
@@ -49,7 +50,7 @@ func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
 	s.queueDepths = f
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding) *Server {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
 	snapFn := statusSnapshot
 	if snapFn == nil {
 		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
@@ -72,7 +73,13 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 			return []diagnostics.Finding{}
 		}
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn}
+	operatorBriefingFn := operatorBriefing
+	if operatorBriefingFn == nil {
+		operatorBriefingFn = func() models.OperatorBriefingDTO {
+			return models.OperatorBriefingDTO{OverallStatus: "unknown", GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
+		}
+	}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.requireMethod(s.healthz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/readyz", s.requireMethod(s.readyz, http.MethodGet, http.MethodHead))
@@ -112,6 +119,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.Require(security.CapEscalateAlerts, s.escalateIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	// Self-observability endpoints
@@ -1389,4 +1397,8 @@ func asFloat(v any) float64 {
 	var parsed float64
 	fmt.Sscan(fmt.Sprint(v), &parsed)
 	return parsed
+}
+
+func (s *Server) operatorBriefingHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.operatorBriefing())
 }

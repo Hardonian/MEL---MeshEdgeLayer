@@ -8,6 +8,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -21,7 +22,7 @@ type Snapshot struct {
 	Nodes                    int64                  `json:"nodes"`
 	LastSuccessfulIngest     string                 `json:"last_successful_ingest,omitempty"`
 	Transports               []TransportReport      `json:"transports"`
-	RecentIncidents          []db.IncidentRecord     `json:"recent_incidents,omitempty"`
+	RecentIncidents          []models.Incident      `json:"recent_incidents,omitempty"`
 	ActiveTransportAlerts    []TransportAlert        `json:"active_transport_alerts,omitempty"`
 	Mesh                     MeshDrilldown          `json:"mesh"`
 }
