@@ -102,6 +102,25 @@ func main() {
 		uiCmd(os.Args[2:])
 	case "gui":
 		guiCmd(os.Args[2:])
+	// Distributed kernel commands
+	case "kernel-status":
+		kernelStatusCmd(os.Args[2:])
+	case "kernel-replay":
+		kernelReplayCmd(os.Args[2:])
+	case "kernel-snapshot":
+		kernelSnapshotCmd(os.Args[2:])
+	case "kernel-backup":
+		kernelBackupCmd(os.Args[2:])
+	case "kernel-eventlog":
+		kernelEventlogCmd(os.Args[2:])
+	case "federation":
+		federationCmd(os.Args[2:])
+	case "peers":
+		peersCmd(os.Args[2:])
+	case "region":
+		regionCmd(os.Args[2:])
+	case "topology":
+		topologyCmd(os.Args[2:])
 	default:
 		usage()
 		os.Exit(1)
@@ -151,7 +170,25 @@ func usage() {
   ui --config <path>
   gui --config <path>
   simulate action <type> --transport <name> --config <path>
-  dev-simulate-mqtt`)
+  dev-simulate-mqtt
+
+Distributed kernel commands (require running daemon):
+  kernel-status --config <path> [--url <url>]
+  kernel-replay --config <path> [--url <url>] [--mode full|windowed|scenario|dry_run|verification]
+                [--from-seq <n>] [--to-seq <n>] [--since <RFC3339>] [--until <RFC3339>]
+                [--max-events <n>] [--policy-mode <mode>] [--compact]
+  kernel-snapshot list --config <path> [--url <url>] [--limit <n>]
+  kernel-snapshot create --config <path> [--url <url>]
+  kernel-backup list --config <path> [--url <url>]
+  kernel-backup create --config <path> [--url <url>]
+  kernel-eventlog stats --config <path> [--url <url>]
+  kernel-eventlog query --config <path> [--url <url>] [--type <event-type>] [--node <node-id>]
+                        [--subject <s>] [--since <RFC3339>] [--until <RFC3339>] [--limit <n>]
+  federation status --config <path> [--url <url>]
+  federation sync-health --config <path> [--url <url>]
+  peers list --config <path> [--url <url>]
+  region health [--region <id>] --config <path> [--url <url>]
+  topology global --config <path> [--url <url>]`)
 }
 
 func fs(name string) *flag.FlagSet { return flag.NewFlagSet(name, flag.ExitOnError) }
