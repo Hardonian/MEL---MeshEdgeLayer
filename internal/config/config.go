@@ -26,6 +26,7 @@ type Config struct {
 	RateLimits   RateLimitConfig    `json:"rate_limits"`
 	Intelligence IntelligenceConfig `json:"intelligence"`
 	Control      ControlConfig      `json:"control"`
+	Federation   FederationConfig   `json:"federation"`
 	StrictMode   bool               `json:"strict_mode"`
 }
 
@@ -209,6 +210,7 @@ func Default() Config {
 			ActionTimeoutSeconds:     10,
 			RetentionDays:            14,
 		},
+		Federation: defaultFederationConfig(),
 		StrictMode: false,
 	}
 }
@@ -295,6 +297,7 @@ func normalize(cfg *Config) error {
 	}
 	normalizeIntelligence(cfg)
 	normalizeControl(cfg)
+	normalizeFederation(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
 		if err == nil && host == "" {
