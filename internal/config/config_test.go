@@ -113,3 +113,62 @@ func TestValidateRejectsUnsafeIntelligenceTuning(t *testing.T) {
 		t.Fatal("expected intelligence validation error")
 	}
 }
+
+func TestControlApprovalTimeoutNormalization(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected int
+	}{
+		{-1, 0},
+		{0, 0},
+		{300, 300},
+		{86400, 86400},
+		{86401, 86400},
+		{99999, 86400},
+	}
+	for _, tc := range tests {
+		cfg := Default()
+		cfg.Control.ApprovalTimeoutSeconds = tc.input
+		if err := normalize(&cfg); err != nil {
+			t.Fatalf("normalize failed for input %d: %v", tc.input, err)
+		}
+		if cfg.Control.ApprovalTimeoutSeconds != tc.expected {
+			t.Errorf("ApprovalTimeoutSeconds: input=%d expected=%d got=%d",
+				tc.input, tc.expected, cfg.Control.ApprovalTimeoutSeconds)
+		}
+	}
+}
+
+func TestControlApprovalTimeoutValidation(t *testing.T) {
+	cfg := Default()
+	cfg.Control.ApprovalTimeoutSeconds = -5
+	// normalize should have clamped it, but test that direct validate rejects raw invalid
+	// set to an out-of-range value bypassing normalize
+	cfg.Control.ApprovalTimeoutSeconds = 90000
+	if err := Validate(cfg); err == nil {
+		t.Error("expected validation error for ApprovalTimeoutSeconds > 86400")
+	}
+}
+
+func TestRequireApprovalForActionTypes(t *testing.T) {
+	cfg := Default()
+	cfg.Control.RequireApprovalForActionTypes = []string{"restart_transport", "reconfigure_transport"}
+	if err := normalize(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("valid approval config failed: %v", err)
+	}
+	if len(cfg.Control.RequireApprovalForActionTypes) != 2 {
+		t.Errorf("expected 2 approval types, got %d", len(cfg.Control.RequireApprovalForActionTypes))
+	}
+}
+
+func TestRequireApprovalForHighBlastRadius(t *testing.T) {
+	cfg := Default()
+	cfg.Control.RequireApprovalForHighBlastRadius = true
+	cfg.Control.ApprovalTimeoutSeconds = 300
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("valid high-blast-radius approval config failed: %v", err)
+	}
+}

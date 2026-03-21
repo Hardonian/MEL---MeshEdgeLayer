@@ -81,6 +81,18 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
+	app.Web.SetTrustFuncs(
+		app.ApproveAction,
+		app.RejectAction,
+		app.CreateFreeze,
+		app.ClearFreeze,
+		app.CreateMaintenanceWindow,
+		app.CancelMaintenanceWindow,
+		app.AddOperatorNote,
+		app.Timeline,
+		app.InspectAction,
+		app.OperationalState,
+	)
 	for _, tc := range cfg.Transports {
 		app.transportControls[tc.Name] = newTransportControlState()
 		t, err := transport.Build(tc, log, bus)
@@ -234,6 +246,26 @@ func (a *App) startWorkers(ctx context.Context) {
 			defer a.wg.Done()
 			a.retentionWorker(ctx)
 		}()
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
+			a.trustCleanupWorker(ctx)
+		}()
+	}
+}
+
+// trustCleanupWorker runs periodic cleanup of expired approval actions, freezes,
+// and maintenance windows. Runs every 60 seconds.
+func (a *App) trustCleanupWorker(ctx context.Context) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.cleanupExpiredApprovals()
+		}
 	}
 }
 

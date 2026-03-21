@@ -1,0 +1,614 @@
+package service
+
+// trust.go — Service-layer implementation of the control-plane trust model:
+//   - Approval gate enforcement (approval_required execution mode)
+//   - Freeze / maintenance-mode check before action execution
+//   - Evidence bundle capture on action creation
+//   - Approve / Reject action methods
+//   - Freeze creation / clearing
+//   - Maintenance window management
+//   - Operator notes
+//   - Timeline query
+//   - Action inspect (full evidence + decision bundle)
+//   - Approval expiry cleanup loop
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/mel-project/mel/internal/auth"
+	"github.com/mel-project/mel/internal/control"
+	"github.com/mel-project/mel/internal/db"
+)
+
+// ─── Execution mode helpers ───────────────────────────────────────────────────
+
+// resolveExecutionMode returns the effective execution mode for an action.
+// Config policy can force approval for specific action types or high blast radius.
+func (a *App) resolveExecutionMode(action control.ControlAction) string {
+	cfg := a.Cfg.Control
+
+	// Check if action type requires approval
+	for _, t := range cfg.RequireApprovalForActionTypes {
+		if strings.EqualFold(t, action.ActionType) {
+			return control.ExecutionModeApprovalRequired
+		}
+	}
+
+	// Check blast radius policy
+	if cfg.RequireApprovalForHighBlastRadius {
+		switch action.BlastRadiusClass {
+		case control.BlastRadiusMesh, control.BlastRadiusGlobal:
+			return control.ExecutionModeApprovalRequired
+		}
+	}
+
+	// Default: auto
+	return control.ExecutionModeAuto
+}
+
+// ─── Freeze and maintenance checks ───────────────────────────────────────────
+
+// isExecutionBlocked checks if the action is blocked by an active freeze or
+// maintenance window. Returns (blocked, reason, denial_code).
+func (a *App) isExecutionBlocked(action control.ControlAction) (bool, string, string) {
+	if a.DB == nil {
+		return false, "", ""
+	}
+
+	// Check freeze
+	frozen, reason, err := a.DB.IsFrozen(action.TargetTransport, action.ActionType)
+	if err != nil {
+		a.Log.Error("freeze_check_failed", "could not verify freeze status; allowing as fail-open", map[string]any{"error": err.Error()})
+	} else if frozen {
+		return true, "execution blocked by active freeze: " + reason, control.DenialFreeze
+	}
+
+	// Check maintenance window
+	inMaintenance, reason, err := a.DB.IsInMaintenance(action.TargetTransport, time.Now().UTC())
+	if err != nil {
+		a.Log.Error("maintenance_check_failed", "could not verify maintenance window; allowing as fail-open", map[string]any{"error": err.Error()})
+	} else if inMaintenance {
+		return true, "execution blocked by active maintenance window: " + reason, control.DenialMaintenance
+	}
+
+	return false, "", ""
+}
+
+// ─── Evidence bundle capture ──────────────────────────────────────────────────
+
+// captureEvidenceBundle creates a durable evidence bundle for an action.
+// It pulls together the current transport health, recent anomaly summary,
+// policy version, and any prior relevant decisions.
+func (a *App) captureEvidenceBundle(action control.ControlAction, transportHealthJSON map[string]any) string {
+	if a.DB == nil {
+		return ""
+	}
+
+	bundleID := newTrustID("eb")
+
+	// Build anomaly summary from recent history
+	anomalies := []any{}
+	if strings.TrimSpace(action.TargetTransport) != "" {
+		start := time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339)
+		rows, err := a.DB.TransportAnomalyHistory(action.TargetTransport, start, "", 20, 0)
+		if err == nil {
+			for _, r := range rows {
+				anomalies = append(anomalies, map[string]any{
+					"bucket_start": r.BucketStart,
+					"count":        r.Count,
+					"dead_letters": r.DeadLetters,
+					"obs_drops":    r.ObservationDrops,
+				})
+			}
+		}
+	}
+
+	// Explanation from trigger evidence
+	explanation := map[string]any{
+		"trigger_evidence": action.TriggerEvidence,
+		"reason":           action.Reason,
+		"confidence":       action.Confidence,
+		"policy_rule":      action.PolicyRule,
+	}
+
+	// Prior decisions for same transport (last 5)
+	priorDecisions := []any{}
+	if a.DB != nil && strings.TrimSpace(action.TargetTransport) != "" {
+		rows, err := a.DB.ControlDecisions(action.TargetTransport, "", "", "", 5, 0)
+		if err == nil {
+			for _, r := range rows {
+				priorDecisions = append(priorDecisions, map[string]any{
+					"id":          r.ID,
+					"action_type": r.ActionType,
+					"allowed":     r.Allowed,
+					"created_at":  r.CreatedAt,
+				})
+			}
+		}
+	}
+
+	// Compute integrity hash over deterministic fields
+	hashInput := map[string]any{
+		"action_id":  action.ID,
+		"type":       action.ActionType,
+		"transport":  action.TargetTransport,
+		"reason":     action.Reason,
+		"confidence": action.Confidence,
+		"created_at": action.CreatedAt,
+	}
+	hashBytes, _ := json.Marshal(hashInput)
+	sum := sha256.Sum256(hashBytes)
+	integrityHash := hex.EncodeToString(sum[:])
+
+	bundle := db.EvidenceBundleRecord{
+		ID:              bundleID,
+		ActionID:        action.ID,
+		DecisionID:      action.DecisionID,
+		Anomalies:       anomalies,
+		Explanation:     explanation,
+		TransportHealth: transportHealthJSON,
+		PriorDecisions:  priorDecisions,
+		PolicyVersion:   a.Cfg.Control.Mode + "/" + fmt.Sprintf("%d", len(a.Cfg.Control.AllowedActions)),
+		IntegrityHash:   integrityHash,
+		SourceType:      "system",
+	}
+
+	if err := a.DB.UpsertEvidenceBundle(bundle); err != nil {
+		a.Log.Error("evidence_bundle_capture_failed", "could not persist evidence bundle", map[string]any{
+			"action_id": action.ID,
+			"error":     err.Error(),
+		})
+		return ""
+	}
+
+	return bundleID
+}
+
+// ─── Approval workflow ────────────────────────────────────────────────────────
+
+// ApproveAction approves a pending_approval action and queues it for execution.
+// actorID is the operator performing the approval.
+func (a *App) ApproveAction(actionID, actorID, note string) error {
+	if a == nil || a.DB == nil {
+		return fmt.Errorf("service not available")
+	}
+	if strings.TrimSpace(actionID) == "" {
+		return fmt.Errorf("action_id is required")
+	}
+	if strings.TrimSpace(actorID) == "" {
+		actorID = "system"
+	}
+
+	// Verify the action exists and is pending approval
+	rec, ok, err := a.DB.ControlActionByID(actionID)
+	if err != nil {
+		return fmt.Errorf("could not load action: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("action not found: %s", actionID)
+	}
+	if rec.LifecycleState != control.LifecyclePendingApproval {
+		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
+	}
+
+	// Check if approval has already expired
+	if rec.ApprovalExpiresAt != "" {
+		exp, err2 := time.Parse(time.RFC3339, rec.ApprovalExpiresAt)
+		if err2 == nil && time.Now().UTC().After(exp) {
+			return fmt.Errorf("approval window for action %s has expired", actionID)
+		}
+	}
+
+	if err := a.DB.ApproveControlAction(actionID, actorID, note); err != nil {
+		return fmt.Errorf("could not approve action: %w", err)
+	}
+
+	// Audit the approval
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(actorID),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "approve_action",
+		ResourceType: "control_action",
+		ResourceID:   actionID,
+		Reason:       note,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+
+	a.Log.Info("action_approved", "operator approved pending control action", map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+	})
+
+	// Re-load the action and queue for execution
+	updated, ok, err := a.DB.ControlActionByID(actionID)
+	if err != nil || !ok {
+		return fmt.Errorf("could not reload approved action: %v", err)
+	}
+
+	action := db_ControlActionRecordToControlAction(updated)
+	select {
+	case a.controlQueue <- action:
+	default:
+		a.Log.Error("control_queue_full", "approved action could not be queued", map[string]any{"action_id": actionID})
+		return fmt.Errorf("control queue full; action approved but could not be queued immediately")
+	}
+	return nil
+}
+
+// RejectAction rejects a pending_approval action and marks it closed.
+func (a *App) RejectAction(actionID, actorID, note string) error {
+	if a == nil || a.DB == nil {
+		return fmt.Errorf("service not available")
+	}
+	if strings.TrimSpace(actionID) == "" {
+		return fmt.Errorf("action_id is required")
+	}
+	if strings.TrimSpace(actorID) == "" {
+		actorID = "system"
+	}
+
+	rec, ok, err := a.DB.ControlActionByID(actionID)
+	if err != nil {
+		return fmt.Errorf("could not load action: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("action not found: %s", actionID)
+	}
+	if rec.LifecycleState != control.LifecyclePendingApproval {
+		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
+	}
+
+	if err := a.DB.RejectControlAction(actionID, actorID, note); err != nil {
+		return fmt.Errorf("could not reject action: %w", err)
+	}
+
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(actorID),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "reject_action",
+		ResourceType: "control_action",
+		ResourceID:   actionID,
+		Reason:       note,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+
+	a.Log.Info("action_rejected", "operator rejected pending control action", map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+	})
+	return nil
+}
+
+// ─── Freeze management ────────────────────────────────────────────────────────
+
+// CreateFreeze creates a new control freeze record.
+func (a *App) CreateFreeze(scopeType, scopeValue, reason, createdBy string, expiresAt string) (string, error) {
+	if a == nil || a.DB == nil {
+		return "", fmt.Errorf("service not available")
+	}
+	id := newTrustID("frz")
+	rec := db.FreezeRecord{
+		ID:         id,
+		ScopeType:  scopeType,
+		ScopeValue: scopeValue,
+		Reason:     reason,
+		CreatedBy:  createdBy,
+		ExpiresAt:  expiresAt,
+		Active:     true,
+	}
+	if err := a.DB.CreateFreeze(rec); err != nil {
+		return "", fmt.Errorf("could not create freeze: %w", err)
+	}
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(createdBy),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "create_freeze",
+		ResourceType: "control_freeze",
+		ResourceID:   id,
+		Reason:       reason,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+	a.Log.Info("control_freeze_created", "automation freeze created", map[string]any{
+		"freeze_id":   id,
+		"scope_type":  scopeType,
+		"scope_value": scopeValue,
+		"reason":      reason,
+	})
+	return id, nil
+}
+
+// ClearFreeze removes an active freeze.
+func (a *App) ClearFreeze(freezeID, clearedBy string) error {
+	if a == nil || a.DB == nil {
+		return fmt.Errorf("service not available")
+	}
+	if err := a.DB.ClearFreeze(freezeID, clearedBy); err != nil {
+		return fmt.Errorf("could not clear freeze: %w", err)
+	}
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(clearedBy),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "clear_freeze",
+		ResourceType: "control_freeze",
+		ResourceID:   freezeID,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+	a.Log.Info("control_freeze_cleared", "automation freeze cleared", map[string]any{
+		"freeze_id": freezeID,
+		"cleared_by": clearedBy,
+	})
+	return nil
+}
+
+// ─── Maintenance windows ──────────────────────────────────────────────────────
+
+// CreateMaintenanceWindow creates a new maintenance window record.
+func (a *App) CreateMaintenanceWindow(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error) {
+	if a == nil || a.DB == nil {
+		return "", fmt.Errorf("service not available")
+	}
+	if strings.TrimSpace(startsAt) == "" || strings.TrimSpace(endsAt) == "" {
+		return "", fmt.Errorf("starts_at and ends_at are required")
+	}
+	id := newTrustID("mw")
+	rec := db.MaintenanceWindowRecord{
+		ID:        id,
+		Title:     title,
+		Reason:    reason,
+		ScopeType: scopeType,
+		ScopeValue: scopeValue,
+		StartsAt:  startsAt,
+		EndsAt:    endsAt,
+		CreatedBy: createdBy,
+		Active:    true,
+	}
+	if err := a.DB.CreateMaintenanceWindow(rec); err != nil {
+		return "", fmt.Errorf("could not create maintenance window: %w", err)
+	}
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(createdBy),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "create_maintenance_window",
+		ResourceType: "maintenance_window",
+		ResourceID:   id,
+		Reason:       reason,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+	a.Log.Info("maintenance_window_created", "maintenance window created", map[string]any{
+		"window_id":  id,
+		"starts_at":  startsAt,
+		"ends_at":    endsAt,
+	})
+	return id, nil
+}
+
+// CancelMaintenanceWindow cancels an active maintenance window.
+func (a *App) CancelMaintenanceWindow(windowID, cancelledBy string) error {
+	if a == nil || a.DB == nil {
+		return fmt.Errorf("service not available")
+	}
+	if err := a.DB.CancelMaintenanceWindow(windowID, cancelledBy); err != nil {
+		return fmt.Errorf("could not cancel maintenance window: %w", err)
+	}
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(cancelledBy),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "cancel_maintenance_window",
+		ResourceType: "maintenance_window",
+		ResourceID:   windowID,
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+	return nil
+}
+
+// ─── Operator notes ───────────────────────────────────────────────────────────
+
+// AddOperatorNote attaches a note to any resource reference.
+func (a *App) AddOperatorNote(refType, refID, actorID, content string) (string, error) {
+	if a == nil || a.DB == nil {
+		return "", fmt.Errorf("service not available")
+	}
+	if strings.TrimSpace(refType) == "" || strings.TrimSpace(refID) == "" {
+		return "", fmt.Errorf("ref_type and ref_id are required")
+	}
+	if strings.TrimSpace(content) == "" {
+		return "", fmt.Errorf("note content is required")
+	}
+	id := newTrustID("note")
+	note := db.OperatorNoteRecord{
+		ID:      id,
+		RefType: refType,
+		RefID:   refID,
+		ActorID: actorID,
+		Content: content,
+	}
+	if err := a.DB.CreateOperatorNote(note); err != nil {
+		return "", fmt.Errorf("could not create operator note: %w", err)
+	}
+	return id, nil
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+
+// Timeline returns a unified chronological event feed.
+func (a *App) Timeline(start, end string, limit int) ([]db.TimelineEvent, error) {
+	if a == nil || a.DB == nil {
+		return []db.TimelineEvent{}, nil
+	}
+	return a.DB.TimelineEvents(start, end, limit)
+}
+
+// ─── Action inspect (full evidence + decision bundle) ─────────────────────────
+
+// InspectAction returns the full evidence bundle, decision record, and action
+// record for a given action ID. This is the operator-grade reconstruction path.
+func (a *App) InspectAction(actionID string) (map[string]any, error) {
+	if a == nil || a.DB == nil {
+		return nil, fmt.Errorf("service not available")
+	}
+
+	action, ok, err := a.DB.ControlActionByID(actionID)
+	if err != nil {
+		return nil, fmt.Errorf("could not load action: %w", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("action not found: %s", actionID)
+	}
+
+	var decision *db.ControlDecisionRecord
+	if strings.TrimSpace(action.DecisionID) != "" {
+		// Query decisions and find the one matching the action's decision ID.
+		// We use a broad query since there's no direct-by-ID convenience method.
+		rows, err2 := a.DB.ControlDecisions(action.TargetTransport, "", "", "", 50, 0)
+		if err2 == nil {
+			for i := range rows {
+				if rows[i].ID == action.DecisionID {
+					d := rows[i]
+					decision = &d
+					break
+				}
+			}
+		}
+	}
+
+	var evidenceBundle *db.EvidenceBundleRecord
+	if strings.TrimSpace(action.EvidenceBundleID) != "" {
+		b, ok2, err2 := a.DB.EvidenceBundleByID(action.EvidenceBundleID)
+		if err2 == nil && ok2 {
+			evidenceBundle = &b
+		}
+	} else {
+		b, ok2, err2 := a.DB.EvidenceBundleByActionID(actionID)
+		if err2 == nil && ok2 {
+			evidenceBundle = &b
+		}
+	}
+
+	notes, _ := a.DB.OperatorNotesByRef("action", actionID, 50)
+
+	out := map[string]any{
+		"action":          action,
+		"decision":        decision,
+		"evidence_bundle": evidenceBundle,
+		"notes":           notes,
+		"inspected_at":    time.Now().UTC().Format(time.RFC3339),
+	}
+	return out, nil
+}
+
+// ─── Control plane operational state ─────────────────────────────────────────
+
+// OperationalState returns the current control plane operational posture:
+// freeze status, maintenance mode, approval backlog, and automation mode.
+func (a *App) OperationalState() (map[string]any, error) {
+	if a == nil || a.DB == nil {
+		return map[string]any{"status": "degraded", "reason": "database unavailable"}, nil
+	}
+	return a.DB.ControlPlaneStateSnapshot(time.Now().UTC())
+}
+
+// ─── Approval expiry cleanup ──────────────────────────────────────────────────
+
+// cleanupExpiredApprovals is called periodically to expire stale pending-approval actions.
+func (a *App) cleanupExpiredApprovals() {
+	if a == nil || a.DB == nil {
+		return
+	}
+	now := time.Now().UTC()
+	if err := a.DB.ExpireStaleApprovalActions(now); err != nil {
+		a.Log.Error("approval_expiry_cleanup_failed", "could not expire stale approval actions", map[string]any{"error": err.Error()})
+	}
+	if err := a.DB.ExpireOldFreezes(now); err != nil {
+		a.Log.Error("freeze_expiry_cleanup_failed", "could not expire old freezes", map[string]any{"error": err.Error()})
+	}
+}
+
+// ─── Health snapshot helper ───────────────────────────────────────────────────
+
+// transportHealthJSON returns the current transport health as a map, suitable
+// for evidence bundle capture. Returns an empty map if unavailable.
+func (a *App) transportHealthJSON(transportName string) map[string]any {
+	if a == nil {
+		return map[string]any{}
+	}
+	healthList := a.TransportHealth()
+	result := map[string]any{}
+	for _, h := range healthList {
+		if strings.TrimSpace(transportName) == "" || h.Name == transportName {
+			result[h.Name] = map[string]any{
+				"state":  h.State,
+				"ok":     h.OK,
+				"detail": h.Detail,
+			}
+		}
+	}
+	return result
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+
+func newTrustID(prefix string) string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return prefix + "-" + hex.EncodeToString(b)
+}
+
+// ControlActionRecordToControlAction is a bridge function to re-hydrate a DB
+// record back into a ControlAction for re-queuing after approval.
+// This is defined here to keep db package free of service imports.
+func db_ControlActionRecordToControlAction(r db.ControlActionRecord) control.ControlAction {
+	return control.ControlAction{
+		ID:                r.ID,
+		DecisionID:        r.DecisionID,
+		ActionType:        r.ActionType,
+		TargetTransport:   r.TargetTransport,
+		TargetSegment:     r.TargetSegment,
+		TargetNode:        r.TargetNode,
+		Reason:            r.Reason,
+		Confidence:        r.Confidence,
+		TriggerEvidence:   append([]string(nil), r.TriggerEvidence...),
+		EpisodeID:         r.EpisodeID,
+		CreatedAt:         r.CreatedAt,
+		ExecutedAt:        r.ExecutedAt,
+		CompletedAt:       r.CompletedAt,
+		Result:            r.Result,
+		Reversible:        r.Reversible,
+		ExpiresAt:         r.ExpiresAt,
+		OutcomeDetail:     r.OutcomeDetail,
+		Mode:              r.Mode,
+		PolicyRule:        r.PolicyRule,
+		LifecycleState:    r.LifecycleState,
+		AdvisoryOnly:      r.AdvisoryOnly,
+		DenialCode:        r.DenialCode,
+		ClosureState:      r.ClosureState,
+		Metadata:          r.Metadata,
+		ExecutionMode:     r.ExecutionMode,
+		ProposedBy:        r.ProposedBy,
+		ApprovedBy:        r.ApprovedBy,
+		ApprovedAt:        r.ApprovedAt,
+		RejectedBy:        r.RejectedBy,
+		RejectedAt:        r.RejectedAt,
+		ApprovalNote:      r.ApprovalNote,
+		ApprovalExpiresAt: r.ApprovalExpiresAt,
+		BlastRadiusClass:  r.BlastRadiusClass,
+		EvidenceBundleID:  r.EvidenceBundleID,
+	}
+}
