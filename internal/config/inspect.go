@@ -12,12 +12,15 @@ type EffectiveConfig struct {
 }
 
 func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
+	b, _ := json.Marshal(cfg)
+	
 	fingerprint := ""
 	if len(loadedFromFile) > 0 {
 		fingerprint = SHA256(loadedFromFile)
+	} else {
+		fingerprint = SHA256(b)
 	}
 
-	b, _ := json.Marshal(cfg)
 	var raw map[string]any
 	_ = json.Unmarshal(b, &raw)
 
@@ -29,6 +32,7 @@ func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
 		Violations:  ValidateSafeDefaults(cfg),
 	}
 }
+
 
 func redactMap(m map[string]any, prefix string) {
 	sensitiveKeys := []string{"password", "secret", "key"}

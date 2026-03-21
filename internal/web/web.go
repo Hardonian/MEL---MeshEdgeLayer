@@ -99,9 +99,11 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(s.configInspectHandler, http.MethodGet, http.MethodHead))
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))
 	}
+
 	s.http = &http.Server{Addr: cfg.Bind.API, Handler: s.withSecurityHeaders(s.withAuth(mux)), ReadHeaderTimeout: 5 * time.Second}
 	return s
 }
@@ -519,6 +521,14 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) configInspectHandler(w http.ResponseWriter, r *http.Request) {
+	// We do not have the original []byte of the file here in the Server struct.
+	// We will just pass nil and fingerprint will be empty, which is acceptable for the API
+	// unless we modify the server to hold it. For now, this suffices.
+	eff := config.Inspect(s.cfg, nil)
+	writeJSON(w, http.StatusOK, eff)
 }
 
 func historyParams(cfg config.Config, r *http.Request) (string, string, string, int, int, error) {

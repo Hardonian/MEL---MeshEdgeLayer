@@ -155,14 +155,25 @@ func initCmd(args []string) {
 }
 
 func configCmd(args []string) {
-	if len(args) == 0 || args[0] != "validate" {
-		panic("usage: mel config validate --config <path>")
+	if len(args) == 0 || (args[0] != "validate" && args[0] != "inspect") {
+		panic("usage: mel config validate|inspect --config <path>")
 	}
-	cfg, path := loadCfg(args[1:])
-	findings := validateConfigFile(path, cfg)
-	mustPrint(map[string]any{"status": map[bool]string{true: "valid", false: "invalid"}[len(findings) == 0], "findings": findings, "lints": config.LintConfig(cfg)})
-	if len(findings) > 0 {
-		os.Exit(1)
+	f := fs("config-" + args[0])
+	path := f.String("config", "configs/mel.example.json", "config")
+	_ = f.Parse(args[1:])
+	cfg, loadedBytes, err := config.Load(*path)
+	if err != nil {
+		panic(err)
+	}
+
+	if args[0] == "validate" {
+		findings := validateConfigFile(*path, cfg)
+		mustPrint(map[string]any{"status": map[bool]string{true: "valid", false: "invalid"}[len(findings) == 0], "findings": findings, "lints": config.LintConfig(cfg)})
+		if len(findings) > 0 {
+			os.Exit(1)
+		}
+	} else if args[0] == "inspect" {
+		mustPrint(config.Inspect(cfg, loadedBytes))
 	}
 }
 
