@@ -1105,7 +1105,10 @@ func (s *Server) escalateIncident(w http.ResponseWriter, r *http.Request) {
 	_ = s.db.InsertAuditLog("incident", "warning", "incident escalated", auditEntry.ToMap())
 
 	s.log.Warn("incident_escalated", "incident escalated by operator", map[string]any{"incident_id": req.ID, "actor": identity.ActorID})
-	writeJSON(w, http.StatusOK, map[string]any{"status": "escalated"})
+	writeJSON(w, http.StatusOK, models.StatusResponse{
+		Status:  "escalated",
+		Message: fmt.Sprintf("Incident %s has been escalated for administrative review.", req.ID),
+	})
 }
 
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
