@@ -1,0 +1,8 @@
+{
+  "control": {
+    "mode": "guarded_auto",
+    "allow_transport_restart": false,
+    "allow_source_suppression": false,
+    "require_approval_for_high_blast_radius": true
+  }
+}

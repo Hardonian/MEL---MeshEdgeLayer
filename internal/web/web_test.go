@@ -12,6 +12,7 @@ import (
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/transport"
 )
@@ -219,10 +220,18 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 
 func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {
 	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying}}, func(database *db.DB) {
-		if err := database.InsertAuditLog("transport", "warning", "timeout_stall", map[string]any{"transport": "mqtt", "dead_letter": false}); err != nil {
-			t.Fatal(err)
-		}
-		if err := database.InsertAuditLog("transport", "warning", "timeout_stall", map[string]any{"transport": "mqtt", "dead_letter": false}); err != nil {
+		if err := database.UpsertIncident(models.Incident{
+			ID:           "inc-mqtt-timeout",
+			Category:     "transport",
+			Severity:     "warning",
+			Title:        "Transport stall",
+			Summary:      "timeout_stall on mqtt",
+			ResourceType: "transport",
+			ResourceID:   "mqtt",
+			State:        "open",
+			OccurredAt:   "2026-03-19T12:00:00Z",
+			Metadata:     map[string]any{"reason": "timeout_stall"},
+		}); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -238,9 +247,16 @@ func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	incidents := payload["recent_transport_incidents"].([]any)
+	raw, ok := payload["recent_incidents"]
+	if !ok {
+		t.Fatalf("missing recent_incidents in %#v", payload)
+	}
+	incidents, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("recent_incidents type %T, want []any", raw)
+	}
 	if len(incidents) == 0 {
-		t.Fatalf("expected grouped incidents, got %#v", payload)
+		t.Fatalf("expected incidents, got %#v", payload)
 	}
 }
 

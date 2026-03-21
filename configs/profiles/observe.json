@@ -1,0 +1,9 @@
+{
+  "control": {
+    "mode": "disabled",
+    "emergency_disable": false
+  },
+  "integration": {
+    "enabled": false
+  }
+}

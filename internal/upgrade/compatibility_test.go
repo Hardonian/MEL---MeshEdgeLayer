@@ -57,9 +57,9 @@ func TestCheckCompatibility(t *testing.T) {
 	}{
 		{"v0.1.0", "v0.2.0", true, "warning"}, // pre-1.0 warning
 		{"v1.0.0", "v1.1.0", true, "info"},    // minor upgrade
-		{"v1.0.0", "v2.0.0", true, "warning"},  // major upgrade
-		{"v1.0.0", "v0.1.0", false, "error"},   // downgrade
-		{"v1.0.0", "v3.0.0", false, "error"},   // skip major
+		{"v1.0.0", "v2.0.0", true, "warning"}, // major upgrade
+		{"v1.0.0", "v0.1.0", false, "error"},  // downgrade
+		{"v1.0.0", "v3.0.0", false, "error"},  // skip major
 	}
 
 	for _, tt := range tests {
@@ -109,10 +109,10 @@ func TestIsMigrationPathSafe(t *testing.T) {
 		t.Error("Expected some safety issues to be reported")
 	}
 
-	// Safe path: just adding tables (1->5)
+	// Path 0->5 crosses migration 0002, which is marked destructive in metadata.
 	safe, _ = IsMigrationPathSafe(0, 5)
-	if !safe {
-		t.Error("Expected migration path 0->5 to be safe")
+	if safe {
+		t.Error("Expected migration path 0->5 to be unsafe (includes destructive migration 0002)")
 	}
 }
 

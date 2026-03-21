@@ -30,20 +30,20 @@ import (
 )
 
 type Server struct {
-	cfg                 config.Config
-	log                 *logging.Logger
-	db                  *db.DB
-	state               *meshstate.State
-	bus                 *events.Bus
-	http                *http.Server
-	transportHealth     func() []transport.Health
-	recommendations     func() []policy.Recommendation
-	statusSnapshot      func() (statuspkg.Snapshot, error)
-	controlStatus       func() (map[string]any, error)
-	controlHistory      func(string, string, string, int, int) (map[string]any, error)
-	diagnosticsRun      func(config.Config, *db.DB) []diagnostics.Finding
-	operatorBriefing    func() models.OperatorBriefingDTO
-	queueDepths         func() map[string]int
+	cfg              config.Config
+	log              *logging.Logger
+	db               *db.DB
+	state            *meshstate.State
+	bus              *events.Bus
+	http             *http.Server
+	transportHealth  func() []transport.Health
+	recommendations  func() []policy.Recommendation
+	statusSnapshot   func() (statuspkg.Snapshot, error)
+	controlStatus    func() (map[string]any, error)
+	controlHistory   func(string, string, string, int, int) (map[string]any, error)
+	diagnosticsRun   func(config.Config, *db.DB) []diagnostics.Finding
+	operatorBriefing func() models.OperatorBriefingDTO
+	queueDepths      func() map[string]int
 
 	// Federation hooks
 	federationHandlers *FederationHandlers
@@ -217,10 +217,10 @@ func (s *Server) requireMethod(handler http.HandlerFunc, allowedMethods ...strin
 		}
 		w.Header().Set("Allow", strings.Join(allowedMethods, ", "))
 		s.log.Security("http_method_not_allowed", "invalid HTTP method attempted", "medium", map[string]any{
-			"method":     r.Method,
-			"path":       r.URL.Path,
-			"remote":     remoteClient(r),
-			"allowed":    allowedMethods,
+			"method":  r.Method,
+			"path":    r.URL.Path,
+			"remote":  remoteClient(r),
+			"allowed": allowedMethods,
 		})
 		writeJSON(w, http.StatusMethodNotAllowed, logging.APIErrorResponse(
 			logging.NewSafeError(fmt.Sprintf("Method %s is not allowed for this endpoint", r.Method), nil, "http", false),
@@ -1266,9 +1266,13 @@ pre{padding:1rem;overflow:auto;max-height:400px;border:1px solid var(--border)}
 	fmt.Fprint(w, `<section id="transports"><h2>Transport Health</h2><div style="overflow-x:auto"><table><tr><th>Transport</th><th>State</th><th>Health</th><th>Alerts</th><th>Stats</th><th>Last Seen</th></tr>`)
 	for _, h := range statusSnap.Transports {
 		statusClass := "status-good"
-		if h.Health.Score < 100 { statusClass = "status-warn" }
-		if h.Health.Score < 50 { statusClass = "status-crit" }
-		
+		if h.Health.Score < 100 {
+			statusClass = "status-warn"
+		}
+		if h.Health.Score < 50 {
+			statusClass = "status-crit"
+		}
+
 		fmt.Fprintf(w, `<tr>
 <td><strong>%s</strong><br><span class="muted">%s</span></td>
 <td><code>%s</code></td>
@@ -1313,7 +1317,7 @@ pre{padding:1rem;overflow:auto;max-height:400px;border:1px solid var(--border)}
 	fmt.Fprint(w, `</section>`)
 
 	fmt.Fprint(w, `<section id="events"><h2>System Events</h2><pre>`+asJSON(logs)+`</pre></section>`)
-	
+
 	fmt.Fprintf(w, `<section id="onboarding"><h2>Onboarding Guide</h2><ol>
 <li>Run <code>mel init</code> to bootstrap a fresh configuration (bound to localhost by default).</li>
 <li>Run <code>mel doctor</code> to verify database permissions, schema, and device connectivity.</li>

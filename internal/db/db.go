@@ -228,15 +228,9 @@ func ValidateSQLInput(v string) (string, error) {
 		return "", SQLValidationError{Input: v, Reason: "input contains NULL byte", Blocked: true}
 	}
 	// Common SQL injection markers
-	if strings.Contains(v, "--") {
-		return "", SQLValidationError{Input: v, Reason: "input contains SQL comment marker (--)", Blocked: true}
-	}
-	if strings.Contains(v, "/*") || strings.Contains(v, "*/") {
-		return "", SQLValidationError{Input: v, Reason: "input contains block comment marker (/* or */)", Blocked: true}
-	}
-	if strings.Contains(v, ";") {
-		return "", SQLValidationError{Input: v, Reason: "input contains statement terminator (;)", Blocked: true}
-	}
+	// Values are only ever embedded inside single-quoted SQL literals; escaped quotes
+	// prevent injection, so we do not reject semicolons or comment-like substrings that
+	// appear in legitimate transport errors, JSON, or operator text.
 	// Basic single quote escaping for SQLite
 	return strings.ReplaceAll(v, "'", "''"), nil
 }
@@ -530,7 +524,6 @@ func (d *DB) IncidentByID(id string) (models.Incident, bool, error) {
 	_ = json.Unmarshal([]byte(asString(row["metadata_json"])), &item.Metadata)
 	return item, true, nil
 }
-
 
 func (d *DB) VerifyWriteRead() error {
 	probe := fmt.Sprintf("doctor-%d", time.Now().UnixNano())

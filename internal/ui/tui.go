@@ -124,7 +124,9 @@ func (m *Model) statTick() tea.Cmd {
 
 func (m *Model) vacuum() tea.Cmd {
 	return func() tea.Msg {
-		if m.db == nil { return nil }
+		if m.db == nil {
+			return nil
+		}
 		if err := m.db.Vacuum(); err != nil {
 			return errMsg(err)
 		}
@@ -168,7 +170,7 @@ func (m *Model) renderConfirmation() string {
 		Align(lipgloss.Center)
 
 	text := "VACUUM DATABASE?\n\nThis will re-index and shrink the SQLite file.\nThis is safe but may briefly lock the DB.\n\n[Y] Confirm   [N] Cancel"
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, style.Render(text))
 }
 
@@ -273,11 +275,11 @@ func (m *Model) renderContent() string {
 
 func (m *Model) viewOverview() string {
 	panel := status.BuildPanel(m.snap)
-	
+
 	var sb strings.Builder
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#EBCB8B")).Render("SUMMARY") + "\n")
 	sb.WriteString(panel.Summary + "\n\n")
-	
+
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("ACTIVE TRANSPORTS") + "\n")
 	if len(m.snap.Transports) == 0 {
 		sb.WriteString("No transports enabled.\n")
@@ -289,17 +291,17 @@ func (m *Model) viewOverview() string {
 		} else if tr.EffectiveState == "error" || tr.EffectiveState == "failed" {
 			stateStyle = stateStyle.Foreground(lipgloss.Color("#BF616A"))
 		}
-		
+
 		sb.WriteString(fmt.Sprintf("%-16s %s %s msgs=%d", tr.Name, lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A")).Render("("+tr.Type+")"), stateStyle.Render(strings.ToUpper(tr.EffectiveState)), tr.PersistedMessages))
 		if tr.LastIngestAt != "" {
-			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A")).Render(" last="+tr.LastIngestAt))
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A")).Render(" last=" + tr.LastIngestAt))
 		}
 		sb.WriteString("\n")
 		if tr.LastError != "" {
 			sb.WriteString("    " + lipgloss.NewStyle().Foreground(lipgloss.Color("#D08770")).Render("ERROR: "+tr.LastError) + "\n")
 		}
 	}
-	
+
 	return sb.String()
 }
 
@@ -313,10 +315,18 @@ func (m *Model) viewMesh() string {
 	for _, tr := range m.snap.Transports {
 		sb.WriteString(fmt.Sprintf("%-16s ", tr.Name))
 		caps := []string{}
-		if tr.Capabilities.IngestSupported { caps = append(caps, "INGEST") }
-		if tr.Capabilities.SendSupported { caps = append(caps, "SEND") }
-		if tr.Capabilities.NodeFetchSupported { caps = append(caps, "INVENTORY") }
-		if tr.Capabilities.ConfigApplySupported { caps = append(caps, "CONFIG") }
+		if tr.Capabilities.IngestSupported {
+			caps = append(caps, "INGEST")
+		}
+		if tr.Capabilities.SendSupported {
+			caps = append(caps, "SEND")
+		}
+		if tr.Capabilities.NodeFetchSupported {
+			caps = append(caps, "INVENTORY")
+		}
+		if tr.Capabilities.ConfigApplySupported {
+			caps = append(caps, "CONFIG")
+		}
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A")).Render(strings.Join(caps, " | ")) + "\n")
 	}
 
@@ -343,7 +353,7 @@ func (m *Model) viewControl() string {
 	sb.WriteString("Mode: OBSERVATION (Default)\n\n")
 	sb.WriteString("No active guarded actions in the current episode.\n")
 	sb.WriteString(lipgloss.NewStyle().Faint(true).Render("Guardrail logic is passive until explicitly enabled in config.control.mode."))
-    return sb.String()
+	return sb.String()
 }
 
 func (m *Model) viewLogs() string {
@@ -365,12 +375,12 @@ func (m *Model) viewLogs() string {
 func (m *Model) viewDiagnostics() string {
 	var sb strings.Builder
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("RUNTIME DIAGNOSTICS") + "\n\n")
-	
+
 	sb.WriteString(fmt.Sprintf("Uptime:     %s (current run)\n", time.Since(m.lastUpdate).Round(time.Second)))
 	sb.WriteString(fmt.Sprintf("Heap Alloc: %0.2f MB\n", float64(m.stats.HeapAlloc)/1024/1024))
 	sb.WriteString(fmt.Sprintf("Sys RAM:    %0.2f MB\n", float64(m.stats.Sys)/1024/1024))
 	sb.WriteString(fmt.Sprintf("Goroutines: %d\n", runtime.NumGoroutine()))
-	
+
 	sb.WriteString("\n" + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("SYSTEM FACTS") + "\n")
 	sb.WriteString(fmt.Sprintf("Platform:   %s %s\n", runtime.GOOS, runtime.GOARCH))
 	if m.db != nil {

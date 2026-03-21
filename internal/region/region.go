@@ -21,57 +21,57 @@ import (
 
 // Region represents a geographic or logical deployment region.
 type Region struct {
-	ID            string            `json:"id"`
-	Name          string            `json:"name"`
-	Priority      int               `json:"priority"` // lower = higher priority
-	Isolated      bool              `json:"isolated"`  // true = no cross-region sync
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Priority int               `json:"priority"` // lower = higher priority
+	Isolated bool              `json:"isolated"` // true = no cross-region sync
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // Health summarizes the health of a region.
 type Health struct {
-	RegionID      string    `json:"region_id"`
-	NodeCount     int       `json:"node_count"`
-	HealthyNodes  int       `json:"healthy_nodes"`
-	DegradedNodes int       `json:"degraded_nodes"`
-	FailingNodes  int       `json:"failing_nodes"`
-	DeadNodes     int       `json:"dead_nodes"`
-	OverallHealth float64   `json:"overall_health"` // 0.0 to 1.0
+	RegionID        string             `json:"region_id"`
+	NodeCount       int                `json:"node_count"`
+	HealthyNodes    int                `json:"healthy_nodes"`
+	DegradedNodes   int                `json:"degraded_nodes"`
+	FailingNodes    int                `json:"failing_nodes"`
+	DeadNodes       int                `json:"dead_nodes"`
+	OverallHealth   float64            `json:"overall_health"` // 0.0 to 1.0
 	TransportHealth map[string]float64 `json:"transport_health"`
-	LastUpdateAt  time.Time `json:"last_update_at"`
-	Degraded      bool      `json:"degraded"`
-	Isolated      bool      `json:"isolated"`
+	LastUpdateAt    time.Time          `json:"last_update_at"`
+	Degraded        bool               `json:"degraded"`
+	Isolated        bool               `json:"isolated"`
 }
 
 // GlobalTopology aggregates regions and cross-region routing.
 type GlobalTopology struct {
-	Regions         []Health                 `json:"regions"`
-	TotalNodes      int                      `json:"total_nodes"`
-	TotalHealthy    int                      `json:"total_healthy"`
-	GlobalHealth    float64                  `json:"global_health"`
-	DegradedRegions []string                 `json:"degraded_regions"`
-	IsolatedRegions []string                 `json:"isolated_regions"`
-	CrossRegionLinks []CrossRegionLink       `json:"cross_region_links"`
-	ComputedAt      time.Time                `json:"computed_at"`
+	Regions          []Health          `json:"regions"`
+	TotalNodes       int               `json:"total_nodes"`
+	TotalHealthy     int               `json:"total_healthy"`
+	GlobalHealth     float64           `json:"global_health"`
+	DegradedRegions  []string          `json:"degraded_regions"`
+	IsolatedRegions  []string          `json:"isolated_regions"`
+	CrossRegionLinks []CrossRegionLink `json:"cross_region_links"`
+	ComputedAt       time.Time         `json:"computed_at"`
 }
 
 // CrossRegionLink represents connectivity between two regions.
 type CrossRegionLink struct {
-	RegionA     string  `json:"region_a"`
-	RegionB     string  `json:"region_b"`
-	Latency     float64 `json:"latency_ms"`
-	Healthy     bool    `json:"healthy"`
+	RegionA     string    `json:"region_a"`
+	RegionB     string    `json:"region_b"`
+	Latency     float64   `json:"latency_ms"`
+	Healthy     bool      `json:"healthy"`
 	LastChecked time.Time `json:"last_checked"`
 }
 
 // Manager coordinates region-aware operations.
 type Manager struct {
-	mu       sync.RWMutex
-	localID  string
-	regions  map[string]*Region
-	health   map[string]*Health
-	links    []CrossRegionLink
-	dbPath   string
+	mu      sync.RWMutex
+	localID string
+	regions map[string]*Region
+	health  map[string]*Health
+	links   []CrossRegionLink
+	dbPath  string
 }
 
 // NewManager creates a region manager.

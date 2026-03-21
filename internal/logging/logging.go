@@ -22,14 +22,14 @@ const (
 )
 
 const (
-	CategoryTransport  = "transport"
-	CategorySecurity   = "security"
-	CategoryAudit      = "audit"
-	CategoryPrivacy    = "privacy"
-	CategoryDatabase   = "database"
-	CategoryControl    = "control"
-	CategoryNode       = "node"
-	CategoryPlugin     = "plugin"
+	CategoryTransport = "transport"
+	CategorySecurity  = "security"
+	CategoryAudit     = "audit"
+	CategoryPrivacy   = "privacy"
+	CategoryDatabase  = "database"
+	CategoryControl   = "control"
+	CategoryNode      = "node"
+	CategoryPlugin    = "plugin"
 )
 
 type correlationKey struct{}
@@ -54,13 +54,13 @@ func Global() *Logger {
 }
 
 type Logger struct {
-	mu               sync.Mutex
-	level            int
-	debug            bool
-	rateLimiter      *RateLimiter
-	redactIPs        bool
-	redactNodeIDs    bool
-	redactTopics     bool
+	mu                sync.Mutex
+	level             int
+	debug             bool
+	rateLimiter       *RateLimiter
+	redactIPs         bool
+	redactNodeIDs     bool
+	redactTopics      bool
 	enableCorrelation bool
 }
 
@@ -200,10 +200,18 @@ type ContextLogger struct {
 	ctx    context.Context
 }
 
-func (cl *ContextLogger) Debug(eventType, msg string, f map[string]any) { cl.log(LevelDebug, eventType, msg, f) }
-func (cl *ContextLogger) Info(eventType, msg string, f map[string]any)  { cl.log(LevelInfo, eventType, msg, f) }
-func (cl *ContextLogger) Warn(eventType, msg string, f map[string]any)  { cl.log(LevelWarn, eventType, msg, f) }
-func (cl *ContextLogger) Error(eventType, msg string, f map[string]any) { cl.log(LevelError, eventType, msg, f) }
+func (cl *ContextLogger) Debug(eventType, msg string, f map[string]any) {
+	cl.log(LevelDebug, eventType, msg, f)
+}
+func (cl *ContextLogger) Info(eventType, msg string, f map[string]any) {
+	cl.log(LevelInfo, eventType, msg, f)
+}
+func (cl *ContextLogger) Warn(eventType, msg string, f map[string]any) {
+	cl.log(LevelWarn, eventType, msg, f)
+}
+func (cl *ContextLogger) Error(eventType, msg string, f map[string]any) {
+	cl.log(LevelError, eventType, msg, f)
+}
 
 func (cl *ContextLogger) Audit(category, msg string, f map[string]any) {
 	if f == nil {
@@ -248,9 +256,9 @@ type RateLimiter struct {
 }
 
 type tokenBucket struct {
-	tokens    int
-	lastAdd   time.Time
-	mu        sync.Mutex
+	tokens  int
+	lastAdd time.Time
+	mu      sync.Mutex
 }
 
 func NewRateLimiter(interval time.Duration, burst int) *RateLimiter {

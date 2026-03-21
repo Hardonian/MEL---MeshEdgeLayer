@@ -1018,9 +1018,9 @@ func TestAttemptHealIntegration(t *testing.T) {
 		defer SetGlobalRegistry(NewHealthRegistry())
 
 		strategy := NewRetryStrategy(RetryPolicy{
-			MaxRetries:       0,
-			CooldownWindow:   time.Second,
-			Jitter:           false,
+			MaxRetries:     0,
+			CooldownWindow: time.Second,
+			Jitter:         false,
 		}, func(component string) error {
 			return nil
 		})

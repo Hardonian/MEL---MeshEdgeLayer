@@ -227,8 +227,13 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		"action_id": actionID,
 		"actor":     actorID,
 	})
+	a.integrationForwardControlAction("action approved: "+actionID, map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+		"decision":  "approved",
+	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "action_approved",
 		Summary:    "action approved: " + actionID,
 		Severity:   "info",
@@ -296,8 +301,13 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 		"action_id": actionID,
 		"actor":     actorID,
 	})
+	a.integrationForwardControlAction("action rejected: "+actionID, map[string]any{
+		"action_id": actionID,
+		"actor":     actorID,
+		"decision":  "rejected",
+	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "action_rejected",
 		Summary:    "action rejected: " + actionID,
 		Severity:   "warning",
@@ -346,7 +356,7 @@ func (a *App) CreateFreeze(scopeType, scopeValue, reason, createdBy string, expi
 		"reason":      reason,
 	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "freeze_created",
 		Summary:    "freeze created: " + scopeType + " " + scopeValue,
 		Severity:   "warning",
@@ -380,7 +390,7 @@ func (a *App) ClearFreeze(freezeID, clearedBy string) error {
 		"cleared_by": clearedBy,
 	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "freeze_cleared",
 		Summary:    "freeze cleared: " + freezeID,
 		Severity:   "info",
@@ -403,15 +413,15 @@ func (a *App) CreateMaintenanceWindow(title, reason, scopeType, scopeValue, crea
 	}
 	id := newTrustID("mw")
 	rec := db.MaintenanceWindowRecord{
-		ID:        id,
-		Title:     title,
-		Reason:    reason,
-		ScopeType: scopeType,
+		ID:         id,
+		Title:      title,
+		Reason:     reason,
+		ScopeType:  scopeType,
 		ScopeValue: scopeValue,
-		StartsAt:  startsAt,
-		EndsAt:    endsAt,
-		CreatedBy: createdBy,
-		Active:    true,
+		StartsAt:   startsAt,
+		EndsAt:     endsAt,
+		CreatedBy:  createdBy,
+		Active:     true,
 	}
 	if err := a.DB.CreateMaintenanceWindow(rec); err != nil {
 		return "", fmt.Errorf("could not create maintenance window: %w", err)
@@ -433,7 +443,7 @@ func (a *App) CreateMaintenanceWindow(title, reason, scopeType, scopeValue, crea
 		"ends_at":   endsAt,
 	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "maintenance_created",
 		Summary:    "maintenance window created: " + title,
 		Severity:   "info",
@@ -463,7 +473,7 @@ func (a *App) CancelMaintenanceWindow(windowID, cancelledBy string) error {
 		Timestamp:    time.Now().UTC(),
 	})
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		ID:         newTrustID("tl"),
+		EventID:    newTrustID("tl"),
 		EventType:  "maintenance_cancelled",
 		Summary:    "maintenance window cancelled: " + windowID,
 		Severity:   "info",
@@ -608,7 +618,7 @@ func (a *App) cleanupExpiredApprovals() {
 				"count": len(pending),
 			})
 			_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-				ID:        newTrustID("tl"),
+				EventID:   newTrustID("tl"),
 				EventType: "approval_backlog_warn",
 				Summary:   fmt.Sprintf("approval backlog: %d actions awaiting operator approval", len(pending)),
 				Severity:  "warning",

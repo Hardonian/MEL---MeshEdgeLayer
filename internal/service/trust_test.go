@@ -46,15 +46,15 @@ func newTrustTestApp(t *testing.T) *App {
 func insertPendingApprovalAction(t *testing.T, d *db.DB, id, transportName string) {
 	t.Helper()
 	if err := d.UpsertControlAction(db.ControlActionRecord{
-		ID:             id,
-		ActionType:     control.ActionRestartTransport,
-		TargetTransport: transportName,
-		Reason:         "test action",
-		Confidence:     0.9,
-		ExecutionMode:  control.ExecutionModeApprovalRequired,
-		LifecycleState: control.LifecyclePendingApproval,
-		ProposedBy:     "system",
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		ID:               id,
+		ActionType:       control.ActionRestartTransport,
+		TargetTransport:  transportName,
+		Reason:           "test action",
+		Confidence:       0.9,
+		ExecutionMode:    control.ExecutionModeApprovalRequired,
+		LifecycleState:   control.LifecyclePendingApproval,
+		ProposedBy:       "system",
+		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
 		BlastRadiusClass: "transport",
 	}); err != nil {
 		t.Fatalf("insertPendingApprovalAction: %v", err)
@@ -286,8 +286,8 @@ func TestServiceInspectAction_ReturnsFullBundle(t *testing.T) {
 	// Add an evidence bundle
 	bundleID := "eb-inspect-1"
 	if err := a.DB.UpsertEvidenceBundle(db.EvidenceBundleRecord{
-		ID:       bundleID,
-		ActionID: "act-inspect-1",
+		ID:          bundleID,
+		ActionID:    "act-inspect-1",
 		Explanation: map[string]any{"reason": "test evidence"},
 	}); err != nil {
 		t.Fatal(err)

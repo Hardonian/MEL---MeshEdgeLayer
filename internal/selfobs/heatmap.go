@@ -92,21 +92,21 @@ type ComponentHeat struct {
 //   - IP addresses, user IDs, session IDs, or request metadata
 //   - Any data that could identify individual users or their activities
 type HeatAggregator struct {
-	mu          sync.RWMutex
-	components  map[string]*ComponentHeat
-	window      time.Duration
-	createdAt   time.Time
-	eventLog    []heatEvent // ring buffer for heat score calculation
-	eventIdx    int
-	eventCap    int
+	mu         sync.RWMutex
+	components map[string]*ComponentHeat
+	window     time.Duration
+	createdAt  time.Time
+	eventLog   []heatEvent // ring buffer for heat score calculation
+	eventIdx   int
+	eventCap   int
 }
 
 // heatEvent is an internal structure for rolling window calculations.
 // Contains only timestamps and counters - no payload data.
 type heatEvent struct {
-	timestamp   time.Time
-	component   string
-	eventType   string // "failure", "retry", "state_change", "recovery_success", "recovery_failure"
+	timestamp time.Time
+	component string
+	eventType string // "failure", "retry", "state_change", "recovery_success", "recovery_failure"
 }
 
 // HeatMapSnapshot provides a point-in-time view of the entire heat map.

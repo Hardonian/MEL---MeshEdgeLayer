@@ -18,7 +18,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":              v.Version,
+		"version":             v.Version,
 		"git_commit":          v.GitCommit,
 		"build_time":          v.BuildTime,
 		"go_version":          v.GoVersion,

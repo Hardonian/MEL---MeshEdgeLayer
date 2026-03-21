@@ -9,8 +9,8 @@ import (
 
 // Version compatibility levels
 const (
-	CompatibilityStable = "stable"
-	CompatibilityDev   = "dev"
+	CompatibilityStable  = "stable"
+	CompatibilityDev     = "dev"
 	CompatibilityPreview = "preview"
 )
 
@@ -23,15 +23,15 @@ type VersionInfo struct {
 	GitCommit          string `json:"git_commit"`          // Git commit hash
 	BuildTime          string `json:"build_time"`          // Build timestamp
 	GoVersion          string `json:"go_version"`          // Go runtime version
-	DBSchemaVersion    int    `json:"db_schema_version"`  // Database schema version
+	DBSchemaVersion    int    `json:"db_schema_version"`   // Database schema version
 	CompatibilityLevel string `json:"compatibility_level"` // stable|preview|dev
 }
 
 // Build-time variables - set via ldflags
 var (
-	Version     = "0.1.0-dev"     // -X github.com/mel-project/mel/internal/version.Version
-	GitCommit   = "dev"           // -X github.com/mel-project/mel/internal/version.GitCommit
-	BuildTime   = "now"           // -X github.com/mel-project/mel/internal/version.BuildTime
+	Version            = "0.1.0-dev"      // -X github.com/mel-project/mel/internal/version.Version
+	GitCommit          = "dev"            // -X github.com/mel-project/mel/internal/version.GitCommit
+	BuildTime          = "now"            // -X github.com/mel-project/mel/internal/version.BuildTime
 	CompatibilityLevel = CompatibilityDev // -X github.com/mel-project/mel/internal/version.CompatibilityLevel
 )
 

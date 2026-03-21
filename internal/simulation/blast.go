@@ -26,19 +26,19 @@ const (
 type ImpactType string
 
 const (
-	ImpactTypeConnectivity   ImpactType = "connectivity"    // Network/connectivity impact
-	ImpactTypeDataFlow       ImpactType = "data_flow"       // Data ingestion/flow impact
-	ImpactTypeObservability  ImpactType = "observability"   // Monitoring/observability impact
-	ImpactTypeControlPath    ImpactType = "control_path"    // Control signal path impact
-	ImpactTypeCascading      ImpactType = "cascading"       // Secondary cascading effects
+	ImpactTypeConnectivity  ImpactType = "connectivity"  // Network/connectivity impact
+	ImpactTypeDataFlow      ImpactType = "data_flow"     // Data ingestion/flow impact
+	ImpactTypeObservability ImpactType = "observability" // Monitoring/observability impact
+	ImpactTypeControlPath   ImpactType = "control_path"  // Control signal path impact
+	ImpactTypeCascading     ImpactType = "cascading"     // Secondary cascading effects
 )
 
 // ImpactStatus distinguishes between observed and predicted impacts
 type ImpactStatus string
 
 const (
-	ImpactStatusObserved  ImpactStatus = "observed"  // Impact is already occurring
-	ImpactStatusPredicted ImpactStatus = "predicted" // Impact is predicted if action taken
+	ImpactStatusObserved     ImpactStatus = "observed"     // Impact is already occurring
+	ImpactStatusPredicted    ImpactStatus = "predicted"    // Impact is predicted if action taken
 	ImpactStatusHypothetical ImpactStatus = "hypothetical" // Theoretical impact under certain conditions
 )
 
@@ -527,37 +527,37 @@ func (p *BlastRadiusPredictor) predictDetailedImpacts(action control.ControlActi
 		// Connectivity impact
 		if profile.DisruptsConnectivity {
 			impacts = append(impacts, PredictedImpact{
-				Scope:       ScopeTransport,
-				Type:        ImpactTypeConnectivity,
-				Status:      status,
-				Component:   transportName,
-				Description: fmt.Sprintf("Transport %s will experience connectivity disruption", transportName),
-				Severity:    p.impactSeverityForScore(prediction.Score),
-				Likelihood:  prediction.Confidence,
+				Scope:            ScopeTransport,
+				Type:             ImpactTypeConnectivity,
+				Status:           status,
+				Component:        transportName,
+				Description:      fmt.Sprintf("Transport %s will experience connectivity disruption", transportName),
+				Severity:         p.impactSeverityForScore(prediction.Score),
+				Likelihood:       prediction.Confidence,
 				DurationEstimate: profile.RecoveryTime,
-				Mitigation:  "Monitor transport health; action is reversible via reconnect loop",
+				Mitigation:       "Monitor transport health; action is reversible via reconnect loop",
 			})
 		}
 
 		// Data flow impact
 		if profile.DisruptsDataFlow {
 			impacts = append(impacts, PredictedImpact{
-				Scope:       ScopeTransport,
-				Type:        ImpactTypeDataFlow,
-				Status:      status,
-				Component:   transportName,
-				Description: fmt.Sprintf("Data ingestion from %s will be interrupted", transportName),
-				Severity:    p.impactSeverityForScore(prediction.Score),
-				Likelihood:  prediction.Confidence,
+				Scope:            ScopeTransport,
+				Type:             ImpactTypeDataFlow,
+				Status:           status,
+				Component:        transportName,
+				Description:      fmt.Sprintf("Data ingestion from %s will be interrupted", transportName),
+				Severity:         p.impactSeverityForScore(prediction.Score),
+				Likelihood:       prediction.Confidence,
 				DurationEstimate: profile.RecoveryTime,
-				Mitigation:  "Ensure alternate transports are healthy; consider temporary buffering",
+				Mitigation:       "Ensure alternate transports are healthy; consider temporary buffering",
 			})
 		}
 	}
 
 	// Segment-level impacts
 	for _, segmentID := range prediction.AffectedSegments {
-		impacts = append(append(impacts, PredictedImpact{
+		impacts = append(impacts, PredictedImpact{
 			Scope:       ScopeSegment,
 			Type:        ImpactTypeControlPath,
 			Status:      ImpactStatusPredicted,
@@ -566,7 +566,7 @@ func (p *BlastRadiusPredictor) predictDetailedImpacts(action control.ControlActi
 			Severity:    p.impactSeverityForScore(prediction.Score),
 			Likelihood:  prediction.Confidence * 0.8,
 			Mitigation:  "Verify segment redundancy before proceeding",
-		}))
+		})
 	}
 
 	// Mesh-level observability impact
@@ -659,9 +659,9 @@ func (p *BlastRadiusPredictor) assessServiceImpacts(action control.ControlAction
 	// Ingest service impact
 	if profile.DisruptsDataFlow {
 		impacts = append(impacts, ServiceImpact{
-			ServiceName:  "ingest",
-			ImpactLevel:  RiskLevelMedium,
-			Description:  fmt.Sprintf("Data ingestion will be interrupted for target transport during action"),
+			ServiceName:      "ingest",
+			ImpactLevel:      RiskLevelMedium,
+			Description:      fmt.Sprintf("Data ingestion will be interrupted for target transport during action"),
 			DurationEstimate: profile.RecoveryTime,
 		})
 	}
@@ -669,9 +669,9 @@ func (p *BlastRadiusPredictor) assessServiceImpacts(action control.ControlAction
 	// Monitoring service impact
 	if len(p.mesh.ActiveAlerts) > 0 {
 		impacts = append(impacts, ServiceImpact{
-			ServiceName:  "monitoring",
-			ImpactLevel:  RiskLevelLow,
-			Description:  "Alert state may temporarily fluctuate during transport restart",
+			ServiceName:      "monitoring",
+			ImpactLevel:      RiskLevelLow,
+			Description:      "Alert state may temporarily fluctuate during transport restart",
 			DurationEstimate: profile.RecoveryTime / 2,
 		})
 	}
@@ -679,9 +679,9 @@ func (p *BlastRadiusPredictor) assessServiceImpacts(action control.ControlAction
 	// Control plane impact
 	if action.TargetSegment != "" || isMeshWideAction(action.ActionType) {
 		impacts = append(impacts, ServiceImpact{
-			ServiceName:  "control_plane",
-			ImpactLevel:  RiskLevelMedium,
-			Description:  "Mesh-level control actions may experience delayed propagation",
+			ServiceName:      "control_plane",
+			ImpactLevel:      RiskLevelMedium,
+			Description:      "Mesh-level control actions may experience delayed propagation",
 			DurationEstimate: profile.RecoveryTime,
 		})
 	}
@@ -887,9 +887,9 @@ func (p *BlastRadiusPredictor) buildPrioritiesFromMesh(action control.ControlAct
 				Severity: segment.Severity,
 				Title:    segment.Reason,
 				Metadata: map[string]any{
-					"segment_id":         segment.SegmentID,
+					"segment_id":          segment.SegmentID,
 					"affected_transports": segment.Transports,
-					"affected_nodes":     segment.Nodes,
+					"affected_nodes":      segment.Nodes,
 				},
 			})
 		}

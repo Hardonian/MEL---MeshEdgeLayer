@@ -15,7 +15,9 @@ func GenerateBriefing(priorities []models.PriorityItem, recommendations []Recomm
 	if len(priorities) > 0 {
 		status = "Degraded"
 		for _, p := range priorities {
-			if p.Severity == "critical" { status = "Critical" }
+			if p.Severity == "critical" {
+				status = "Critical"
+			}
 			if val, ok := p.Metadata["likely_causes"].([]string); ok {
 				causes = append(causes, val...)
 			}
@@ -42,13 +44,13 @@ func GenerateBriefing(priorities []models.PriorityItem, recommendations []Recomm
 }
 
 func dedupe(in []string) []string {
-    seen := make(map[string]bool)
-    var out []string
-    for _, s := range in {
-        if !seen[s] {
-            out = append(out, s)
-            seen[s] = true
-        }
-    }
-    return out
+	seen := make(map[string]bool)
+	var out []string
+	for _, s := range in {
+		if !seen[s] {
+			out = append(out, s)
+			seen[s] = true
+		}
+	}
+	return out
 }

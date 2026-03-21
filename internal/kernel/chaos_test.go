@@ -652,8 +652,8 @@ func TestRegionHealthPropagation(t *testing.T) {
 	k := New("mel-region-node", Policy{Version: "v1", Mode: "advisory"})
 
 	regions := []struct {
-		id      string
-		health  float64
+		id       string
+		health   float64
 		degraded bool
 	}{
 		{"us-east-1", 0.95, false},

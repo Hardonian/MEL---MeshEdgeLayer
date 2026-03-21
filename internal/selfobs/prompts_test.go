@@ -34,11 +34,11 @@ func TestRegisterTemplate(t *testing.T) {
 
 	// Test valid template registration
 	customTemplate := PromptTemplate{
-		Name:        "custom",
-		Description: "A custom template",
-		SystemPrompt: "System prompt",
+		Name:               "custom",
+		Description:        "A custom template",
+		SystemPrompt:       "System prompt",
 		UserPromptTemplate: "User {{Variable}}",
-		Version:     "1.0",
+		Version:            "1.0",
 		OutputSchema: map[string]string{
 			"result": "string",
 		},

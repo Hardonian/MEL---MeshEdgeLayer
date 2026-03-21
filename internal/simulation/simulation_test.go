@@ -11,21 +11,21 @@ import (
 
 // TestEngineCreation verifies the engine initializes correctly
 func TestEngineCreation(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	if engine == nil {
 		t.Fatal("Expected engine to be created, got nil")
 	}
 
-	if engine.cfg != cfg {
+	if engine.cfg.Control.Mode != cfg.Control.Mode {
 		t.Error("Expected engine to store config")
 	}
 }
 
 // TestSimulateDeterminism verifies same inputs produce same outputs
 func TestSimulateDeterminism(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	cfg.Control.Mode = control.ModeAdvisory
 	engine := NewEngine(cfg, nil)
 
@@ -38,7 +38,9 @@ func TestSimulateDeterminism(t *testing.T) {
 	}
 
 	input := SimulationInput{
-		CandidateAction: control.ControlAction{
+		SimulationID: "test-determinism",
+		Timestamp:    now,
+		ProposedAction: control.ControlAction{
 			ID:              "test-action-1",
 			ActionType:      control.ActionTriggerHealthRecheck,
 			TargetTransport: "test-transport",
@@ -47,9 +49,7 @@ func TestSimulateDeterminism(t *testing.T) {
 			CreatedAt:       now.Format(time.RFC3339),
 			Mode:            control.ModeAdvisory,
 		},
-		MeshState:   mesh,
-		CurrentTime: now,
-		Configuration: cfg,
+		MeshTopology: mesh,
 	}
 
 	// Run simulation twice with same inputs
@@ -70,10 +70,10 @@ func TestSimulateDeterminism(t *testing.T) {
 			result2.PredictedOutcome.SuccessProbability)
 	}
 
-	if result1.RiskAssessment.RiskLevel != result2.RiskAssessment.RiskLevel {
+	if result1.RiskAssessment.OverallRisk != result2.RiskAssessment.OverallRisk {
 		t.Errorf("Risk level not deterministic: %v vs %v",
-			result1.RiskAssessment.RiskLevel,
-			result2.RiskAssessment.RiskLevel)
+			result1.RiskAssessment.OverallRisk,
+			result2.RiskAssessment.OverallRisk)
 	}
 
 	if result1.SafeToAct.Decision != result2.SafeToAct.Decision {
@@ -86,38 +86,38 @@ func TestSimulateDeterminism(t *testing.T) {
 // TestSafeToActEvaluation verifies safe-to-act logic
 func TestSafeToActEvaluation(t *testing.T) {
 	tests := []struct {
-		name           string
-		actionType     string
-		mode           string
-		meshState      string
-		expectedDecision SafetyStatus
+		name             string
+		actionType       string
+		mode             string
+		meshState        string
+		expectedDecision SafetyLevel
 	}{
 		{
-			name:           "Health recheck in advisory mode",
-			actionType:     control.ActionTriggerHealthRecheck,
-			mode:           control.ModeAdvisory,
-			meshState:      "healthy",
-			expectedDecision: SafeAfterCondition, // Advisory mode requires operator
+			name:             "Health recheck in advisory mode",
+			actionType:       control.ActionTriggerHealthRecheck,
+			mode:             control.ModeAdvisory,
+			meshState:        "healthy",
+			expectedDecision: SafetyLevelCaution, // Advisory mode requires operator
 		},
 		{
-			name:           "Restart in disabled mode",
-			actionType:     control.ActionRestartTransport,
-			mode:           control.ModeDisabled,
-			meshState:      "degraded",
-			expectedDecision: NotSafe, // Disabled mode blocks all
+			name:             "Restart in disabled mode",
+			actionType:       control.ActionRestartTransport,
+			mode:             control.ModeDisabled,
+			meshState:        "degraded",
+			expectedDecision: SafetyLevelUnsafe, // Disabled mode blocks all
 		},
 		{
-			name:           "Backoff increase with healthy mesh",
-			actionType:     control.ActionBackoffIncrease,
-			mode:           control.ModeGuardedAuto,
-			meshState:      "healthy",
-			expectedDecision: SafeToAct, // Low risk action
+			name:             "Backoff increase with healthy mesh",
+			actionType:       control.ActionBackoffIncrease,
+			mode:             control.ModeGuardedAuto,
+			meshState:        "healthy",
+			expectedDecision: SafetyLevelSafe, // Low risk action
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.DefaultConfig()
+			cfg := config.Default()
 			cfg.Control.Mode = tt.mode
 			engine := NewEngine(cfg, nil)
 
@@ -129,7 +129,7 @@ func TestSafeToActEvaluation(t *testing.T) {
 			}
 
 			input := SimulationInput{
-				CandidateAction: control.ControlAction{
+				ProposedAction: control.ControlAction{
 					ID:              "test-action",
 					ActionType:      tt.actionType,
 					TargetTransport: "test-transport",
@@ -138,9 +138,7 @@ func TestSafeToActEvaluation(t *testing.T) {
 					CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 					Mode:            tt.mode,
 				},
-				MeshState:     mesh,
-				CurrentTime:   time.Now().UTC(),
-				Configuration: cfg,
+				MeshTopology: mesh,
 			}
 
 			result, err := engine.Simulate(input)
@@ -150,8 +148,8 @@ func TestSafeToActEvaluation(t *testing.T) {
 
 			// Note: Exact decision depends on many factors, so we just verify
 			// the decision is one of the valid values
-			validDecisions := []SafetyStatus{
-				SafeToAct, SafeAfterCondition, NotSafe, InsufficientData,
+			validDecisions := []SafetyLevel{
+				SafetyLevelSafe, SafetyLevelCaution, SafetyLevelAtRisk, SafetyLevelUnsafe, SafetyLevelForbidden,
 			}
 			found := false
 			for _, d := range validDecisions {
@@ -170,20 +168,20 @@ func TestSafeToActEvaluation(t *testing.T) {
 // TestRiskScoring verifies risk level assignment
 func TestRiskScoring(t *testing.T) {
 	tests := []struct {
-		name           string
-		actionType     string
+		name            string
+		actionType      string
 		expectedMinRisk RiskLevel
 		expectedMaxRisk RiskLevel
 	}{
 		{
-			name:           "Health recheck is low risk",
-			actionType:     control.ActionTriggerHealthRecheck,
+			name:            "Health recheck is low risk",
+			actionType:      control.ActionTriggerHealthRecheck,
 			expectedMinRisk: RiskLevelNone,
 			expectedMaxRisk: RiskLevelLow,
 		},
 		{
-			name:           "Restart transport is medium risk",
-			actionType:     control.ActionRestartTransport,
+			name:            "Restart transport is medium risk",
+			actionType:      control.ActionRestartTransport,
 			expectedMinRisk: RiskLevelLow,
 			expectedMaxRisk: RiskLevelMedium,
 		},
@@ -191,7 +189,7 @@ func TestRiskScoring(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.DefaultConfig()
+			cfg := config.Default()
 			engine := NewEngine(cfg, nil)
 
 			mesh := status.MeshDrilldown{
@@ -202,7 +200,7 @@ func TestRiskScoring(t *testing.T) {
 			}
 
 			input := SimulationInput{
-				CandidateAction: control.ControlAction{
+				ProposedAction: control.ControlAction{
 					ID:              "test-action",
 					ActionType:      tt.actionType,
 					TargetTransport: "test-transport",
@@ -211,9 +209,7 @@ func TestRiskScoring(t *testing.T) {
 					CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 					Mode:            control.ModeGuardedAuto,
 				},
-				MeshState:     mesh,
-				CurrentTime:   time.Now().UTC(),
-				Configuration: cfg,
+				MeshTopology: mesh,
 			}
 
 			result, err := engine.Simulate(input)
@@ -230,13 +226,13 @@ func TestRiskScoring(t *testing.T) {
 				RiskLevelCritical: 4,
 			}
 
-			actualRisk := riskOrder[result.RiskAssessment.RiskLevel]
+			actualRisk := riskOrder[result.RiskAssessment.OverallRisk]
 			minRisk := riskOrder[tt.expectedMinRisk]
 			maxRisk := riskOrder[tt.expectedMaxRisk]
 
 			if actualRisk < minRisk || actualRisk > maxRisk {
 				t.Errorf("Risk level %v not in expected range [%v, %v]",
-					result.RiskAssessment.RiskLevel,
+					result.RiskAssessment.OverallRisk,
 					tt.expectedMinRisk, tt.expectedMaxRisk)
 			}
 		})
@@ -267,7 +263,7 @@ func TestPolicyPreview(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.DefaultConfig()
+			cfg := config.Default()
 			cfg.Control.Mode = tt.mode
 			engine := NewEngine(cfg, nil)
 
@@ -279,7 +275,7 @@ func TestPolicyPreview(t *testing.T) {
 			}
 
 			input := SimulationInput{
-				CandidateAction: control.ControlAction{
+				ProposedAction: control.ControlAction{
 					ID:              "test-action",
 					ActionType:      tt.actionType,
 					TargetTransport: "test-transport",
@@ -288,9 +284,7 @@ func TestPolicyPreview(t *testing.T) {
 					CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 					Mode:            tt.mode,
 				},
-				MeshState:     mesh,
-				CurrentTime:   time.Now().UTC(),
-				Configuration: cfg,
+				MeshTopology: mesh,
 			}
 
 			result, err := engine.Simulate(input)
@@ -298,10 +292,10 @@ func TestPolicyPreview(t *testing.T) {
 				t.Fatalf("Simulation failed: %v", err)
 			}
 
-			if result.PolicyPreview.AdmissionResult != tt.expectedAdmission {
+			if result.PolicyPreview.Result != tt.expectedAdmission {
 				t.Errorf("Expected admission %v, got %v",
 					tt.expectedAdmission,
-					result.PolicyPreview.AdmissionResult)
+					result.PolicyPreview.Result)
 			}
 		})
 	}
@@ -309,7 +303,7 @@ func TestPolicyPreview(t *testing.T) {
 
 // TestBlastRadiusPrediction verifies blast radius calculation
 func TestBlastRadiusPrediction(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	mesh := status.MeshDrilldown{
@@ -319,15 +313,15 @@ func TestBlastRadiusPrediction(t *testing.T) {
 		},
 		DegradedSegments: []status.DegradedSegment{
 			{
-				SegmentID: "test-segment",
+				SegmentID:  "test-segment",
 				Transports: []string{"test-transport"},
-				Severity:  "warn",
+				Severity:   "warn",
 			},
 		},
 	}
 
 	input := SimulationInput{
-		CandidateAction: control.ControlAction{
+		ProposedAction: control.ControlAction{
 			ID:              "test-action",
 			ActionType:      control.ActionRestartTransport,
 			TargetTransport: "test-transport",
@@ -336,9 +330,7 @@ func TestBlastRadiusPrediction(t *testing.T) {
 			CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 			Mode:            control.ModeGuardedAuto,
 		},
-		MeshState:     mesh,
-		CurrentTime:   time.Now().UTC(),
-		Configuration: cfg,
+		MeshTopology: mesh,
 	}
 
 	result, err := engine.Simulate(input)
@@ -347,27 +339,27 @@ func TestBlastRadiusPrediction(t *testing.T) {
 	}
 
 	// Verify blast radius is within valid range
-	if result.BlastRadius.ImpactScore < 0 || result.BlastRadius.ImpactScore > 1 {
-		t.Errorf("Impact score %v out of range [0, 1]", result.BlastRadius.ImpactScore)
+	if result.BlastRadius.Score < 0 || result.BlastRadius.Score > 1 {
+		t.Errorf("Impact score %v out of range [0, 1]", result.BlastRadius.Score)
 	}
 
-	// Verify classification is valid
-	validClasses := []string{"Isolated", "Segmented", "Systemic", "Unknown"}
+	// Verify classification is valid (see BlastRadiusPredictor.classifyBlastRadius)
+	validClasses := []string{"systemic", "mesh_wide", "segmented", "multi_transport", "local_transport", "unknown"}
 	found := false
 	for _, c := range validClasses {
-		if result.BlastRadius.ImpactClassification == c {
+		if result.BlastRadius.Classification == c {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Invalid impact classification: %v", result.BlastRadius.ImpactClassification)
+		t.Errorf("Invalid impact classification: %v", result.BlastRadius.Classification)
 	}
 }
 
 // TestOutcomeBranches verifies outcome branching
 func TestOutcomeBranches(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	mesh := status.MeshDrilldown{
@@ -378,7 +370,7 @@ func TestOutcomeBranches(t *testing.T) {
 	}
 
 	input := SimulationInput{
-		CandidateAction: control.ControlAction{
+		ProposedAction: control.ControlAction{
 			ID:              "test-action",
 			ActionType:      control.ActionBackoffIncrease,
 			TargetTransport: "test-transport",
@@ -387,9 +379,7 @@ func TestOutcomeBranches(t *testing.T) {
 			CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 			Mode:            control.ModeGuardedAuto,
 		},
-		MeshState:     mesh,
-		CurrentTime:   time.Now().UTC(),
-		Configuration: cfg,
+		MeshTopology: mesh,
 	}
 
 	result, err := engine.Simulate(input)
@@ -414,12 +404,12 @@ func TestOutcomeBranches(t *testing.T) {
 
 // TestNilInputs handles edge cases with nil/missing inputs
 func TestNilInputs(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	// Test with minimal input
 	input := SimulationInput{
-		CandidateAction: control.ControlAction{
+		ProposedAction: control.ControlAction{
 			ID:         "test-action",
 			ActionType: control.ActionTriggerHealthRecheck,
 			Reason:     "test",
@@ -427,8 +417,6 @@ func TestNilInputs(t *testing.T) {
 			CreatedAt:  time.Now().UTC().Format(time.RFC3339),
 			Mode:       control.ModeAdvisory,
 		},
-		CurrentTime:   time.Now().UTC(),
-		Configuration: cfg,
 		// MeshState is empty, Diagnostics is zero value
 	}
 
@@ -445,7 +433,7 @@ func TestNilInputs(t *testing.T) {
 
 // TestEngineVersion verifies version information
 func TestEngineVersion(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	version := engine.Version()
@@ -456,7 +444,7 @@ func TestEngineVersion(t *testing.T) {
 
 // TestSupportsAction verifies action type support
 func TestSupportsAction(t *testing.T) {
-	cfg := config.DefaultConfig()
+	cfg := config.Default()
 	engine := NewEngine(cfg, nil)
 
 	// All control action types should be supported

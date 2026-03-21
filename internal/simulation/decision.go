@@ -87,14 +87,14 @@ type EvaluationResult struct {
 
 // RiskSummary provides a condensed view of risk assessment results.
 type RiskSummary struct {
-	OverallRisk        RiskLevel `json:"overall_risk"`
-	RiskScore          float64   `json:"risk_score"`
-	ConflictCount      int       `json:"conflict_count"`
-	CriticalConflicts  int       `json:"critical_conflicts"`
-	PolicyAllows       bool      `json:"policy_allows"`
-	BlastRadiusScore   float64   `json:"blast_radius_score"`
-	Reversibility      string    `json:"reversibility"`
-	DataFreshness      string    `json:"data_freshness"`
+	OverallRisk       RiskLevel `json:"overall_risk"`
+	RiskScore         float64   `json:"risk_score"`
+	ConflictCount     int       `json:"conflict_count"`
+	CriticalConflicts int       `json:"critical_conflicts"`
+	PolicyAllows      bool      `json:"policy_allows"`
+	BlastRadiusScore  float64   `json:"blast_radius_score"`
+	Reversibility     string    `json:"reversibility"`
+	DataFreshness     string    `json:"data_freshness"`
 }
 
 // NextStep provides a specific actionable recommendation.
@@ -582,8 +582,8 @@ func (e *SafeToActEvaluator) identifyMissingPrerequisites(
 	// Confidence prerequisites
 	if riskAssessment.Confidence < e.minConfidence {
 		prereqs = append(prereqs, Prerequisite{
-			Code:               "sufficient_confidence",
-			Description:        fmt.Sprintf("Increase confidence from %.0f%% to at least %.0f%%",
+			Code: "sufficient_confidence",
+			Description: fmt.Sprintf("Increase confidence from %.0f%% to at least %.0f%%",
 				riskAssessment.Confidence*100, e.minConfidence*100),
 			CurrentlySatisfied: false,
 			SuggestedAction:    "Gather more evidence or wait for additional telemetry",

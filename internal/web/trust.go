@@ -77,15 +77,16 @@ func (s *Server) operationalStateHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "could not load operational state", err.Error())
 		return
 	}
-	s.writeJSON(w, http.StatusOK, state)
+	writeJSON(w, http.StatusOK, state)
 }
 
 // ─── Action sub-handler (inspect / approve / reject) ─────────────────────────
 
 // controlActionSubHandler dispatches to the right handler based on URL sub-path:
-//   /api/v1/control/actions/{id}/inspect
-//   /api/v1/control/actions/{id}/approve
-//   /api/v1/control/actions/{id}/reject
+//
+//	/api/v1/control/actions/{id}/inspect
+//	/api/v1/control/actions/{id}/approve
+//	/api/v1/control/actions/{id}/reject
 func (s *Server) controlActionSubHandler(w http.ResponseWriter, r *http.Request) {
 	const prefix = "/api/v1/control/actions/"
 	actionID := idFromPath(r.URL.Path, prefix)
@@ -131,7 +132,7 @@ func (s *Server) inspectActionHandler(w http.ResponseWriter, _ *http.Request, ac
 		writeError(w, code, "could not inspect action", err.Error())
 		return
 	}
-	s.writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) approveActionHandler(w http.ResponseWriter, r *http.Request, actionID string) {
@@ -241,7 +242,7 @@ func (s *Server) createFreezeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create freeze", err.Error())
 		return
 	}
-	s.writeJSON(w, http.StatusCreated, map[string]any{
+	writeJSON(w, http.StatusCreated, map[string]any{
 		"status":     "created",
 		"freeze_id":  id,
 		"scope_type": body.ScopeType,
@@ -325,7 +326,7 @@ func (s *Server) createMaintenanceHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "could not create maintenance window", err.Error())
 		return
 	}
-	s.writeJSON(w, http.StatusCreated, map[string]any{
+	writeJSON(w, http.StatusCreated, map[string]any{
 		"status":    "created",
 		"window_id": id,
 		"starts_at": body.StartsAt,
@@ -438,7 +439,7 @@ func (s *Server) createOperatorNoteHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "could not create note", err.Error())
 		return
 	}
-	s.writeJSON(w, http.StatusCreated, map[string]any{
+	writeJSON(w, http.StatusCreated, map[string]any{
 		"status":   "created",
 		"note_id":  id,
 		"ref_type": body.RefType,

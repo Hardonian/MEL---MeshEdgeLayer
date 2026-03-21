@@ -64,13 +64,13 @@ func (e LowConfidenceError) Error() string {
 type FieldType string
 
 const (
-	FieldTypeString  FieldType = "string"
-	FieldTypeInt     FieldType = "int"
-	FieldTypeFloat   FieldType = "float"
-	FieldTypeBool    FieldType = "bool"
-	FieldTypeArray   FieldType = "array"
-	FieldTypeObject  FieldType = "object"
-	FieldTypeMap     FieldType = "map"
+	FieldTypeString FieldType = "string"
+	FieldTypeInt    FieldType = "int"
+	FieldTypeFloat  FieldType = "float"
+	FieldTypeBool   FieldType = "bool"
+	FieldTypeArray  FieldType = "array"
+	FieldTypeObject FieldType = "object"
+	FieldTypeMap    FieldType = "map"
 )
 
 // ValidationRule defines a single field validation constraint
@@ -210,11 +210,11 @@ type ParsedSuggestion struct {
 
 // ResponseParser handles structured output parsing with schema validation
 type ResponseParser struct {
-	schemas           map[string][]ValidationRule
-	minConfidence     float64
-	maxStringLength   int
-	jsonCodeBlockRe   *regexp.Regexp
-	keyValueRe        *regexp.Regexp
+	schemas         map[string][]ValidationRule
+	minConfidence   float64
+	maxStringLength int
+	jsonCodeBlockRe *regexp.Regexp
+	keyValueRe      *regexp.Regexp
 }
 
 // NewResponseParser creates a new ResponseParser with default settings

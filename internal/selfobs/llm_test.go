@@ -598,8 +598,8 @@ func TestLLMPrivacySafety(t *testing.T) {
 		MetricType: "message_processing",
 		RawValue:   "Error: connection to 192.168.1.100:8080 failed - user 'admin' password invalid",
 		Statistics: map[string]float64{
-			"count":   1000.0,
-			"error_count": 50.0,
+			"count":          1000.0,
+			"error_count":    50.0,
 			"p99_latency_ms": 250.5,
 		},
 		Timestamp: time.Now(),

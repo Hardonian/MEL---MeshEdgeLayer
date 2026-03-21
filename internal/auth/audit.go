@@ -102,7 +102,7 @@ func (e AuditEntry) ToMap() map[string]any {
 	return map[string]any{
 		"id":            e.ID,
 		"actor_id":      string(e.ActorID),
-		"action_class": string(e.ActionClass),
+		"action_class":  string(e.ActionClass),
 		"action_detail": e.ActionDetail,
 		"resource_type": e.ResourceType,
 		"resource_id":   e.ResourceID,

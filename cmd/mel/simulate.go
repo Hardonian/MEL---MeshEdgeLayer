@@ -8,11 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/simulation"
-	"github.com/mel-project/mel/internal/status"
 )
 
 func actionSimulateCmd(args []string) {
@@ -46,7 +44,7 @@ Examples:
 
 func simulateActionSubCmd(args []string) {
 	f := flag.NewFlagSet("simulate-action", flag.ExitOnError)
-	configPath := f.String("config", "configs/mel.example.json", "path to config file")
+	configPath := f.String("config", configFlagDefault(), "path to config file")
 	transportName := f.String("transport", "", "target transport name")
 	format := f.String("format", "text", "output format: text or json")
 	outputPath := f.String("output", "", "write output to file (optional)")
@@ -76,7 +74,7 @@ func simulateActionSubCmd(args []string) {
 		os.Exit(1)
 	}
 
-	cfg, _, err := config.Load(*configPath)
+	cfg, _, err := loadConfigFile(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
@@ -87,20 +85,12 @@ func simulateActionSubCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 		os.Exit(1)
 	}
-	defer database.Close()
-
 	now := time.Now().UTC()
 
-	// Collect mesh state
-	mesh, err := status.InspectMesh(cfg, database, nil, now)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error inspecting mesh: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Create simulation input
 	input := simulation.SimulationInput{
-		CandidateAction: control.ControlAction{
+		SimulationID: fmt.Sprintf("sim-%d", now.UnixNano()),
+		Timestamp:    now,
+		ProposedAction: control.ControlAction{
 			ID:              fmt.Sprintf("sim-%d", now.UnixNano()),
 			ActionType:      actionType,
 			TargetTransport: *transportName,
@@ -109,9 +99,6 @@ func simulateActionSubCmd(args []string) {
 			CreatedAt:       now.Format(time.RFC3339),
 			Mode:            cfg.Control.Mode,
 		},
-		MeshState:     mesh,
-		CurrentTime:   now,
-		Configuration: cfg,
 	}
 
 	// Run simulation
@@ -158,8 +145,8 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	// Action Summary
 	fmt.Printf("Action:        %s\n", actionType)
 	fmt.Printf("Target:        %s\n", transportName)
-	fmt.Printf("Timestamp:     %s\n", result.Metadata.GeneratedAt.Format(time.RFC3339))
-	fmt.Printf("Engine:        %s\n", result.Metadata.EngineVersion)
+	fmt.Printf("Timestamp:     %s\n", result.CompletedAt.Format(time.RFC3339))
+	fmt.Printf("Engine:        %s\n", result.Metadata.ModelVersion)
 	fmt.Println()
 
 	// Safe to Act Decision
@@ -182,7 +169,7 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	if len(result.PredictedOutcome.SideEffects) > 0 {
 		fmt.Println("Side Effects:")
 		for _, effect := range result.PredictedOutcome.SideEffects {
-			fmt.Printf("  • %s\n", effect)
+			fmt.Printf("  • [%s] %s\n", effect.Component, effect.Effect)
 		}
 	}
 	fmt.Println()
@@ -191,13 +178,13 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
 	fmt.Println("│ RISK ASSESSMENT                                                             │")
 	fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-	fmt.Printf("Risk Level:    %s\n", result.RiskAssessment.RiskLevel)
+	fmt.Printf("Risk Level:    %s\n", result.RiskAssessment.OverallRisk)
 	fmt.Printf("Safety Level:  %s\n", result.RiskAssessment.SafetyLevel)
-	fmt.Printf("Score:         %.2f/1.0\n", result.RiskAssessment.RiskScore)
-	if len(result.RiskAssessment.Factors) > 0 {
+	fmt.Printf("Confidence:    %.2f/1.0\n", result.RiskAssessment.Confidence)
+	if len(result.RiskAssessment.RiskFactors) > 0 {
 		fmt.Println("Risk Factors:")
-		for _, factor := range result.RiskAssessment.Factors {
-			fmt.Printf("  • [%s] %s: %s\n", factor.Category, factor.Name, factor.Description)
+		for _, factor := range result.RiskAssessment.RiskFactors {
+			fmt.Printf("  • [%s] %s\n", factor.Category, factor.Description)
 		}
 	}
 	fmt.Println()
@@ -206,12 +193,9 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
 	fmt.Println("│ POLICY PREVIEW                                                              │")
 	fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-	fmt.Printf("Admission:     %s\n", result.PolicyPreview.AdmissionResult)
-	if result.PolicyPreview.WouldBeDenied {
+	fmt.Printf("Admission:     %s\n", result.PolicyPreview.Result)
+	if !result.PolicyPreview.Allowed {
 		fmt.Printf("Denial Reason: %s\n", result.PolicyPreview.DenialReason)
-	}
-	if result.PolicyPreview.WouldTriggerCooldown {
-		fmt.Println("⚠️  This action would trigger a cooldown period")
 	}
 	fmt.Println()
 
@@ -219,9 +203,9 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
 	fmt.Println("│ BLAST RADIUS PREDICTION                                                     │")
 	fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-	fmt.Printf("Impact Score:  %.0f%%\n", result.BlastRadius.ImpactScore*100)
-	fmt.Printf("Classification: %s\n", result.BlastRadius.ImpactClassification)
-	fmt.Printf("Type:          %s (%s)\n", result.BlastRadius.ImpactType, result.BlastRadius.Scope)
+	fmt.Printf("Impact Score:  %.0f%%\n", result.BlastRadius.Score*100)
+	fmt.Printf("Classification: %s\n", result.BlastRadius.Classification)
+	fmt.Printf("Description:   %s\n", result.BlastRadius.Description)
 	if len(result.BlastRadius.AffectedTransports) > 0 {
 		fmt.Printf("Transports:    %s\n", strings.Join(result.BlastRadius.AffectedTransports, ", "))
 	}
@@ -231,14 +215,14 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	fmt.Println()
 
 	// Conflicts
-	if len(result.Conflicts.Conflicts) > 0 {
+	if len(result.Conflicts) > 0 {
 		fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
 		fmt.Println("│ DETECTED CONFLICTS                                                          │")
 		fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-		for _, conflict := range result.Conflicts.Conflicts {
+		for _, conflict := range result.Conflicts {
 			fmt.Printf("[%s] %s: %s\n", conflict.Severity, conflict.Type, conflict.Description)
-			if conflict.RecommendedResolution != "" {
-				fmt.Printf("  Resolution: %s\n", conflict.RecommendedResolution)
+			if conflict.Resolution != "" {
+				fmt.Printf("  Resolution: %s\n", conflict.Resolution)
 			}
 		}
 		fmt.Println()
@@ -251,29 +235,27 @@ func outputSimulationText(result simulation.SimulationResult, actionType, transp
 	for _, branch := range result.OutcomeBranches {
 		fmt.Printf("\n[%s] Probability: %.0f%%\n", branch.Scenario, branch.Probability*100)
 		fmt.Printf("  Description: %s\n", branch.Description)
-		if len(branch.Assumptions) > 0 {
-			fmt.Printf("  Assumptions: %s\n", strings.Join(branch.Assumptions, "; "))
+		if len(branch.TriggeringConditions) > 0 {
+			fmt.Printf("  Conditions: %s\n", strings.Join(branch.TriggeringConditions, "; "))
 		}
 	}
 	fmt.Println()
 
-	// Prerequisites and Next Steps
-	if len(result.SafeToAct.MissingPrerequisites) > 0 {
+	// Guidance and Next Steps
+	if result.SafeToAct.OperatorGuidance != "" {
 		fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
-		fmt.Println("│ MISSING PREREQUISITES                                                       │")
+		fmt.Println("│ OPERATOR GUIDANCE                                                           │")
 		fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-		for _, prereq := range result.SafeToAct.MissingPrerequisites {
-			fmt.Printf("  • %s\n", prereq)
-		}
+		fmt.Printf("  %s\n", result.SafeToAct.OperatorGuidance)
 		fmt.Println()
 	}
 
-	if len(result.SafeToAct.SuggestedNextSteps) > 0 {
+	if len(result.SafeToAct.AlternativeActions) > 0 {
 		fmt.Println("┌─────────────────────────────────────────────────────────────────────────────┐")
-		fmt.Println("│ SUGGESTED NEXT STEPS                                                        │")
+		fmt.Println("│ ALTERNATIVE ACTIONS                                                         │")
 		fmt.Println("└─────────────────────────────────────────────────────────────────────────────┘")
-		for _, step := range result.SafeToAct.SuggestedNextSteps {
-			fmt.Printf("  • %s\n", step)
+		for _, alt := range result.SafeToAct.AlternativeActions {
+			fmt.Printf("  • %s\n", alt)
 		}
 		fmt.Println()
 	}

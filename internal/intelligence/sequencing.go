@@ -42,7 +42,9 @@ func SequenceRecoveryActions(recommendations []Recommendation) []models.Recovery
 			Status:        "pending",
 		})
 	}
-	if len(verification) > 0 { currentStage++ }
+	if len(verification) > 0 {
+		currentStage++
+	}
 
 	// Stage 2: Infrastructure
 	for _, rec := range infrastructure {
@@ -54,7 +56,9 @@ func SequenceRecoveryActions(recommendations []Recommendation) []models.Recovery
 			UnsafeEarly:   true,
 		})
 	}
-	if len(infrastructure) > 0 { currentStage++ }
+	if len(infrastructure) > 0 {
+		currentStage++
+	}
 
 	// Stage 3: Connectivity
 	for _, rec := range connectivity {
@@ -66,7 +70,9 @@ func SequenceRecoveryActions(recommendations []Recommendation) []models.Recovery
 			UnsafeEarly:   true,
 		})
 	}
-	if len(connectivity) > 0 { currentStage++ }
+	if len(connectivity) > 0 {
+		currentStage++
+	}
 
 	// Stage 4: Operations
 	for _, rec := range operational {
