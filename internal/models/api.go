@@ -102,3 +102,39 @@ type StatusResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
 }
+
+// OperatorBriefingDTO represents a structured briefing for the UI/API
+type OperatorBriefingDTO struct {
+	OverallStatus       string         `json:"overall_status"`
+	TopPriorities       []PriorityItem `json:"top_priorities"`
+	LikelyCauses        []string       `json:"likely_causes"`
+	RecommendedSequence []RecoveryStep `json:"recommended_sequence"`
+	BlastRadiusEstimate string         `json:"blast_radius_estimate"`
+	UncertaintyNotes    []string       `json:"uncertainty_notes"`
+	GeneratedAt         string         `json:"generated_at"`
+}
+
+// PriorityItem is a ranked operational problem for the API
+type PriorityItem struct {
+	ID                string         `json:"id"`
+	Category          string         `json:"category"`
+	Severity          string         `json:"severity"`
+	Title             string         `json:"title"`
+	Summary           string         `json:"summary"`
+	Rank              float64        `json:"rank"`
+	Confidence        float64        `json:"confidence"`
+	EvidenceFreshness string         `json:"evidence_freshness"`
+	IsActionable      bool           `json:"is_actionable"`
+	BlocksRecovery    bool           `json:"blocks_recovery"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+}
+
+// RecoveryStep represents a single step in a recovery sequence for the API
+type RecoveryStep struct {
+	Stage         int      `json:"stage"`
+	Action        string   `json:"action"`
+	Justification string   `json:"justification"`
+	Status        string   `json:"status"`
+	UnsafeEarly   bool     `json:"unsafe_early"`
+	Dependencies  []string `json:"dependencies,omitempty"`
+}

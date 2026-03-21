@@ -27,22 +27,34 @@ func TestHealthRegistryTransitions(t *testing.T) {
 		t.Errorf("expected 1 success, got %d", comp.SuccessCount)
 	}
 
-	// Test: healthy -> degraded (after some failures with low error rate)
+	// Test: healthy -> failing (after failures cause >20% error rate)
+	// With 1 success, 1 failure = 50% error rate > 20% = failing
 	registry.RecordFailure("ingest")
-	registry.RecordFailure("ingest")
-	// 1 success, 2 failures = 66% error rate > 5% but < 20%
 	comp = registry.GetComponent("ingest")
-	if comp.Health != HealthDegraded {
-		t.Errorf("expected degraded after 66%% error rate, got %s", comp.Health)
+	if comp.Health != HealthFailing {
+		t.Errorf("expected failing after 50%% error rate, got %s", comp.Health)
 	}
 
-	// Test: degraded -> healthy (after more successes reduce error rate)
-	for i := 0; i < 100; i++ {
+	// Test: failing -> degraded (after more successes reduce error rate)
+	// With 10 more successes: 11 success, 1 failure = 8.3% error rate > 1% = degraded
+	// (error rate > 1% but <= 10%, so degraded, not healthy)
+	for i := 0; i < 10; i++ {
 		registry.RecordSuccess("ingest")
 	}
 	comp = registry.GetComponent("ingest")
-	if comp.Health != HealthHealthy {
-		t.Errorf("expected healthy after low error rate, got %s", comp.Health)
+	if comp.Health != HealthDegraded {
+		t.Errorf("expected degraded after ~8.3%% error rate, got %s", comp.Health)
+	}
+
+	// Test: healthy -> degraded (error rate > 1% but < 10%)
+	// Need 99 more successes, 1 failure: 110 success, 2 failure = 1.8% error rate > 1% = degraded
+	for i := 0; i < 99; i++ {
+		registry.RecordSuccess("ingest")
+	}
+	registry.RecordFailure("ingest")
+	comp = registry.GetComponent("ingest")
+	if comp.Health != HealthDegraded {
+		t.Errorf("expected degraded after ~1.8%% error rate, got %s", comp.Health)
 	}
 
 	// Test: healthy -> failing (after many failures)
