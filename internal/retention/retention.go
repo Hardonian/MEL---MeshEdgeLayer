@@ -12,19 +12,17 @@ func Run(database *db.DB, cfg config.Config) error {
 	if database == nil {
 		return nil
 	}
-	msgCutoff := time.Now().UTC().AddDate(0, 0, -cfg.Retention.MessagesDays).Format(time.RFC3339)
-	teleCutoff := time.Now().UTC().AddDate(0, 0, -cfg.Retention.TelemetryDays).Format(time.RFC3339)
-	auditCutoff := time.Now().UTC().AddDate(0, 0, -cfg.Retention.AuditDays).Format(time.RFC3339)
-	if err := database.Exec(fmt.Sprintf("DELETE FROM messages WHERE rx_time != '' AND rx_time < '%s';", msgCutoff)); err != nil {
+	now := time.Now().UTC()
+	if err := database.PruneMessages(now.AddDate(0, 0, -cfg.Retention.MessagesDays)); err != nil {
 		return err
 	}
-	if err := database.Exec(fmt.Sprintf("DELETE FROM telemetry_samples WHERE observed_at < '%s';", teleCutoff)); err != nil {
+	if err := database.PruneTelemetry(now.AddDate(0, 0, -cfg.Retention.TelemetryDays)); err != nil {
 		return err
 	}
-	if err := database.Exec(fmt.Sprintf("DELETE FROM audit_logs WHERE created_at < '%s';", auditCutoff)); err != nil {
+	if err := database.PruneAuditLogs(now.AddDate(0, 0, -cfg.Retention.AuditDays)); err != nil {
 		return err
 	}
-	if err := database.Exec(fmt.Sprintf("DELETE FROM dead_letters WHERE created_at < '%s';", auditCutoff)); err != nil {
+	if err := database.PruneDeadLetters(now.AddDate(0, 0, -cfg.Retention.AuditDays)); err != nil {
 		return err
 	}
 	if err := database.PruneTransportIntelligence(time.Now().UTC().AddDate(0, 0, -cfg.Intelligence.Retention.HealthSnapshotDays), cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {

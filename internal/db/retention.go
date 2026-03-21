@@ -67,3 +67,9 @@ func (d *DB) PruneTelemetry(cutoff time.Time) error {
 	}
 	return d.Exec(fmt.Sprintf("DELETE FROM telemetry_samples WHERE observed_at < '%s';", cutoff.UTC().Format(time.RFC3339)))
 }
+func (d *DB) PruneDeadLetters(cutoff time.Time) error {
+	if d == nil {
+		return nil
+	}
+	return d.Exec(fmt.Sprintf("DELETE FROM dead_letters WHERE created_at < '%s';", cutoff.UTC().Format(time.RFC3339)))
+}
