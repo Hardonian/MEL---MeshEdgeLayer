@@ -19,6 +19,7 @@ type Capability string
 const (
 	CapReadStatus         Capability = "read_status"
 	CapAcknowledgeAlerts  Capability = "acknowledge_alerts"
+	CapEscalateAlerts     Capability = "escalate_alerts"
 	CapSuppressAlerts     Capability = "suppress_alerts"
 	CapExportBundle       Capability = "export_support_bundle"
 	CapExecuteAction      Capability = "execute_control_action"
@@ -52,6 +53,7 @@ var SystemIdentity = Identity{
 		CapReadStatus:         true,
 		CapExecuteAction:      true,
 		CapAcknowledgeAlerts:  true,
+		CapEscalateAlerts:     true,
 		CapSuppressAlerts:     true,
 	},
 }
@@ -81,6 +83,7 @@ func BuildAdminIdentity(username string) Identity {
 		Capabilities: map[Capability]bool{
 			CapReadStatus:        true,
 			CapAcknowledgeAlerts: true,
+			CapEscalateAlerts:    true,
 			CapSuppressAlerts:    true,
 			CapExportBundle:      true,
 			CapExecuteAction:     true,

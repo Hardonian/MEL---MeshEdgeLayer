@@ -106,6 +106,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/incidents/acknowledge", s.requireMethod(security.Require(security.CapAcknowledgeAlerts, s.acknowledgeIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.Require(security.CapEscalateAlerts, s.escalateIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
@@ -231,7 +232,29 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.QueryRows("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n ORDER BY n.updated_at DESC;")
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 500 {
+			limit = parsed
+		}
+	}
+	offset := 0
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	where := "1=1"
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		safeQ, err := validateSQLInput(q)
+		if err == nil {
+			where = fmt.Sprintf("(n.node_id LIKE '%%%s%%' OR n.long_name LIKE '%%%s%%' OR n.short_name LIKE '%%%s%%')", safeQ, safeQ, safeQ)
+		}
+	}
+
+	query := fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE %s ORDER BY n.updated_at DESC LIMIT %d OFFSET %d;", where, limit, offset)
+	rows, err := s.db.QueryRows(query)
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
 			"error": err.Error(),
@@ -259,7 +282,7 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 			MessageCount:  asInt(row["message_count"]),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes})
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes, "pagination": map[string]int{"limit": limit, "offset": offset}})
 }
 
 func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
@@ -654,6 +677,13 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
+	offset := 0
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
 	clauses := []string{"1=1"}
 	if node := r.URL.Query().Get("node"); node != "" {
 		if !isSafeIdentifier(node) {
@@ -669,6 +699,12 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		}
 		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(node), escape(node)))
 	}
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		safeQ, err := validateSQLInput(q)
+		if err == nil {
+			clauses = append(clauses, fmt.Sprintf("(payload_text LIKE '%%%s%%' OR payload_json LIKE '%%%s%%')", safeQ, safeQ))
+		}
+	}
 	if messageType := r.URL.Query().Get("type"); messageType != "" {
 		if !isSafeIdentifier(messageType) {
 			s.log.Security("suspicious_input", "invalid characters in type parameter", "medium", map[string]any{
@@ -683,7 +719,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		}
 		clauses = append(clauses, fmt.Sprintf("payload_json LIKE '%%%s%%'", escape(fmt.Sprintf(`\"message_type\":\"%s\"`, messageType))))
 	}
-	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d;", strings.Join(clauses, " AND "), limit))
+	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d OFFSET %d;", strings.Join(clauses, " AND "), limit, offset))
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
 			"error": err.Error(),
@@ -694,7 +730,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "filters": r.URL.Query()})
+	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "pagination": map[string]int{"limit": limit, "offset": offset}, "filters": r.URL.Query()})
 }
 
 func (s *Server) panel(w http.ResponseWriter, r *http.Request) {
@@ -959,6 +995,44 @@ func (s *Server) resolveIncident(w http.ResponseWriter, r *http.Request) {
 
 	s.log.Info("incident_resolved", "incident resolved by operator", map[string]any{"incident_id": req.ID, "actor": identity.ActorID})
 	writeJSON(w, http.StatusOK, map[string]any{"status": "resolved"})
+}
+
+func (s *Server) escalateIncident(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	incident, found, err := s.db.IncidentByID(req.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "database error"})
+		return
+	}
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "incident not found"})
+		return
+	}
+	incident.State = "escalated"
+	identity, _ := security.GetIdentity(r.Context())
+	if incident.Metadata == nil {
+		incident.Metadata = make(map[string]any)
+	}
+	incident.Metadata["escalated_by"] = identity.ActorID
+	incident.Metadata["escalate_reason"] = req.Reason
+
+	if err := s.db.UpsertIncident(incident); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to update incident"})
+		return
+	}
+	// Audit log the action
+	auditEntry := auth.LogIncidentAction(auth.GetAuthContextFromRequest(r), req.ID, "escalate", req.Reason, auth.AuditResultSuccess, nil)
+	_ = s.db.InsertAuditLog("incident", "warning", "incident escalated", auditEntry.ToMap())
+
+	s.log.Warn("incident_escalated", "incident escalated by operator", map[string]any{"incident_id": req.ID, "actor": identity.ActorID})
+	writeJSON(w, http.StatusOK, map[string]any{"status": "escalated"})
 }
 
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
