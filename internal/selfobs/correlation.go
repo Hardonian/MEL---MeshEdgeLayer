@@ -2,10 +2,11 @@ package selfobs
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sync"
-
-	"github.com/google/uuid"
+	"time"
 )
 
 type correlationKey string
@@ -18,15 +19,24 @@ const (
 // CorrelationID represents a unique identifier for tracing events through the MEL pipeline
 type CorrelationID struct {
 	ID        string    `json:"id"`
-	CreatedAt string    `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
 	Source    string    `json:"source"`
 }
 
-// NewCorrelationID creates a new correlation ID
+// NewCorrelationID creates a new correlation ID using cryptographically secure random bytes
 func NewCorrelationID(source string) CorrelationID {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to time-based if crypto fails
+		return CorrelationID{
+			ID:        fmt.Sprintf("fallback-%d", time.Now().UnixNano()),
+			CreatedAt: time.Now().UTC(),
+			Source:    source,
+		}
+	}
 	return CorrelationID{
-		ID:        uuid.New().String(),
-		CreatedAt: fmt.Sprintf("%v", Now()),
+		ID:        hex.EncodeToString(bytes),
+		CreatedAt: time.Now().UTC(),
 		Source:    source,
 	}
 }
@@ -82,7 +92,7 @@ func (p *CorrelationIDPool) Get(source string) CorrelationID {
 		corr := p.ids[len(p.ids)-1]
 		p.ids = p.ids[:len(p.ids)-1]
 		corr.Source = source
-		corr.CreatedAt = fmt.Sprintf("%v", Now())
+		corr.CreatedAt = time.Now().UTC()
 		return corr
 	}
 	return NewCorrelationID(source)
@@ -96,14 +106,4 @@ func (p *CorrelationIDPool) Put(corr CorrelationID) {
 	if len(p.ids) < cap(p.ids) {
 		p.ids = append(p.ids, corr)
 	}
-}
-
-// Now returns the current time - exposed for testing
-var Now = func() interface{} {
-	return timeNow()
-}
-
-func timeNow() interface{} {
-	// Using interface{} to avoid import cycle, actual implementation uses time.Time
-	return fmt.Sprintf("%v", time.Now().UTC())
 }
