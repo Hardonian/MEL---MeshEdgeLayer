@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { SupportBundleExport } from '../components/diagnostics/SupportBundleExport';
-import { OperatorEmptyState } from '../components/states/OperatorEmptyState';
-import { safeArray } from '../utils/apiResilience';
+import { useEffect, useState } from 'react';
+import { SupportBundleExport } from '@/components/diagnostics/SupportBundleExport';
+import { OperatorEmptyState } from '@/components/states/OperatorEmptyState';
+import { safeArray } from '@/utils/apiResilience';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface DiagnosticFinding {
   code: string;
@@ -14,7 +15,7 @@ interface DiagnosticFinding {
 
 type DiagnosticsPageState = 'loading' | 'unreachable' | 'disabled' | 'ready';
 
-export const DiagnosticsPage: React.FC = () => {
+export function Diagnostics() {
   const [findings, setFindings] = useState<DiagnosticFinding[]>([]);
   const [pageState, setPageState] = useState<DiagnosticsPageState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -44,17 +45,11 @@ export const DiagnosticsPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="md:flex md:items-center md:justify-between mb-8">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-            System Diagnostics
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Real-time health evaluation of transports, databases, and control limits.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="System Diagnostics"
+        description="Real-time health evaluation of transports, databases, and control limits."
+      />
 
       <div className="mb-8">
         <SupportBundleExport />
@@ -68,7 +63,7 @@ export const DiagnosticsPage: React.FC = () => {
 
       {pageState === 'disabled' && (
         <div className="bg-gray-50 p-4 rounded-md mb-6 border border-gray-200 text-gray-700">
-          <strong>Diagnostics Unavailable:</strong> The MEL backend running does not currently support the Diagnostics API, or it has been disabled by configuration. Check <code className="text-xs">mel doctor</code> via CLI instead.
+          <strong>Diagnostics Unavailable:</strong> The MEL backend running does not yet support the `/api/v1/diagnostics` API. Use <code className="text-xs">mel doctor</code> via CLI.
         </div>
       )}
 
@@ -100,4 +95,4 @@ export const DiagnosticsPage: React.FC = () => {
       </div>
     </div>
   );
-};
+}

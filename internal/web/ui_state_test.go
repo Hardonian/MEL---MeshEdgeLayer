@@ -26,13 +26,13 @@ func TestUIStateResiliency(t *testing.T) {
 			path:       "/api/v1/diagnostics",
 			wantStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body []byte) {
-				var res map[string]interface{}
+				var res []interface{}
 				if err := json.Unmarshal(body, &res); err != nil {
 					t.Fatalf("Failed to parse JSON: %v", err)
 				}
-				// Even if empty, it should be an explicit clear structure
-				if findings, ok := res["findings"]; !ok || findings == nil {
-					t.Errorf("Expected 'findings' to be present and non-null, got: %v", res)
+				// It should return a non-null JSON array even if empty (e.g. `[]`)
+				if res == nil {
+					t.Errorf("Expected result to be an array, got nil")
 				}
 			},
 		},
@@ -70,12 +70,13 @@ func TestUIStateResiliency(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			rr := httptest.NewRecorder()
-			mux.ServeHTTP(rr, req)
+			srv.http.Handler.ServeHTTP(rr, req)
 
 			if rr.Code != tc.wantStatus {
-				t.Errorf("Expected status %d, got %d", tc.wantStatus, rr.Code)
+				t.Errorf("Expected status %d, got %d for %s", tc.wantStatus, rr.Code, tc.path)
 			}
 			tc.checkBody(t, rr.Body.Bytes())
 		})
 	}
 }
+

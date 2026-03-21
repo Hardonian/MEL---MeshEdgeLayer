@@ -5,8 +5,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
-import { NoNodesYet } from '@/components/ui/EmptyState'
-import { StaleBanner } from '@/components/ui/StateViews'
+import { OperatorEmptyState } from '@/components/states/OperatorEmptyState'
+import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { formatRelativeTime, NodeInfo } from '@/types/api'
 import { Radio, Clock, MapPin } from 'lucide-react'
 
@@ -79,7 +79,7 @@ export function Nodes() {
         description="Mesh device inventory — all nodes observed by your transports."
       />
 
-      <StaleBanner timestamp={staleTimestamp} message="Node inventory may be stale. Observations are delayed." />
+      <StaleDataBanner lastSuccessfulIngest={staleTimestamp} componentName="Node Inventory" />
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -126,7 +126,7 @@ export function Nodes() {
         </CardHeader>
         <CardContent>
           {nodes.length === 0 ? (
-            <NoNodesYet />
+            <OperatorEmptyState title="No nodes yet" description="Nodes will appear here once mesh traffic is observed via connected transports." />
           ) : (
             <DataTable<NodeInfo>
               data={nodes}
