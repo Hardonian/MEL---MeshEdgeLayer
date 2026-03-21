@@ -297,18 +297,18 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	if containsPathTraversal(nodeID) {
-		s.log.Security("suspicious_input", "path traversal attempt detected", "high", map[string]any{
+	if !db.IsSafeNodeID(nodeID) {
+		s.log.Security("suspicious_input", "invalid characters in node identifier", "medium", map[string]any{
 			"path":   r.URL.Path,
-			"input":  logging.SanitizeStringForLog(nodeID, 100),
 			"remote": remoteClient(r),
+			"node":   nodeID,
 		})
 		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(
 			logging.NewSafeError("node identifier contains invalid characters", nil, "validation", false),
 		))
 		return
 	}
-	query := fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE CAST(n.node_num AS TEXT)='%s' OR n.node_id='%s' LIMIT 1;", escape(nodeID), escape(nodeID))
+	query := fmt.Sprintf("SELECT n.node_num,n.node_id,n.long_name,n.short_name,n.last_seen,n.last_gateway_id,n.lat_redacted,n.lon_redacted,n.altitude,n.last_snr,n.last_rssi,(SELECT COUNT(*) FROM messages m WHERE m.from_node=n.node_num) AS message_count FROM nodes n WHERE n.node_id='%s' LIMIT 1;", db.EscString(nodeID))
 	rows, err := s.db.QueryRows(query)
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
@@ -759,7 +759,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 
 	clauses := []string{"1=1"}
 	if node := r.URL.Query().Get("node"); node != "" {
-		if !isSafeIdentifier(node) {
+		if !db.IsSafeNodeID(node) {
 			s.log.Security("suspicious_input", "invalid characters in node parameter", "medium", map[string]any{
 				"path":   r.URL.Path,
 				"remote": remoteClient(r),
@@ -770,7 +770,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			))
 			return
 		}
-		clauses = append(clauses, fmt.Sprintf("(CAST(from_node AS TEXT)='%s' OR CAST(to_node AS TEXT)='%s')", escape(node), escape(node)))
+		clauses = append(clauses, fmt.Sprintf("from_node=(SELECT node_num FROM nodes WHERE node_id='%s' LIMIT 1)", db.EscString(node)))
 	}
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
 		safeQ, err := db.ValidateSQLInput(q)
@@ -794,16 +794,15 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,payload_json,rx_time,created_at FROM messages WHERE %s ORDER BY id DESC LIMIT %d OFFSET %d;", strings.Join(clauses, " AND "), limit, offset))
 	if err != nil {
-		s.log.Error("db_query_failed", "database query failed", map[string]any{
-			"error": err.Error(),
-			"path":  r.URL.Path,
-		})
-		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
-			logging.SanitizeDBError(err),
-		))
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(logging.SanitizeDBError(err)))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "pagination": map[string]int{"limit": limit, "offset": offset}, "filters": r.URL.Query()})
+
+	if s.cfg.Privacy.RedactExports {
+		rows = privacy.RedactMessages(rows)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"messages": rows, "pagination": map[string]int{"limit": limit, "offset": offset}})
 }
 
 func (s *Server) panel(w http.ResponseWriter, r *http.Request) {
@@ -1117,70 +1116,128 @@ func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {
 	sort.Slice(snap.Nodes, func(i, j int) bool { return snap.Nodes[i].Num < snap.Nodes[j].Num })
 	findings := privacy.Audit(s.cfg)
 	messages, _ := s.db.QueryRows("SELECT transport_name,packet_id,from_node,to_node,portnum,payload_text,rx_time FROM messages ORDER BY id DESC LIMIT 20;")
+	if s.cfg.Privacy.RedactExports {
+		messages = privacy.RedactMessages(messages)
+	}
 	persistedMessages, _ := s.db.Scalar("SELECT COUNT(*) FROM messages;")
 	persistedNodes, _ := s.db.Scalar("SELECT COUNT(*) FROM nodes;")
 	lastPersistedIngest, _ := s.db.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 	logs, _ := s.db.QueryRows("SELECT category,level,message,created_at FROM audit_logs ORDER BY id DESC LIMIT 20;")
-	deadLetters, _ := s.db.QueryRows("SELECT transport_name,transport_type,topic,reason,created_at FROM dead_letters ORDER BY id DESC LIMIT 20;")
-	fmt.Fprintf(w, `<!doctype html><html><head><title>MEL</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
-body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#fafafa;color:#111}
-nav a{margin-right:1rem}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}
-table{border-collapse:collapse;width:100%%}td,th{border:1px solid #ddd;padding:.45rem;text-align:left;vertical-align:top}.muted{color:#666}.sev-critical{color:#8b0000}.sev-high{color:#b04a00}.sev-medium{color:#805b00}
-code,pre{background:#f5f5f5;padding:.2rem .35rem;border-radius:4px;overflow:auto}ul{padding-left:1.25rem}.pill{display:inline-block;padding:.15rem .5rem;border:1px solid #ccc;border-radius:999px;margin-right:.35rem;margin-bottom:.35rem}
-</style></head><body><h1>MEL — MeshEdgeLayer</h1><p>Truthful local-first observability for stock Meshtastic nodes. No demo data is injected when transports are idle.</p><nav><a href="#onboarding">Onboarding</a><a href="#panel">Panel</a><a href="#status">Status</a><a href="#transports">Transport health</a><a href="#deadletters">Dead letters</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy findings</a><a href="#recommendations">Recommendations</a><a href="#events">Events</a></nav>`)
-	fmt.Fprint(w, `<section id="onboarding"><h2>Onboarding</h2><ol><li>Run <code>mel init --config /etc/mel/mel.json</code> if you do not have a config yet.</li><li>Run <code>mel doctor --config /etc/mel/mel.json</code> to validate direct-node reachability, local permissions, and privacy posture.</li><li>Prefer one real direct transport (<code>serial</code> or <code>tcp</code>) for Pi/Linux deployment, then start <code>mel serve --config /etc/mel/mel.json</code>.</li><li>Use <code>mel panel --config /etc/mel/mel.json</code> or <code>/api/v1/panel</code> for a compact instrument panel.</li><li>Return here to confirm whether MEL is disconnected, connected but idle, or receiving real mesh packets.</li></ol></section>`)
-	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Configured transport modes: `)
+	fmt.Fprintf(w, `<!doctype html><html><head><title>MEL — MeshEdgeLayer</title><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--border:#334155;--success:#22c55e;--warning:#f59e0b;--critical:#ef4444}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;background-color:var(--bg);color:var(--text);margin:0;line-height:1.6;display:flex;flex-direction:column;min-height:100vh}
+header{padding:2rem 1rem;background:linear-gradient(135deg,#0f172a 0%%,#1e293b 100%%);border-bottom:1px solid var(--border);text-align:center}
+h1{margin:0;font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;background:linear-gradient(to right,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav{position:sticky;top:0;background:rgba(15,23,42,0.8);backdrop-filter:blur(8px);padding:0.75rem;border-bottom:1px solid var(--border);z-index:100;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap}
+nav a{color:var(--muted);text-decoration:none;font-size:0.875rem;font-weight:500;transition:color 0.2s}
+nav a:hover{color:var(--accent)}
+main{max-width:1200px;margin:2rem auto;padding:0 1rem;width:100%%;box-sizing:border-box}
+section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:2rem;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06)}
+h2{margin-top:0;font-size:1.25rem;font-weight:600;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1.25rem}
+table{border-collapse:collapse;width:100%%;font-size:0.875rem}
+th{text-align:left;color:var(--muted);font-weight:500;padding:0.75rem;border-bottom:1px solid var(--border)}
+td{padding:0.75rem;border-bottom:1px solid var(--border);vertical-align:top}
+code,pre{font-family:JetBrains Mono,Menlo,Monaco,Consolas,monospace;background:rgba(15,23,42,0.5);padding:0.2rem 0.4rem;border-radius:4px;font-size:0.8125rem}
+pre{padding:1rem;overflow:auto;max-height:400px;border:1px solid var(--border)}
+.pill{background:var(--border);color:var(--text);border-radius:9999px;padding:0.25rem 0.75rem;font-size:0.75rem;font-weight:600}
+.status-pill{width:8px;height:8px;border-radius:50%%;display:inline-block}
+.status-good{background:var(--success);box-shadow:0 0 8px var(--success)}
+.status-warn{background:var(--warning)}
+.status-crit{background:var(--critical)}
+.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;margin-bottom:2rem}
+.stat-card{background:var(--card);border:1px solid var(--border);padding:1.25rem;border-radius:12px;text-align:center}
+.stat-value{display:block;font-size:1.5rem;font-weight:700;margin-top:0.25rem}
+.stat-label{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
+.sev-critical{color:var(--critical);font-weight:600}
+.sev-high{color:var(--warning)}
+.sev-medium{color:#fbbf24}
+@media (max-width:768px){h1{font-size:1.75rem} .grid{grid-template-columns:1fr}}
+</style>
+</head><body><header><h1>MEL</h1><p class="muted">MeshEdgeLayer — Truthful Local Mesh Observability</p></header>
+<nav><a href="#status">Status</a><a href="#transports">Transports</a><a href="#nodes">Nodes</a><a href="#messages">Messages</a><a href="#privacy">Privacy</a><a href="#events">Events</a><a href="#onboarding">Guide</a></nav>
+<main>`)
+	fmt.Fprintf(w, `<div class="grid">
+<div class="stat-card"><span class="stat-label">Runtime Messages</span><span class="stat-value">%d</span></div>
+<div class="stat-card"><span class="stat-label">Persisted Messages</span><span class="stat-value">%s</span></div>
+<div class="stat-card"><span class="stat-label">Persisted Nodes</span><span class="stat-value">%s</span></div>
+<div class="stat-card"><span class="stat-label">Last Ingest</span><span class="stat-value">%s</span></div>
+</div>`, snap.Messages, blankIfEmpty(persistedMessages, "0"), blankIfEmpty(persistedNodes, "0"), blankIfEmpty(lastPersistedIngest, "Never"))
+
+	fmt.Fprint(w, `<section id="status"><h2>Status</h2><p>Active transport modes: `)
 	for _, mode := range statusSnap.ConfiguredTransportModes {
-		fmt.Fprintf(w, `<span class="pill">%s</span>`, mode)
+		fmt.Fprintf(w, `<span class="pill">%s</span> `, mode)
 	}
-	fmt.Fprintf(w, `</p><p>Runtime process message count: <strong>%d</strong>.</p><p>Persisted message count: <strong>%s</strong>. Persisted node count: <strong>%s</strong>. Last persisted ingest: <strong>%s</strong>.</p>`, snap.Messages, blankIfEmpty(persistedMessages, "0"), blankIfEmpty(persistedNodes, "0"), blankIfEmpty(lastPersistedIngest, "none"))
+	fmt.Fprint(w, `</p>`)
 	if len(snap.Nodes) == 0 {
-		fmt.Fprint(w, `<p class="muted">The current MEL process has not observed any nodes yet. Persisted counts above may still show historical data from prior runs. No sample mesh data is shown.</p>`)
-	} else {
-		fmt.Fprintf(w, `<p>Observed nodes: <strong>%d</strong>.</p>`, len(snap.Nodes))
-	}
-	panel := statuspkg.BuildPanel(statusSnap)
-	fmt.Fprint(w, `</section><section id="panel"><h2>Instrument panel</h2>`)
-	fmt.Fprintf(w, `<p><strong>Operator state:</strong> %s</p><p>%s</p><p><strong>Short commands:</strong> %s</p><pre>%s</pre></section><section id="transports"><h2>Transport health</h2><table><tr><th>Name</th><th>Type</th><th>Effective state</th><th>Health</th><th>Why unhealthy</th><th>Alerts</th><th>Scope</th><th>Detail</th><th>Messages</th><th>Heartbeat</th><th>Timeouts</th><th>Retry status</th><th>Dead letters</th><th>Observation drops</th><th>Last attempt</th><th>Last ingest</th><th>Last error</th></tr>`, panel.OperatorState, panel.Summary, strings.Join(panel.ShortCommands, " | "), asJSON(panel.OperatorMenu))
-	for _, h := range statusSnap.Transports {
-		fmt.Fprintf(w, `<tr><td>%s<br><span class="muted">%s</span></td><td>%s</td><td><code>%s</code><br><span class="muted">runtime=%s</span></td><td><strong>%d</strong> / %s<br><span class="muted">%s</span></td><td><pre>%s</pre></td><td><pre>%s</pre></td><td>%s</td><td>%s<br><span class="muted">%s</span></td><td>%d runtime / %d persisted</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`, h.Name, blankIfEmpty(h.Source, "—"), h.Type, blankIfEmpty(h.EffectiveState, "unknown"), blankIfEmpty(h.RuntimeState, "unknown"), h.Health.Score, blankIfEmpty(h.Health.State, "unknown"), blankIfEmpty(h.Health.PrimaryReason, "no dominant reason"), asJSON(h.Health.Explanation), asJSON(h.ActiveAlerts), h.StatusScope, h.Detail, h.Guidance, h.TotalMessages, h.PersistedMessages, blankIfEmpty(h.LastHeartbeatAt, "—"), h.ConsecutiveTimeouts, h.RetryStatus, h.DeadLetters, h.ObservationDrops, blankIfEmpty(h.LastAttemptAt, "—"), blankIfEmpty(h.LastIngestAt, "—"), blankIfEmpty(h.LastError, "—"))
-	}
-	fmt.Fprint(w, `</table><p class="muted">If multiple transports are enabled, operators must verify radio ownership and contention behavior themselves; MEL does not claim shared-radio arbitration that stock nodes do not provide.</p></section>`)
-	fmt.Fprint(w, `<section id="deadletters"><h2>Recent transport dead letters</h2>`)
-	if len(deadLetters) == 0 {
-		fmt.Fprint(w, `<p class="muted">No persisted transport dead letters are currently stored.</p>`)
-	} else {
-		fmt.Fprint(w, `<pre>`+asJSON(deadLetters)+`</pre>`)
+		fmt.Fprint(w, `<p class="muted">No live nodes observed yet. Historical counts above reflect stored database state.</p>`)
 	}
 	fmt.Fprint(w, `</section>`)
-	fmt.Fprint(w, `<section id="nodes"><h2>Nodes</h2>`)
-	if len(snap.Nodes) == 0 {
-		fmt.Fprint(w, `<p class="muted">Node inventory is empty because no live observations have been stored yet.</p>`)
-	} else {
-		fmt.Fprint(w, `<table><tr><th>Node</th><th>ID</th><th>Name</th><th>Last Seen</th><th>Gateway</th></tr>`)
-		for _, n := range snap.Nodes {
-			fmt.Fprintf(w, `<tr><td>%d</td><td>%s</td><td>%s %s</td><td>%s</td><td>%s</td></tr>`, n.Num, n.ID, n.LongName, n.ShortName, n.LastSeen, n.GatewayID)
-		}
-		fmt.Fprint(w, `</table>`)
+
+	panel := statuspkg.BuildPanel(statusSnap)
+	fmt.Fprintf(w, `<section id="panel"><h2>Instrument Panel</h2><p><strong>Operator State:</strong> %s</p><p>%s</p><pre>%s</pre></section>`, panel.OperatorState, panel.Summary, asJSON(panel.OperatorMenu))
+
+	fmt.Fprint(w, `<section id="transports"><h2>Transport Health</h2><div style="overflow-x:auto"><table><tr><th>Transport</th><th>State</th><th>Health</th><th>Alerts</th><th>Stats</th><th>Last Seen</th></tr>`)
+	for _, h := range statusSnap.Transports {
+		statusClass := "status-good"
+		if h.Health.Score < 100 { statusClass = "status-warn" }
+		if h.Health.Score < 50 { statusClass = "status-crit" }
+		
+		fmt.Fprintf(w, `<tr>
+<td><strong>%s</strong><br><span class="muted">%s</span></td>
+<td><code>%s</code></td>
+<td><span class="status-pill %s"></span> <strong>%d</strong><br><span class="muted">%s</span></td>
+<td>%d active<br><span class="muted">%s</span></td>
+<td>%d msg / %d DL</td>
+<td>%s</td>
+</tr>`, h.Name, h.Type, h.EffectiveState, statusClass, h.Health.Score, h.Health.State, len(h.ActiveAlerts), h.Health.PrimaryReason, h.TotalMessages, h.DeadLetters, blankIfEmpty(h.LastIngestAt, "—"))
 	}
-	fmt.Fprint(w, `</section><section id="messages"><h2>Recent messages</h2>`)
+	fmt.Fprint(w, `</table></div></section>`)
+
+	fmt.Fprint(w, `<section id="nodes"><h2>Node Inventory</h2>`)
+	if len(snap.Nodes) == 0 {
+		fmt.Fprint(w, `<p class="muted">No nodes available.</p>`)
+	} else {
+		fmt.Fprint(w, `<div style="overflow-x:auto"><table><tr><th>Node</th><th>ID</th><th>Name</th><th>Last Seen</th><th>Gateway</th></tr>`)
+		for _, n := range snap.Nodes {
+			fmt.Fprintf(w, `<tr><td>%d</td><td><code>%s</code></td><td>%s <span class="muted">%s</span></td><td>%s</td><td>%s</td></tr>`, n.Num, n.ID, n.LongName, n.ShortName, n.LastSeen, n.GatewayID)
+		}
+		fmt.Fprint(w, `</table></div>`)
+	}
+	fmt.Fprint(w, `</section>`)
+
+	fmt.Fprint(w, `<section id="messages"><h2>Recent Messages</h2>`)
 	if len(messages) == 0 {
-		fmt.Fprint(w, `<p class="muted">No live message observations have been stored yet.</p>`)
+		fmt.Fprint(w, `<p class="muted">No messages found.</p>`)
 	} else {
 		fmt.Fprint(w, `<pre>`+asJSON(messages)+`</pre>`)
 	}
-	fmt.Fprint(w, `</section><section id="privacy"><h2>Privacy findings</h2>`)
+	fmt.Fprint(w, `</section>`)
+
+	fmt.Fprint(w, `<section id="privacy"><h2>Privacy / Security Findings</h2>`)
 	if len(findings) == 0 {
-		fmt.Fprint(w, `<p>No active privacy findings for the current config.</p>`)
+		fmt.Fprint(w, `<p>No active security findings.</p>`)
 	} else {
 		fmt.Fprint(w, `<ul>`)
-		for _, finding := range findings {
-			fmt.Fprintf(w, `<li class="sev-%s"><strong>[%s]</strong> %s<br><span class="muted">%s</span></li>`, finding.Severity, strings.ToUpper(finding.Severity), finding.Message, finding.Remediation)
+		for _, f := range findings {
+			fmt.Fprintf(w, `<li class="sev-%s"><strong>[%s]</strong> %s<br><span class="muted">%s</span></li>`, f.Severity, strings.ToUpper(f.Severity), f.Message, f.Remediation)
 		}
 		fmt.Fprint(w, `</ul>`)
 	}
-	fmt.Fprint(w, `</section><section id="recommendations"><h2>Config recommendations</h2><pre>`+asJSON(s.recommendations())+`</pre></section>`)
-	fmt.Fprint(w, `<section id="events"><h2>Logs / events</h2><pre>`+asJSON(logs)+`</pre></section></body></html>`)
+	fmt.Fprint(w, `</section>`)
+
+	fmt.Fprint(w, `<section id="events"><h2>System Events</h2><pre>`+asJSON(logs)+`</pre></section>`)
+	
+	fmt.Fprintf(w, `<section id="onboarding"><h2>Onboarding Guide</h2><ol>
+<li>Run <code>mel init</code> to bootstrap a fresh configuration (bound to localhost by default).</li>
+<li>Run <code>mel doctor</code> to verify database permissions, schema, and device connectivity.</li>
+<li>Connect a Meshtastic device via Serial or TCP.</li>
+<li>Start the server with <code>mel serve</code>.</li>
+</ol></section></main>
+<footer style="text-align:center;padding:2rem;color:var(--muted);font-size:0.75rem;border-top:1px solid var(--border)">
+MEL Version %s — %s
+</footer></body></html>`, version.Version, version.BuildTime)
 }
 
 func asJSON(v any) string { b, _ := json.MarshalIndent(v, "", "  "); return string(b) }
@@ -1237,39 +1294,12 @@ func totalDeadLetters(transports []statuspkg.TransportReport) uint64 {
 	return total
 }
 
-func escape(v string) string {
-	v = strings.ReplaceAll(v, "'", "''")
-	v = strings.ReplaceAll(v, "\x00", "")
-	return v
-}
+func escape(v string) string { return db.EscString(v) }
 
-func isSafeIdentifier(v string) bool {
-	if strings.Contains(v, ";") {
-		return false
-	}
-	if strings.Contains(v, "--") {
-		return false
-	}
-	if strings.Contains(v, "/*") || strings.Contains(v, "*/") {
-		return false
-	}
-	if strings.Contains(v, "\x00") {
-		return false
-	}
-	return true
-}
+func isSafeIdentifier(v string) bool { return db.IsSafeIdentifier(v) }
 
 func containsPathTraversal(v string) bool {
-	if strings.Contains(v, "..") {
-		return true
-	}
-	if strings.Contains(v, "..") {
-		return true
-	}
-	if strings.Contains(v, "%2e%2e") || strings.Contains(v, "%2E%2E") {
-		return true
-	}
-	return false
+	return strings.Contains(v, "..") || strings.Contains(v, "%2e%2e") || strings.Contains(v, "%2E%2E")
 }
 
 func remoteClient(r *http.Request) string {

@@ -155,6 +155,8 @@ func initCmd(args []string) {
 		panic(err)
 	}
 	mustPrint(map[string]any{"status": "initialized", "config": *path, "bind": cfg.Bind.API, "database": cfg.Storage.DatabasePath})
+	fmt.Printf("\nSUCCESS: Configuration initialized at %s\n", *path)
+	fmt.Println("NEXT STEP: Run 'mel doctor' to verify your environment, database permissions, and device connectivity.")
 }
 
 func configCmd(args []string) {
@@ -210,6 +212,12 @@ func doctorCmd(args []string) {
 	database, err := db.Open(cfg)
 	if err != nil {
 		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error(), "guidance": "Fix storage.database_path or parent directory permissions before launch."})
+	}
+	// Check database file permissions
+	if _, err := os.Stat(cfg.Storage.DatabasePath); err == nil {
+		if err := security.CheckFileMode(cfg.Storage.DatabasePath); err != nil {
+			findings = append(findings, map[string]string{"component": "db_perms", "severity": "high", "message": err.Error(), "guidance": "Run 'chmod 600 " + cfg.Storage.DatabasePath + "' to restrict access to the database file."})
+		}
 	}
 	dbChecks := map[string]any{"path": cfg.Storage.DatabasePath, "write_ok": false, "read_ok": false}
 	if database != nil {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/selfobs"
 )
 
 type Manifest struct {
@@ -104,6 +105,7 @@ func Create(cfg config.Config, cfgPath, outPath string) (Manifest, error) {
 			return manifest, err
 		}
 	}
+	selfobs.MarkFresh("backup")
 	return manifest, nil
 }
 

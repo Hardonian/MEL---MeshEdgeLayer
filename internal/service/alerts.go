@@ -9,6 +9,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/selfobs"
 	statuspkg "github.com/mel-project/mel/internal/status"
 )
 
@@ -104,6 +105,7 @@ func (a *App) evaluateTransportIntelligence(now time.Time) {
 		}
 	}
 	a.evaluateControl(now)
+	selfobs.MarkFresh("alert")
 }
 
 func deriveTransportAlerts(cfg config.Config, name, typ string, health statuspkg.TransportHealth, anomalies []statuspkg.TransportAnomalySummary, clusters []statuspkg.FailureCluster, previous db.TransportHealthSnapshot, persisted map[string]db.TransportAlertRecord, database *db.DB, now time.Time) []statuspkg.TransportAlert {

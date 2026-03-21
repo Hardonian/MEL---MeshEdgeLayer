@@ -9,6 +9,7 @@ import (
 
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/selfobs"
 )
 
 type transportControlState struct {
@@ -456,6 +457,9 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	_ = a.DB.UpsertControlAction(controlActionRecord(action))
 	if result == control.ResultExecutedSuccessfully && (action.ActionType == control.ActionRestartTransport || action.ActionType == control.ActionResubscribeTransport) {
 		a.enqueueHealthRecheckFollowup(action)
+	}
+	if result == control.ResultExecutedSuccessfully {
+		selfobs.MarkFresh("control")
 	}
 }
 

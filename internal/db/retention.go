@@ -3,6 +3,8 @@ package db
 import (
 	"fmt"
 	"time"
+
+	"github.com/mel-project/mel/internal/selfobs"
 )
 
 func (d *DB) PruneTransportIntelligence(cutoff time.Time, maxRows int) error {
@@ -24,7 +26,11 @@ DELETE FROM transport_anomaly_snapshots WHERE id IN (
 );
 DELETE FROM transport_alerts WHERE active=0 AND resolved_at != '' AND resolved_at < '%s';
 COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows, esc(cutoffSQL))
-	return d.Exec(sql)
+	if err := d.Exec(sql); err != nil {
+		return err
+	}
+	selfobs.MarkFresh("retention")
+	return nil
 }
 
 func (d *DB) PruneControlHistory(cutoff time.Time, maxRows int) error {
