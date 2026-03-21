@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/simulation"
@@ -45,7 +44,7 @@ Examples:
 
 func simulateActionSubCmd(args []string) {
 	f := flag.NewFlagSet("simulate-action", flag.ExitOnError)
-	configPath := f.String("config", "configs/mel.example.json", "path to config file")
+	configPath := f.String("config", configFlagDefault(), "path to config file")
 	transportName := f.String("transport", "", "target transport name")
 	format := f.String("format", "text", "output format: text or json")
 	outputPath := f.String("output", "", "write output to file (optional)")
@@ -75,7 +74,7 @@ func simulateActionSubCmd(args []string) {
 		os.Exit(1)
 	}
 
-	cfg, _, err := config.Load(*configPath)
+	cfg, _, err := loadConfigFile(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)

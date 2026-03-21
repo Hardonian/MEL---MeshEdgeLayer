@@ -1,0 +1,6 @@
+{
+  "logging": {
+    "level": "debug"
+  },
+  "strict_mode": false
+}
