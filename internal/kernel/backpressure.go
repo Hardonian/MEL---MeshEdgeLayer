@@ -21,8 +21,8 @@ type Backpressure struct {
 	pendingCount     atomic.Int64
 
 	// Batching
-	batchSize     int
-	batchTimeout  time.Duration
+	batchSize    int
+	batchTimeout time.Duration
 
 	// Stats
 	accepted  atomic.Uint64

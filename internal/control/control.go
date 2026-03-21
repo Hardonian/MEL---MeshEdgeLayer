@@ -22,10 +22,10 @@ var (
 )
 
 const (
-	MaxActionsPerWindowCap     = 100
-	MinCooldownPerTargetSecs   = 10
-	MaxActionTimeoutSeconds    = 300
-	StartupGracePeriodSeconds  = 30
+	MaxActionsPerWindowCap    = 100
+	MinCooldownPerTargetSecs  = 10
+	MaxActionTimeoutSeconds   = 300
+	StartupGracePeriodSeconds = 30
 )
 
 const (
@@ -76,29 +76,29 @@ const (
 
 	// ─── Execution modes ───────────────────────────────────────────────────────
 	// ExecutionModeAuto: system executes automatically when safety checks pass.
-	ExecutionModeAuto             = "auto"
+	ExecutionModeAuto = "auto"
 	// ExecutionModeApprovalRequired: action is held in pending_approval state
 	// until an operator explicitly approves it via API/CLI.
 	ExecutionModeApprovalRequired = "approval_required"
 	// ExecutionModeManualOnly: action is never executed autonomously; operator
 	// must execute it through an explicit API/CLI call.
-	ExecutionModeManualOnly       = "manual_only"
+	ExecutionModeManualOnly = "manual_only"
 	// ExecutionModeDryRun: action goes through the full lifecycle but is never
 	// sent to the actuator; used for testing policy and evidence capture.
-	ExecutionModeDryRun           = "dry_run"
+	ExecutionModeDryRun = "dry_run"
 
 	// ─── Additional lifecycle states ──────────────────────────────────────────
 	// LifecyclePendingApproval: action proposed, waiting for operator approval.
 	LifecyclePendingApproval = "pending_approval"
 
 	// ─── Additional result codes ──────────────────────────────────────────────
-	ResultPendingApproval   = "pending_approval"
-	ResultApproved          = "approved"
-	ResultRejected          = "rejected"
-	ResultDeniedByFreeze    = "denied_by_freeze"
+	ResultPendingApproval     = "pending_approval"
+	ResultApproved            = "approved"
+	ResultRejected            = "rejected"
+	ResultDeniedByFreeze      = "denied_by_freeze"
 	ResultDeniedByMaintenance = "denied_by_maintenance"
-	ResultApprovalExpired   = "approval_expired"
-	ResultDryRun            = "dry_run_only"
+	ResultApprovalExpired     = "approval_expired"
+	ResultDryRun              = "dry_run_only"
 
 	// ─── Additional denial codes ──────────────────────────────────────────────
 	DenialFreeze           = "freeze"
@@ -116,11 +116,11 @@ const (
 	BlastRadiusUnknown   = "unknown"
 
 	// ─── Additional closure states ────────────────────────────────────────────
-	ClosureRejectedByOperator = "rejected_by_operator"
-	ClosureApprovalExpired    = "approval_expired"
-	ClosureBlockedByFreeze    = "blocked_by_freeze"
+	ClosureRejectedByOperator   = "rejected_by_operator"
+	ClosureApprovalExpired      = "approval_expired"
+	ClosureBlockedByFreeze      = "blocked_by_freeze"
 	ClosureBlockedByMaintenance = "blocked_by_maintenance"
-	ClosureDryRun             = "dry_run_completed"
+	ClosureDryRun               = "dry_run_completed"
 )
 
 type ControlAction struct {
@@ -150,18 +150,18 @@ type ControlAction struct {
 	Metadata        map[string]any `json:"metadata,omitempty"`
 
 	// Trust / approval fields (populated from migration 0017)
-	ExecutionMode      string `json:"execution_mode,omitempty"`
-	ProposedBy         string `json:"proposed_by,omitempty"`
-	ApprovedBy         string `json:"approved_by,omitempty"`
-	ApprovedAt         string `json:"approved_at,omitempty"`
-	RejectedBy         string `json:"rejected_by,omitempty"`
-	RejectedAt         string `json:"rejected_at,omitempty"`
-	ApprovalNote       string `json:"approval_note,omitempty"`
-	ApprovalExpiresAt  string `json:"approval_expires_at,omitempty"`
-	BlastRadiusClass   string `json:"blast_radius_class,omitempty"`
-	BeforeStateJSON    string `json:"before_state_json,omitempty"`
-	AfterStateJSON     string `json:"after_state_json,omitempty"`
-	EvidenceBundleID   string `json:"evidence_bundle_id,omitempty"`
+	ExecutionMode     string `json:"execution_mode,omitempty"`
+	ProposedBy        string `json:"proposed_by,omitempty"`
+	ApprovedBy        string `json:"approved_by,omitempty"`
+	ApprovedAt        string `json:"approved_at,omitempty"`
+	RejectedBy        string `json:"rejected_by,omitempty"`
+	RejectedAt        string `json:"rejected_at,omitempty"`
+	ApprovalNote      string `json:"approval_note,omitempty"`
+	ApprovalExpiresAt string `json:"approval_expires_at,omitempty"`
+	BlastRadiusClass  string `json:"blast_radius_class,omitempty"`
+	BeforeStateJSON   string `json:"before_state_json,omitempty"`
+	AfterStateJSON    string `json:"after_state_json,omitempty"`
+	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
 }
 
 type ControlPolicy struct {

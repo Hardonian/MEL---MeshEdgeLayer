@@ -40,11 +40,11 @@ const (
 type AdmissionResult string
 
 const (
-	AdmissionAllowed    AdmissionResult = "allowed"
-	AdmissionDenied     AdmissionResult = "denied"
-	AdmissionAdvisory   AdmissionResult = "advisory"
-	AdmissionPending    AdmissionResult = "pending_review"
-	AdmissionUnknown    AdmissionResult = "unknown"
+	AdmissionAllowed  AdmissionResult = "allowed"
+	AdmissionDenied   AdmissionResult = "denied"
+	AdmissionAdvisory AdmissionResult = "advisory"
+	AdmissionPending  AdmissionResult = "pending_review"
+	AdmissionUnknown  AdmissionResult = "unknown"
 )
 
 // ConflictSeverity represents the severity of detected conflicts.
@@ -262,6 +262,9 @@ type PolicyPreview struct {
 
 	// AdvisoryNote provides guidance when action is advisory-only
 	AdvisoryNote string `json:"advisory_note,omitempty"`
+
+	// CooldownInfo provides details about any applicable cooldown.
+	CooldownInfo CooldownPreview `json:"cooldown_info,omitempty"`
 }
 
 // ConflictReport describes a detected conflict with other actions or state.

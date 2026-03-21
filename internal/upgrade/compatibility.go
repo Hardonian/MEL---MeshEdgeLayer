@@ -28,30 +28,30 @@ type UpgradePath struct {
 
 // UpgradeResult contains the result of an upgrade compatibility check
 type UpgradeResult struct {
-	Allowed          bool
-	Reason          string
-	Severity        string // "error", "warning", "info"
+	Allowed            bool
+	Reason             string
+	Severity           string // "error", "warning", "info"
 	RequiredMigrations []string
-	BreakingChanges []string
+	BreakingChanges    []string
 }
 
 // MigrationInfo represents information about a schema migration
 type MigrationInfo struct {
-	Version      string
-	Name         string
-	Reversible   bool
-	Destructive  bool
-	Description  string
+	Version     string
+	Name        string
+	Reversible  bool
+	Destructive bool
+	Description string
 }
 
 // CheckCompatibility checks if upgrading from one version to another is compatible
 func CheckCompatibility(current, target string) *UpgradeResult {
 	result := &UpgradeResult{
-		Allowed:          true,
-		Severity:         "info",
-		Reason:           "Upgrade path is compatible",
+		Allowed:            true,
+		Severity:           "info",
+		Reason:             "Upgrade path is compatible",
 		RequiredMigrations: []string{},
-		BreakingChanges:  []string{},
+		BreakingChanges:    []string{},
 	}
 
 	currentLevel := GetCompatibilityLevel(current)

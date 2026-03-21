@@ -49,14 +49,14 @@ type RiskScore struct {
 // RiskFactorDetail represents a single factor that contributed to the risk assessment.
 // This extends the base RiskFactor type with weight and impact metrics.
 type RiskFactorDetail struct {
-	Category    string  `json:"category"`
-	Description string  `json:"description"`
+	Category    string    `json:"category"`
+	Description string    `json:"description"`
 	Level       RiskLevel `json:"level"`
-	Weight      float64 `json:"weight"`
-	Impact      float64 `json:"impact"`
-	Likelihood  float64 `json:"likelihood"`
-	Mitigatable bool    `json:"mitigatable"`
-	Explanation string  `json:"explanation,omitempty"`
+	Weight      float64   `json:"weight"`
+	Impact      float64   `json:"impact"`
+	Likelihood  float64   `json:"likelihood"`
+	Mitigatable bool      `json:"mitigatable"`
+	Explanation string    `json:"explanation,omitempty"`
 }
 
 // ReversibilityAssessment evaluates how reversible an action is

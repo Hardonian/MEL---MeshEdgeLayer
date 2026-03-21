@@ -112,10 +112,10 @@ func GetAllowedActions(role OperatorRole) []ActionClass {
 
 // DeniedActionReason provides a structured reason when an action is denied.
 type DeniedActionReason struct {
-	Reason   string
-	Role     OperatorRole
-	Action   ActionClass
-	Details  string
+	Reason  string
+	Role    OperatorRole
+	Action  ActionClass
+	Details string
 }
 
 // NewDeniedActionReason creates a new denied action reason.

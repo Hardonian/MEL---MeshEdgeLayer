@@ -24,8 +24,8 @@ func tempDB(t *testing.T) string {
 
 func TestSyncScopeMatches(t *testing.T) {
 	scope := SyncScope{
-		EventTypes: []string{"observation", "anomaly"},
-		Regions:    []string{"us-east", "eu-west"},
+		EventTypes:   []string{"observation", "anomaly"},
+		Regions:      []string{"us-east", "eu-west"},
 		ExcludeTypes: []string{"operator_action"},
 	}
 
@@ -37,9 +37,9 @@ func TestSyncScopeMatches(t *testing.T) {
 	}{
 		{"observation", "us-east", "mqtt", true},
 		{"anomaly", "eu-west", "", true},
-		{"topology_update", "us-east", "", false},   // not in allowed types
-		{"observation", "ap-south", "", false},       // not in allowed regions
-		{"operator_action", "us-east", "", false},    // excluded
+		{"topology_update", "us-east", "", false}, // not in allowed types
+		{"observation", "ap-south", "", false},    // not in allowed regions
+		{"operator_action", "us-east", "", false}, // excluded
 	}
 
 	for _, tt := range tests {

@@ -86,7 +86,7 @@ func NewCorrelationIDPool(size int) *CorrelationIDPool {
 func (p *CorrelationIDPool) Get(source string) CorrelationID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if len(p.ids) > 0 {
 		// Reuse an ID but update the source
 		corr := p.ids[len(p.ids)-1]
@@ -102,7 +102,7 @@ func (p *CorrelationIDPool) Get(source string) CorrelationID {
 func (p *CorrelationIDPool) Put(corr CorrelationID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if len(p.ids) < cap(p.ids) {
 		p.ids = append(p.ids, corr)
 	}

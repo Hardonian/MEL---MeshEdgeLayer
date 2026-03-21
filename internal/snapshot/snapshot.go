@@ -26,15 +26,15 @@ import (
 
 // Snapshot is a complete point-in-time capture of kernel state.
 type Snapshot struct {
-	ID              string       `json:"id"`
-	NodeID          string       `json:"node_id"`
-	SequenceNum     uint64       `json:"sequence_num"`
-	State           kernel.State `json:"state"`
-	PolicyVersion   string       `json:"policy_version"`
-	CreatedAt       time.Time    `json:"created_at"`
-	IntegrityHash   string       `json:"integrity_hash"`
-	EventCount      uint64       `json:"event_count"`
-	SizeBytes       int          `json:"size_bytes"`
+	ID            string       `json:"id"`
+	NodeID        string       `json:"node_id"`
+	SequenceNum   uint64       `json:"sequence_num"`
+	State         kernel.State `json:"state"`
+	PolicyVersion string       `json:"policy_version"`
+	CreatedAt     time.Time    `json:"created_at"`
+	IntegrityHash string       `json:"integrity_hash"`
+	EventCount    uint64       `json:"event_count"`
+	SizeBytes     int          `json:"size_bytes"`
 }
 
 // Store manages snapshot persistence.

@@ -239,13 +239,13 @@ type OpenAIProvider struct {
 	redactor *redactor
 
 	// circuit breaker state
-	circuitState   circuitState
-	circuitMu      sync.RWMutex
-	failureCount   int
+	circuitState    circuitState
+	circuitMu       sync.RWMutex
+	failureCount    int
 	lastFailureTime time.Time
 
 	// closed indicates if the provider is closed
-	closed bool
+	closed  bool
 	closeMu sync.RWMutex
 }
 
@@ -288,12 +288,12 @@ func NewOpenAIProvider(apiKey, baseURL, model string, timeout time.Duration) (*O
 	}
 
 	return &OpenAIProvider{
-		apiKey:     apiKey,
-		baseURL:    baseURL,
-		model:      model,
-		timeout:    timeout,
-		httpClient: &http.Client{Timeout: timeout},
-		redactor:   newRedactor(),
+		apiKey:       apiKey,
+		baseURL:      baseURL,
+		model:        model,
+		timeout:      timeout,
+		httpClient:   &http.Client{Timeout: timeout},
+		redactor:     newRedactor(),
 		circuitState: circuitClosed,
 	}, nil
 }
@@ -609,7 +609,7 @@ Respond with JSON only: {"category": "...", "confidence": 0.0-1.0, "reasoning": 
 	// Parse response content as JSON
 	content := resp.Choices[0].Message.Content
 	content = strings.TrimSpace(content)
-	
+
 	// Try to extract JSON from markdown code blocks
 	if strings.HasPrefix(content, "```json") {
 		content = strings.TrimPrefix(content, "```json")

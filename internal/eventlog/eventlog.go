@@ -48,11 +48,11 @@ type Config struct {
 
 // Stats holds event log operational statistics.
 type Stats struct {
-	TotalEvents    uint64 `json:"total_events"`
+	TotalEvents     uint64 `json:"total_events"`
 	LastSequenceNum uint64 `json:"last_sequence_num"`
-	Appended       uint64 `json:"appended"`
-	Queried        uint64 `json:"queried"`
-	Compacted      uint64 `json:"compacted"`
+	Appended        uint64 `json:"appended"`
+	Queried         uint64 `json:"queried"`
+	Compacted       uint64 `json:"compacted"`
 }
 
 // Open creates or opens an event log at the given database path.
@@ -169,15 +169,15 @@ func (l *Log) AppendBatch(events []*kernel.Event) error {
 
 // Query retrieves events matching the given filter, ordered by sequence number.
 type QueryFilter struct {
-	AfterSequence  uint64           `json:"after_sequence"`
-	BeforeSequence uint64           `json:"before_sequence"`
+	AfterSequence  uint64             `json:"after_sequence"`
+	BeforeSequence uint64             `json:"before_sequence"`
 	EventTypes     []kernel.EventType `json:"event_types,omitempty"`
-	SourceNodeID   string           `json:"source_node_id,omitempty"`
-	SourceRegion   string           `json:"source_region,omitempty"`
-	Subject        string           `json:"subject,omitempty"`
-	Since          time.Time        `json:"since,omitempty"`
-	Until          time.Time        `json:"until,omitempty"`
-	Limit          int              `json:"limit"`
+	SourceNodeID   string             `json:"source_node_id,omitempty"`
+	SourceRegion   string             `json:"source_region,omitempty"`
+	Subject        string             `json:"subject,omitempty"`
+	Since          time.Time          `json:"since,omitempty"`
+	Until          time.Time          `json:"until,omitempty"`
+	Limit          int                `json:"limit"`
 }
 
 // Query returns events matching the filter.

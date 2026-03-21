@@ -57,9 +57,9 @@ func TestCheckCompatibility(t *testing.T) {
 	}{
 		{"v0.1.0", "v0.2.0", true, "warning"}, // pre-1.0 warning
 		{"v1.0.0", "v1.1.0", true, "info"},    // minor upgrade
-		{"v1.0.0", "v2.0.0", true, "warning"},  // major upgrade
-		{"v1.0.0", "v0.1.0", false, "error"},   // downgrade
-		{"v1.0.0", "v3.0.0", false, "error"},   // skip major
+		{"v1.0.0", "v2.0.0", true, "warning"}, // major upgrade
+		{"v1.0.0", "v0.1.0", false, "error"},  // downgrade
+		{"v1.0.0", "v3.0.0", false, "error"},  // skip major
 	}
 
 	for _, tt := range tests {

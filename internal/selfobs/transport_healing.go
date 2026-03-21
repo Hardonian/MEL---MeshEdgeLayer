@@ -690,7 +690,7 @@ func (thc *TransportHealingController) AttemptTransportHeal(transportType string
 	}
 
 	startTime := time.Now()
-	err := 	strategy.ExecuteTransport(transportType, config)
+	err := strategy.ExecuteTransport(transportType, config)
 	latency := time.Since(startTime)
 
 	thc.recordLatency(transportType, latency)

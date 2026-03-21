@@ -9,22 +9,22 @@ import (
 // InternalMetrics holds all internal MEL metrics for observability
 type InternalMetrics struct {
 	mu sync.RWMutex
-	
+
 	// Pipeline latency tracking
 	PipelineLatencies PipelineLatencies
-	
+
 	// Worker heartbeats
 	WorkerHeartbeats map[string]time.Time
-	
+
 	// Queue depths per stage
 	QueueDepths map[string]int
-	
+
 	// Error rates by component (using pointer to allow mutation)
 	ErrorRates map[string]*ErrorRateTracker
-	
+
 	// Resource usage
 	ResourceUsage ResourceMetrics
-	
+
 	// Operation counts
 	OperationCounts map[string]int64
 }
@@ -75,7 +75,7 @@ func (p *PipelineLatencies) RecordAlertToAction(d time.Duration) {
 func (p *PipelineLatencies) GetP99(stage string) time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	var samples []time.Duration
 	switch stage {
 	case "ingest_to_classify":
@@ -87,16 +87,16 @@ func (p *PipelineLatencies) GetP99(stage string) time.Duration {
 	default:
 		return 0
 	}
-	
+
 	if len(samples) == 0 {
 		return 0
 	}
-	
+
 	// Sort for percentile calculation
 	sorted := make([]time.Duration, len(samples))
 	copy(sorted, samples)
 	quickSortDurations(sorted)
-	
+
 	p99Index := len(sorted) * 99 / 100
 	if p99Index >= len(sorted) {
 		p99Index = len(sorted) - 1
@@ -108,7 +108,7 @@ func (p *PipelineLatencies) GetP99(stage string) time.Duration {
 func (p *PipelineLatencies) GetAverage(stage string) time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	var samples []time.Duration
 	switch stage {
 	case "ingest_to_classify":
@@ -120,11 +120,11 @@ func (p *PipelineLatencies) GetAverage(stage string) time.Duration {
 	default:
 		return 0
 	}
-	
+
 	if len(samples) == 0 {
 		return 0
 	}
-	
+
 	var total time.Duration
 	for _, s := range samples {
 		total += s
@@ -179,7 +179,7 @@ func (e *ErrorRateTracker) GetErrorRate() float64 {
 // ResourceMetrics holds runtime resource metrics
 type ResourceMetrics struct {
 	mu sync.RWMutex
-	
+
 	MemoryUsed uint64
 	Goroutines int
 	NumGC      uint32
@@ -189,10 +189,10 @@ type ResourceMetrics struct {
 func (r *ResourceMetrics) CollectResourceMetrics() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	r.MemoryUsed = m.Alloc
 	r.Goroutines = runtime.NumGoroutine()
 	r.NumGC = m.NumGC
@@ -209,11 +209,11 @@ type ResourceMetricsSnapshot struct {
 type MetricsSnapshot struct {
 	Timestamp        time.Time               `json:"timestamp"`
 	PipelineLatency  map[string]int64        `json:"pipeline_latency_ms"`
-	WorkerHeartbeats map[string]string         `json:"worker_heartbeats"`
+	WorkerHeartbeats map[string]string       `json:"worker_heartbeats"`
 	QueueDepths      map[string]int          `json:"queue_depths"`
 	ErrorRates       map[string]float64      `json:"error_rates"`
 	ResourceUsage    ResourceMetricsSnapshot `json:"resource_usage"`
-	OperationCounts map[string]int64         `json:"operation_counts"`
+	OperationCounts  map[string]int64        `json:"operation_counts"`
 }
 
 // NewInternalMetrics creates a new InternalMetrics collection
@@ -221,9 +221,9 @@ func NewInternalMetrics() *InternalMetrics {
 	return &InternalMetrics{
 		WorkerHeartbeats: make(map[string]time.Time),
 		QueueDepths:      make(map[string]int),
-		ErrorRates:      make(map[string]*ErrorRateTracker),
-		ResourceUsage:   ResourceMetrics{},
-		OperationCounts: make(map[string]int64),
+		ErrorRates:       make(map[string]*ErrorRateTracker),
+		ResourceUsage:    ResourceMetrics{},
+		OperationCounts:  make(map[string]int64),
 	}
 }
 
@@ -304,7 +304,7 @@ func (m *InternalMetrics) RecordFailure(component string) {
 func (m *InternalMetrics) GetMetricsSnapshot() MetricsSnapshot {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	snapshot := MetricsSnapshot{
 		Timestamp:        time.Now(),
 		WorkerHeartbeats: make(map[string]string),
@@ -312,7 +312,7 @@ func (m *InternalMetrics) GetMetricsSnapshot() MetricsSnapshot {
 		ErrorRates:       make(map[string]float64),
 		OperationCounts:  make(map[string]int64),
 	}
-	
+
 	// Pipeline latencies
 	snapshot.PipelineLatency = map[string]int64{
 		"ingest_to_classify_p99": m.PipelineLatencies.GetP99("ingest_to_classify").Milliseconds(),
@@ -322,27 +322,27 @@ func (m *InternalMetrics) GetMetricsSnapshot() MetricsSnapshot {
 		"classify_to_alert_avg":  m.PipelineLatencies.GetAverage("classify_to_alert").Milliseconds(),
 		"alert_to_action_avg":    m.PipelineLatencies.GetAverage("alert_to_action").Milliseconds(),
 	}
-	
+
 	// Worker heartbeats
 	for worker, heartbeat := range m.WorkerHeartbeats {
 		snapshot.WorkerHeartbeats[worker] = heartbeat.Format(time.RFC3339)
 	}
-	
+
 	// Queue depths
 	for stage, depth := range m.QueueDepths {
 		snapshot.QueueDepths[stage] = depth
 	}
-	
+
 	// Error rates
 	for component, tracker := range m.ErrorRates {
 		snapshot.ErrorRates[component] = tracker.GetErrorRate()
 	}
-	
+
 	// Operation counts
 	for op, count := range m.OperationCounts {
 		snapshot.OperationCounts[op] = count
 	}
-	
+
 	// Resource usage
 	m.ResourceUsage.mu.RLock()
 	snapshot.ResourceUsage = ResourceMetricsSnapshot{
@@ -351,7 +351,7 @@ func (m *InternalMetrics) GetMetricsSnapshot() MetricsSnapshot {
 		NumGC:      m.ResourceUsage.NumGC,
 	}
 	m.ResourceUsage.mu.RUnlock()
-	
+
 	return snapshot
 }
 

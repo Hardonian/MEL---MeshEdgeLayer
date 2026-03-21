@@ -15,31 +15,31 @@ import (
 type CheckStatus string
 
 const (
-	CheckPass  CheckStatus = "pass"
-	CheckFail  CheckStatus = "fail"
-	CheckWarn  CheckStatus = "warn"
-	CheckSkip  CheckStatus = "skip"
+	CheckPass CheckStatus = "pass"
+	CheckFail CheckStatus = "fail"
+	CheckWarn CheckStatus = "warn"
+	CheckSkip CheckStatus = "skip"
 )
 
 // UpgradeCheck represents a single pre-upgrade check
 type UpgradeCheck struct {
-	Name        string       `json:"name"`
-	Status      CheckStatus  `json:"status"`
-	Message     string       `json:"message"`
-	Severity    string       `json:"severity"` // "critical", "warning", "info"
-	Remediation string       `json:"remediation,omitempty"`
+	Name        string         `json:"name"`
+	Status      CheckStatus    `json:"status"`
+	Message     string         `json:"message"`
+	Severity    string         `json:"severity"` // "critical", "warning", "info"
+	Remediation string         `json:"remediation,omitempty"`
 	Details     map[string]any `json:"details,omitempty"`
 }
 
 // UpgradeReadinessReport contains the result of all pre-upgrade checks
 type UpgradeReadinessReport struct {
-	Ready          bool                 `json:"ready"`
-	OverallStatus  string               `json:"overall_status"` // "ready", "not_ready", "warnings"
-	Timestamp      string               `json:"timestamp"`
-	VersionInfo    version.VersionInfo  `json:"version_info"`
-	CurrentSchema  int                  `json:"current_schema"`
-	RequiredSchema int                  `json:"required_schema"`
-	Checks         []UpgradeCheck       `json:"checks"`
+	Ready          bool                `json:"ready"`
+	OverallStatus  string              `json:"overall_status"` // "ready", "not_ready", "warnings"
+	Timestamp      string              `json:"timestamp"`
+	VersionInfo    version.VersionInfo `json:"version_info"`
+	CurrentSchema  int                 `json:"current_schema"`
+	RequiredSchema int                 `json:"required_schema"`
+	Checks         []UpgradeCheck      `json:"checks"`
 	Summary        UpgradeSummary      `json:"summary"`
 }
 
@@ -133,11 +133,11 @@ func checkDiskSpace(cfg config.Config) []UpgradeCheck {
 	os.Remove(testFile)
 
 	return []UpgradeCheck{{
-		Name:        "disk_space",
-		Status:      CheckPass,
-		Message:     "Data directory is writable",
-		Severity:    "info",
-		Details:     map[string]any{"directory": dir},
+		Name:     "disk_space",
+		Status:   CheckPass,
+		Message:  "Data directory is writable",
+		Severity: "info",
+		Details:  map[string]any{"directory": dir},
 	}}
 }
 
@@ -182,11 +182,11 @@ func checkDBIntegrity(cfg config.Config, database *db.DB) []UpgradeCheck {
 	}
 
 	return []UpgradeCheck{{
-		Name:        "db_integrity",
-		Status:      CheckPass,
-		Message:     "Database is accessible and tables exist",
-		Severity:    "info",
-		Details:     map[string]any{"tables_checked": len(requiredTables)},
+		Name:     "db_integrity",
+		Status:   CheckPass,
+		Message:  "Database is accessible and tables exist",
+		Severity: "info",
+		Details:  map[string]any{"tables_checked": len(requiredTables)},
 	}}
 }
 
@@ -194,10 +194,10 @@ func checkDBIntegrity(cfg config.Config, database *db.DB) []UpgradeCheck {
 func checkBackupExists(cfg config.Config, database *db.DB) []UpgradeCheck {
 	if database == nil {
 		return []UpgradeCheck{{
-			Name:        "backup_exists",
-			Status:      CheckSkip,
-			Message:     "Database not available",
-			Severity:    "warning",
+			Name:     "backup_exists",
+			Status:   CheckSkip,
+			Message:  "Database not available",
+			Severity: "warning",
 		}}
 	}
 
@@ -239,11 +239,11 @@ func checkBackupExists(cfg config.Config, database *db.DB) []UpgradeCheck {
 	}
 
 	return []UpgradeCheck{{
-		Name:        "backup_exists",
-		Status:      CheckPass,
-		Message:     fmt.Sprintf("Recent backup exists (%.0f days ago)", daysSinceBackup),
-		Severity:    "info",
-		Details:     map[string]any{"days_since_backup": daysSinceBackup},
+		Name:     "backup_exists",
+		Status:   CheckPass,
+		Message:  fmt.Sprintf("Recent backup exists (%.0f days ago)", daysSinceBackup),
+		Severity: "info",
+		Details:  map[string]any{"days_since_backup": daysSinceBackup},
 	}}
 }
 
@@ -271,10 +271,10 @@ func checkVersionCompatibility() []UpgradeCheck {
 		})
 	} else {
 		checks = append(checks, UpgradeCheck{
-			Name:        "version_compatibility",
-			Status:      CheckPass,
-			Message:     "Running stable release",
-			Severity:    "info",
+			Name:     "version_compatibility",
+			Status:   CheckPass,
+			Message:  "Running stable release",
+			Severity: "info",
 		})
 	}
 
@@ -297,10 +297,10 @@ func checkVersionCompatibility() []UpgradeCheck {
 func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 	if database == nil {
 		return []UpgradeCheck{{
-			Name:        "schema_version",
-			Status:      CheckSkip,
-			Message:     "Database not available",
-			Severity:    "warning",
+			Name:     "schema_version",
+			Status:   CheckSkip,
+			Message:  "Database not available",
+			Severity: "warning",
 		}}
 	}
 
@@ -334,8 +334,8 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 			Severity:    "critical",
 			Remediation: "Run migrations: mel serve --config <path> will auto-apply migrations",
 			Details: map[string]any{
-				"current_schema":   currentSchema,
-				"required_schema":  requiredSchema,
+				"current_schema":    currentSchema,
+				"required_schema":   requiredSchema,
 				"migrations_needed": migrationsNeeded,
 			},
 		}}
@@ -356,10 +356,10 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 	}
 
 	return []UpgradeCheck{{
-		Name:        "schema_version",
-		Status:      CheckPass,
-		Message:     fmt.Sprintf("Schema version is current: v%d", currentSchema),
-		Severity:    "info",
-		Details:     map[string]any{"schema_version": currentSchema},
+		Name:     "schema_version",
+		Status:   CheckPass,
+		Message:  fmt.Sprintf("Schema version is current: v%d", currentSchema),
+		Severity: "info",
+		Details:  map[string]any{"schema_version": currentSchema},
 	}}
 }

@@ -224,14 +224,14 @@ type NodeInfo struct {
 
 // RegionHealthState summarizes health for a region.
 type RegionHealthState struct {
-	RegionID       string    `json:"region_id"`
-	NodeCount      int       `json:"node_count"`
-	HealthyNodes   int       `json:"healthy_nodes"`
-	DegradedNodes  int       `json:"degraded_nodes"`
-	FailingNodes   int       `json:"failing_nodes"`
-	OverallHealth  float64   `json:"overall_health"`
-	LastUpdateAt   time.Time `json:"last_update_at"`
-	Isolated       bool      `json:"isolated"`
+	RegionID      string    `json:"region_id"`
+	NodeCount     int       `json:"node_count"`
+	HealthyNodes  int       `json:"healthy_nodes"`
+	DegradedNodes int       `json:"degraded_nodes"`
+	FailingNodes  int       `json:"failing_nodes"`
+	OverallHealth float64   `json:"overall_health"`
+	LastUpdateAt  time.Time `json:"last_update_at"`
+	Isolated      bool      `json:"isolated"`
 }
 
 // NewState returns an initialized empty kernel state.

@@ -28,14 +28,14 @@ type HeatPoint struct {
 
 // HealthSnapshot represents a point-in-time health state.
 type HealthSnapshot struct {
-	ID          int64
-	Timestamp   time.Time
-	Component   string
-	HealthState string
-	ErrorRate   float64
+	ID           int64
+	Timestamp    time.Time
+	Component    string
+	HealthState  string
+	ErrorRate    float64
 	SuccessCount int
-	ErrorCount  int
-	TotalOps    int
+	ErrorCount   int
+	TotalOps     int
 }
 
 // ActionStats aggregates healing action statistics.

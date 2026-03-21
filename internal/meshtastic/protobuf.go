@@ -71,10 +71,10 @@ func DefaultParseLimits() ParseLimits {
 
 // parseState tracks parsing progress and enforces limits.
 type parseState struct {
-	limits      ParseLimits
-	depth       int
-	fieldCount  int
-	allocBytes  int
+	limits     ParseLimits
+	depth      int
+	fieldCount int
+	allocBytes int
 }
 
 // newParseState creates a new parse state with the given limits.

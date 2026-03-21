@@ -21,23 +21,23 @@ import (
 // EvidenceBundleRecord is the durable provenance record tying every action /
 // decision to the observations, health data, and policy context that led to it.
 type EvidenceBundleRecord struct {
-	ID                   string         `json:"id"`
-	ActionID             string         `json:"action_id,omitempty"`
-	AlertID              string         `json:"alert_id,omitempty"`
-	DecisionID           string         `json:"decision_id,omitempty"`
-	Observations         []any          `json:"observations,omitempty"`
-	Anomalies            []any          `json:"anomalies,omitempty"`
-	HealthSnapshots      []any          `json:"health_snapshots,omitempty"`
-	PolicyVersion        string         `json:"policy_version,omitempty"`
-	Explanation          map[string]any `json:"explanation,omitempty"`
-	TransportHealth      map[string]any `json:"transport_health,omitempty"`
-	PriorDecisions       []any          `json:"prior_decisions,omitempty"`
-	OperatorAnnotations  []any          `json:"operator_annotations,omitempty"`
-	ExecutionResult      map[string]any `json:"execution_result,omitempty"`
-	IntegrityHash        string         `json:"integrity_hash,omitempty"`
-	SourceType           string         `json:"source_type,omitempty"`
-	CapturedAt           string         `json:"captured_at,omitempty"`
-	UpdatedAt            string         `json:"updated_at,omitempty"`
+	ID                  string         `json:"id"`
+	ActionID            string         `json:"action_id,omitempty"`
+	AlertID             string         `json:"alert_id,omitempty"`
+	DecisionID          string         `json:"decision_id,omitempty"`
+	Observations        []any          `json:"observations,omitempty"`
+	Anomalies           []any          `json:"anomalies,omitempty"`
+	HealthSnapshots     []any          `json:"health_snapshots,omitempty"`
+	PolicyVersion       string         `json:"policy_version,omitempty"`
+	Explanation         map[string]any `json:"explanation,omitempty"`
+	TransportHealth     map[string]any `json:"transport_health,omitempty"`
+	PriorDecisions      []any          `json:"prior_decisions,omitempty"`
+	OperatorAnnotations []any          `json:"operator_annotations,omitempty"`
+	ExecutionResult     map[string]any `json:"execution_result,omitempty"`
+	IntegrityHash       string         `json:"integrity_hash,omitempty"`
+	SourceType          string         `json:"source_type,omitempty"`
+	CapturedAt          string         `json:"captured_at,omitempty"`
+	UpdatedAt           string         `json:"updated_at,omitempty"`
 }
 
 func (d *DB) UpsertEvidenceBundle(bundle EvidenceBundleRecord) error {
@@ -323,7 +323,7 @@ type MaintenanceWindowRecord struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Reason      string `json:"reason"`
-	ScopeType   string `json:"scope_type"`  // global | transport
+	ScopeType   string `json:"scope_type"` // global | transport
 	ScopeValue  string `json:"scope_value"`
 	StartsAt    string `json:"starts_at"`
 	EndsAt      string `json:"ends_at"`
@@ -510,14 +510,14 @@ FROM operator_notes WHERE ref_type='%s' AND ref_id='%s' ORDER BY created_at DESC
 
 // TimelineEvent is a single item in the unified operator event timeline.
 type TimelineEvent struct {
-	EventTime   string         `json:"event_time"`
-	EventType   string         `json:"event_type"`  // action | decision | incident | note | freeze | maintenance
-	EventID     string         `json:"event_id"`
-	Summary     string         `json:"summary"`
-	Severity    string         `json:"severity,omitempty"`
-	ActorID     string         `json:"actor_id,omitempty"`
-	ResourceID  string         `json:"resource_id,omitempty"`
-	Details     map[string]any `json:"details,omitempty"`
+	EventTime  string         `json:"event_time"`
+	EventType  string         `json:"event_type"` // action | decision | incident | note | freeze | maintenance
+	EventID    string         `json:"event_id"`
+	Summary    string         `json:"summary"`
+	Severity   string         `json:"severity,omitempty"`
+	ActorID    string         `json:"actor_id,omitempty"`
+	ResourceID string         `json:"resource_id,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
 }
 
 // TimelineEvents returns a unified chronological view of control actions,
@@ -618,7 +618,7 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 // Safe-fail: if the table does not exist yet (pre-migration), the error is
 // swallowed and nil is returned so callers need not guard on migration version.
 func (d *DB) InsertTimelineEvent(ev TimelineEvent) error {
-	if strings.TrimSpace(ev.ID) == "" {
+	if strings.TrimSpace(ev.EventID) == "" {
 		return fmt.Errorf("timeline event id is required")
 	}
 	if ev.EventTime == "" {
@@ -633,7 +633,7 @@ func (d *DB) InsertTimelineEvent(ev TimelineEvent) error {
 	detailsJSON, _ := json.Marshal(ev.Details)
 	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json)
 VALUES('%s','%s','%s','%s','%s','%s','%s','%s');`,
-		esc(ev.ID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
+		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
 		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)))
 	err := d.Exec(sql)
 	// Treat "no such table" as safe-fail during startup before migrations run.

@@ -7,11 +7,11 @@ import (
 )
 
 type Panel struct {
-	GeneratedAt   string        `json:"generated_at"`
-	OperatorState string        `json:"operator_state"`
-	Summary       string        `json:"summary"`
-	ShortCommands []string      `json:"short_commands"`
-	WebHints      []string      `json:"web_hints"`
+	GeneratedAt   string           `json:"generated_at"`
+	OperatorState string           `json:"operator_state"`
+	Summary       string           `json:"summary"`
+	ShortCommands []string         `json:"short_commands"`
+	WebHints      []string         `json:"web_hints"`
 	OperatorMenu  []OperatorAction `json:"operator_menu"`
 	Transports    []PanelMetric    `json:"transports"`
 }

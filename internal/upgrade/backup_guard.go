@@ -21,10 +21,10 @@ const (
 
 // BackupGuard provides backup confirmation checks for dangerous operations
 type BackupGuard struct {
-	db                 *db.DB
-	requiredBeforeOps  []string
-	lastBackupTime     time.Time
-	maxBackupAge       time.Duration
+	db                *db.DB
+	requiredBeforeOps []string
+	lastBackupTime    time.Time
+	maxBackupAge      time.Duration
 }
 
 // NewBackupGuard creates a new backup guard instance

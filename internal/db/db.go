@@ -531,7 +531,6 @@ func (d *DB) IncidentByID(id string) (models.Incident, bool, error) {
 	return item, true, nil
 }
 
-
 func (d *DB) VerifyWriteRead() error {
 	probe := fmt.Sprintf("doctor-%d", time.Now().UnixNano())
 	sql := fmt.Sprintf("CREATE TEMP TABLE IF NOT EXISTS doctor_write_check(v TEXT); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES('%s'); SELECT v FROM doctor_write_check LIMIT 1;", esc(probe))

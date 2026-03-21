@@ -7,8 +7,8 @@ import (
 
 // FreshnessMarker tracks the last update time and freshness thresholds for a component
 type FreshnessMarker struct {
-	Component        string    `json:"component"`
-	LastUpdate       time.Time `json:"last_update"`
+	Component        string        `json:"component"`
+	LastUpdate       time.Time     `json:"last_update"`
 	ExpectedInterval time.Duration `json:"expected_interval"`
 	StaleThreshold   time.Duration `json:"stale_threshold"`
 }
@@ -39,8 +39,8 @@ func (f *FreshnessMarker) IsStale() bool {
 
 // FreshnessTracker tracks freshness markers for all components
 type FreshnessTracker struct {
-	mu        sync.RWMutex
-	markers   map[string]*FreshnessMarker
+	mu      sync.RWMutex
+	markers map[string]*FreshnessMarker
 }
 
 // DefaultFreshnessIntervals defines the default freshness expectations per component
@@ -48,11 +48,11 @@ var DefaultFreshnessIntervals = map[string]struct {
 	Interval     time.Duration
 	StaleDefault time.Duration
 }{
-	"ingest":   {Interval: 10 * time.Second, StaleDefault: 60 * time.Second},
+	"ingest":    {Interval: 10 * time.Second, StaleDefault: 60 * time.Second},
 	"classify":  {Interval: 30 * time.Second, StaleDefault: 120 * time.Second},
 	"alert":     {Interval: 60 * time.Second, StaleDefault: 300 * time.Second},
 	"control":   {Interval: 30 * time.Second, StaleDefault: 120 * time.Second},
-	"retention": {Interval: 300 * time.Second, StaleDefault: 600 * time.Second}, // 5 min / 10 min
+	"retention": {Interval: 300 * time.Second, StaleDefault: 600 * time.Second},    // 5 min / 10 min
 	"backup":    {Interval: 3600 * time.Second, StaleDefault: 86400 * time.Second}, // 1 hour / 24 hours
 }
 
@@ -84,7 +84,7 @@ func (t *FreshnessTracker) GetMarker(component string) *FreshnessMarker {
 		Component:        component,
 		LastUpdate:       time.Time{},
 		ExpectedInterval: 60 * time.Second,
-		StaleThreshold:  300 * time.Second,
+		StaleThreshold:   300 * time.Second,
 	}
 }
 
@@ -111,13 +111,13 @@ func (t *FreshnessTracker) MarkFresh(component string) {
 			marker = &FreshnessMarker{
 				Component:        component,
 				ExpectedInterval: intervals.Interval,
-				StaleThreshold:  intervals.StaleDefault,
+				StaleThreshold:   intervals.StaleDefault,
 			}
 		} else {
 			marker = &FreshnessMarker{
 				Component:        component,
 				ExpectedInterval: 60 * time.Second,
-				StaleThreshold:  300 * time.Second,
+				StaleThreshold:   300 * time.Second,
 			}
 		}
 		t.markers[component] = marker

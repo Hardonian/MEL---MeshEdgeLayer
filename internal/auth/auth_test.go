@@ -124,9 +124,9 @@ func TestAuthorizationContextIsSingleOperatorMode(t *testing.T) {
 
 func TestCanPerform(t *testing.T) {
 	tests := []struct {
-		name       string
-		role       OperatorRole
-		action     ActionClass
+		name        string
+		role        OperatorRole
+		action      ActionClass
 		wantAllowed bool
 	}{
 		// Admin can perform all actions
@@ -179,31 +179,31 @@ func TestCanPerformWithContext(t *testing.T) {
 
 func TestGetAllowedActions(t *testing.T) {
 	tests := []struct {
-		role          OperatorRole
-		minActions    int
-		contains      []ActionClass
-		notContains   []ActionClass
+		role        OperatorRole
+		minActions  int
+		contains    []ActionClass
+		notContains []ActionClass
 	}{
 		{
-			role:       RoleViewer,
+			role:        RoleViewer,
 			minActions:  1,
 			contains:    []ActionClass{ActionRead},
 			notContains: []ActionClass{ActionControl, ActionConfig},
 		},
 		{
-			role:       RoleResponder,
+			role:        RoleResponder,
 			minActions:  2,
 			contains:    []ActionClass{ActionRead, ActionAck},
 			notContains: []ActionClass{ActionControl, ActionConfig},
 		},
 		{
-			role:       RoleOperator,
+			role:        RoleOperator,
 			minActions:  4,
 			contains:    []ActionClass{ActionRead, ActionAck, ActionSuppress, ActionControl, ActionExport},
 			notContains: []ActionClass{ActionConfig},
 		},
 		{
-			role:       RoleAdmin,
+			role:        RoleAdmin,
 			minActions:  6,
 			contains:    []ActionClass{ActionRead, ActionAck, ActionSuppress, ActionControl, ActionConfig, ActionExport},
 			notContains: []ActionClass{},

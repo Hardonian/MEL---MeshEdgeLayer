@@ -242,9 +242,9 @@ func (a *App) evaluateControl(now time.Time) {
 				a.Log.Error("control_action_upsert_failed", "failed to persist approval-required action", map[string]any{"action_id": action.ID, "error": err.Error()})
 			}
 			a.Log.Info("control_action_pending_approval", "control action held pending operator approval", map[string]any{
-				"action_id":         action.ID,
-				"action_type":       action.ActionType,
-				"approval_expires":  approvalExpiry,
+				"action_id":          action.ID,
+				"action_type":        action.ActionType,
+				"approval_expires":   approvalExpiry,
 				"evidence_bundle_id": bundleID,
 			})
 			continue

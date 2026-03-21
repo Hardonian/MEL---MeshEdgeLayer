@@ -181,10 +181,10 @@ func kernelReplayCmd(args []string) {
 	req := map[string]any{
 		"mode": *mode,
 		"policy": map[string]any{
-			"version":               *policyVersion,
-			"mode":                  *policyMode,
+			"version":                *policyVersion,
+			"mode":                   *policyMode,
 			"require_min_confidence": cfg.Control.RequireMinConfidence,
-			"allowed_actions":       cfg.Control.AllowedActions,
+			"allowed_actions":        cfg.Control.AllowedActions,
 		},
 	}
 

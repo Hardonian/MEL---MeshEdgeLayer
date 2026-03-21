@@ -244,7 +244,6 @@ func configCmd(args []string) {
 	}
 }
 
-
 func serveCmd(args []string) {
 	f := fs("serve")
 	path := f.String("config", "configs/mel.example.json", "config")

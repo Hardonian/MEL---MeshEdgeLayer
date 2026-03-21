@@ -50,12 +50,12 @@ type FederationConfig struct {
 
 // FederationPeerConfig is the static configuration for a known peer.
 type FederationPeerConfig struct {
-	NodeID     string   `json:"node_id"`
-	Name       string   `json:"name"`
-	Endpoint   string   `json:"endpoint"`
-	Region     string   `json:"region"`
-	TrustLevel int      `json:"trust_level"`
-	SyncTypes  []string `json:"sync_types,omitempty"`
+	NodeID      string   `json:"node_id"`
+	Name        string   `json:"name"`
+	Endpoint    string   `json:"endpoint"`
+	Region      string   `json:"region"`
+	TrustLevel  int      `json:"trust_level"`
+	SyncTypes   []string `json:"sync_types,omitempty"`
 	SyncRegions []string `json:"sync_regions,omitempty"`
 }
 

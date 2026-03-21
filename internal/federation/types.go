@@ -219,11 +219,11 @@ type Heartbeat struct {
 type ConflictType string
 
 const (
-	ConflictDuplicateAction  ConflictType = "duplicate_action"
-	ConflictDivergentScore   ConflictType = "divergent_score"
-	ConflictDivergentPolicy  ConflictType = "divergent_policy"
-	ConflictSplitBrain       ConflictType = "split_brain"
-	ConflictDuplicateEvent   ConflictType = "duplicate_event"
+	ConflictDuplicateAction ConflictType = "duplicate_action"
+	ConflictDivergentScore  ConflictType = "divergent_score"
+	ConflictDivergentPolicy ConflictType = "divergent_policy"
+	ConflictSplitBrain      ConflictType = "split_brain"
+	ConflictDuplicateEvent  ConflictType = "duplicate_event"
 )
 
 // Conflict represents a detected inconsistency between federated nodes.

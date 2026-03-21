@@ -277,7 +277,7 @@ func TestClassify(t *testing.T) {
 	t.Run("response parsing with markdown code block", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			resp := ChatCompletionResponse{
-				ID:      "test-id",
+				ID: "test-id",
 				Choices: []Choice{
 					{
 						Message: Message{

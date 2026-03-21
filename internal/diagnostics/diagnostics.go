@@ -14,12 +14,12 @@ type DiagnosticReport struct {
 
 // Summary provides a high-level overview of diagnostic findings
 type Summary struct {
-	TotalCount       int `json:"total_count"`
-	CriticalCount    int `json:"critical_count"`
-	WarningCount     int `json:"warning_count"`
-	InfoCount        int `json:"info_count"`
-	CanAutoRecover   int `json:"can_auto_recover"`
-	NeedsOperator    int `json:"needs_operator"`
+	TotalCount     int `json:"total_count"`
+	CriticalCount  int `json:"critical_count"`
+	WarningCount   int `json:"warning_count"`
+	InfoCount      int `json:"info_count"`
+	CanAutoRecover int `json:"can_auto_recover"`
+	NeedsOperator  int `json:"needs_operator"`
 }
 
 // Diagnostic represents a single diagnostic finding
@@ -55,23 +55,23 @@ const (
 	ComponentStorage   = "storage"
 	ComponentRetention = "retention"
 
-	CodeTransportUnreachable          = "transport_unreachable"
-	CodeTransportDisconnected         = "transport_disconnected"
-	CodeTransportReconnecting         = "transport_reconnecting"
-	CodeTransportStaleHeartbeat       = "transport_stale_heartbeat"
-	CodeTransportHighTimeouts         = "transport_high_timeouts"
+	CodeTransportUnreachable            = "transport_unreachable"
+	CodeTransportDisconnected           = "transport_disconnected"
+	CodeTransportReconnecting           = "transport_reconnecting"
+	CodeTransportStaleHeartbeat         = "transport_stale_heartbeat"
+	CodeTransportHighTimeouts           = "transport_high_timeouts"
 	CodeTransportDeadLetterAccumulation = "transport_dead_letter_accumulation"
-	CodeTransportObservationDrops     = "transport_observation_drops"
-	CodeDatabaseUnreachable           = "database_unreachable"
-	CodeDatabaseWriteFailures         = "database_write_failures"
-	CodeMeshNoNodesDetected           = "mesh_no_nodes_detected"
-	CodeMeshStaleSnapshot             = "mesh_stale_snapshot"
-	CodeMeshPartialData               = "mesh_partial_data"
-	CodeMeshNodeSilence               = "mesh_node_silence"
-	CodeConfigUnsafeSettings          = "config_unsafe_settings"
-	CodeConfigMissingRequired         = "config_missing_required"
-	CodeControlNoSafeguards           = "control_no_safeguards"
-	CodeControlModeUnsafe             = "control_mode_unsafe"
-	CodeRetentionMisconfigured        = "retention_misconfigured"
-	CodeStoragePathMissing            = "storage_path_missing"
+	CodeTransportObservationDrops       = "transport_observation_drops"
+	CodeDatabaseUnreachable             = "database_unreachable"
+	CodeDatabaseWriteFailures           = "database_write_failures"
+	CodeMeshNoNodesDetected             = "mesh_no_nodes_detected"
+	CodeMeshStaleSnapshot               = "mesh_stale_snapshot"
+	CodeMeshPartialData                 = "mesh_partial_data"
+	CodeMeshNodeSilence                 = "mesh_node_silence"
+	CodeConfigUnsafeSettings            = "config_unsafe_settings"
+	CodeConfigMissingRequired           = "config_missing_required"
+	CodeControlNoSafeguards             = "control_no_safeguards"
+	CodeControlModeUnsafe               = "control_mode_unsafe"
+	CodeRetentionMisconfigured          = "retention_misconfigured"
+	CodeStoragePathMissing              = "storage_path_missing"
 )

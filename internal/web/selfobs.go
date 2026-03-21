@@ -14,7 +14,7 @@ import (
 func (s *Server) InternalHealthHandler(w http.ResponseWriter, r *http.Request) {
 	registry := selfobs.GetGlobalRegistry()
 	components := registry.GetAllComponents()
-	
+
 	result := make([]map[string]any, 0, len(components))
 	for _, comp := range components {
 		result = append(result, map[string]any{
@@ -27,10 +27,10 @@ func (s *Server) InternalHealthHandler(w http.ResponseWriter, r *http.Request) {
 			"error_rate":    comp.ErrorRate(),
 		})
 	}
-	
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"overall_health": registry.GetOverallHealth(),
-		"components":    result,
+		"components":     result,
 	})
 }
 
@@ -75,30 +75,30 @@ func (s *Server) SLOHandler(w http.ResponseWriter, r *http.Request) {
 	tracker := selfobs.GetGlobalSLOTracker()
 	definitions := tracker.GetAllDefinitions()
 	statuses := tracker.GetAllSLOStatuses()
-	
+
 	defMap := make(map[string]selfobs.SLODefinition)
 	for _, def := range definitions {
 		defMap[def.Name] = def
 	}
-	
+
 	result := make([]map[string]any, 0, len(statuses))
 	for _, status := range statuses {
 		def := defMap[status.Name]
 		result = append(result, map[string]any{
 			"name":          status.Name,
-			"description":  def.Description,
+			"description":   def.Description,
 			"current_value": status.CurrentValue,
-			"target":       status.Target,
-			"status":       status.Status,
-			"budget_used":  status.BudgetUsed,
-			"unit":         def.Unit,
-			"window":       def.Window.String(),
-			"window_start": status.WindowStart.Format(time.RFC3339),
-			"window_end":   status.WindowEnd.Format(time.RFC3339),
-			"evaluated_at": status.EvaluatedAt.Format(time.RFC3339),
+			"target":        status.Target,
+			"status":        status.Status,
+			"budget_used":   status.BudgetUsed,
+			"unit":          def.Unit,
+			"window":        def.Window.String(),
+			"window_start":  status.WindowStart.Format(time.RFC3339),
+			"window_end":    status.WindowEnd.Format(time.RFC3339),
+			"evaluated_at":  status.EvaluatedAt.Format(time.RFC3339),
 		})
 	}
-	
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"slos": result,
 	})
@@ -107,18 +107,18 @@ func (s *Server) SLOHandler(w http.ResponseWriter, r *http.Request) {
 // InternalMetricsHandler returns internal metrics snapshot
 func (s *Server) InternalMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	snapshot := selfobs.GetMetricsSnapshot()
-	
+
 	// Convert to JSON-friendly format using json.Marshal
 	data, err := json.Marshal(map[string]any{
 		"timestamp":         snapshot.Timestamp.Format(time.RFC3339),
-		"pipeline_latency": snapshot.PipelineLatency,
+		"pipeline_latency":  snapshot.PipelineLatency,
 		"worker_heartbeats": snapshot.WorkerHeartbeats,
-		"queue_depths":     snapshot.QueueDepths,
+		"queue_depths":      snapshot.QueueDepths,
 		"error_rates":       snapshot.ErrorRates,
 		"resource_usage": map[string]any{
 			"memory_used_bytes": snapshot.ResourceUsage.MemoryUsed,
-			"goroutines":       snapshot.ResourceUsage.Goroutines,
-			"num_gc":           snapshot.ResourceUsage.NumGC,
+			"goroutines":        snapshot.ResourceUsage.Goroutines,
+			"num_gc":            snapshot.ResourceUsage.NumGC,
 		},
 		"operation_counts": snapshot.OperationCounts,
 	})
@@ -126,7 +126,7 @@ func (s *Server) InternalMetricsHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
@@ -170,11 +170,11 @@ func (s *Server) TrustHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"trust_health":       trustHealth,
-		"component_health":   compHealth,
-		"reasons":            reasons,
-		"operational_state":  state,
-		"evaluated_at":       time.Now().UTC().Format(time.RFC3339),
+		"trust_health":      trustHealth,
+		"component_health":  compHealth,
+		"reasons":           reasons,
+		"operational_state": state,
+		"evaluated_at":      time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
