@@ -37,6 +37,11 @@ type Server struct {
 	controlStatus       func() (map[string]any, error)
 	controlHistory      func(string, string, string, int, int) (map[string]any, error)
 	diagnosticsRun      func(config.Config, *db.DB) []diagnostics.Finding
+	queueDepths         func() map[string]int
+}
+
+func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
+	s.queueDepths = f
 }
 
 func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding) *Server {
@@ -651,15 +656,17 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	cutoff := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
-	rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name, COUNT(*) AS recent_messages FROM messages WHERE rx_time >= '%s' GROUP BY transport_name;", cutoff))
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
-		return
-	}
 	rateByTransport := map[string]float64{}
-	for _, row := range rows {
-		rateByTransport[fmt.Sprint(row["transport_name"])] = float64(toInt(row["recent_messages"])) / 300.0
+	if s.db != nil {
+		cutoff := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
+		rows, err := s.db.QueryRows(fmt.Sprintf("SELECT transport_name, COUNT(*) AS recent_messages FROM messages WHERE rx_time >= '%s' GROUP BY transport_name;", cutoff))
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		for _, row := range rows {
+			rateByTransport[fmt.Sprint(row["transport_name"])] = float64(toInt(row["recent_messages"])) / 300.0
+		}
 	}
 	metrics := map[string]any{
 		"generated_at":        time.Now().UTC().Format(time.RFC3339),
@@ -669,6 +676,10 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 		"transport_metrics":   snap.Transports,
 		"ingest_rate_per_sec": rateByTransport,
 		"dead_letters_total":  totalDeadLetters(snap.Transports),
+		"diagnostics":         s.diagnosticsRun(s.cfg, s.db),
+	}
+	if s.queueDepths != nil {
+		metrics["queue_depths"] = s.queueDepths()
 	}
 	if s.db != nil {
 		metrics["control_metrics"] = map[string]any{
