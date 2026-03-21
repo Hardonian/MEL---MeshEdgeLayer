@@ -18,7 +18,7 @@ type TransportDrilldown struct {
 	RecentClusters     []FailureCluster                  `json:"recent_clusters"`
 	RecentAlerts       []TransportAlert                  `json:"recent_alerts"`
 	AnomalySummary     []TransportAnomalySummary         `json:"anomaly_summary"`
-	LastIncidents      []db.TransportIncident            `json:"last_incidents"`
+	LastIncidents      []db.IncidentRecord               `json:"last_incidents"`
 	EpisodeHistory     []db.TransportAlertRecord         `json:"episode_history"`
 	HealthHistory      []db.TransportHealthSnapshot      `json:"health_history"`
 	AlertHistory       []db.TransportAlertRecord         `json:"alert_history"`
@@ -47,9 +47,9 @@ func InspectTransport(cfg config.Config, database *db.DB, runtime []transport.He
 	if database == nil {
 		return drilldown, nil
 	}
-	if incidents, err := database.RecentTransportIncidents(100); err == nil {
+	if incidents, err := database.RecentIncidents(100); err == nil {
 		for _, incident := range incidents {
-			if incident.TransportName == name {
+			if incident.ResourceID == name {
 				drilldown.LastIncidents = append(drilldown.LastIncidents, incident)
 			}
 			if len(drilldown.LastIncidents) >= 5 {

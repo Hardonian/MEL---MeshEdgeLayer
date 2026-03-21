@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
@@ -101,6 +102,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/incidents/acknowledge", s.requireMethod(security.Require(security.CapAcknowledgeAlerts, s.acknowledgeIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
@@ -286,7 +289,7 @@ func (s *Server) transports(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_transport_incidents": snap.RecentTransportIncidents, "active_transport_alerts": snap.ActiveTransportAlerts})
+	writeJSON(w, http.StatusOK, map[string]any{"transports": snap.Transports, "configured_modes": snap.ConfiguredTransportModes, "recent_incidents": snap.RecentIncidents, "active_transport_alerts": snap.ActiveTransportAlerts})
 }
 
 func (s *Server) transportHealthSummary(w http.ResponseWriter, r *http.Request) {
@@ -753,7 +756,7 @@ func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
-	incidents, err := s.db.RecentTransportIncidents(100)
+	incidents, err := s.db.RecentIncidents(100)
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
 			"error": err.Error(),
@@ -764,7 +767,7 @@ func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"recent_transport_incidents": incidents})
+	writeJSON(w, http.StatusOK, map[string]any{"recent_incidents": incidents})
 }
 
 func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
@@ -796,6 +799,83 @@ func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"dead_letters": rows})
+}
+
+func (s *Server) acknowledgeIncident(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	incident, found, err := s.db.IncidentByID(req.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "database error"})
+		return
+	}
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "incident not found"})
+		return
+	}
+	incident.State = "acknowledged"
+	identity, _ := security.GetIdentity(r.Context())
+	if incident.Metadata == nil {
+		incident.Metadata = make(map[string]any)
+	}
+	incident.Metadata["acknowledged_by"] = identity.ActorID
+	incident.Metadata["acknowledge_reason"] = req.Reason
+
+	if err := s.db.UpsertIncident(incident); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to update incident"})
+		return
+	}
+	// Audit log the action
+	auditEntry := auth.LogIncidentAction(auth.GetAuthContextFromRequest(r), req.ID, "acknowledge", req.Reason, auth.AuditResultSuccess, nil)
+	_ = s.db.InsertAuditLog("incident", "info", "incident acknowledged", auditEntry.ToMap())
+
+	s.log.Info("incident_acknowledged", "incident acknowledged by operator", map[string]any{"incident_id": req.ID, "actor": identity.ActorID})
+	writeJSON(w, http.StatusOK, map[string]any{"status": "acknowledged"})
+}
+
+func (s *Server) resolveIncident(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	incident, found, err := s.db.IncidentByID(req.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "database error"})
+		return
+	}
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "incident not found"})
+		return
+	}
+	incident.State = "resolved"
+	incident.ResolvedAt = time.Now().UTC().Format(time.RFC3339)
+	identity, _ := security.GetIdentity(r.Context())
+	if incident.Metadata == nil {
+		incident.Metadata = make(map[string]any)
+	}
+	incident.Metadata["resolved_by"] = identity.ActorID
+	incident.Metadata["resolve_reason"] = req.Reason
+
+	if err := s.db.UpsertIncident(incident); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to update incident"})
+		return
+	}
+	// Audit log the action
+	auditEntry := auth.LogIncidentAction(auth.GetAuthContextFromRequest(r), req.ID, "resolve", req.Reason, auth.AuditResultSuccess, nil)
+	_ = s.db.InsertAuditLog("incident", "info", "incident resolved", auditEntry.ToMap())
+
+	s.log.Info("incident_resolved", "incident resolved by operator", map[string]any{"incident_id": req.ID, "actor": identity.ActorID})
+	writeJSON(w, http.StatusOK, map[string]any{"status": "resolved"})
 }
 
 func (s *Server) ui(w http.ResponseWriter, _ *http.Request) {

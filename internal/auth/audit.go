@@ -166,6 +166,19 @@ func LogExportAction(ctx AuthorizationContext, exportType, reason string, result
 	})
 }
 
+// LogIncidentAction creates an audit entry for an incident update.
+func LogIncidentAction(ctx AuthorizationContext, incidentID, action, reason string, result AuditResult, details map[string]any) AuditEntry {
+	return NewAuditEntryFromContext(ctx, AuditEntryParams{
+		ActionClass:  ActionControl, // Use Control as it's an operator control action
+		ActionDetail: action,
+		ResourceType: "incident",
+		ResourceID:   incidentID,
+		Reason:       reason,
+		Result:       result,
+		Details:      details,
+	})
+}
+
 // generateAuditID generates a unique ID for an audit entry.
 func generateAuditID() string {
 	// Simple ID generation - in production, use UUID

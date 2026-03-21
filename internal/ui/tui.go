@@ -348,16 +348,18 @@ func (m *Model) viewControl() string {
 
 func (m *Model) viewLogs() string {
 	var sb strings.Builder
-	if len(m.snap.RecentTransportIncidents) == 0 {
-		return "No recent transport incidents recorded."
+	if len(m.snap.RecentIncidents) == 0 {
+		return "No recent incidents recorded."
 	}
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#88C0D0")).Render("RECENT INCIDENTS") + "\n\n")
-	for _, inc := range m.snap.RecentTransportIncidents {
-		icon := " "
-		if inc.DeadLetter { icon = "!" }
-		sb.WriteString(fmt.Sprintf("[%s] %-16s %s (%d occurrences)\n", icon, inc.TransportName, inc.Reason, inc.Count))
+	for _, inc := range m.snap.RecentIncidents {
+		status := inc.State
+		if status == "open" {
+			status = "!"
+		}
+		sb.WriteString(fmt.Sprintf("[%s] %-16s %s (at %s)\n", status, inc.ResourceID, inc.Title, inc.OccurredAt))
 	}
-    return sb.String()
+	return sb.String()
 }
 
 func (m *Model) viewDiagnostics() string {
@@ -374,7 +376,7 @@ func (m *Model) viewDiagnostics() string {
 	if m.db != nil {
 		sb.WriteString(fmt.Sprintf("DB File:    %s\n", m.db.Path))
 	}
-	sb.WriteString(fmt.Sprintf("Refresh:    2.0s (bounded)\n"))
+	sb.WriteString("Refresh:    2.0s (bounded)\n")
 
 	return sb.String()
 }

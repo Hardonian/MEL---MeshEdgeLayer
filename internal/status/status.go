@@ -21,8 +21,8 @@ type Snapshot struct {
 	Nodes                    int64                  `json:"nodes"`
 	LastSuccessfulIngest     string                 `json:"last_successful_ingest,omitempty"`
 	Transports               []TransportReport      `json:"transports"`
-	RecentTransportIncidents []db.TransportIncident `json:"recent_transport_incidents,omitempty"`
-	ActiveTransportAlerts    []TransportAlert       `json:"active_transport_alerts,omitempty"`
+	RecentIncidents          []db.IncidentRecord     `json:"recent_incidents,omitempty"`
+	ActiveTransportAlerts    []TransportAlert        `json:"active_transport_alerts,omitempty"`
 	Mesh                     MeshDrilldown          `json:"mesh"`
 }
 
@@ -119,7 +119,7 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 		return snap, err
 	}
 	if database != nil {
-		snap.RecentTransportIncidents, _ = database.RecentTransportIncidents(20)
+		snap.RecentIncidents, _ = database.RecentIncidents(20)
 	}
 	intelligence, err := EvaluateTransportIntelligence(cfg, database, runtime, time.Now().UTC())
 	if err != nil {

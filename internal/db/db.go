@@ -425,43 +425,98 @@ func (d *DB) MessageStatsByTransport(name string) (uint64, string, error) {
 	return uint64(asInt(rows[0]["message_count"])), asString(rows[0]["last_rx_time"]), nil
 }
 
-type TransportIncident struct {
-	TransportName string `json:"transport_name"`
-	Reason        string `json:"reason"`
-	Count         uint64 `json:"count"`
-	LastOccurred  string `json:"last_occurrence"`
-	DeadLetter    bool   `json:"dead_letter"`
+type IncidentRecord struct {
+	ID           string         `json:"id"`
+	Category     string         `json:"category"`
+	Severity     string         `json:"severity"`
+	Title        string         `json:"title"`
+	Summary      string         `json:"summary"`
+	ResourceType string         `json:"resource_type"`
+	ResourceID   string         `json:"resource_id"`
+	State        string         `json:"state"`
+	ActorID      string         `json:"actor_id,omitempty"`
+	OccurredAt   string         `json:"occurred_at"`
+	UpdatedAt    string         `json:"updated_at,omitempty"`
+	ResolvedAt   string         `json:"resolved_at,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
 }
 
-func (d *DB) RecentTransportIncidents(limit int) ([]TransportIncident, error) {
+func (d *DB) UpsertIncident(record IncidentRecord) error {
+	if strings.TrimSpace(record.ID) == "" {
+		return fmt.Errorf("incident id is required")
+	}
+	metadataJSON, _ := json.Marshal(record.Metadata)
+	if record.OccurredAt == "" {
+		record.OccurredAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	sql := fmt.Sprintf(`INSERT INTO incidents(id,category,severity,title,summary,resource_type,resource_id,state,actor_id,occurred_at,updated_at,resolved_at,metadata_json)
+		VALUES('%s','%s','%s','%s','%s','%s','%s','%s',%s,'%s','%s',%s,'%s')
+		ON CONFLICT(id) DO UPDATE SET category=excluded.category,severity=excluded.severity,title=excluded.title,summary=excluded.summary,resource_type=excluded.resource_type,resource_id=excluded.resource_id,state=excluded.state,actor_id=excluded.actor_id,occurred_at=excluded.occurred_at,updated_at=excluded.updated_at,resolved_at=excluded.resolved_at,metadata_json=excluded.metadata_json;`,
+		esc(record.ID), esc(record.Category), esc(record.Severity), esc(record.Title), esc(record.Summary), esc(record.ResourceType), esc(record.ResourceID), esc(record.State), sqlString(record.ActorID), esc(record.OccurredAt), esc(record.UpdatedAt), sqlString(record.ResolvedAt), esc(string(metadataJSON)))
+	return d.Exec(sql)
+}
+
+func (d *DB) RecentIncidents(limit int) ([]IncidentRecord, error) {
 	limit = clampLimit(limit)
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT transport_name, reason, COUNT(*) AS incident_count, MAX(created_at) AS last_occurrence, MAX(CASE WHEN dead_letter = 1 THEN 1 ELSE 0 END) AS dead_letter FROM (
-		SELECT COALESCE(json_extract(details_json,'$.transport'), '') AS transport_name, message AS reason, created_at, COALESCE(json_extract(details_json,'$.dead_letter'), 0) AS dead_letter
-		FROM audit_logs
-		WHERE category='transport'
-		UNION ALL
-		SELECT transport_name, reason, created_at, 1 AS dead_letter
-		FROM dead_letters
-	) incidents
-	WHERE transport_name != ''
-	GROUP BY transport_name, reason
-	ORDER BY last_occurrence DESC
-	LIMIT %d;`, limit))
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json
+		FROM incidents ORDER BY occurred_at DESC LIMIT %d;`, limit))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]TransportIncident, 0, len(rows))
+	out := make([]IncidentRecord, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, TransportIncident{
-			TransportName: asString(row["transport_name"]),
-			Reason:        asString(row["reason"]),
-			Count:         uint64(asInt(row["incident_count"])),
-			LastOccurred:  asString(row["last_occurrence"]),
-			DeadLetter:    asInt(row["dead_letter"]) == 1,
-		})
+		item := IncidentRecord{
+			ID:           asString(row["id"]),
+			Category:     asString(row["category"]),
+			Severity:     asString(row["severity"]),
+			Title:        asString(row["title"]),
+			Summary:      asString(row["summary"]),
+			ResourceType: asString(row["resource_type"]),
+			ResourceID:   asString(row["resource_id"]),
+			State:        asString(row["state"]),
+			ActorID:      asString(row["actor_id"]),
+			OccurredAt:   asString(row["occurred_at"]),
+			UpdatedAt:    asString(row["updated_at"]),
+			ResolvedAt:   asString(row["resolved_at"]),
+			Metadata:     map[string]any{},
+		}
+		_ = json.Unmarshal([]byte(asString(row["metadata_json"])), &item.Metadata)
+		out = append(out, item)
 	}
 	return out, nil
 }
+
+func (d *DB) IncidentByID(id string) (IncidentRecord, bool, error) {
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json
+		FROM incidents WHERE id='%s' LIMIT 1;`, esc(id)))
+	if err != nil {
+		return IncidentRecord{}, false, err
+	}
+	if len(rows) == 0 {
+		return IncidentRecord{}, false, nil
+	}
+	row := rows[0]
+	item := IncidentRecord{
+		ID:           asString(row["id"]),
+		Category:     asString(row["category"]),
+		Severity:     asString(row["severity"]),
+		Title:        asString(row["title"]),
+		Summary:      asString(row["summary"]),
+		ResourceType: asString(row["resource_type"]),
+		ResourceID:   asString(row["resource_id"]),
+		State:        asString(row["state"]),
+		ActorID:      asString(row["actor_id"]),
+		OccurredAt:   asString(row["occurred_at"]),
+		UpdatedAt:    asString(row["updated_at"]),
+		ResolvedAt:   asString(row["resolved_at"]),
+		Metadata:     map[string]any{},
+	}
+	_ = json.Unmarshal([]byte(asString(row["metadata_json"])), &item.Metadata)
+	return item, true, nil
+}
+
 
 func (d *DB) VerifyWriteRead() error {
 	probe := fmt.Sprintf("doctor-%d", time.Now().UnixNano())

@@ -495,6 +495,9 @@ func (a *App) observationWorker(ctx context.Context) {
 			if obs.DeadLetter {
 				a.recordTransportDeadLetter(findTransport(a.Cfg, obs.TransportName), obs.Topic, obs.Reason, obs.PayloadHex, mergeDetails(obs.Detail, obs.Details))
 			}
+			// Escalate to persistent incident if severe
+			a.escalateToIncident(obs)
+
 			if a.shouldSuppressObservationAudit(obs) {
 				continue
 			}
@@ -511,6 +514,53 @@ func (a *App) observationWorker(ctx context.Context) {
 				"details":        obs.Details,
 			})
 		}
+	}
+}
+
+func (a *App) escalateToIncident(obs transport.Observation) {
+	if a.DB == nil {
+		return
+	}
+	severity := severityForObservation(obs)
+	if !obs.DeadLetter && severity != "error" {
+		return
+	}
+
+	// Deterministic ID to avoid duplicates for the same root cause
+	incidentID := fmt.Sprintf("inc-%s-%s", obs.TransportName, strings.ReplaceAll(obs.Reason, " ", "_"))
+
+	// Check if already exists and its state
+	existing, found, err := a.DB.IncidentByID(incidentID)
+	if err == nil && found && existing.State == "resolved" {
+		// If resolved, we create a new one with a timestamp-suffixed ID or just reuse?
+		// Minimal entropy: if it was resolved, a new occurrence means a NEW incident.
+		incidentID = fmt.Sprintf("%s-%d", incidentID, time.Now().Unix())
+	}
+
+	incident := db.IncidentRecord{
+		ID:           incidentID,
+		Category:     "transport",
+		Severity:     severity,
+		Title:        fmt.Sprintf("Transport Incident: %s", obs.Reason),
+		Summary:      obs.Detail,
+		ResourceType: "transport",
+		ResourceID:   obs.TransportName,
+		State:        "open",
+		OccurredAt:   obs.Timestamp,
+		Metadata: map[string]any{
+			"observation_id": obs.ObservationID,
+			"episode_id":     obs.EpisodeID,
+			"dead_letter":    obs.DeadLetter,
+			"details":        obs.Details,
+		},
+	}
+	if obs.DeadLetter {
+		incident.Category = "data_integrity"
+		incident.Severity = "warning" // Dead letters are often warnings unless they are systemic
+	}
+
+	if err := a.DB.UpsertIncident(incident); err != nil {
+		a.Log.Error("incident_escalation_failed", "failed to escalate observation to incident", map[string]any{"incident_id": incidentID, "error": err.Error()})
 	}
 }
 
