@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/logging"
 )
