@@ -67,12 +67,10 @@ func CanPerform(role OperatorRole, actionClass ActionClass) bool {
 // CanPerformWithContext checks if the authorization context has permission
 // to perform the given action class.
 // This is the main entry point for RBAC checks.
+//
+// In single-operator mode, the context typically has RoleAdmin, which
+// grants all permissions. However, the check is now real and not advisory.
 func CanPerformWithContext(ctx AuthorizationContext, actionClass ActionClass) bool {
-	// Single-operator mode: allow all actions (advisory RBAC)
-	if ctx.IsSingleOperatorMode() {
-		return true
-	}
-
 	return CanPerform(ctx.Role, actionClass)
 }
 
