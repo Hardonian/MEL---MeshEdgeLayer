@@ -6,8 +6,8 @@ Welcome to the MeshEdgeLayer (MEL) documentation hub. MEL is a local-first obser
 
 If you are new to MEL, start here:
 
-- [**Quickstart**](../README.md#🚀-quickstart) - Get up and running in 5 minutes.
-- [**Installation**](getting-started/installation.md) - Detailed installation steps for Linux, Windows, and macOS.
+- [**Quickstart Index**](getting-started/README.md) - All setup and tour guides.
+- [**Installation**](ops/install-linux.md) - Detailed setup steps for Linux (systemd focus).
 - [**First 10 Minutes**](getting-started/first-10-minutes.md) - A guided tour of your new MEL instance.
 - [**Hardware Support**](ops/support-matrix.md) - Verified nodes and transports.
 

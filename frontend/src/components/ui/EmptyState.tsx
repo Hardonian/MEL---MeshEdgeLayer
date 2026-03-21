@@ -97,7 +97,7 @@ export function NoTransportsConfigured({
       }
       details={
         <div className="text-xs text-muted-foreground">
-          <p>Supported transports: MQTT, TCP, Serial, HTTP</p>
+          <p>Supported transports: MQTT, TCP, Serial</p>
           <p className="mt-1">See the Configuration Guide for help.</p>
         </div>
       }
