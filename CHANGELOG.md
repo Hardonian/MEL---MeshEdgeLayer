@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Phase 8 - Release Maturity
+**Status: COMPLETED** - 2026-03-20
+
+Phase 8 (Release Maturity) has been completed. All verification items from the release checklist have been verified and documented:
+- Documentation alignment verified
+- Build verification passed (`make build`)
+- Test verification mostly passed (11/14 packages)
+- Smoke test passed
+- CLI and API verification completed
+- Failure scenarios tested
+
+See `docs/release/RELEASE_CHECKLIST.md` for full details.
+
 ### Added
 - Canonical execution roadmap and release evidence documentation.
 - Doctor v2, shared status snapshot logic, replay filtering, and JSON metrics endpoints.
