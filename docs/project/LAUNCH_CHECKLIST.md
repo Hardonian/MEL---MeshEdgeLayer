@@ -33,6 +33,6 @@ This checklist defines the "Launch Quality Bar" for MEL. No release leaves witho
 
 ## 🖥️ UI & CLI Polish
 
-- [ ] **Help-Text Consistency**: Do `mel --help` commands match the actual implemention?
+- [ ] **Help-Text Consistency**: Do `mel --help` commands match the actual implementation?
 - [ ] **Empty States**: Do the Web Dashboard and TUI handle "no data" gracefully with guidance?
 - [ ] **Zero Theatre**: Is all copy technically honest and free of marketing fluff?

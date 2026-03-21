@@ -449,10 +449,11 @@ func buildHealthScoreBreakdown(cfg config.Config, runtime transport.Health, anom
 			primaryReason = fmt.Sprintf("heartbeat_gap_%ds", heartbeatDelta)
 		}
 	}
-	if runtime.State == transport.StateFailed {
+	switch runtime.State {
+	case transport.StateFailed:
 		score -= cfg.Intelligence.Scoring.RuntimeFailedPenalty
 		contributions = append(contributions, scoreContribution{Reason: "runtime_failed_state", Penalty: cfg.Intelligence.Scoring.RuntimeFailedPenalty, Count: 1, Window: "runtime"})
-	} else if runtime.State == transport.StateRetrying {
+	case transport.StateRetrying:
 		score -= cfg.Intelligence.Scoring.RuntimeRetryingPenalty
 		contributions = append(contributions, scoreContribution{Reason: "runtime_retrying_state", Penalty: cfg.Intelligence.Scoring.RuntimeRetryingPenalty, Count: 1, Window: "runtime"})
 	}

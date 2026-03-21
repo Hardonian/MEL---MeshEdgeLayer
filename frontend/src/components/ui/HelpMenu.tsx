@@ -70,7 +70,8 @@ export function HelpMenu() {
           'text-muted-foreground hover:text-foreground hover:bg-accent',
           isOpen && 'bg-accent'
         )}
-        aria-expanded={isOpen ? 'true' : 'false'}
+        type="button"
+        aria-expanded={isOpen}
         aria-haspopup="true"
       >
         <HelpCircle className="h-4 w-4" />

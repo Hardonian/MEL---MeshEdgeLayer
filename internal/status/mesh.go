@@ -124,7 +124,7 @@ func buildMeshDrilldown(cfg config.Config, database *db.DB, intel TransportIntel
 	recentClusters := aggregateRecentClusters(intel)
 	rootCause := analyzeRootCause(intel, correlated, activeAlerts)
 	operatorRecommendations := operatorRecommendationsFor(rootCause, segments)
-	routingRecommendations := routingRecommendationsFor(intel, meshHealth, correlated)
+	routingRecommendations := routingRecommendationsFor(intel, meshHealth)
 	historySummary := meshHistorySummary(database, cfg, now)
 	explanation := buildMeshHealthExplanation(meshHealth, penalties, correlated, activeAlerts, recentClusters, segments, intel)
 	return MeshDrilldown{
@@ -511,7 +511,7 @@ func operatorRecommendationsFor(rootCause RootCauseAnalysis, segments []Degraded
 	return nil
 }
 
-func routingRecommendationsFor(intel TransportIntelligence, mesh MeshHealth, correlated []CorrelatedFailure) []RoutingRecommendation {
+func routingRecommendationsFor(intel TransportIntelligence, mesh MeshHealth) []RoutingRecommendation {
 	if len(intel.HealthByTransport) == 0 {
 		return []RoutingRecommendation{{Action: "advisory_only_no_transport_connected", Reason: "No transport connectivity is currently proven; MEL will not auto-reroute.", Confidence: "high"}}
 	}

@@ -75,9 +75,9 @@ export function Diagnostics() {
           />
         ) : pageState === 'ready' && (
           findings.map((f, idx) => (
-            <div key={idx} className={`p-5 rounded-lg border ${f.severity === 'critical' ? 'bg-red-50 border-red-200' : f.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200'}`}>
+            <div key={idx} className={`p-5 rounded-lg border ${f.severity === 'critical' ? 'status-critical' : f.severity === 'warning' ? 'status-warning' : 'status-healthy'}`}>
               <div className="flex justify-between items-start mb-2">
-                <h4 className={`text-lg font-semibold ${f.severity === 'critical' ? 'text-red-800' : f.severity === 'warning' ? 'text-yellow-800' : 'text-blue-800'}`}>
+                <h4 className={`text-lg font-semibold ${f.severity === 'critical' ? 'text-critical' : f.severity === 'warning' ? 'text-warning' : 'text-success'}`}>
                   {f.title}
                 </h4>
                 <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50 text-gray-700 border shadow-sm uppercase font-mono">
