@@ -6,13 +6,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
-	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/privacy"
 )
 
