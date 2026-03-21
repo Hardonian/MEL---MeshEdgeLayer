@@ -105,7 +105,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(s.configInspectHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))
 	}

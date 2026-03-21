@@ -130,10 +130,8 @@ func RequirePermission(actionClass ActionClass) func(http.Handler) http.Handler 
 
 			// In single-operator mode, RBAC is advisory only
 			// Always allow - this will change with future multi-operator support
-			if !CanPerformWithContext(ctx, actionClass) {
-				// For now, we still allow but could return 403 in the future
-				// when full RBAC is implemented
-			}
+			// The check is performed to establish the pattern for future enforcement
+			_ = CanPerformWithContext(ctx, actionClass)
 
 			next.ServeHTTP(w, r)
 		})
@@ -145,8 +143,6 @@ func RequirePermission(actionClass ActionClass) func(http.Handler) http.Handler 
 func RequireRole(minRole OperatorRole) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := GetAuthContextFromRequest(r)
-
 			// In single-operator mode, always allow
 			// Future: check role hierarchy
 			_ = minRole
