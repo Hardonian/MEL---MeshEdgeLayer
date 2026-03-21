@@ -12,8 +12,8 @@ type Panel struct {
 	Summary       string        `json:"summary"`
 	ShortCommands []string      `json:"short_commands"`
 	WebHints      []string      `json:"web_hints"`
-	DeviceMenu    []DeviceMenu  `json:"device_menu"`
-	Transports    []PanelMetric `json:"transports"`
+	OperatorMenu  []OperatorAction `json:"operator_menu"`
+	Transports    []PanelMetric    `json:"transports"`
 }
 
 type PanelMetric struct {
@@ -26,7 +26,7 @@ type PanelMetric struct {
 	Score      *int   `json:"score,omitempty"`
 }
 
-type DeviceMenu struct {
+type OperatorAction struct {
 	Key    string `json:"key"`
 	Label  string `json:"label"`
 	Action string `json:"action"`
@@ -43,7 +43,7 @@ func BuildPanel(snap Snapshot) Panel {
 			"Open /api/v1/panel for compact operator state.",
 			"Use the Web UI to verify live ingest versus historical-only evidence.",
 		},
-		DeviceMenu: []DeviceMenu{
+		OperatorMenu: []OperatorAction{
 			{Key: "A", Label: "State", Action: "Show operator state and overall ingest truth"},
 			{Key: "B", Label: "Link", Action: "Cycle transport states and last errors"},
 			{Key: "C", Label: "Msgs", Action: "Show persisted and runtime message counters"},

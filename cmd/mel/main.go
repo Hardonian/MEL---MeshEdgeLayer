@@ -312,8 +312,8 @@ func printPanelText(panel statuspkg.Panel) {
 	}
 	fmt.Println()
 	fmt.Printf("Short commands: %s\n", strings.Join(panel.ShortCommands, " | "))
-	fmt.Println("8-bit device menu:")
-	for _, item := range panel.DeviceMenu {
+	fmt.Println("8-bit operator menu:")
+	for _, item := range panel.OperatorMenu {
 		fmt.Printf("  %s %-5s %s\n", item.Key, item.Label, item.Action)
 	}
 }
