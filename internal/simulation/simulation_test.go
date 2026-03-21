@@ -209,7 +209,7 @@ func TestRiskScoring(t *testing.T) {
 					CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 					Mode:            control.ModeGuardedAuto,
 				},
-				MeshTopology:     mesh,
+				MeshTopology: mesh,
 			}
 
 			result, err := engine.Simulate(input)
@@ -284,7 +284,7 @@ func TestPolicyPreview(t *testing.T) {
 					CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 					Mode:            tt.mode,
 				},
-				MeshTopology:     mesh,
+				MeshTopology: mesh,
 			}
 
 			result, err := engine.Simulate(input)
@@ -330,7 +330,7 @@ func TestBlastRadiusPrediction(t *testing.T) {
 			CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 			Mode:            control.ModeGuardedAuto,
 		},
-		MeshTopology:     mesh,
+		MeshTopology: mesh,
 	}
 
 	result, err := engine.Simulate(input)
@@ -379,7 +379,7 @@ func TestOutcomeBranches(t *testing.T) {
 			CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 			Mode:            control.ModeGuardedAuto,
 		},
-		MeshTopology:     mesh,
+		MeshTopology: mesh,
 	}
 
 	result, err := engine.Simulate(input)

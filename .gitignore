@@ -1,6 +1,8 @@
 /bin/
 /dist/
 /data/
+/.tmp/
+configs/mel.json
 coverage.out
 *.db
 *.log
