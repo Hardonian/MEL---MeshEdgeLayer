@@ -19,6 +19,7 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
+	"github.com/mel-project/mel/internal/security"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 )
@@ -863,14 +864,19 @@ func asJSON(v any) string { b, _ := json.MarshalIndent(v, "", "  "); return stri
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.cfg.Auth.Enabled {
-			next.ServeHTTP(w, r)
+			// No auth enabled; assume local admin.
+			ctx := security.WithIdentity(r.Context(), security.BuildAdminIdentity("local_unauthenticated"))
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
+
 		user, pass, ok := r.BasicAuth()
 		if ok && user == s.cfg.Auth.UIUser && pass == s.cfg.Auth.UIPassword {
-			next.ServeHTTP(w, r)
+			ctx := security.WithIdentity(r.Context(), security.BuildAdminIdentity(user))
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
+
 		severity := "warning"
 		if ok {
 			severity = "high"

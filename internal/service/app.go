@@ -70,7 +70,9 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	log := logging.New(cfg.Logging.Level, debug)
 	database, err := db.Open(cfg)
 	if err != nil {
-		return nil, err
+		// Degraded boot mode: log the error and proceed without a DB, placing the system in explicit idle mode
+		log.Error("database_open_failed", "failed to open database, entering idle degraded mode", map[string]any{"error": err.Error()})
+		database = nil
 	}
 	bus := events.New()
 	state := meshstate.New()
