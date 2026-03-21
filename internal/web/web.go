@@ -18,6 +18,7 @@ import (
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
@@ -241,7 +242,24 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"nodes": rows})
+	nodes := make([]models.Node, 0, len(rows))
+	for _, row := range rows {
+		nodes = append(nodes, models.Node{
+			NodeNum:       asInt(row["node_num"]),
+			NodeID:        asString(row["node_id"]),
+			LongName:      asString(row["long_name"]),
+			ShortName:     asString(row["short_name"]),
+			LastSeen:      asString(row["last_seen"]),
+			LastGatewayID: asString(row["last_gateway_id"]),
+			LatRedacted:   asFloat(row["lat_redacted"]),
+			LonRedacted:   asFloat(row["lon_redacted"]),
+			Altitude:      asInt(row["altitude"]),
+			LastSNR:       asFloat(row["last_snr"]),
+			LastRSSI:      asInt(row["last_rssi"]),
+			MessageCount:  asInt(row["message_count"]),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes})
 }
 
 func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +299,22 @@ func (s *Server) nodeDetail(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"node": rows[0]})
+	row := rows[0]
+	node := models.Node{
+		NodeNum:       asInt(row["node_num"]),
+		NodeID:        asString(row["node_id"]),
+		LongName:      asString(row["long_name"]),
+		ShortName:     asString(row["short_name"]),
+		LastSeen:      asString(row["last_seen"]),
+		LastGatewayID: asString(row["last_gateway_id"]),
+		LatRedacted:   asFloat(row["lat_redacted"]),
+		LonRedacted:   asFloat(row["lon_redacted"]),
+		Altitude:      asInt(row["altitude"]),
+		LastSNR:       asFloat(row["last_snr"]),
+		LastRSSI:      asInt(row["last_rssi"]),
+		MessageCount:  asInt(row["message_count"]),
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"node": node})
 }
 
 func (s *Server) transports(w http.ResponseWriter, r *http.Request) {
@@ -763,7 +796,7 @@ func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
-	incidents, err := s.db.RecentIncidents(100)
+	records, err := s.db.RecentIncidents(100)
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
 			"error": err.Error(),
@@ -773,6 +806,24 @@ func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 			logging.SanitizeDBError(err),
 		))
 		return
+	}
+	incidents := make([]models.Incident, 0, len(records))
+	for _, rec := range records {
+		incidents = append(incidents, models.Incident{
+			ID:           rec.ID,
+			Category:     rec.Category,
+			Severity:     rec.Severity,
+			Title:        rec.Title,
+			Summary:      rec.Summary,
+			ResourceType: rec.ResourceType,
+			ResourceID:   rec.ResourceID,
+			State:        rec.State,
+			ActorID:      rec.ActorID,
+			OccurredAt:   rec.OccurredAt,
+			UpdatedAt:    rec.UpdatedAt,
+			ResolvedAt:   rec.ResolvedAt,
+			Metadata:     rec.Metadata,
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"recent_incidents": incidents})
 }
@@ -1091,5 +1142,46 @@ func scalarFloat(d *db.DB, sql string) float64 {
 	}
 	var parsed float64
 	fmt.Sscan(fmt.Sprint(value), &parsed)
+	return parsed
+}
+
+func asInt(v any) int64 {
+	switch x := v.(type) {
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	case float64:
+		return int64(x)
+	case string:
+		var parsed int64
+		fmt.Sscan(x, &parsed)
+		return parsed
+	}
+	var parsed int64
+	fmt.Sscan(fmt.Sprint(v), &parsed)
+	return parsed
+}
+
+func asString(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
+}
+
+func asFloat(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	case string:
+		var parsed float64
+		fmt.Sscan(x, &parsed)
+		return parsed
+	}
+	var parsed float64
+	fmt.Sscan(fmt.Sprint(v), &parsed)
 	return parsed
 }

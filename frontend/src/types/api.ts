@@ -119,6 +119,70 @@ export interface MeshState {
   connected: boolean
 }
 
+// Self-Observability Types (Phase 10)
+
+export interface InternalComponentHealth {
+  name: string
+  health: 'healthy' | 'degraded' | 'failing' | 'unknown'
+  last_success: string
+  last_failure: string
+  error_count: number
+  success_count: number
+  error_rate: number
+}
+
+export interface InternalHealthResponse {
+  overall_health: 'healthy' | 'degraded' | 'failing' | 'unknown'
+  components: InternalComponentHealth[]
+}
+
+export interface FreshnessMarker {
+  component: string
+  last_update: string
+  age_seconds: number
+  is_fresh: boolean
+  is_stale: boolean
+  expected_interval: number
+  stale_threshold: number
+}
+
+export interface FreshnessResponse {
+  markers: FreshnessMarker[]
+  stale_components: string[]
+}
+
+export interface SLOStatus {
+  name: string
+  description: string
+  current_value: number
+  target: number
+  status: 'healthy' | 'at_risk' | 'breached' | 'unknown'
+  budget_used: number
+  unit: string
+  window: string
+  window_start: string
+  window_end: string
+  evaluated_at: string
+}
+
+export interface SLOResponse {
+  slos: SLOStatus[]
+}
+
+export interface InternalMetricsResponse {
+  timestamp: string
+  pipeline_latency: Record<string, number>
+  worker_heartbeats: Record<string, string>
+  queue_depths: Record<string, number>
+  error_rates: Record<string, number>
+  resource_usage: {
+    memory_used_bytes: number
+    goroutines: number
+    num_gc: number
+  }
+  operation_counts: Record<string, number>
+}
+
 // Utility types
 export type HealthState = 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
 
