@@ -200,16 +200,16 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
         />
         <StatBox
           label="Messages"
-          value={transport.total_messages.toString()}
-          subValue={`${transport.persisted_messages} persisted`}
+          value={(transport.total_messages ?? 0).toString()}
+          subValue={`${transport.persisted_messages ?? 0} persisted`}
           icon={<MessageSquare className="h-3.5 w-3.5" />}
         />
         <StatBox
           label="Timeouts"
-          value={transport.consecutive_timeouts.toString()}
+          value={(transport.consecutive_timeouts ?? 0).toString()}
           subValue="consecutive"
           icon={<AlertCircle className="h-3.5 w-3.5" />}
-          highlight={transport.consecutive_timeouts > 3}
+          highlight={(transport.consecutive_timeouts ?? 0) > 3}
         />
         <StatBox
           label="Last Activity"

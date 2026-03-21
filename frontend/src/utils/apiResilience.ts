@@ -37,7 +37,7 @@ export const formatOperatorTime = (timestamp: string | null | undefined): string
   }
   
   try {
-    const d = new Date(timestamp);
+    const d = new Date(timestamp as string);
     return isNaN(d.getTime()) ? 'Invalid Date' : d.toISOString();
   } catch {
     return 'Invalid Date';

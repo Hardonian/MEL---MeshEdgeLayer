@@ -46,40 +46,76 @@ export function Transports() {
         <NoTransportsConfigured />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {transports.map((transport) => (
-            <Card key={transport.name}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-base">
-                  <span>{transport.name}</span>
-                  <Badge variant={
-                    transport.health?.state === 'healthy' ? 'success' : 
-                    transport.health?.state === 'degraded' ? 'warning' : 'critical'
-                  }>
-                    {transport.health?.state || 'unknown'}
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {transport.type} transport module
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Runtime State:</span>
-                    <span className="font-medium">{transport.runtime_state || 'unknown'}</span>
+          {transports.map((transport) => {
+            let derivedState = 'Unknown';
+            let stateVariant: 'default' | 'success' | 'warning' | 'critical' | 'info' = 'default';
+            
+            const isDisconnected = transport.effective_state === 'disconnected';
+            const hbDate = transport.last_heartbeat_at ? new Date(transport.last_heartbeat_at) : null;
+            const now = new Date();
+            const heartbeatMs = hbDate ? now.getTime() - hbDate.getTime() : Infinity;
+            
+            if (isDisconnected) {
+              derivedState = 'Disconnected';
+              stateVariant = 'critical';
+            } else if (transport.consecutive_timeouts > 0 || heartbeatMs > 5 * 60 * 1000) {
+              derivedState = 'Stalled';
+              stateVariant = 'warning';
+            } else {
+              const ingestDate = transport.last_ingest_at ? new Date(transport.last_ingest_at) : null;
+              const ingestMs = ingestDate ? now.getTime() - ingestDate.getTime() : Infinity;
+              if (ingestMs > 5 * 60 * 1000) {
+                derivedState = 'Idle';
+                stateVariant = 'default';
+              } else {
+                derivedState = 'Active';
+                stateVariant = 'success';
+              }
+            }
+
+            return (
+              <Card key={transport.name}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <span>{transport.name}</span>
+                    <Badge variant={stateVariant}>
+                      {derivedState}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {transport.type} transport module — Runtime: {transport.runtime_state || 'unknown'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    {transport.health?.state && transport.health.state !== 'healthy' && (
+                       <div className="flex justify-between text-amber-600">
+                         <span className="font-medium">Health Check:</span>
+                         <span className="font-medium">{transport.health.state}</span>
+                       </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Messages (Total / Drops):</span>
+                      <span className="font-medium">{transport.total_messages ?? 0} / {transport.observation_drops ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Heartbeat:</span>
+                      <span className="font-medium">{transport.last_heartbeat_at ? new Date(transport.last_heartbeat_at).toLocaleTimeString() : 'Never'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Last Ingest:</span>
+                      <span className="font-medium">{transport.last_ingest_at ? new Date(transport.last_ingest_at).toLocaleTimeString() : 'Never'}</span>
+                    </div>
+                    {(transport.consecutive_timeouts > 0 || transport.last_error) && (
+                      <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                        {transport.last_error || `Timeouts: ${transport.consecutive_timeouts}`}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Messages:</span>
-                    <span className="font-medium">{transport.total_messages ?? 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Ingest:</span>
-                    <span className="font-medium">{transport.last_ingest_at || 'Never'}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
