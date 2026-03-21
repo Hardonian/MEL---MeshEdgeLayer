@@ -11,6 +11,35 @@ import (
 	"github.com/mel-project/mel/internal/selfobs"
 )
 
+func healthCmd(args []string) {
+	if len(args) == 0 {
+		healthUsage()
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "internal":
+		healthInternalCmd(args[1:])
+	case "freshness":
+		healthFreshnessCmd(args[1:])
+	case "slo":
+		healthSLOCmd(args[1:])
+	case "metrics":
+		healthMetricsCmd(args[1:])
+	default:
+		healthUsage()
+		os.Exit(1)
+	}
+}
+
+func healthUsage() {
+	fmt.Println("Usage: mel health <subcommand>")
+	fmt.Println("Subcommands:")
+	fmt.Println("  internal   Show internal component health")
+	fmt.Println("  freshness  Show freshness status")
+	fmt.Println("  slo        Show SLO status")
+	fmt.Println("  metrics    Show internal metrics")
+}
+
 // healthInternalCmd shows internal component health
 func healthInternalCmd(args []string) {
 	cfg, _ := loadCfg(args)
