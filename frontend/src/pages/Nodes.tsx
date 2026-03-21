@@ -6,6 +6,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { NoNodesYet } from '@/components/ui/EmptyState'
+import { StaleBanner } from '@/components/ui/StateViews'
 import { formatRelativeTime, NodeInfo } from '@/types/api'
 import { Radio, Clock, MapPin } from 'lucide-react'
 
@@ -63,6 +64,13 @@ export function Nodes() {
   }
 
   const nodes = data || []
+  
+  const newestLastSeen = nodes.reduce((max, node) => {
+    if (!node.last_seen) return max
+    const t = new Date(node.last_seen).getTime()
+    return t > max ? t : max
+  }, 0)
+  const staleTimestamp = newestLastSeen ? new Date(newestLastSeen).toISOString() : undefined
 
   return (
     <div className="space-y-6">
@@ -70,6 +78,8 @@ export function Nodes() {
         title="Nodes"
         description="Mesh device inventory — all nodes observed by your transports."
       />
+
+      <StaleBanner timestamp={staleTimestamp} message="Node inventory may be stale. Observations are delayed." />
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">

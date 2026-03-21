@@ -19,7 +19,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge, HealthBadge, SeverityBadge } from '@/components/ui/Badge'
 import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
-import { Loading } from '@/components/ui/StateViews'
+import { Loading, StaleBanner } from '@/components/ui/StateViews'
 import { EmptyState, SystemHealthy, NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters } from '@/hooks/useApi'
 import { getHealthState, formatRelativeTime, TransportHealth } from '@/types/api'
@@ -68,12 +68,21 @@ export function Dashboard() {
   const activePrivacyFindings = privacy.data?.filter(p => p.severity === 'critical' || p.severity === 'high') || []
   const pendingRecommendations = recommendations.data?.filter(r => r.actionable) || []
 
+  const newestHeartbeat = transports.reduce((max, t) => {
+    if (!t.last_heartbeat_at) return max
+    const ts = new Date(t.last_heartbeat_at).getTime()
+    return ts > max ? ts : max
+  }, 0)
+  const dashboardStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
         description="Real-time overview of your MeshEdgeLayer mesh observability system."
       />
+
+      <StaleBanner timestamp={dashboardStaleTs} message="Dashboard data may be stale. Check transport connections." />
 
       {/* Quick Stats - Enhanced Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
