@@ -100,7 +100,7 @@ func (a *App) initKernelBridge() *kernelBridge {
 	durability := kernel.NewStorageDurability(evtLogPath, backupDir)
 
 	// Action coordinator
-	coordinator := kernel.NewActionCoordinator(nodeID)
+	coordinator := kernel.NewActionCoordinator(nodeID, 5*time.Minute)
 
 	// Region manager
 	regPath := filepath.Join(dataDir, "kernel_regions.db")
@@ -312,7 +312,7 @@ func (kb *kernelBridge) takeSnapshot(a *App) {
 	})
 
 	// Prune old snapshots
-	if err := kb.snapStore.Prune(10); err != nil {
+	if err := kb.snapStore.Prune(time.Now().UTC().AddDate(0, 0, -7), 10); err != nil {
 		a.Log.Warn("kernel_snapshot_prune_failed", "failed to prune snapshots", map[string]any{"error": err.Error()})
 	}
 }

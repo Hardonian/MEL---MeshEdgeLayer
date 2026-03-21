@@ -41,34 +41,65 @@ MEL uses eventual consistency with bounded staleness for its distributed state. 
 
 ## Conflict Resolution Strategies
 
-### Last-Write-Wins (LWW)
+Implemented in `internal/consistency/consistency.go` with `CompareAndResolve()`.
+
+### Last-Write-Wins (LWW) — `StrategyLastWriteWins`
 
 Used for:
-- Node scores (newer timestamp wins)
-- Transport scores (newer timestamp wins)
+- Node registry entries (newer `last_seen` wins)
+- Region health aggregates (newer `last_update_at` wins)
 - Peer state updates
 
-Safe because scores are soft state that gets recomputed.
+Safe because these are soft state that gets recomputed.
 
-### Score-Based Dominance
+### Score-Based Dominance — `StrategyScoreDominance`
+
+Used for:
+- Node scores (take the **worse** composite score — conservative/safe)
+- Transport scores (take the **worse** health score)
 
 When two nodes disagree on classification:
-- The node with more recent observations wins
-- If tied, the lower (more conservative) score wins
+- The lower (more degraded) score wins
+- Higher anomaly scores are preserved
+- Lower health scores are preserved
+- This ensures safety: if any node sees degradation, all nodes respect it
 
-### Policy Precedence
+### Policy Precedence — `StrategyPolicyPrecedence`
 
 When policy versions diverge:
-- Higher version number takes precedence
+- Higher version string takes precedence
 - Alerts are generated for operator review
 - During transition, the more restrictive policy applies
 
-### Operator Override Priority
+### Operator Override Priority — `StrategyOperatorOverride`
 
 Operator actions always take precedence:
 - Manual approvals/rejections are authoritative
 - Operator freezes propagate to all peers
 - Operator notes are append-only (no conflict possible)
+
+### Union Merge — `StrategyUnionMerge`
+
+Used for safety-critical state:
+- **Active freezes**: both local and remote freezes are kept (safety: never drop a freeze)
+- **New nodes**: nodes known only to remote are added locally
+- **New transports**: transports known only to remote are added locally
+
+### Action Lifecycle Advancement
+
+Action state conflicts use lifecycle ordering:
+- `proposed(1) → approved(2) → running(3) → completed/rejected(4)`
+- The more advanced lifecycle state always wins
+- This prevents actions from regressing to earlier states
+
+## Bounded Staleness — `CheckStaleness()`
+
+Three dimensions are checked:
+- **Clock drift**: max Lamport clock difference (default: 1000)
+- **Sequence lag**: max event sequence lag (default: 500)
+- **Time drift**: max wall-clock time since last peer contact (default: 5 minutes)
+
+A peer is marked stale if **any** dimension exceeds its bound.
 
 ## Divergence Detection
 

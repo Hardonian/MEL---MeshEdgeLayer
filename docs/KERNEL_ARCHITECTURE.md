@@ -144,3 +144,6 @@ The kernel emits `Effect` values that are dispatched by the adapter layer:
 | `internal/snapshot` | State checkpointing |
 | `internal/federation` | Multi-instance coordination |
 | `internal/region` | Region-aware operation |
+| `internal/consistency` | Consistency model, conflict resolution, divergence detection, bounded staleness |
+| `internal/service` | Kernel bridge, wiring, background workers |
+| `cmd/mel` | CLI commands for distributed operations |
