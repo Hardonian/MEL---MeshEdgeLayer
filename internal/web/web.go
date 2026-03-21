@@ -108,6 +108,11 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
+	// Self-observability endpoints
+	mux.HandleFunc("/api/v1/health/internal", s.requireMethod(s.InternalHealthHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/health/freshness", s.requireMethod(s.FreshnessHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/health/slo", s.requireMethod(s.SLOHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/metrics/internal", s.requireMethod(s.InternalMetricsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))

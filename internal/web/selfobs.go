@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -15,13 +16,13 @@ func (s *Server) InternalHealthHandler(w http.ResponseWriter, r *http.Request) {
 	result := make([]map[string]any, 0, len(components))
 	for _, comp := range components {
 		result = append(result, map[string]any{
-			"name":         comp.Name,
-			"health":       comp.Health,
-			"last_success": comp.LastSuccess.Format(time.RFC3339),
-			"last_failure": comp.LastFailure.Format(time.RFC3339),
-			"error_count":  comp.ErrorCount,
+			"name":          comp.Name,
+			"health":        comp.Health,
+			"last_success":  comp.LastSuccess.Format(time.RFC3339),
+			"last_failure":  comp.LastFailure.Format(time.RFC3339),
+			"error_count":   comp.ErrorCount,
 			"success_count": comp.SuccessCount,
-			"error_rate":   comp.ErrorRate(),
+			"error_rate":    comp.ErrorRate(),
 		})
 	}
 	
@@ -40,13 +41,13 @@ func (s *Server) FreshnessHandler(w http.ResponseWriter, r *http.Request) {
 	for _, marker := range markers {
 		age := marker.Age()
 		result = append(result, map[string]any{
-			"component":           marker.Component,
-			"last_update":         marker.LastUpdate.Format(time.RFC3339),
-			"age_seconds":         age.Seconds(),
-			"is_fresh":            marker.IsFresh(),
-			"is_stale":            marker.IsStale(),
-			"expected_interval":    marker.ExpectedInterval.Seconds(),
-			"stale_threshold":     marker.StaleThreshold.Seconds(),
+			"component":          marker.Component,
+			"last_update":       marker.LastUpdate.Format(time.RFC3339),
+			"age_seconds":        age.Seconds(),
+			"is_fresh":          marker.IsFresh(),
+			"is_stale":          marker.IsStale(),
+			"expected_interval":  marker.ExpectedInterval.Seconds(),
+			"stale_threshold":   marker.StaleThreshold.Seconds(),
 		})
 	}
 	
@@ -57,7 +58,7 @@ func (s *Server) FreshnessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	writeJSON(w, http.StatusOK, map[string]any{
-		"markers":          result,
+		"markers":           result,
 		"stale_components": staleList,
 	})
 }
@@ -77,17 +78,17 @@ func (s *Server) SLOHandler(w http.ResponseWriter, r *http.Request) {
 	for _, status := range statuses {
 		def := defMap[status.Name]
 		result = append(result, map[string]any{
-			"name":            status.Name,
-			"description":    def.Description,
-			"current_value":  status.CurrentValue,
-			"target":         status.Target,
-			"status":         status.Status,
-			"budget_used":    status.BudgetUsed,
-			"unit":           def.Unit,
-			"window":         def.Window.String(),
-			"window_start":   status.WindowStart.Format(time.RFC3339),
-			"window_end":     status.WindowEnd.Format(time.RFC3339),
-			"evaluated_at":   status.EvaluatedAt.Format(time.RFC3339),
+			"name":          status.Name,
+			"description":  def.Description,
+			"current_value": status.CurrentValue,
+			"target":       status.Target,
+			"status":       status.Status,
+			"budget_used":  status.BudgetUsed,
+			"unit":         def.Unit,
+			"window":       def.Window.String(),
+			"window_start": status.WindowStart.Format(time.RFC3339),
+			"window_end":   status.WindowEnd.Format(time.RFC3339),
+			"evaluated_at": status.EvaluatedAt.Format(time.RFC3339),
 		})
 	}
 	
@@ -100,8 +101,8 @@ func (s *Server) SLOHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) InternalMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	snapshot := selfobs.GetMetricsSnapshot()
 	
-	// Convert to JSON-friendly format
-	result := map[string]any{
+	// Convert to JSON-friendly format using json.Marshal
+	data, err := json.Marshal(map[string]any{
 		"timestamp":         snapshot.Timestamp.Format(time.RFC3339),
 		"pipeline_latency": snapshot.PipelineLatency,
 		"worker_heartbeats": snapshot.WorkerHeartbeats,
@@ -113,9 +114,15 @@ func (s *Server) InternalMetricsHandler(w http.ResponseWriter, r *http.Request) 
 			"num_gc":           snapshot.ResourceUsage.NumGC,
 		},
 		"operation_counts": snapshot.OperationCounts,
+	})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
 	}
 	
-	writeJSON(w, http.StatusOK, result)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 // RegisterSelfObsRoutes registers the self-observability API routes
@@ -125,4 +132,3 @@ func RegisterSelfObsRoutes(mux *http.ServeMux, server *Server) {
 	mux.HandleFunc("/api/v1/health/slo", server.requireMethod(server.SLOHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/metrics/internal", server.requireMethod(server.InternalMetricsHandler, http.MethodGet, http.MethodHead))
 }
-

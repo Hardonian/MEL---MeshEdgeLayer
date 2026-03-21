@@ -2,13 +2,13 @@
 
 **Truthful, local-first mesh observability and operator control plane for Meshtastic.**
 
-![MEL Hero](assets/hero.png)
+![MEL Hero](assets/mel_hero_new_1774058412698.png)
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/mel-project/mel)](https://goreportcard.com/report/github.com/mel-project/mel)
 [![License](https://img.shields.io/github/license/mel-project/mel)](LICENSE)
 [![Status](https://img.shields.io/badge/status-0.1.0--rc1-blue.svg)](docs/roadmap/ROADMAP_EXECUTION.md)
 
-[Quickstart](#quickstart) • [Architecture](#architecture) • [Documentation](docs/README.md) • [Contributing](CONTRIBUTING.md)
+[Quickstart](#quickstart-under-5-minutes) • [Architecture](#how-it-works) • [Documentation](docs/README.md) • [Contributing](CONTRIBUTING.md)
 
 ---
 
@@ -16,21 +16,65 @@
 
 MEL is a heavy-duty ingest, persistence, and observability layer designed for **production-oriented Meshtastic deployments**. It provides operators with high-fidelity visibility into mesh health, packet traffic, and node telemetry without relying on cloud services or external dependencies.
 
-Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only reports data it has successfully persisted and verified in its local state.
+Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it only reports data it has successfully persisted and verified in its local state. If MEL says it happened, it happened on the wire.
 
-### Core Capabilities
+### Why MEL?
 
-- **Multi-Transport Ingest**: Simultaneous support for Serial, TCP, and MQTT transports.
-- **Relentless Persistence**: Deterministic SQLite storage with audit logging and dead-letter handling.
-- **Operator Observability**: Authoritative CLI (`mel doctor`), a real-time TUI, and a modern Web Dashboard.
-- **Privacy by Design**: Built-in redaction, privacy audits, and local-first data ownership.
-- **Guarded Remediation**: A sophisticated [Control Plane](docs/architecture/control-plane.md) that can suggest or execute mesh-tuning actions safely.
+- **The "Black Box" Problem**: Generic mesh dashboards often hide transport failures or invent "healthy" traffic. MEL makes every degraded state explicit.
+- **Operator Ownership**: Your mesh data belongs in your SQLite database, not a third-party cloud.
+- **Relentless Persistence**: Every packet is checked, classified, and stored with an audit trail.
+- **Guarded Automation**: MEL doesn't just watch; its [Control Plane](docs/architecture/control-plane.md) suggests and executes safe remediation to keep your mesh alive.
 
 ---
 
-## Architecture
+## Key Core Capabilities
 
-MEL follows a unidirectional data flow to ensure integrity and determinism.
+- **Multi-Transport Ingest**: Simultaneous support for **Serial (USB)**, **TCP (Network)**, and **MQTT** transports.
+- **Authoritative Diagnostics**: Run `mel doctor` to verify host permissions, database integrity, and transport health in seconds.
+- **Modern Operator UI**: A sleek, real-time Web Dashboard and a responsive TUI for field operations.
+- **Intelligence Layer**: Deep packet inspection that classifies traffic into `text`, `position`, `node_info`, and `telemetry` with raw fallbacks.
+- **Privacy by Design**: Built-in redaction, privacy audits, and local-only position storage by default.
+
+---
+
+## Quickstart (Under 5 Minutes)
+
+MEL is designed to be up and running before your next packet arrives.
+
+### 1. Install MEL
+
+**Linux / macOS / Windows (Go 1.21+):**
+
+```bash
+go build -o mel ./cmd/mel
+```
+
+*(Pre-built binaries coming soon to [Releases](https://github.com/mel-project/mel/releases))*
+
+### 2. Initialize and Validate
+
+```bash
+# Generate a fresh operator config
+./mel init --config configs/mel.json
+
+# Run a pre-flight health check
+./mel doctor --config configs/mel.json
+```
+
+### 3. Launch the Control Plane
+
+```bash
+# Start the ingest engine and web dashboard
+./mel serve --config configs/mel.json
+```
+
+Visit **[http://localhost:8080](http://localhost:8080)** to see your mesh come alive.
+
+---
+
+## How it Works
+
+MEL follows a unidirectional, guarded data flow to ensure integrity.
 
 ```mermaid
 graph TD
@@ -40,9 +84,9 @@ graph TD
     end
 
     subgraph "MEL Transports"
-        SR[Serial Transport]
-        TC[TCP Transport]
-        MQ[MQTT Transport]
+        SR[Serial / USB]
+        TC[TCP / Network]
+        MQ[MQTT Feed]
     end
 
     subgraph "MEL Core Engine"
@@ -51,9 +95,9 @@ graph TD
         IL[[Intelligence Layer]]
     end
 
-    subgraph "Operator Interfaces"
-        CLI[MEL CLI / Doctor]
-        TUI[Interactive TUI]
+    subgraph "Operator Control"
+        CLI[mel doctor / status]
+        TUI[Terminal UI]
         WEB[Web Dashboard]
         API[JSON API / Metrics]
     end
@@ -74,82 +118,34 @@ graph TD
     DB --> WEB
 ```
 
-Learn more about the [**Intelligence Layer**](docs/architecture/intelligence-layer.md) and [**Control Plane**](docs/architecture/control-plane.md).
+---
+
+## 5-Minute Tour
+
+1. **Inspect Health**: Use `mel status` to see live transport scores.
+2. **Verify Reachability**: Run `mel doctor` to ensure your serial devices and databases are writable.
+3. **Monitor Ingest**: Tail the audit logs with `./mel logs tail`.
+4. **Explore Nodes**: Visit the Web UI `/nodes` page to see the latest telemetry from across the mesh.
+5. **Audit Privacy**: Run `mel privacy audit` to check for unintended location leaks.
 
 ---
 
-## Quickstart
+## Zero-Theatre Policy
 
-MEL is designed to be up and running in under 5 minutes.
-
-### 1. Installation
-
-**Linux / macOS:**
-
-```bash
-# Native install (AMD64/ARM64)
-curl -sSL https://mel.sh/install.sh | sh
-```
-
-**Windows (PowerShell):**
-
-```powershell
-iwr https://mel.sh/install.ps1 | iex
-```
-
-*Or build from source:* `go build -o mel ./cmd/mel`
-
-### 2. Initialize and Validate
-
-```bash
-mel init
-# This creates configs/mel.generated.json
-
-mel doctor --config configs/mel.generated.json
-```
-
-### 3. Start the Control Plane
-
-```bash
-mel serve --config configs/mel.generated.json
-```
-
-Visit **<http://localhost:8080>** to see your mesh come alive.
-
----
-
-## Supported Transports
-
-| Transport | Status | Verification |
-| :--- | :--- | :--- |
-| **Serial** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
-| **TCP** | ✅ Supported | `mel doctor`, `mel status`, Web UI |
-| **MQTT** | ✅ Supported | `mel status`, Web UI, `/metrics` |
-| **BLE / HTTP** | ❌ Unsupported | N/A |
-
----
-
-## The MEL Philosophy: Zero Theatre
-
-- **No Fake Data**: If you see it in MEL, it happened on the wire.
-- **No Silent Failures**: Transports report explicit states (e.g., `connected_no_ingest`, `ingesting`).
-- **No Dependencies Bloat**: Built with Go stdlib and minimalist primitives.
-- **No Magic**: Every decision the Control Plane makes is explainable and auditable.
-
----
-
-## Documentation
-
-- [**Getting Started**](docs/getting-started/first-10-minutes.md) - Full setup and first 10 minutes.
-- [**Architecture**](docs/architecture/overview.md) - Deep dive into subsystems.
-- [**Operator Guide**](docs/ops/README.md) - Running MEL in production.
-- [**API Reference**](docs/ops/api-reference.md) - Integrating with MEL.
-- [**CLI Control**](docs/ops/control-cli.md) - Direct Control Plane operations.
+- **No Fake Data**: 0 messages means 0 messages. We do not interpolate or guess.
+- **No Silent Failures**: If a serial port is busy, you get a critical finding with remediation guidance.
+- **No Magic**: Every decision the Control Plane makes is grounded in the **Reality Matrix** and explained in plain English.
+- **No Bundle Bloat**: Minimalist Go implementation with near-zero external dependencies.
 
 ---
 
 ## Contributing
 
-We welcome contributions that increase structural coherence and reduce entropy. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions that increase structural coherence and reduce entropy.
+
+- **Bug Reports**: Open a [Bug Report](https://github.com/mel-project/mel/issues/new?template=bug_report.md).
+- **New Transports**: See our [Transport Implementation Guide](docs/contributor/adding-transports.md).
+- **Code Guidelines**: Read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 MEL is licensed under the **Apache-2.0 License**.
+© 2026 Hardonian / MeshEdgeLayer Contributors.
