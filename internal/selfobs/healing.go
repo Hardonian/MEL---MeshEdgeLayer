@@ -85,6 +85,8 @@ func (rp *RetryPolicy) getBackoff(attempt int) time.Duration {
 
 // HealingAction represents a single healing action recorded in the audit trail
 type HealingAction struct {
+	// ID is the unique identifier for the action
+	ID int64 `json:"id,omitempty"`
 	// Timestamp is when the action occurred
 	Timestamp time.Time `json:"timestamp"`
 	// Component is the name of the component being healed
@@ -99,6 +101,8 @@ type HealingAction struct {
 	RetryCount int `json:"retry_count"`
 	// StrategyName is the name of the healing strategy used
 	StrategyName string `json:"strategy_name"`
+	// TransportType is the type of transport for transport-specific actions
+	TransportType string `json:"transport_type,omitempty"`
 }
 
 // HealingStrategy defines the interface for component-specific healing logic
