@@ -219,8 +219,11 @@ func (l *Log) Query(filter QueryFilter) ([]kernel.Event, error) {
 	}
 
 	limit := 1000
-	if filter.Limit > 0 && filter.Limit < 10000 {
+	if filter.Limit > 0 {
 		limit = filter.Limit
+		if limit > 100000 {
+			limit = 100000 // absolute safety cap
+		}
 	}
 
 	sql := fmt.Sprintf(

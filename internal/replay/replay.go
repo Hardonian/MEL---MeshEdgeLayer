@@ -36,31 +36,31 @@ const (
 
 // Request specifies what to replay and how.
 type Request struct {
-	Mode           Mode           `json:"mode"`
-	Policy         kernel.Policy  `json:"policy"`
-	FromSequence   uint64         `json:"from_sequence,omitempty"`
-	ToSequence     uint64         `json:"to_sequence,omitempty"`
-	Since          time.Time      `json:"since,omitempty"`
-	Until          time.Time      `json:"until,omitempty"`
-	InitialState   *kernel.State  `json:"initial_state,omitempty"` // for snapshot+delta replay
-	ExpectedState  *kernel.State  `json:"expected_state,omitempty"` // for verification mode
-	MaxEvents      int            `json:"max_events,omitempty"`
+	Mode          Mode          `json:"mode"`
+	Policy        kernel.Policy `json:"policy"`
+	FromSequence  uint64        `json:"from_sequence,omitempty"`
+	ToSequence    uint64        `json:"to_sequence,omitempty"`
+	Since         time.Time     `json:"since,omitempty"`
+	Until         time.Time     `json:"until,omitempty"`
+	InitialState  *kernel.State `json:"initial_state,omitempty"`  // for snapshot+delta replay
+	ExpectedState *kernel.State `json:"expected_state,omitempty"` // for verification mode
+	MaxEvents     int           `json:"max_events,omitempty"`
 }
 
 // Result contains the output of a replay operation.
 type Result struct {
-	Mode             Mode            `json:"mode"`
-	EventsProcessed  int             `json:"events_processed"`
-	EffectsProduced  int             `json:"effects_produced"`
-	FinalState       kernel.State    `json:"final_state"`
-	Effects          []kernel.Effect `json:"effects,omitempty"`
-	StartedAt        time.Time       `json:"started_at"`
-	CompletedAt      time.Time       `json:"completed_at"`
-	DurationMS       int64           `json:"duration_ms"`
-	Verified         bool            `json:"verified,omitempty"`
-	Divergences      []Divergence    `json:"divergences,omitempty"`
-	FirstSequence    uint64          `json:"first_sequence"`
-	LastSequence     uint64          `json:"last_sequence"`
+	Mode            Mode            `json:"mode"`
+	EventsProcessed int             `json:"events_processed"`
+	EffectsProduced int             `json:"effects_produced"`
+	FinalState      kernel.State    `json:"final_state"`
+	Effects         []kernel.Effect `json:"effects,omitempty"`
+	StartedAt       time.Time       `json:"started_at"`
+	CompletedAt     time.Time       `json:"completed_at"`
+	DurationMS      int64           `json:"duration_ms"`
+	Verified        bool            `json:"verified,omitempty"`
+	Divergences     []Divergence    `json:"divergences,omitempty"`
+	FirstSequence   uint64          `json:"first_sequence"`
+	LastSequence    uint64          `json:"last_sequence"`
 }
 
 // Divergence records a specific difference found during verification replay.
@@ -74,13 +74,21 @@ type Divergence struct {
 
 // Engine performs replay operations against an event log.
 type Engine struct {
-	log    *eventlog.Log
-	nodeID string
+	log       *eventlog.Log
+	nodeID    string
+	maxEvents int // configurable max events per replay query (0 = default 10000)
 }
 
 // NewEngine creates a replay engine for the given event log.
 func NewEngine(log *eventlog.Log, nodeID string) *Engine {
-	return &Engine{log: log, nodeID: nodeID}
+	return &Engine{log: log, nodeID: nodeID, maxEvents: 10000}
+}
+
+// SetMaxEvents configures the maximum events per replay query.
+func (e *Engine) SetMaxEvents(max int) {
+	if max > 0 {
+		e.maxEvents = max
+	}
 }
 
 // Execute performs a replay according to the request.
@@ -88,12 +96,16 @@ func (e *Engine) Execute(req Request) (*Result, error) {
 	started := time.Now()
 
 	// Build query filter from request
+	maxLimit := e.maxEvents
+	if maxLimit <= 0 {
+		maxLimit = 10000
+	}
 	filter := eventlog.QueryFilter{
 		AfterSequence:  req.FromSequence,
 		BeforeSequence: req.ToSequence,
 		Since:          req.Since,
 		Until:          req.Until,
-		Limit:          10000,
+		Limit:          maxLimit,
 	}
 	if req.MaxEvents > 0 && req.MaxEvents < filter.Limit {
 		filter.Limit = req.MaxEvents

@@ -2,10 +2,13 @@ package federation
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -30,8 +33,11 @@ type Manager struct {
 	peers     map[string]*Peer
 	conflicts []Conflict
 
-	// dedup tracks event IDs already ingested to prevent duplicates.
-	dedup map[string]bool
+	// dedup tracks event IDs with timestamps for time-based LRU eviction.
+	dedup map[string]time.Time
+
+	// pushNotifyCh allows push-based sync notifications from peers.
+	pushNotifyCh chan string
 
 	// splitBrainDetected is true when a partition is suspected.
 	splitBrainDetected bool
@@ -53,19 +59,20 @@ func NewManager(cfg Config, log *logging.Logger, evtLog *eventlog.Log, k *kernel
 		nodeID = kernel.NewNodeID()
 	}
 
+	httpClient := buildFederationHTTPClient(cfg.TLSCertPath)
+
 	m := &Manager{
-		config:  cfg,
-		nodeID:  nodeID,
-		region:  cfg.Region,
-		log:     log,
-		evtLog:  evtLog,
-		kernel:  k,
-		peers:   make(map[string]*Peer),
-		dedup:   make(map[string]bool),
-		dbPath:  dbPath,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		config:       cfg,
+		nodeID:       nodeID,
+		region:       cfg.Region,
+		log:          log,
+		evtLog:       evtLog,
+		kernel:       k,
+		peers:        make(map[string]*Peer),
+		dedup:        make(map[string]time.Time),
+		pushNotifyCh: make(chan string, 64),
+		dbPath:       dbPath,
+		client:       httpClient,
 	}
 
 	if err := m.initSchema(); err != nil {
@@ -179,7 +186,14 @@ func (m *Manager) ProcessHeartbeat(hb Heartbeat) {
 
 	peer.LastSeen = hb.Timestamp
 	peer.State = PeerStateActive
-	peer.LastSyncSeq = hb.LastSequenceNum
+
+	// If the peer has newer events than what we've synced, trigger push sync
+	if hb.LastSequenceNum > peer.LastSyncSeq {
+		select {
+		case m.pushNotifyCh <- hb.NodeID:
+		default:
+		}
+	}
 
 	// Check for policy divergence
 	if m.kernel != nil {
@@ -316,23 +330,35 @@ func (m *Manager) IngestSyncedEvents(fromNodeID string, events []SyncEvent) (int
 
 	ingested := 0
 	for _, se := range events {
-		// Duplicate detection
+		// Duplicate detection with time-based LRU eviction
 		m.mu.Lock()
-		if m.dedup[se.EventID] {
+		if _, dup := m.dedup[se.EventID]; dup {
 			m.mu.Unlock()
 			continue
 		}
-		m.dedup[se.EventID] = true
-		// Bound dedup map size
+		now := time.Now()
+		m.dedup[se.EventID] = now
+		// Time-based eviction: remove entries older than 1 hour, capped at 100K
 		if len(m.dedup) > 100000 {
-			// Evict oldest entries (simple: clear half)
-			count := 0
-			for k := range m.dedup {
-				if count > 50000 {
-					break
+			cutoff := now.Add(-1 * time.Hour)
+			for k, ts := range m.dedup {
+				if ts.Before(cutoff) {
+					delete(m.dedup, k)
 				}
-				delete(m.dedup, k)
-				count++
+			}
+			// If still over limit after time eviction, evict oldest
+			if len(m.dedup) > 100000 {
+				oldest := now
+				oldestKey := ""
+				for k, ts := range m.dedup {
+					if ts.Before(oldest) {
+						oldest = ts
+						oldestKey = k
+					}
+				}
+				if oldestKey != "" {
+					delete(m.dedup, oldestKey)
+				}
 			}
 		}
 		m.mu.Unlock()
@@ -354,9 +380,9 @@ func (m *Manager) IngestSyncedEvents(fromNodeID string, events []SyncEvent) (int
 		// Append to local event log
 		if _, err := m.evtLog.Append(evt); err != nil {
 			m.log.Error("federation_ingest_failed", "failed to ingest synced event", map[string]any{
-				"event_id":   se.EventID,
-				"from_peer":  fromNodeID,
-				"error":      err.Error(),
+				"event_id":  se.EventID,
+				"from_peer": fromNodeID,
+				"error":     err.Error(),
 			})
 			continue
 		}
@@ -501,6 +527,17 @@ func (m *Manager) Conflicts() []Conflict {
 	return out
 }
 
+// NotifyNewEvents triggers an immediate sync pull from the specified peer.
+// This enables push-based notifications: when a peer has new events,
+// it can POST a notification, and the receiver immediately pulls.
+func (m *Manager) NotifyNewEvents(fromNodeID string) {
+	select {
+	case m.pushNotifyCh <- fromNodeID:
+	default:
+		// Channel full; will catch up on next periodic sync
+	}
+}
+
 // ─── Background Workers ──────────────────────────────────────────────────────
 
 // Run starts federation background workers. Blocks until ctx is cancelled.
@@ -512,11 +549,14 @@ func (m *Manager) Run(ctx context.Context) {
 	// Start heartbeat sender
 	go m.heartbeatLoop(ctx)
 
-	// Start sync puller
+	// Start sync puller (with push-notification support)
 	go m.syncLoop(ctx)
 
 	// Start partition checker
 	go m.partitionCheckLoop(ctx)
+
+	// Start push notification listener
+	go m.pushSyncLoop(ctx)
 
 	<-ctx.Done()
 }
@@ -575,6 +615,87 @@ func (m *Manager) partitionCheckLoop(ctx context.Context) {
 	}
 }
 
+func (m *Manager) pushSyncLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case nodeID := <-m.pushNotifyCh:
+			// Immediately pull from the notifying peer
+			m.mu.RLock()
+			peer, ok := m.peers[nodeID]
+			m.mu.RUnlock()
+			if !ok || peer.TrustLevel < 1 {
+				continue
+			}
+			m.pullFromSinglePeer(peer)
+		}
+	}
+}
+
+func (m *Manager) pullFromSinglePeer(p *Peer) {
+	req := SyncRequest{
+		FromNodeID:    m.nodeID,
+		AfterSequence: p.LastSyncSeq,
+		MaxEvents:     m.config.SyncBatchSize,
+		Scope:         p.SyncScope,
+		RequestID:     kernel.NewEventID(),
+	}
+	reqJSON, _ := json.Marshal(req)
+
+	url := strings.TrimRight(p.Endpoint, "/") + "/api/v1/federation/sync"
+	resp, err := m.client.Post(url, "application/json", strings.NewReader(string(reqJSON)))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	var syncResp SyncResponse
+	if err := json.Unmarshal(body, &syncResp); err != nil {
+		return
+	}
+
+	if len(syncResp.Events) > 0 {
+		ingested, err := m.IngestSyncedEvents(p.NodeID, syncResp.Events)
+		if err == nil && ingested > 0 {
+			m.log.Info("federation_push_sync", "push-synced events from peer", map[string]any{
+				"peer_id":  p.NodeID,
+				"ingested": ingested,
+			})
+		}
+	}
+}
+
+// SendPushNotifications notifies all active peers that we have new events.
+func (m *Manager) SendPushNotifications() {
+	m.mu.RLock()
+	peers := make([]*Peer, 0)
+	for _, p := range m.peers {
+		if p.State == PeerStateActive && p.TrustLevel >= 1 {
+			peers = append(peers, p)
+		}
+	}
+	m.mu.RUnlock()
+
+	notify, _ := json.Marshal(map[string]string{"from_node_id": m.nodeID})
+	for _, peer := range peers {
+		go func(p *Peer) {
+			url := strings.TrimRight(p.Endpoint, "/") + "/api/v1/federation/sync/notify"
+			resp, err := m.client.Post(url, "application/json", strings.NewReader(string(notify)))
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			_, _ = io.ReadAll(resp.Body)
+		}(peer)
+	}
+}
+
 func (m *Manager) sendHeartbeats() {
 	hb := m.GenerateHeartbeat()
 	hbJSON, _ := json.Marshal(hb)
@@ -614,44 +735,7 @@ func (m *Manager) pullFromPeers() {
 	m.mu.RUnlock()
 
 	for _, peer := range peers {
-		go func(p *Peer) {
-			req := SyncRequest{
-				FromNodeID:    m.nodeID,
-				AfterSequence: p.LastSyncSeq,
-				MaxEvents:     m.config.SyncBatchSize,
-				Scope:         p.SyncScope,
-				RequestID:     kernel.NewEventID(),
-			}
-			reqJSON, _ := json.Marshal(req)
-
-			url := strings.TrimRight(p.Endpoint, "/") + "/api/v1/federation/sync"
-			resp, err := m.client.Post(url, "application/json", strings.NewReader(string(reqJSON)))
-			if err != nil {
-				return
-			}
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return
-			}
-
-			var syncResp SyncResponse
-			if err := json.Unmarshal(body, &syncResp); err != nil {
-				return
-			}
-
-			if len(syncResp.Events) > 0 {
-				ingested, err := m.IngestSyncedEvents(p.NodeID, syncResp.Events)
-				if err == nil && ingested > 0 {
-					m.log.Info("federation_sync_complete", "synced events from peer", map[string]any{
-						"peer_id":  p.NodeID,
-						"ingested": ingested,
-						"total":    len(syncResp.Events),
-					})
-				}
-			}
-		}(peer)
+		go m.pullFromSinglePeer(peer)
 	}
 }
 
@@ -659,13 +743,13 @@ func (m *Manager) pullFromPeers() {
 
 // Status returns the current federation status.
 type Status struct {
-	NodeID      string       `json:"node_id"`
-	Region      string       `json:"region"`
-	Enabled     bool         `json:"enabled"`
-	PeerCount   int          `json:"peer_count"`
-	Peers       []PeerStatus `json:"peers"`
-	SplitBrain  bool         `json:"split_brain"`
-	ConflictCount int        `json:"conflict_count"`
+	NodeID        string       `json:"node_id"`
+	Region        string       `json:"region"`
+	Enabled       bool         `json:"enabled"`
+	PeerCount     int          `json:"peer_count"`
+	Peers         []PeerStatus `json:"peers"`
+	SplitBrain    bool         `json:"split_brain"`
+	ConflictCount int          `json:"conflict_count"`
 }
 
 // PeerStatus is a summary of peer state for the status API.
@@ -826,6 +910,34 @@ func (m *Manager) loadPersistedPeers() error {
 	}
 
 	return nil
+}
+
+// buildFederationHTTPClient creates an HTTP client with optional TLS certificate pinning.
+func buildFederationHTTPClient(tlsCertPath string) *http.Client {
+	if tlsCertPath == "" {
+		return &http.Client{Timeout: 10 * time.Second}
+	}
+
+	caCert, err := os.ReadFile(tlsCertPath)
+	if err != nil {
+		// Fall back to default if cert can't be read
+		return &http.Client{Timeout: 10 * time.Second}
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs:    caCertPool,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
 }
 
 func asStr(v any) string {

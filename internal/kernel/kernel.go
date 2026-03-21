@@ -507,19 +507,226 @@ func handlePolicyChange(state *State, event Event, _ Policy) []Effect {
 	return nil
 }
 
-// ─── Stub Handlers (record event, no effects) ───────────────────────────────
+// ─── Operator Action Handler ─────────────────────────────────────────────────
 
-func handleOperatorAction(_ *State, _ Event, _ Policy) []Effect  { return nil }
-func handlePeerJoined(_ *State, _ Event, _ Policy) []Effect      { return nil }
-func handlePeerLeft(_ *State, _ Event, _ Policy) []Effect        { return nil }
-func handleRegionHealth(_ *State, _ Event, _ Policy) []Effect    { return nil }
-func handleAdapterState(_ *State, _ Event, _ Policy) []Effect    { return nil }
-func handleApproval(_ *State, _ Event, _ Policy) []Effect        { return nil }
-func handleRejection(_ *State, _ Event, _ Policy) []Effect       { return nil }
-func handleMaintenanceStart(_ *State, _ Event, _ Policy) []Effect { return nil }
-func handleMaintenanceEnd(_ *State, _ Event, _ Policy) []Effect  { return nil }
-func handleSyncReceived(_ *State, _ Event, _ Policy) []Effect    { return nil }
-func handleSnapshotCreated(_ *State, _ Event, _ Policy) []Effect { return nil }
+type OperatorActionData struct {
+	ActionType string `json:"action_type"`
+	Target     string `json:"target"`
+	ActorID    string `json:"actor_id"`
+	Note       string `json:"note,omitempty"`
+}
+
+func handleOperatorAction(state *State, event Event, _ Policy) []Effect {
+	var oa OperatorActionData
+	if err := json.Unmarshal(event.Data, &oa); err != nil {
+		return nil
+	}
+	return []Effect{{
+		ID:       NewEffectID(),
+		Type:     EffectEmitAlert,
+		CausedBy: event.ID,
+		Subject:  oa.Target,
+		Data:     event.Data,
+	}}
+}
+
+// ─── Peer Joined/Left Handlers ───────────────────────────────────────────────
+
+type PeerEventData struct {
+	PeerID string `json:"peer_id"`
+	Region string `json:"region"`
+}
+
+func handlePeerJoined(state *State, event Event, _ Policy) []Effect {
+	var pe PeerEventData
+	if err := json.Unmarshal(event.Data, &pe); err != nil {
+		return nil
+	}
+	return []Effect{{
+		ID:       NewEffectID(),
+		Type:     EffectUpdateState,
+		CausedBy: event.ID,
+		Subject:  pe.PeerID,
+		Data:     event.Data,
+	}}
+}
+
+func handlePeerLeft(state *State, event Event, _ Policy) []Effect {
+	var pe PeerEventData
+	if err := json.Unmarshal(event.Data, &pe); err != nil {
+		return nil
+	}
+	return []Effect{{
+		ID:       NewEffectID(),
+		Type:     EffectUpdateState,
+		CausedBy: event.ID,
+		Subject:  pe.PeerID,
+		Data:     event.Data,
+	}}
+}
+
+// ─── Region Health Handler ───────────────────────────────────────────────────
+
+type RegionHealthData struct {
+	RegionID      string  `json:"region_id"`
+	OverallHealth float64 `json:"overall_health"`
+	NodeCount     int     `json:"node_count"`
+	HealthyNodes  int     `json:"healthy_nodes"`
+	Degraded      bool    `json:"degraded"`
+	Isolated      bool    `json:"isolated"`
+}
+
+func handleRegionHealth(state *State, event Event, _ Policy) []Effect {
+	var rh RegionHealthData
+	if err := json.Unmarshal(event.Data, &rh); err != nil {
+		return nil
+	}
+	state.RegionHealth[rh.RegionID] = RegionHealthState{
+		RegionID:      rh.RegionID,
+		NodeCount:     rh.NodeCount,
+		HealthyNodes:  rh.HealthyNodes,
+		OverallHealth: rh.OverallHealth,
+		LastUpdateAt:  event.Timestamp,
+		Isolated:      rh.Isolated,
+	}
+	var effects []Effect
+	if rh.Degraded {
+		effects = append(effects, Effect{
+			ID:       NewEffectID(),
+			Type:     EffectEmitAlert,
+			CausedBy: event.ID,
+			Subject:  rh.RegionID,
+			Data:     event.Data,
+		})
+	}
+	return effects
+}
+
+// ─── Adapter State Handler ───────────────────────────────────────────────────
+
+type AdapterStateData struct {
+	AdapterName string `json:"adapter_name"`
+	State       string `json:"state"` // connected, disconnected, degraded
+	Detail      string `json:"detail,omitempty"`
+}
+
+func handleAdapterState(state *State, event Event, _ Policy) []Effect {
+	var as AdapterStateData
+	if err := json.Unmarshal(event.Data, &as); err != nil {
+		return nil
+	}
+	// Update transport score based on adapter state
+	ts := state.TransportScores[as.AdapterName]
+	ts.Transport = as.AdapterName
+	ts.UpdatedAt = event.Timestamp
+	ts.EventID = event.ID
+	switch as.State {
+	case "connected":
+		ts.HealthScore = clampFloat(ts.HealthScore*0.9+0.1, 0, 1)
+	case "disconnected":
+		ts.HealthScore = clampFloat(ts.HealthScore*0.5, 0, 1)
+	case "degraded":
+		ts.HealthScore = clampFloat(ts.HealthScore*0.7, 0, 1)
+	}
+	ts.Classification = classifyTransportHealth(ts.HealthScore)
+	state.TransportScores[as.AdapterName] = ts
+	return nil
+}
+
+// ─── Approval / Rejection Handlers ──────────────────────────────────────────
+
+type ApprovalData struct {
+	ActionID string `json:"action_id"`
+	ActorID  string `json:"actor_id"`
+	Note     string `json:"note,omitempty"`
+}
+
+func handleApproval(state *State, event Event, _ Policy) []Effect {
+	var ad ApprovalData
+	if err := json.Unmarshal(event.Data, &ad); err != nil {
+		return nil
+	}
+	as, ok := state.ActionStates[ad.ActionID]
+	if !ok {
+		return nil
+	}
+	as.Lifecycle = "approved"
+	state.ActionStates[ad.ActionID] = as
+	return nil
+}
+
+func handleRejection(state *State, event Event, _ Policy) []Effect {
+	var ad ApprovalData
+	if err := json.Unmarshal(event.Data, &ad); err != nil {
+		return nil
+	}
+	as, ok := state.ActionStates[ad.ActionID]
+	if !ok {
+		return nil
+	}
+	as.Lifecycle = "rejected"
+	as.Result = "rejected by " + ad.ActorID
+	state.ActionStates[ad.ActionID] = as
+	return nil
+}
+
+// ─── Maintenance Window Handlers ─────────────────────────────────────────────
+
+type MaintenanceData struct {
+	WindowID   string `json:"window_id"`
+	ScopeType  string `json:"scope_type"`
+	ScopeValue string `json:"scope_value"`
+	Reason     string `json:"reason"`
+}
+
+func handleMaintenanceStart(state *State, event Event, _ Policy) []Effect {
+	var md MaintenanceData
+	if err := json.Unmarshal(event.Data, &md); err != nil {
+		return nil
+	}
+	// Create a freeze for the maintenance window scope
+	state.ActiveFreezes["maint-"+md.WindowID] = FreezeState{
+		FreezeID:   "maint-" + md.WindowID,
+		ScopeType:  md.ScopeType,
+		ScopeValue: md.ScopeValue,
+		Reason:     "maintenance: " + md.Reason,
+		CreatedAt:  event.Timestamp,
+	}
+	return nil
+}
+
+func handleMaintenanceEnd(state *State, event Event, _ Policy) []Effect {
+	var md MaintenanceData
+	if err := json.Unmarshal(event.Data, &md); err != nil {
+		return nil
+	}
+	delete(state.ActiveFreezes, "maint-"+md.WindowID)
+	return nil
+}
+
+// ─── Sync Received Handler ───────────────────────────────────────────────────
+
+type SyncReceivedData struct {
+	FromNodeID string `json:"from_node_id"`
+	EventCount int    `json:"event_count"`
+}
+
+func handleSyncReceived(state *State, event Event, _ Policy) []Effect {
+	// Informational: sync received event is tracked but produces no state change
+	return nil
+}
+
+// ─── Snapshot Created Handler ────────────────────────────────────────────────
+
+type SnapshotCreatedData struct {
+	SnapshotID  string `json:"snapshot_id"`
+	SequenceNum uint64 `json:"sequence_num"`
+}
+
+func handleSnapshotCreated(state *State, event Event, _ Policy) []Effect {
+	// Informational: snapshot creation is tracked in the event log
+	return nil
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

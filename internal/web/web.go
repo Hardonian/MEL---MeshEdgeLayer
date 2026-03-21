@@ -186,6 +186,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/federation/peers", s.requireMethod(s.federationPeersHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/federation/heartbeat", s.requireMethod(s.federationHeartbeatHandler, http.MethodPost))
 	mux.HandleFunc("/api/v1/federation/sync", s.requireMethod(s.federationSyncHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/federation/sync/notify", s.requireMethod(s.federationPushNotifyHandler, http.MethodPost))
 	mux.HandleFunc("/api/v1/federation/sync/health", s.requireMethod(s.federationSyncHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/kernel/replay", s.requireMethod(s.replayHandler, http.MethodPost))
 	mux.HandleFunc("/api/v1/kernel/snapshots", s.snapshotSubHandler)

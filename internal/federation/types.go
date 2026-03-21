@@ -283,6 +283,10 @@ type Config struct {
 
 	// SplitBrainPolicy controls behavior during detected partitions.
 	SplitBrainPolicy SplitBrainPolicy `json:"split_brain_policy"`
+
+	// TLSCertPath is the path to a CA certificate file for TLS pinning.
+	// If set, the federation HTTP client will only trust this CA.
+	TLSCertPath string `json:"tls_cert_path,omitempty"`
 }
 
 // PeerConfig is the static configuration for a known peer.

@@ -45,6 +45,8 @@ type FederationHandlers struct {
 	BackupCreate func() (any, error)
 	// BackupList lists available backups
 	BackupList func() (any, error)
+	// PushNotify handles push sync notifications from peers
+	PushNotify func(body []byte) error
 }
 
 // SetFederationHandlers configures the federation API endpoints on the server.
@@ -347,9 +349,21 @@ func (s *Server) snapshotSubHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeJSON is a helper (may already exist in web.go but we redeclare for safety)
-func writeJSONFed(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+// federationPushNotifyHandler handles POST /api/v1/federation/sync/notify
+// This enables push-based sync: a peer sends a notification when it has new events.
+func (s *Server) federationPushNotifyHandler(w http.ResponseWriter, r *http.Request) {
+	if s.federationHandlers == nil || s.federationHandlers.PushNotify == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "federation not enabled"})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if err := s.federationHandlers.PushNotify(body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
