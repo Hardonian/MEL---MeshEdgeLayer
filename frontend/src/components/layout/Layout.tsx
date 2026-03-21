@@ -56,8 +56,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Top navigation */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center justify-between px-4">
+      <header className="sticky top-0 z-50 glass dark:glass-dark">
+        <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -66,14 +66,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/" className="flex items-center gap-2">
-              <Radio className="h-6 w-6 text-primary" />
-              <span className="font-bold text-lg hidden sm:inline">MEL</span>
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="bg-primary text-primary-foreground p-1.5 rounded-lg shadow-inner group-hover:scale-110 transition-transform">
+                <Radio className="h-5 w-5" />
+              </div>
+              <span className="font-outfit font-bold text-xl tracking-tight hidden sm:inline">MEL</span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="hidden sm:inline">MeshEdgeLayer</span>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-widest bg-muted/50 px-3 py-1.5 rounded-full border">
+              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+              MeshEdgeLayer Active
+            </div>
+            <button 
+              className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+              aria-label="Help and Support"
+              title="Help and Support"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </header>

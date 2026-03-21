@@ -16,7 +16,6 @@ import {
 import { clsx } from 'clsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge, HealthBadge, SeverityBadge } from '@/components/ui/Badge'
 import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
@@ -42,7 +41,7 @@ export function Dashboard() {
 
   if (hasError && !status.data) {
     return (
-      <div className="p-8">
+      <div className="p-8 animate-fade-in">
         <AlertCard
           variant="critical"
           title="Unable to connect to MEL backend"
@@ -50,7 +49,7 @@ export function Dashboard() {
           action={
             <button
               onClick={() => window.location.reload()}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
+              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90 transition-colors shadow-lg shadow-critical/20"
             >
               Retry Connection
             </button>
@@ -77,47 +76,55 @@ export function Dashboard() {
   const dashboardStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Real-time overview of your MeshEdgeLayer mesh observability system."
-      />
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">Real-time overview of your MeshEdgeLayer observability system.</p>
+      </div>
 
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
       {/* Quick Stats - Enhanced Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
-        <StatCard
-          title="Connection Status"
-          value={connectedTransport ? 'Connected' : 'Disconnected'}
-          description={connectedTransport ? connectedTransport.name : 'No active transport'}
-          icon={connectedTransport ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-          variant={connectedTransport ? 'success' : 'warning'}
-        />
+        <div className="card-hover">
+          <StatCard
+            title="Connection Status"
+            value={connectedTransport ? 'Connected' : 'Disconnected'}
+            description={connectedTransport ? connectedTransport.name : 'No active transport'}
+            icon={connectedTransport ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+            variant={connectedTransport ? 'success' : 'warning'}
+          />
+        </div>
 
-        <StatCard
-          title="Nodes"
-          value={nodes.data?.length || 0}
-          description={nodes.data?.length === 0 ? 'Awaiting mesh observations' : 'Mesh devices detected'}
-          icon={<Radio className="h-5 w-5" />}
-          variant="default"
-        />
+        <div className="card-hover">
+          <StatCard
+            title="Nodes"
+            value={nodes.data?.length || 0}
+            description={nodes.data?.length === 0 ? 'Awaiting mesh observations' : 'Mesh devices detected'}
+            icon={<Radio className="h-5 w-5" />}
+            variant="default"
+          />
+        </div>
 
-        <StatCard
-          title="Messages"
-          value={messagesData?.length || status.data?.messages || 0}
-          description="Runtime message count"
-          icon={<MessageSquare className="h-5 w-5" />}
-          variant="info"
-        />
+        <div className="card-hover">
+          <StatCard
+            title="Messages"
+            value={messagesData?.length || status.data?.messages || 0}
+            description="Runtime message count"
+            icon={<MessageSquare className="h-5 w-5" />}
+            variant="info"
+          />
+        </div>
 
-        <StatCard
-          title="Transport Health"
-          value={`${healthyTransports}/${totalTransports}`}
-          description={hasTransports ? 'Healthy transport connections' : 'No transports configured'}
-          icon={<TrendingUp className="h-5 w-5" />}
-          variant={healthyTransports === totalTransports && hasTransports ? 'success' : healthyTransports > 0 ? 'warning' : 'default'}
-        />
+        <div className="card-hover">
+          <StatCard
+            title="Transport Health"
+            value={`${healthyTransports}/${totalTransports}`}
+            description={hasTransports ? 'Healthy transport connections' : 'No transports configured'}
+            icon={<TrendingUp className="h-5 w-5" />}
+            variant={healthyTransports === totalTransports && hasTransports ? 'success' : healthyTransports > 0 ? 'warning' : 'default'}
+          />
+        </div>
       </div>
 
       {/* System Status Alert - shows if there's something to alert about */}

@@ -13,6 +13,7 @@ mel version
 ```
 
 **Expected output:**
+
 ```text
 0.1.0-rc1
 ```
@@ -36,6 +37,7 @@ mel init --config ./mel.json
 ```
 
 **Expected output:**
+
 ```json
 {
   "status": "initialized",
@@ -52,10 +54,12 @@ cat mel.json
 ```
 
 Key fields:
+
 - `storage.database_path`: Where packets live.
 - `bind.api`: Where the API and dashboard are served.
 
 **Hardening (Recommended):**
+
 ```bash
 chmod 600 mel.json
 ```
@@ -73,6 +77,7 @@ mel doctor --config ./mel.json
 ```
 
 **What the doctor checks:**
+
 - **Config syntax**: Validates your `mel.json`.
 - **Database**: Verifies SQLite read/write/re-read cycles.
 - **Privacy**: Scans for potentially unsafe mesh configurations.
@@ -91,6 +96,7 @@ mel serve --config ./mel.json
 ```
 
 **What happens now:**
+
 1. MEL boots its transport workers.
 2. It attempts to connect to any enabled transports.
 3. The Internal API server starts.
@@ -118,7 +124,7 @@ This is the TUI (Terminal UI) view for field operators. It summarizes current me
 
 ### Access the Web Dashboard
 
-Open your browser to: **http://localhost:8080**
+Open your browser to: **<http://localhost:8080>**
 
 You should see the MEL landing page. If you have an active transport (like a Serial node connected), you will see live packets appearing in the ledger.
 

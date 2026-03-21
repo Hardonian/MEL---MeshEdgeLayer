@@ -1,22 +1,16 @@
 # MEL — MeshEdgeLayer
 
-<div align="center">
-
-![MEL Logo](https://raw.githubusercontent.com/mel-project/mel/main/docs/assets/logo.png)
-
 **Truthful, local-first mesh observability and operator control plane for Meshtastic.**
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/mel-project/mel)](https://goreportcard.com/report/github.com/mel-project/mel)
 [![License](https://img.shields.io/github/license/mel-project/mel)](LICENSE)
 [![Status](https://img.shields.io/badge/status-0.1.0--rc1-blue.svg)](docs/roadmap/ROADMAP_EXECUTION.md)
 
-[Quickstart](#-quickstart) • [Architecture](#-architecture) • [Documentation](docs/README.md) • [Contributing](CONTRIBUTING.md)
-
-</div>
+[Quickstart](#quickstart) • [Architecture](#architecture) • [Documentation](docs/README.md) • [Contributing](CONTRIBUTING.md)
 
 ---
 
-## 📡 What is MEL?
+## What is MEL?
 
 MEL is a heavy-duty ingest, persistence, and observability layer designed for **production-oriented Meshtastic deployments**. It provides operators with high-fidelity visibility into mesh health, packet traffic, and node telemetry without relying on cloud services or external dependencies.
 
@@ -32,7 +26,7 @@ Unlike generic dashboards, MEL is built on a "Truth First" philosophy: it only r
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 MEL follows a unidirectional data flow to ensure integrity and determinism.
 
@@ -80,18 +74,20 @@ graph TD
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 MEL is designed to be up and running in under 5 minutes.
 
 ### 1. Installation
 
 **Linux / macOS:**
+
 ```bash
 curl -sSL https://mel.sh/install.sh | sh
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 iwr https://mel.sh/install.ps1 | iex
 ```
@@ -111,11 +107,11 @@ mel doctor
 mel serve --config mel.json
 ```
 
-Visit **http://localhost:8080** to see your mesh come alive.
+Visit **<http://localhost:8080>** to see your mesh come alive.
 
 ---
 
-## 🛠️ Supported Transports
+## Supported Transports
 
 | Transport | Status | Verification |
 | :--- | :--- | :--- |
@@ -126,7 +122,7 @@ Visit **http://localhost:8080** to see your mesh come alive.
 
 ---
 
-## ⚖️ The MEL Philosophy: Zero Theatre
+## The MEL Philosophy: Zero Theatre
 
 - **No Fake Data**: If you see it in MEL, it happened on the wire.
 - **No Silent Failures**: Transports report explicit states (e.g., `connected_no_ingest`, `ingesting`).
@@ -135,7 +131,7 @@ Visit **http://localhost:8080** to see your mesh come alive.
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 - [**Getting Started**](docs/getting-started/README.md) - Full setup and first 10 minutes.
 - [**Architecture**](docs/architecture/overview.md) - Deep dive into subsystems.
@@ -144,7 +140,7 @@ Visit **http://localhost:8080** to see your mesh come alive.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions that increase structural coherence and reduce entropy. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
