@@ -26,7 +26,7 @@ Before diving deep, it's worth understanding:
 ## 🆘 Troubleshooting & Support
 
 - [**MEL Doctor**](../ops/diagnostics.md) - Using the CLI to fix common issues.
-- [**Known Limitations**](../ops/known-limitations.md) - What MEL currenty cannot do.
+- [**Known Limitations**](../ops/known-limitations.md) - What MEL currently cannot do.
 - [**Community Adoption**](../community/adoption-guide.md) - Best practices for deploying MEL.
 
 ---

@@ -7,24 +7,24 @@ import (
 
 // SLODefinition defines an SLO with its target and evaluation window
 type SLODefinition struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Target      float64         `json:"target"`       // Target percentage (e.g., 99.9 for 99.9%)
-	Window      time.Duration   `json:"window"`       // Evaluation window (e.g., 24h)
-	Metric      string          `json:"metric"`       // Associated metric name
-	Unit        string          `json:"unit"`         // Display unit (e.g., "ms", "%", "count")
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Target      float64       `json:"target"`       // Target percentage (e.g., 99.9 for 99.9%)
+	Window      time.Duration `json:"window"`       // Evaluation window (e.g., 24h)
+	Metric      string        `json:"metric"`       // Associated metric name
+	Unit        string        `json:"unit"`         // Display unit (e.g., "ms", "%", "count")
 }
 
 // SLOStatus represents the current status of an SLO
 type SLOStatus struct {
-	Name         string    `json:"name"`
+	Name        string    `json:"name"`
 	CurrentValue float64   `json:"current_value"`
-	Target       float64   `json:"target"`
-	Status       string    `json:"status"`       // "healthy", "at_risk", "breached"
-	BudgetUsed   float64   `json:"budget_used"`  // Percentage of error budget used
-	EvaluatedAt  time.Time `json:"evaluated_at"`
-	WindowStart  time.Time `json:"window_start"`
-	WindowEnd    time.Time `json:"window_end"`
+	Target     float64   `json:"target"`
+	Status     string    `json:"status"`       // "healthy", "at_risk", "breached"
+	BudgetUsed float64   `json:"budget_used"`  // Percentage of error budget used
+	EvaluatedAt time.Time `json:"evaluated_at"`
+	WindowStart time.Time `json:"window_start"`
+	WindowEnd   time.Time `json:"window_end"`
 }
 
 // Built-in SLO definitions
@@ -83,20 +83,20 @@ type SLOTracker struct {
 // NewSLOTracker creates a new SLO tracker with built-in definitions
 func NewSLOTracker() *SLOTracker {
 	t := &SLOTracker{
-		definitions:  make(map[string]SLODefinition),
-		statuses:     make(map[string]*SLOStatus),
+		definitions:   make(map[string]SLODefinition),
+		statuses:      make(map[string]*SLOStatus),
 		metricWindows: make(map[string][]time.Time),
 	}
 	// Register built-in SLOs
 	for _, slo := range BuiltInSLOs {
 		t.definitions[slo.Name] = slo
 		t.statuses[slo.Name] = &SLOStatus{
-			Name:         slo.Name,
-			Target:       slo.Target,
-			Status:       "unknown",
-			EvaluatedAt:  time.Now(),
-			WindowStart:  time.Now().Add(-slo.Window),
-			WindowEnd:    time.Now(),
+			Name:        slo.Name,
+			Target:      slo.Target,
+			Status:      "unknown",
+			EvaluatedAt: time.Now(),
+			WindowStart: time.Now().Add(-slo.Window),
+			WindowEnd:   time.Now(),
 		}
 	}
 	return t
@@ -112,7 +112,7 @@ func (t *SLOTracker) RecordSuccess(metric string) {
 // RecordFailure records a failed operation for an SLO metric
 func (t *SLOTracker) RecordFailure(metric string) {
 	// For failure tracking, we keep track in a separate map or negative entry
-	// For simplicity, we'll use a negative timestamp marker
+	// For simplicity, we'll use a zero time marker
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	// Store a zero time to indicate failure
@@ -123,19 +123,19 @@ func (t *SLOTracker) RecordFailure(metric string) {
 func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	def, ok := t.definitions[sloName]
 	if !ok {
 		return &SLOStatus{
-			Name:    sloName,
-			Status:  "unknown",
-			Target:  0,
+			Name:   sloName,
+			Status: "unknown",
+			Target: 0,
 		}
 	}
-	
+
 	windowStart := time.Now().Add(-def.Window)
 	events := t.metricWindows[def.Metric]
-	
+
 	var successCount, totalCount int64
 	for _, eventTime := range events {
 		if eventTime.IsZero() {
@@ -146,17 +146,17 @@ func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 			successCount++
 		}
 	}
-	
+
 	var currentValue float64
 	if totalCount == 0 {
 		currentValue = 100.0 // No data, assume healthy
 	} else {
 		currentValue = float64(successCount) / float64(totalCount) * 100
 	}
-	
+
 	status := "healthy"
 	budgetUsed := 0.0
-	
+
 	if currentValue < def.Target {
 		// Calculate error budget used
 		errorBudget := 100.0 - def.Target
@@ -164,7 +164,7 @@ func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 		if errorBudget > 0 {
 			budgetUsed = (currentError / errorBudget) * 100
 		}
-		
+
 		if budgetUsed >= 100 {
 			status = "breached"
 		} else if budgetUsed >= 50 {
@@ -173,16 +173,16 @@ func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 			status = "healthy"
 		}
 	}
-	
+
 	return &SLOStatus{
-		Name:         sloName,
+		Name:        sloName,
 		CurrentValue: currentValue,
-		Target:       def.Target,
-		Status:       status,
-		BudgetUsed:   budgetUsed,
-		EvaluatedAt:  time.Now(),
-		WindowStart:  windowStart,
-		WindowEnd:    time.Now(),
+		Target:      def.Target,
+		Status:      status,
+		BudgetUsed:  budgetUsed,
+		EvaluatedAt: time.Now(),
+		WindowStart: windowStart,
+		WindowEnd:   time.Now(),
 	}
 }
 
@@ -190,7 +190,7 @@ func (t *SLOTracker) EvaluateSLO(sloName string) *SLOStatus {
 func (t *SLOTracker) EvaluateAllSLOs() []*SLOStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	var results []*SLOStatus
 	for name := range t.definitions {
 		results = append(results, t.EvaluateSLO(name))
@@ -233,7 +233,7 @@ func (t *SLOTracker) GetAllDefinitions() []SLODefinition {
 func (t *SLOTracker) PruneOldData() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	// Find the maximum window across all SLOs
 	maxWindow := 24 * time.Hour
 	for _, def := range t.definitions {
@@ -241,7 +241,7 @@ func (t *SLOTracker) PruneOldData() {
 			maxWindow = def.Window
 		}
 	}
-	
+
 	cutoff := time.Now().Add(-maxWindow)
 	for metric, events := range t.metricWindows {
 		var valid []time.Time
@@ -269,13 +269,13 @@ func SetGlobalSLOTracker(tracker *SLOTracker) {
 
 // Package-level convenience functions
 
-// RecordSuccess records a success for a metric
-func RecordSuccess(metric string) {
+// RecordSLOSuccess records a success for a metric
+func RecordSLOSuccess(metric string) {
 	globalSLOTracker.RecordSuccess(metric)
 }
 
-// RecordFailure records a failure for a metric
-func RecordFailure(metric string) {
+// RecordSLOFailure records a failure for a metric
+func RecordSLOFailure(metric string) {
 	globalSLOTracker.RecordFailure(metric)
 }
 

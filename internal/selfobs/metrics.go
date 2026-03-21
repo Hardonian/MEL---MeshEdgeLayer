@@ -198,15 +198,22 @@ func (r *ResourceMetrics) CollectResourceMetrics() {
 	r.NumGC = m.NumGC
 }
 
+// ResourceMetricsSnapshot represents a point-in-time snapshot of resource usage
+type ResourceMetricsSnapshot struct {
+	MemoryUsed uint64 `json:"memory_used"`
+	Goroutines int    `json:"goroutines"`
+	NumGC      uint32 `json:"num_gc"`
+}
+
 // MetricsSnapshot represents a point-in-time snapshot of all metrics
 type MetricsSnapshot struct {
-	Timestamp        time.Time           `json:"timestamp"`
-	PipelineLatency  map[string]int64    `json:"pipeline_latency_ms"`
-	WorkerHeartbeats map[string]string   `json:"worker_heartbeats"`
-	QueueDepths      map[string]int      `json:"queue_depths"`
-	ErrorRates       map[string]float64  `json:"error_rates"`
-	ResourceUsage    ResourceMetrics     `json:"resource_usage"`
-	OperationCounts map[string]int64     `json:"operation_counts"`
+	Timestamp        time.Time               `json:"timestamp"`
+	PipelineLatency  map[string]int64        `json:"pipeline_latency_ms"`
+	WorkerHeartbeats map[string]string         `json:"worker_heartbeats"`
+	QueueDepths      map[string]int          `json:"queue_depths"`
+	ErrorRates       map[string]float64      `json:"error_rates"`
+	ResourceUsage    ResourceMetricsSnapshot `json:"resource_usage"`
+	OperationCounts map[string]int64         `json:"operation_counts"`
 }
 
 // NewInternalMetrics creates a new InternalMetrics collection
@@ -337,8 +344,13 @@ func (m *InternalMetrics) GetMetricsSnapshot() MetricsSnapshot {
 	}
 	
 	// Resource usage
-	m.ResourceUsage.CollectResourceMetrics()
-	snapshot.ResourceUsage = m.ResourceUsage
+	m.ResourceUsage.mu.RLock()
+	snapshot.ResourceUsage = ResourceMetricsSnapshot{
+		MemoryUsed: m.ResourceUsage.MemoryUsed,
+		Goroutines: m.ResourceUsage.Goroutines,
+		NumGC:      m.ResourceUsage.NumGC,
+	}
+	m.ResourceUsage.mu.RUnlock()
 	
 	return snapshot
 }
