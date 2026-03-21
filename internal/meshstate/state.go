@@ -34,3 +34,8 @@ func (s *State) Snapshot() Snapshot {
 	}
 	return out
 }
+func (s *State) MeshActive() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.nodes) > 0 || s.messages > 0
+}

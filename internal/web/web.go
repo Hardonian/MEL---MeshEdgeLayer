@@ -109,6 +109,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.Require(security.CapEscalateAlerts, s.escalateIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	// Self-observability endpoints
 	mux.HandleFunc("/api/v1/health/internal", s.requireMethod(s.InternalHealthHandler, http.MethodGet, http.MethodHead))
@@ -554,6 +555,23 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) manifestHandler(w http.ResponseWriter, r *http.Request) {
+	manifest := models.SupportManifest{
+		ID:        fmt.Sprintf("MEL-%d", time.Now().Unix()),
+		Version:   s.cfg.Build.Version,
+		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		Features:  s.cfg.Features.Active(),
+		Checklist: map[string]any{
+			"db_connected": s.db != nil,
+			"mesh_active":  s.state.MeshActive(),
+			"last_audit":   s.db.LastAuditTime(),
+			"log_level":    s.cfg.Logging.Level,
+		},
+	}
+	writeJSON(w, http.StatusOK, manifest)
 }
 
 func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {

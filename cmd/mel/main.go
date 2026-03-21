@@ -84,6 +84,8 @@ func main() {
 		replayCmd(os.Args[2:])
 	case "diagnostics":
 		diagnosticsCmd(os.Args[2:])
+	case "health":
+		healthCmd(os.Args[2:])
 	case "dev-simulate-mqtt":
 		simulateCmd(os.Args[2:])
 	case "ui":

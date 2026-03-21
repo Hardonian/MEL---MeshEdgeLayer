@@ -643,3 +643,10 @@ func isTransientDBError(err error) bool {
 	}
 	return false
 }
+func (d *DB) LastAuditTime() string {
+	rows, err := d.QueryRows("SELECT created_at FROM audit_logs ORDER BY created_at DESC LIMIT 1;")
+	if err != nil || len(rows) == 0 {
+		return ""
+	}
+	return asString(rows[0]["created_at"])
+}

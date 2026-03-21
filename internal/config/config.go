@@ -115,6 +115,20 @@ type FeatureConfig struct {
 	BLEExperimental bool `json:"ble_experimental"`
 }
 
+func (f FeatureConfig) Active() []string {
+	var out []string
+	if f.WebUI {
+		out = append(out, "web_ui")
+	}
+	if f.Metrics {
+		out = append(out, "metrics")
+	}
+	if f.BLEExperimental {
+		out = append(out, "ble_experimental")
+	}
+	return out
+}
+
 type RateLimitConfig struct {
 	HTTPRPS                   int `json:"http_rps"`
 	TransportReconnectSeconds int `json:"transport_reconnect_seconds"`

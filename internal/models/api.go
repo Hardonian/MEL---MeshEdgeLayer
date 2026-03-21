@@ -50,11 +50,12 @@ type Incident struct {
 
 // SupportManifest defines the inventory of a support bundle
 type SupportManifest struct {
-	GeneratedAt time.Time      `json:"generated_at"`
-	Version     string         `json:"version"`
-	Fingerprint string         `json:"fingerprint"`
-	Contents    []string       `json:"contents"`
-	Redactions  []string       `json:"redactions"`
+	ID        string         `json:"id"`
+	Version   string         `json:"version"`
+	Platform  string         `json:"platform"`
+	CreatedAt string         `json:"created_at"`
+	Features  []string       `json:"features"`
+	Checklist map[string]any `json:"checklist"`
 }
 
 // ActionRecord represents a control action in history
