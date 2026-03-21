@@ -595,21 +595,24 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawActions, _ := payload["actions"].([]map[string]any)
-	actions := make([]models.ActionRecord, 0, len(rawActions))
-	for _, row := range rawActions {
+	dbActions, _ := payload["actions"].([]db.ControlActionRecord)
+	actions := make([]models.ActionRecord, 0, len(dbActions))
+	for _, row := range dbActions {
 		actions = append(actions, models.ActionRecord{
-			ID:             asString(row["id"]),
-			TransportName:  asString(row["transport_name"]),
-			ActionType:     asString(row["action_type"]),
-			LifecycleState: asString(row["lifecycle_state"]),
-			Result:         asString(row["result"]),
-			CreatedAt:      asString(row["created_at"]),
-			ExecutedAt:     asString(row["executed_at"]),
-			CompletedAt:    asString(row["completed_at"]),
-			Details:        map[string]any{}, // Can add deeper parsing if needed
+			ID:              row.ID,
+			TransportName:   row.TargetTransport,
+			ActionType:      row.ActionType,
+			LifecycleState:  row.LifecycleState,
+			Result:          row.Result,
+			Reason:          row.Reason,
+			OutcomeDetail:   row.OutcomeDetail,
+			CreatedAt:       row.CreatedAt,
+			ExecutedAt:      row.ExecutedAt,
+			CompletedAt:     row.CompletedAt,
+			ExpiresAt:       row.ExpiresAt,
+			TriggerEvidence: row.TriggerEvidence,
+			Details:         row.Metadata,
 		})
-		// If details were persisted as JSON string, we might need to unmarshal
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -638,7 +641,56 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, payload)
+
+	dbActions, _ := payload["actions"].([]db.ControlActionRecord)
+	dbDecisions, _ := payload["decisions"].([]db.ControlDecisionRecord)
+
+	actions := make([]models.ActionRecord, 0, len(dbActions))
+	for _, row := range dbActions {
+		actions = append(actions, models.ActionRecord{
+			ID:              row.ID,
+			TransportName:   row.TargetTransport,
+			ActionType:      row.ActionType,
+			LifecycleState:  row.LifecycleState,
+			Result:          row.Result,
+			Reason:          row.Reason,
+			OutcomeDetail:   row.OutcomeDetail,
+			CreatedAt:       row.CreatedAt,
+			ExecutedAt:      row.ExecutedAt,
+			CompletedAt:     row.CompletedAt,
+			ExpiresAt:       row.ExpiresAt,
+			TriggerEvidence: row.TriggerEvidence,
+			Details:         row.Metadata,
+		})
+	}
+
+	decisions := make([]models.DecisionRecord, 0, len(dbDecisions))
+	for _, row := range dbDecisions {
+		decisions = append(decisions, models.DecisionRecord{
+			ID:                row.ID,
+			CandidateActionID: row.CandidateActionID,
+			ActionType:        row.ActionType,
+			TargetTransport:   row.TargetTransport,
+			Reason:            row.Reason,
+			Confidence:        row.Confidence,
+			Allowed:           row.Allowed,
+			DenialReason:      row.DenialReason,
+			CreatedAt:         row.CreatedAt,
+			Mode:              row.Mode,
+			PolicySummary:     row.PolicySummary,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"actions":        actions,
+		"decisions":      decisions,
+		"in_flight":      payload["in_flight"],
+		"reality_matrix": payload["reality_matrix"],
+		"transport":      transportName,
+		"start":          start,
+		"end":            end,
+		"pagination":     payload["pagination"],
+	})
 }
 
 func (s *Server) configInspectHandler(w http.ResponseWriter, r *http.Request) {

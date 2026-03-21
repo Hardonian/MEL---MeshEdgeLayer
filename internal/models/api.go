@@ -58,15 +58,34 @@ type SupportManifest struct {
 
 // ActionRecord represents a control action in history
 type ActionRecord struct {
-	ID             string         `json:"id"`
-	TransportName  string         `json:"transport_name"`
-	ActionType     string         `json:"action_type"`
-	LifecycleState string         `json:"lifecycle_state"`
-	Result         string         `json:"result"`
-	CreatedAt      string         `json:"created_at"`
-	ExecutedAt     string         `json:"executed_at,omitempty"`
-	CompletedAt    string         `json:"completed_at,omitempty"`
-	Details        map[string]any `json:"details,omitempty"`
+	ID              string         `json:"id"`
+	TransportName   string         `json:"transport_name"`
+	ActionType      string         `json:"action_type"`
+	LifecycleState  string         `json:"lifecycle_state"`
+	Result          string         `json:"result"`
+	Reason          string         `json:"reason"`
+	OutcomeDetail   string         `json:"outcome_detail"`
+	CreatedAt       string         `json:"created_at"`
+	ExecutedAt      string         `json:"executed_at,omitempty"`
+	CompletedAt     string         `json:"completed_at,omitempty"`
+	ExpiresAt       string         `json:"expires_at,omitempty"`
+	TriggerEvidence []string       `json:"trigger_evidence,omitempty"`
+	Details         map[string]any `json:"details,omitempty"`
+}
+
+// DecisionRecord represents a control decision in history
+type DecisionRecord struct {
+	ID                string         `json:"id"`
+	CandidateActionID string         `json:"candidate_action_id"`
+	ActionType        string         `json:"action_type"`
+	TargetTransport   string         `json:"target_transport"`
+	Reason            string         `json:"reason"`
+	Confidence        float64        `json:"confidence"`
+	Allowed           bool           `json:"allowed"`
+	DenialReason      string         `json:"denial_reason,omitempty"`
+	CreatedAt         string         `json:"created_at"`
+	Mode              string         `json:"mode"`
+	PolicySummary     map[string]any `json:"policy_summary,omitempty"`
 }
 
 // FreshnessReport represents the freshness of a system component
