@@ -102,6 +102,14 @@ func (a *App) statusSnapshot() (statuspkg.Snapshot, error) {
 	return statuspkg.Collect(a.Cfg, a.DB, a.TransportHealth())
 }
 
+func (a *App) getQueueDepths() map[string]int {
+	return map[string]int{
+		"ingest": len(a.ingestCh),
+		"observation": len(a.observationCh),
+		"control": len(a.controlQueue),
+	}
+}
+
 func (a *App) Start(ctx context.Context) error {
 	if err := os.MkdirAll(a.Cfg.Storage.DataDir, 0o755); err != nil {
 		return err
@@ -109,14 +117,16 @@ func (a *App) Start(ctx context.Context) error {
 	if err := retention.Run(a.DB, a.Cfg); err != nil {
 		return err
 	}
-	a.syncControlReality()
-	a.recoverIncompleteControlActions(time.Now().UTC())
+	if a.DB != nil {
+		a.syncControlReality()
+		a.recoverIncompleteControlActions(time.Now().UTC())
+	}
 	for _, finding := range privacy.Audit(a.Cfg) {
-		_ = a.DB.InsertAuditLog("privacy", finding.Severity, finding.Message, finding)
+		a.insertAuditLog("privacy", finding.Severity, finding.Message, finding)
 	}
 	if len(enabledTransportConfigs(a.Cfg)) == 0 {
 		a.Log.Info("transport_idle", "no transports enabled; MEL will remain idle", map[string]any{"state": transport.StateConfiguredNotAttempted})
-		_ = a.DB.InsertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
+		a.insertAuditLog("transport", "warning", "no transports enabled; MEL will remain explicitly idle", map[string]any{"guidance": "Enable one transport before expecting stored packets."})
 	}
 	for _, tc := range a.Cfg.Transports {
 		state := transport.StateConfiguredNotAttempted
@@ -125,9 +135,10 @@ func (a *App) Start(ctx context.Context) error {
 			state = transport.StateDisabled
 			detail = "disabled by config"
 		} else if tc.Type == "serial" || tc.Type == "tcp" || tc.Type == "serialtcp" {
-			_ = a.DB.InsertAuditLog("transport", "warning", "direct-node transport is implemented but not hardware-verified in this build context", map[string]any{"transport": tc.Name, "type": tc.Type, "source": tc.SourceLabel()})
+			a.insertAuditLog("transport", "warning", "direct-node transport is implemented but not hardware-verified in this build context", map[string]any{"transport": tc.Name, "type": tc.Type, "source": tc.SourceLabel()})
 		}
 		a.persistTransportRuntime(tc, state, detail, "", "")
+
 	}
 	a.startWorkers(ctx)
 	for _, t := range a.Transports {
