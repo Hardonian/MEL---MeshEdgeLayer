@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/selfobs"
 )
 
@@ -36,30 +37,35 @@ func (s *Server) InternalHealthHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) FreshnessHandler(w http.ResponseWriter, r *http.Request) {
 	tracker := selfobs.GetGlobalFreshnessTracker()
 	markers := tracker.GetAllMarkers()
-	
-	result := make([]map[string]any, 0, len(markers))
+
+	reports := make([]models.FreshnessReport, 0, len(markers))
+	staleList := make([]string, 0)
+
 	for _, marker := range markers {
 		age := marker.Age()
-		result = append(result, map[string]any{
-			"component":          marker.Component,
-			"last_update":       marker.LastUpdate.Format(time.RFC3339),
-			"age_seconds":        age.Seconds(),
-			"is_fresh":          marker.IsFresh(),
-			"is_stale":          marker.IsStale(),
-			"expected_interval":  marker.ExpectedInterval.Seconds(),
-			"stale_threshold":   marker.StaleThreshold.Seconds(),
+		status := "fresh"
+		if marker.IsStale() {
+			status = "stale"
+			staleList = append(staleList, marker.Component)
+		}
+		if marker.LastUpdate.IsZero() {
+			status = "unknown"
+		}
+
+		reports = append(reports, models.FreshnessReport{
+			Component:       marker.Component,
+			LastUpdate:      marker.LastUpdate.Format(time.RFC3339),
+			IntervalSeconds: int(marker.ExpectedInterval.Seconds()),
+			StaleThreshold:  int(marker.StaleThreshold.Seconds()),
+			Status:          status,
+			AgeSeconds:      int(age.Seconds()),
 		})
 	}
-	
-	stale := tracker.GetStaleComponents()
-	staleList := make([]string, 0, len(stale))
-	for _, m := range stale {
-		staleList = append(staleList, m.Component)
-	}
-	
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"markers":           result,
+		"markers":          reports,
 		"stale_components": staleList,
+		"observed_at":      time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
