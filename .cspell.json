@@ -6,6 +6,8 @@
     "cooldown",
     "deadletters",
     "dedupe",
+    "Deprioritize",
+    "Deprioritized",
     "Desync",
     "dialout",
     "dmesg",
