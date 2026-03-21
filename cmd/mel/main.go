@@ -179,6 +179,24 @@ func configCmd(args []string) {
 	}
 }
 
+func healthCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel health internal|freshness|slo|metrics --config <path>")
+	}
+	switch args[0] {
+	case "internal":
+		healthInternalCmd(args[1:])
+	case "freshness":
+		healthFreshnessCmd(args[1:])
+	case "slo":
+		healthSLOCmd(args[1:])
+	case "metrics":
+		healthMetricsCmd(args[1:])
+	default:
+		panic("usage: mel health internal|freshness|slo|metrics --config <path>")
+	}
+}
+
 func serveCmd(args []string) {
 	f := fs("serve")
 	path := f.String("config", "configs/mel.example.json", "config")

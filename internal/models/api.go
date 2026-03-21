@@ -97,3 +97,8 @@ type FreshnessReport struct {
 	Status          string `json:"status"` // fresh, stale, unknown
 	AgeSeconds      int    `json:"age_seconds"`
 }
+// StatusResponse is a generic API status message
+type StatusResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
