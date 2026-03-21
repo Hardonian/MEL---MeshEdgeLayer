@@ -349,11 +349,17 @@ func (c *LLMConfig) Validate() error {
 // LLMAuditEntry represents a single audit log entry for LLM interactions
 // Content is NEVER logged - only hashes are stored
 type LLMAuditEntry struct {
+	// ID is the unique identifier for the entry
+	ID int64
+
 	// Timestamp is when the operation occurred
 	Timestamp time.Time
 
 	// Operation is the type of operation performed
 	Operation LLMOperation
+
+	// OperationType is the type of operation performed (alias for Operation, for DB compatibility)
+	OperationType LLMOperation
 
 	// InputHash is the SHA256 hash of the redacted input
 	InputHash string
@@ -367,9 +373,18 @@ type LLMAuditEntry struct {
 	// Latency is the operation duration
 	Latency time.Duration
 
+	// LatencyMs is the latency in milliseconds (for DB compatibility)
+	LatencyMs int64
+
 	// Error contains error details if the operation failed
 	// Error messages are sanitized to avoid leaking sensitive data
 	Error string
+
+	// ErrorMessage is the error message (alias for Error, for DB compatibility)
+	ErrorMessage string
+
+	// ProviderType is the type of provider used
+	ProviderType ProviderType
 }
 
 // hashInput creates a SHA256 hash of input data for audit logging

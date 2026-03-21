@@ -39,6 +39,10 @@ type HeatMap struct {
 // ComponentHeat represents the aggregated heat data for a single component.
 // All fields are statistical aggregates - no individual events are stored.
 type ComponentHeat struct {
+	// ID is the unique identifier for the heat record.
+	ID int64
+	// Timestamp is when the heat data was recorded.
+	Timestamp time.Time
 	// Component is the infrastructure component identifier (e.g., "ingest", "alert").
 	// Not PII - this identifies system infrastructure only.
 	Component string
