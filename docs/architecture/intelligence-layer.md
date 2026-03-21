@@ -8,9 +8,22 @@ The Intelligence Layer is the "brain" of MEL. It doesn't just collect data—it 
 
 MEL performs **Unidirectional Correlation** across all enabled transports:
 
-1.  **Ingest Pulse**: Every packet received by a transport is timestamped and bucketed.
-2.  **Anomaly Detection**: Transports report "Observations" and "Failures" (e.g., `TIMEOUT`, `MALFORMED`).
-3.  **Cross-Transport Synthesis**: MEL's Intelligence Layer looks for a "Reason Correlation" across multiple transports (e.g., *Timeout* occurring on both Serial and MQTT simultaneously). 
+1. **Ingest Pulse**: Every packet received by a transport is timestamped and bucketed.
+2. **Anomaly Detection**: Transports report "Observations" and "Failures" (e.g., `TIMEOUT`, `MALFORMED`).
+3. **Cross-Transport Synthesis**: MEL's Intelligence Layer looks for a "Reason Correlation" across multiple transports (e.g., *Timeout* occurring on both Serial and MQTT simultaneously).
+
+```mermaid
+sequenceDiagram
+    participant Mesh as Meshtastic Mesh
+    participant Trans as MEL Transports
+    participant Intel as Intelligence Layer
+    participant Control as Control Plane
+
+    Mesh->>Trans: Rocket Packet (Ingest)
+    Trans->>Intel: Observation (Anomaly Detection)
+    Intel->>Intel: Correlation Analysis (Reason Search)
+    Intel->>Control: Remediation Candidate
+```
 
 ---
 
@@ -43,6 +56,7 @@ When a segment is degraded, the Intelligence Layer generates **Remediation Recom
 ## Guarded Automation Confidence
 
 Every recommendation includes a **Confidence Score** (0.0 to 1.0) derived from:
+
 - **Evidence Diversity**: How many different transports or nodes report the same issue.
 - **Temporal Consistency**: How long the anomaly has persisted across time buckets.
 - **Attribution Strength**: How clearly a specific node or transport can be identified as the source.

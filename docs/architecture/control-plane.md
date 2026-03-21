@@ -33,22 +33,45 @@ Not all actions are created equal. MEL maintains an internal "Reality Matrix" th
 
 ## Safety Guardrails (The 8-Point Check)
 
+```mermaid
+graph TD
+    CA[Candidate Action] --> G1[Evidence Gate]
+    G1 -- Pass --> G2[Confidence Gate]
+    G2 -- Pass --> G3[Policy Gate]
+    G3 -- Pass --> G4[Cooldown Gate]
+    G4 -- Pass --> G5[Budget Gate]
+    G5 -- Pass --> G6[Conflict Gate]
+    G6 -- Pass --> G7[Reversibility Gate]
+    G7 -- Pass --> G8[Blast Radius Gate]
+    G8 -- Pass --> EX[Execute Control]
+
+    G1 -- Fail --> DN[Denied]
+    G2 -- Fail --> DN
+    G3 -- Fail --> DN
+    G4 -- Fail --> DN
+    G5 -- Fail --> DN
+    G6 -- Fail --> DN
+    G7 -- Fail --> DN
+    G8 -- Fail --> DN
+```
+
 Before an action moves from "Candidate" to "Executed", it must pass eight distinct safety layers:
 
-1.  **Evidence Pass**: PERSISTED evidence must exist in SQLite for at least 2 distinct time buckets. No "flapping" reactions.
-2.  **Confidence Pass**: The Intelligence Layer must report a confidence score above the user-defined threshold (default 90%).
-3.  **Policy Pass**: The action type must be explicitly allowed in `mel.json`.
-4.  **Cooldown Pass**: The same target (transport/node) must not have had an action in the last `cooldown_period`.
-5.  **Budget Pass**: The total number of actions in the current window must not exceed the configured capacity.
-6.  **Conflict Pass**: No other in-flight action can target the same resource.
-7.  **Reversibility Pass**: The action must be either intrinsically reversible or have a deterministic expiry.
-8.  **Blast Radius Pass**: The predicted impact must be bounded to the local node or transport.
+1. **Evidence Pass**: PERSISTED evidence must exist in SQLite for at least 2 distinct time buckets. No "flapping" reactions.
+2. **Confidence Pass**: The Intelligence Layer must report a confidence score above the user-defined threshold (default 90%).
+3. **Policy Pass**: The action type must be explicitly allowed in `mel.json`.
+4. **Cooldown Pass**: The same target (transport/node) must not have had an action in the last `cooldown_period`.
+5. **Budget Pass**: The total number of actions in the current window must not exceed the configured capacity.
+6. **Conflict Pass**: No other in-flight action can target the same resource.
+7. **Reversibility Pass**: The action must be either intrinsically reversible or have a deterministic expiry.
+8. **Blast Radius Pass**: The predicted impact must be bounded to the local node or transport.
 
 ---
 
 ## Decision Integrity
 
 Every decision is recorded in the `control_decisions` table with a unique `DecisionID`. This ledger includes:
+
 - **Safety Check Vector**: A bitmask of passed/failed checks.
 - **Trigger Evidence**: The specific anomalies or metrics that triggered the candidate.
 - **Attribution**: Evidence for which node or transport is responsible for the failure.

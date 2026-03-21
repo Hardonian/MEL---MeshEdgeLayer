@@ -27,6 +27,7 @@ mel control status --verbose
 ```
 
 **Key Information:**
+
 - `Mode`: One of `disabled`, `advisory`, `guarded_auto`.
 - `Recent Denials`: See exactly why the automated layer blocked an action.
 - `Active Actions`: View any actions that have not yet expired or reached a terminal state.
@@ -57,5 +58,11 @@ mel events --category control --limit 10
 ```
 
 ---
+
+## TUI Experience
+
+The `mel panel` command launches an interactive terminal dashboard.
+
+![MEL TUI Experience](/c:/Users/scott/.gemini/antigravity/brain/3857245b-4abd-4d41-9b8b-41da0a674b43/mel_tui_mockup_retro_future_terminal_1774057747796.png)
 
 *MEL — Truthful Local-First Mesh Observability.*
