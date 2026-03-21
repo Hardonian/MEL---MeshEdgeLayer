@@ -4,9 +4,11 @@
   "words": [
     "chmod",
     "cooldown",
+    "deadletters",
     "dialout",
     "dmesg",
     "drilldown",
+    "meshstate",
     "meshtastic",
     "Meshtastic",
     "mqtt",
