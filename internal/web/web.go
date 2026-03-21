@@ -45,6 +45,9 @@ type Server struct {
 	operatorBriefing    func() models.OperatorBriefingDTO
 	queueDepths         func() map[string]int
 
+	// Federation hooks
+	federationHandlers *FederationHandlers
+
 	// Trust / operability hooks (wired from service layer)
 	approveAction           func(actionID, actorID, note string) error
 	rejectAction            func(actionID, actorID, note string) error
@@ -177,6 +180,24 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/control/maintenance/", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceItemHandler), http.MethodDelete))
 	mux.HandleFunc("/api/v1/timeline", s.requireMethod(s.timelineHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/operator/notes", s.requireMethod(s.operatorNotesHandler, http.MethodGet, http.MethodPost))
+
+	// Federation / distributed kernel endpoints
+	mux.HandleFunc("/api/v1/federation/status", s.requireMethod(s.federationStatusHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/federation/peers", s.requireMethod(s.federationPeersHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/federation/heartbeat", s.requireMethod(s.federationHeartbeatHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/federation/sync", s.requireMethod(s.federationSyncHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/federation/sync/notify", s.requireMethod(s.federationPushNotifyHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/federation/sync/health", s.requireMethod(s.federationSyncHealthHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/kernel/replay", s.requireMethod(s.replayHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/kernel/snapshots", s.snapshotSubHandler)
+	mux.HandleFunc("/api/v1/kernel/eventlog/stats", s.requireMethod(s.eventLogStatsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/kernel/eventlog/query", s.requireMethod(s.eventLogQueryHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/kernel/backpressure", s.requireMethod(s.backpressureStatsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/kernel/durability", s.requireMethod(s.durabilityStatusHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/kernel/backup", s.requireMethod(s.backupCreateHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/kernel/backups", s.requireMethod(s.backupListHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/global", s.requireMethod(s.globalTopologyHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/region/", s.requireMethod(s.regionHealthHandler, http.MethodGet, http.MethodHead))
 
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))

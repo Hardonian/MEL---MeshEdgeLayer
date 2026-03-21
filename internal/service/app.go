@@ -47,6 +47,7 @@ type App struct {
 	intelligenceEvery   time.Duration
 	controlQueue        chan control.ControlAction
 	transportControls   map[string]*transportControlState
+	kb                  *kernelBridge
 }
 
 type ingestRequest struct {
@@ -101,6 +102,13 @@ func New(cfg config.Config, debug bool) (*App, error) {
 		}
 		app.Transports = append(app.Transports, t)
 	}
+
+	// Initialize kernel bridge (event log, federation, region, replay, etc.)
+	app.kb = app.initKernelBridge()
+	if app.kb != nil {
+		app.wireFederationHandlers(app.kb)
+	}
+
 	return app, nil
 }
 
@@ -251,6 +259,11 @@ func (a *App) startWorkers(ctx context.Context) {
 			defer a.wg.Done()
 			a.trustCleanupWorker(ctx)
 		}()
+	}
+
+	// Start kernel bridge workers (event bus adapter, federation, region health, etc.)
+	if a.kb != nil {
+		a.startKernelWorkers(ctx, a.kb)
 	}
 }
 
