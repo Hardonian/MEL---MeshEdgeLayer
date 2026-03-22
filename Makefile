@@ -1,4 +1,6 @@
 BINDIR := bin
+# Prefer the VM-installed toolchain when PATH `go` is too old to satisfy go.mod.
+GO := $(if $(wildcard /usr/local/go/bin/go),/usr/local/go/bin/go,go)
 VERSION := 0.1.0-rc1
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "now")
@@ -6,38 +8,43 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
 
 vet:
-	go vet ./...
+	$(GO) vet ./...
 
 lint: fmt vet
 
 test:
-	go test ./...
+	$(GO) test ./...
 
 build: build-agent build-cli
 
 build-agent:
 	mkdir -p $(BINDIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-agent ./cmd/mel-agent
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-agent ./cmd/mel-agent
 
 build-cli:
 	mkdir -p $(BINDIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
 
 build-cross:
 	mkdir -p $(BINDIR)
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-amd64 ./cmd/mel
-	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-arm64 ./cmd/mel
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-amd64 ./cmd/mel
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-arm64 ./cmd/mel
 
 verify: lint test build build-cross
 
 smoke:
 	./scripts/smoke.sh
+
+demo-verify: build-cli
+	$(GO) test ./internal/demo/...
+	./bin/mel demo scenarios >/dev/null
+	./scripts/demo-evidence.sh healthy-private-mesh .tmp/demo-verify.json
 
 version:
 	@echo "MEL Version Information:"
@@ -46,4 +53,4 @@ version:
 	@echo "  Build Time:        $(BUILD_TIME)"
 	@echo "  Schema Version:    15"
 	@echo "  Compatibility:     dev"
-	@go run -ldflags "$(LDFLAGS)" ./cmd/mel version
+	@$(GO) run -ldflags "$(LDFLAGS)" ./cmd/mel version

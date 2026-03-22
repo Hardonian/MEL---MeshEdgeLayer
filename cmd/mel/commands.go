@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +16,7 @@ import (
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/demo"
 	integ "github.com/mel-project/mel/internal/integration"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/semantics"
@@ -141,16 +146,179 @@ func supportCmd(args []string) {
 }
 
 func demoCmd(args []string) {
-	if len(args) == 0 || args[0] != "run" {
-		panic("usage: mel demo run mqtt-local [--endpoint host:port] [--topic msh/...]")
+	if len(args) == 0 {
+		demoUsage()
 	}
-	f := fs("demo-run")
-	endpoint := f.String("endpoint", "127.0.0.1:18830", "TCP listen address for stub broker")
-	topic := f.String("topic", "msh/US/2/e/test", "topic embedded in stub publish")
-	_ = f.Parse(args[1:])
-	fmt.Fprintf(os.Stderr, "demo: starting stub MQTT publisher on %s (Ctrl+C to stop)\n", *endpoint)
-	fmt.Fprintf(os.Stderr, "demo: this is a local test harness only; it does not connect to a real broker.\n")
-	simulateCmd([]string{"--endpoint", *endpoint, "--topic", *topic})
+	switch args[0] {
+	case "run":
+		rest := args[1:]
+		if len(rest) > 0 && rest[0] == "mqtt-local" {
+			rest = rest[1:]
+		}
+		f := fs("demo-run")
+		endpoint := f.String("endpoint", "127.0.0.1:18830", "TCP listen address for stub broker")
+		topic := f.String("topic", "msh/US/2/e/test", "topic embedded in stub publish")
+		_ = f.Parse(rest)
+		fmt.Fprintf(os.Stderr, "demo: starting stub MQTT publisher on %s (Ctrl+C to stop)\n", *endpoint)
+		fmt.Fprintf(os.Stderr, "demo: this is a local test harness only; it does not connect to a real broker.\n")
+		simulateCmd([]string{"--endpoint", *endpoint, "--topic", *topic})
+	case "scenarios":
+		list := demo.Scenarios()
+		if cliGlobal.JSON {
+			mustPrint(map[string]any{"scenarios": list, "count": len(list)})
+			return
+		}
+		for _, s := range list {
+			fmt.Printf("%s\t[%s]\t%s\n", s.ID, s.Class, s.Title)
+		}
+	case "replay":
+		if len(args) < 2 {
+			panic("usage: mel demo replay <scenario-id> [--json]")
+		}
+		id := args[1]
+		rep, ok := demo.ReplayFor(id)
+		if !ok {
+			panic(fmt.Errorf("unknown scenario %q", id))
+		}
+		mustPrint(rep)
+	case "seed":
+		demoSeedCmd(args[1:])
+	case "init-sandbox":
+		demoInitSandboxCmd(args[1:])
+	case "evidence-run":
+		demoEvidenceRunCmd(args[1:])
+	default:
+		demoUsage()
+	}
+}
+
+func demoUsage() {
+	panic(`usage:
+  mel demo run [--endpoint host:port] [--topic msh/...]   (stub MQTT publisher; local harness only)
+  mel demo scenarios [--json]
+  mel demo replay <scenario-id> [--json]
+  mel demo seed --scenario <id> --config <path> [--force] [--capture-dir <dir>]
+  mel demo init-sandbox --out <path/to/demo-sandbox.json>
+  mel demo evidence-run --scenario <id> --config <path> [--capture-dir <dir>] [--skip-capture]`)
+}
+
+func demoSeedCmd(args []string) {
+	f := fs("demo-seed")
+	path := f.String("config", configFlagDefault(), "config (use demo sandbox paths)")
+	scenario := f.String("scenario", "", "scenario id (required)")
+	force := f.Bool("force", false, "override sandbox path checks")
+	captureDir := f.String("capture-dir", "", "optional directory for CLI evidence JSON")
+	skipCapture := f.Bool("skip-capture", false, "do not run mel subprocess captures")
+	_ = f.Parse(args)
+	if strings.TrimSpace(*scenario) == "" {
+		panic("--scenario is required")
+	}
+	cfg, _, err := loadConfigFile(*path)
+	if err != nil {
+		panic(err)
+	}
+	bin, _ := os.Executable()
+	opt := demo.SeedOptions{Force: *force, CaptureDir: *captureDir, MELBinary: bin, SkipCapture: *skipCapture}
+	bundle, err := demo.Execute(cfg, *scenario, opt)
+	if err != nil {
+		panic(err)
+	}
+	bundle.ConfigPath = *path
+	if *captureDir != "" {
+		bundle.EvidenceDir = *captureDir
+	}
+	if *captureDir != "" && !*skipCapture {
+		bundle.CLIOutputs = captureDemoCLI(bin, *path, *captureDir)
+	}
+	_ = writeDemoEvidenceBundle(cfg, bundle)
+	mustPrint(map[string]any{"status": "seeded", "scenario": *scenario, "bundle": bundle})
+}
+
+func demoInitSandboxCmd(args []string) {
+	f := fs("demo-init-sandbox")
+	out := f.String("out", "demo-sandbox/mel.demo.json", "output config path")
+	_ = f.Parse(args)
+	dir := filepath.Dir(*out)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(*out, demo.DefaultSandboxConfigBytes(), 0o600); err != nil {
+		panic(err)
+	}
+	mustPrint(map[string]any{"status": "written", "path": *out, "hint": "Run: mel demo seed --scenario <id> --config " + *out})
+}
+
+func demoEvidenceRunCmd(args []string) {
+	f := fs("demo-evidence-run")
+	path := f.String("config", configFlagDefault(), "config")
+	scenario := f.String("scenario", "", "scenario id (required)")
+	captureDir := f.String("capture-dir", "", "directory for evidence JSON (default: <data_dir>/demo_evidence)")
+	skipCapture := f.Bool("skip-capture", false, "seed only; no CLI captures")
+	force := f.Bool("force", false, "override sandbox path checks")
+	_ = f.Parse(args)
+	if strings.TrimSpace(*scenario) == "" {
+		panic("--scenario is required")
+	}
+	cfg, _, err := loadConfigFile(*path)
+	if err != nil {
+		panic(err)
+	}
+	outDir := strings.TrimSpace(*captureDir)
+	if outDir == "" {
+		outDir = filepath.Join(cfg.Storage.DataDir, "demo_evidence")
+	}
+	bin, _ := os.Executable()
+	bundle, err := demo.Execute(cfg, *scenario, demo.SeedOptions{Force: *force, CaptureDir: outDir, MELBinary: bin, SkipCapture: *skipCapture})
+	if err != nil {
+		panic(err)
+	}
+	bundle.ConfigPath = *path
+	bundle.EvidenceDir = outDir
+	if !*skipCapture {
+		bundle.CLIOutputs = captureDemoCLI(bin, *path, outDir)
+	}
+	_ = writeDemoEvidenceBundle(cfg, bundle)
+	mustPrint(map[string]any{"status": "evidence_run_complete", "scenario": *scenario, "capture_dir": outDir, "bundle": bundle})
+}
+
+func captureDemoCLI(melBin, cfgPath, dir string) []string {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		panic(err)
+	}
+	outputs := []string{}
+	run := func(name string, args ...string) {
+		outPath := filepath.Join(dir, name+".json")
+		cmd := exec.Command(melBin, args...)
+		b, err := cmd.Output()
+		if err != nil {
+			if ee, ok := err.(*exec.ExitError); ok {
+				b = append(b, ee.Stderr...)
+			}
+		}
+		if name == "doctor" {
+			if idx := bytes.IndexByte(b, '\n'); idx >= 0 {
+				b = b[:idx]
+			}
+		}
+		if err := os.WriteFile(outPath, b, 0o644); err != nil {
+			panic(err)
+		}
+		outputs = append(outputs, outPath)
+	}
+	run("doctor", "doctor", "--config", cfgPath, "--json")
+	run("inspect_mesh", "inspect", "mesh", "--config", cfgPath)
+	run("privacy_audit", "privacy", "audit", "--config", cfgPath, "--format", "json")
+	run("status", "status", "--config", cfgPath)
+	return outputs
+}
+
+func writeDemoEvidenceBundle(cfg config.Config, bundle demo.DemoEvidenceBundle) error {
+	dir := filepath.Dir(cfg.Storage.DatabasePath)
+	b, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "demo_evidence_bundle.json"), b, 0o644)
 }
 
 func devCmd(args []string) {

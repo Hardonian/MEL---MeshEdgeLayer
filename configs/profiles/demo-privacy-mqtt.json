@@ -1,0 +1,6 @@
+{
+  "privacy": {
+    "mqtt_encryption_required": false,
+    "map_reporting_allowed": true
+  }
+}

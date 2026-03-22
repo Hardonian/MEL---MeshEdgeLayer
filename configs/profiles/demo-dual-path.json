@@ -1,0 +1,5 @@
+{
+  "privacy": {
+    "mqtt_encryption_required": false
+  }
+}

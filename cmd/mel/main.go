@@ -200,7 +200,12 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   support bundle --config <path> [--out path.zip]
   integration test --url <https://hook> [--event-type mel.test]
   trace <action-id> --config <path>
-  demo run [--endpoint host:port] [--topic msh/...]
+  demo run [mqtt-local] [--endpoint host:port] [--topic msh/...]
+  demo scenarios [--json]
+  demo replay <scenario-id>
+  demo seed --scenario <id> --config <path> [--force] [--capture-dir <dir>]
+  demo init-sandbox --out <path>
+  demo evidence-run --scenario <id> --config <path> [--capture-dir <dir>]
   dev run (prints recommended serve invocation)
   ui --config <path>
   gui --config <path>

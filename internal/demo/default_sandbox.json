@@ -1,0 +1,113 @@
+{
+  "bind": {
+    "api": "127.0.0.1:8080",
+    "metrics": "",
+    "allow_remote": false
+  },
+  "auth": {
+    "enabled": false,
+    "session_secret": "replace-with-32-byte-hex-secret-for-local-demo-only",
+    "ui_user": "admin",
+    "ui_password": "change-me",
+    "allow_insecure_remote": false
+  },
+  "storage": {
+    "data_dir": "./demo_sandbox/data",
+    "database_path": "./demo_sandbox/data/demo_sandbox.db",
+    "encryption_key_env": "MEL_STORAGE_KEY",
+    "encryption_required": false
+  },
+  "logging": {
+    "level": "info",
+    "format": "json"
+  },
+  "retention": {
+    "enabled": true,
+    "messages_days": 30,
+    "telemetry_days": 30,
+    "audit_days": 90,
+    "precise_position_days": 7
+  },
+  "privacy": {
+    "store_precise_positions": false,
+    "mqtt_encryption_required": true,
+    "map_reporting_allowed": false,
+    "redact_exports": true,
+    "trust_list": []
+  },
+  "transports": [
+    {
+      "name": "local-serial",
+      "type": "serial",
+      "enabled": true,
+      "serial_device": "/dev/serial/by-id/usb-MESHTASTIC_DEMO-if00",
+      "serial_baud": 115200,
+      "reconnect_seconds": 10,
+      "read_timeout_seconds": 30,
+      "write_timeout_seconds": 30,
+      "max_consecutive_timeouts": 5,
+      "notes": "Demo sandbox only: no hardware required; seed scenarios attach synthetic messages to this transport name."
+    },
+    {
+      "name": "rf-serial",
+      "type": "serial",
+      "enabled": true,
+      "serial_device": "/dev/serial/by-id/usb-MESHTASTIC_DEMO-rf-if00",
+      "serial_baud": 115200,
+      "reconnect_seconds": 10,
+      "read_timeout_seconds": 30,
+      "write_timeout_seconds": 30,
+      "max_consecutive_timeouts": 5,
+      "notes": "Second synthetic RF path for dual-path scenarios."
+    },
+    {
+      "name": "mqtt-bridge",
+      "type": "mqtt",
+      "enabled": true,
+      "endpoint": "127.0.0.1:1883",
+      "topic": "msh/US/#",
+      "client_id": "mel-demo-bridge",
+      "mqtt_qos": 1,
+      "mqtt_keepalive_seconds": 60,
+      "mqtt_clean_session": true,
+      "reconnect_seconds": 10,
+      "read_timeout_seconds": 30,
+      "write_timeout_seconds": 30,
+      "max_consecutive_timeouts": 5,
+      "notes": "Demo sandbox broker endpoint; no broker is required for static DB fixtures."
+    },
+    {
+      "name": "mqtt-uplink",
+      "type": "mqtt",
+      "enabled": true,
+      "endpoint": "127.0.0.1:1883",
+      "topic": "msh/US/2/e/DemoNet/#",
+      "client_id": "mel-demo-uplink",
+      "mqtt_qos": 1,
+      "mqtt_keepalive_seconds": 60,
+      "mqtt_clean_session": true,
+      "reconnect_seconds": 10,
+      "read_timeout_seconds": 30,
+      "write_timeout_seconds": 30,
+      "max_consecutive_timeouts": 5,
+      "notes": "Second MQTT ingest for duplicate-path drill scenarios."
+    }
+  ],
+  "features": {
+    "web_ui": true,
+    "metrics": false,
+    "ble_experimental": false
+  },
+  "rate_limits": {
+    "http_rps": 20,
+    "transport_reconnect_seconds": 10
+  },
+  "control": {
+    "mode": "advisory",
+    "emergency_disable": false,
+    "allow_mesh_level_actions": false,
+    "allow_transport_restart": false,
+    "allow_source_suppression": false
+  },
+  "strict_mode": false
+}
