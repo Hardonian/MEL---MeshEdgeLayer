@@ -2,6 +2,7 @@
 /dist/
 /data/
 /.tmp/
+/demo_sandbox/
 configs/mel.json
 coverage.out
 *.db
