@@ -108,13 +108,13 @@ func DefaultBoundedStaleness() BoundedStaleness {
 
 // StalenessCheck evaluates whether a remote peer is within acceptable staleness bounds.
 type StalenessCheck struct {
-	PeerNodeID     string    `json:"peer_node_id"`
-	ClockDrift     uint64    `json:"clock_drift"`
-	SequenceLag    uint64    `json:"sequence_lag"`
-	TimeDrift      time.Duration `json:"time_drift"`
-	IsStale        bool      `json:"is_stale"`
-	StaleReasons   []string  `json:"stale_reasons,omitempty"`
-	CheckedAt      time.Time `json:"checked_at"`
+	PeerNodeID   string        `json:"peer_node_id"`
+	ClockDrift   uint64        `json:"clock_drift"`
+	SequenceLag  uint64        `json:"sequence_lag"`
+	TimeDrift    time.Duration `json:"time_drift"`
+	IsStale      bool          `json:"is_stale"`
+	StaleReasons []string      `json:"stale_reasons,omitempty"`
+	CheckedAt    time.Time     `json:"checked_at"`
 }
 
 // CheckStaleness evaluates whether a peer is within bounded staleness.
@@ -371,13 +371,13 @@ func CompareAndResolve(local, remote *kernel.State) ([]Divergence, *kernel.State
 
 // ConvergenceReport summarizes whether two nodes have converged.
 type ConvergenceReport struct {
-	Converged        bool            `json:"converged"`
-	DivergenceCount  int             `json:"divergence_count"`
-	CriticalCount    int             `json:"critical_count"`
-	MajorCount       int             `json:"major_count"`
-	MinorCount       int             `json:"minor_count"`
-	Divergences      []Divergence    `json:"divergences,omitempty"`
-	CheckedAt        time.Time       `json:"checked_at"`
+	Converged       bool         `json:"converged"`
+	DivergenceCount int          `json:"divergence_count"`
+	CriticalCount   int          `json:"critical_count"`
+	MajorCount      int          `json:"major_count"`
+	MinorCount      int          `json:"minor_count"`
+	Divergences     []Divergence `json:"divergences,omitempty"`
+	CheckedAt       time.Time    `json:"checked_at"`
 }
 
 // CheckConvergence compares two states and reports whether they have converged.

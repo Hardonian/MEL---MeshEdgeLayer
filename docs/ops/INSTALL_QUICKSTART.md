@@ -6,7 +6,7 @@ This guide gets MEL running on a Linux host in under 10 minutes.
 
 - Linux host (x86_64 or arm64); see `docs/ops/support-matrix.md` for full list.
 - `sqlite3` binary in `$PATH` (version 3.35+).
-- Go 1.25+ to build from source, or a pre-built binary from the release page.
+- Go 1.24+ to build from source (see `go.mod`), or a pre-built binary from the release page.
 - Root access is **not required**; MEL runs as an unprivileged user.
 
 ## Step 1 — Install the binary
@@ -85,6 +85,12 @@ Doctor checks:
 - SQLite version.
 
 Fix any `critical` or `high` findings before continuing.
+
+**Preflight (cold host, before or after serve):** `mel preflight` is the same doctor payload plus `serve_probe` (HTTP `GET /healthz` on `bind.api`, with `127.0.0.1` substituted when the bind address is `0.0.0.0`/`::`), `preflight_ok`, and `operator_next_steps`. Use `--skip-serve-check` when the API is intentionally down.
+
+```bash
+mel preflight --config /etc/mel/mel.json
+```
 
 ## Step 5 — Start MEL
 

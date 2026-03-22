@@ -626,26 +626,37 @@ func persistentEvidence(database *db.DB, candidate ControlAction, now time.Time)
 	}
 	buckets := map[string]uint64{}
 	for _, row := range rows {
-		if row.Count == 0 {
-			continue
-		}
 		switch candidate.ActionType {
 		case ActionRestartTransport:
+			if row.Count == 0 {
+				continue
+			}
 			if row.Reason == transport.ReasonRetryThresholdExceeded {
 				buckets[row.BucketStart] += row.Count
 			}
 		case ActionResubscribeTransport:
+			if row.Count == 0 {
+				continue
+			}
 			if row.Reason == transport.ReasonSubscribeFailure {
 				buckets[row.BucketStart] += row.Count
 			}
 		case ActionBackoffIncrease:
-			if row.ObservationDrops > 0 || row.Reason == transport.ReasonMalformedFrame || row.Reason == transport.ReasonMalformedPublish {
+			// Saturation / loss evidence may appear as observation_drops with count=0, or as evidence_loss rows.
+			if row.Count == 0 && row.ObservationDrops == 0 {
+				continue
+			}
+			if row.ObservationDrops > 0 ||
+				row.Reason == transport.ReasonMalformedFrame ||
+				row.Reason == transport.ReasonMalformedPublish ||
+				row.Reason == transport.ReasonEvidenceLoss {
 				buckets[row.BucketStart] += maxUint64(row.Count, row.ObservationDrops)
 			}
 		default:
-			if row.Count > 0 {
-				buckets[row.BucketStart] += row.Count
+			if row.Count == 0 {
+				continue
 			}
+			buckets[row.BucketStart] += row.Count
 		}
 	}
 	return len(buckets) >= 2

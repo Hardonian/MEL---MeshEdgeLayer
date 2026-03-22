@@ -150,10 +150,11 @@ func ScoreLink(l Link, thresholds StaleThresholds, now time.Time) (float64, []Sc
 		Contribution: 0.10 * intermittence, Basis: "observed",
 	})
 
-	// Factor 6: Contradiction penalty
+	// Factor 6: Contradiction penalty — contradicted observations must not read as "healthy"
+	// even when recency and direct observation flags are strong.
 	contradictionPenalty := 1.0
 	if l.Contradiction {
-		contradictionPenalty = 0.3
+		contradictionPenalty = 0.0
 	}
 	factors = append(factors, ScoreFactor{
 		Name: "contradiction_penalty", Weight: 0.10, Value: contradictionPenalty,
@@ -171,7 +172,12 @@ func ScoreLink(l Link, thresholds StaleThresholds, now time.Time) (float64, []Sc
 	for _, f := range factors {
 		total += f.Contribution
 	}
-	return clamp01(total), factors
+	total = clamp01(total)
+	if l.Contradiction {
+		// Hard ceiling: contradictory link evidence is not operator-trustworthy as "good".
+		total = math.Min(total, 0.40)
+	}
+	return total, factors
 }
 
 func computeRecencyFactor(lastSeen string, staleThreshold time.Duration, now time.Time) float64 {

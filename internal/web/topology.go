@@ -23,16 +23,16 @@ func (s *Server) SetTopologyStore(ts *topology.Store) {
 
 func (s *Server) topologyNodesHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	limit := intParam(r, "limit", 500)
 	nodes, err := topologyStoreGlobal.ListNodes(limit)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list nodes", "detail": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list nodes", "detail": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"nodes": nodes,
 		"count": len(nodes),
 		"limit": limit,
@@ -41,28 +41,28 @@ func (s *Server) topologyNodesHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) topologyNodeDetailHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	// Extract node_num from path: /api/v1/topology/nodes/{num}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/topology/nodes/"), "/")
 	if len(parts) == 0 || parts[0] == "" {
-		s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num required"})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num required"})
 		return
 	}
 	nodeNum, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid node_num"})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid node_num"})
 		return
 	}
 
 	node, found, err := topologyStoreGlobal.GetNode(nodeNum)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to get node"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to get node"})
 		return
 	}
 	if !found {
-		s.writeJSON(w, http.StatusNotFound, map[string]any{"error": "node not found"})
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "node not found"})
 		return
 	}
 
@@ -75,7 +75,7 @@ func (s *Server) topologyNodeDetailHandler(w http.ResponseWriter, r *http.Reques
 	// Get bookmarks
 	bookmarks, _ := topologyStoreGlobal.BookmarksForNode(nodeNum)
 
-	s.writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"node":         node,
 		"links":        links,
 		"observations": observations,
@@ -88,16 +88,16 @@ func (s *Server) topologyNodeDetailHandler(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) topologyLinksHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	limit := intParam(r, "limit", 500)
 	links, err := topologyStoreGlobal.ListLinks(limit)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list links"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list links"})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"links": links,
 		"count": len(links),
 		"limit": limit,
@@ -108,37 +108,37 @@ func (s *Server) topologyLinksHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) topologyAnalysisHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	nodes, err := topologyStoreGlobal.ListNodes(5000)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load nodes"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load nodes"})
 		return
 	}
 	links, err := topologyStoreGlobal.ListLinks(10000)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load links"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load links"})
 		return
 	}
 	result := topology.Analyze(nodes, links, topology.DefaultStaleThresholds(), time.Now().UTC())
-	s.writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, result)
 }
 
 // --- Topology snapshots ---
 
 func (s *Server) topologySnapshotsHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	limit := intParam(r, "limit", 20)
 	snapshots, err := topologyStoreGlobal.RecentSnapshots(limit)
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load snapshots"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load snapshots"})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"snapshots": snapshots,
 		"count":     len(snapshots),
 	})
@@ -148,15 +148,15 @@ func (s *Server) topologySnapshotsHandler(w http.ResponseWriter, r *http.Request
 
 func (s *Server) sourceTrustHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	trusts, err := topologyStoreGlobal.ListSourceTrust()
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load source trust"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load source trust"})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"sources": trusts,
 		"count":   len(trusts),
 	})
@@ -166,7 +166,7 @@ func (s *Server) sourceTrustHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) bookmarksHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 
@@ -176,19 +176,19 @@ func (s *Server) bookmarksHandler(w http.ResponseWriter, r *http.Request) {
 		limit := intParam(r, "limit", 100)
 		bookmarks, err := topologyStoreGlobal.ListBookmarks(bmType, limit)
 		if err != nil {
-			s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list bookmarks"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to list bookmarks"})
 			return
 		}
-		s.writeJSON(w, http.StatusOK, map[string]any{"bookmarks": bookmarks, "count": len(bookmarks)})
+		writeJSON(w, http.StatusOK, map[string]any{"bookmarks": bookmarks, "count": len(bookmarks)})
 
 	case http.MethodPost:
 		var bm topology.Bookmark
 		if err := json.NewDecoder(r.Body).Decode(&bm); err != nil {
-			s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
 			return
 		}
 		if bm.NodeNum == 0 || bm.BookmarkType == "" {
-			s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num and bookmark_type required"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num and bookmark_type required"})
 			return
 		}
 		if bm.ActorID == "" {
@@ -196,28 +196,28 @@ func (s *Server) bookmarksHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		bm.Active = true
 		if err := topologyStoreGlobal.UpsertBookmark(bm); err != nil {
-			s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save bookmark"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to save bookmark"})
 			return
 		}
-		s.writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "bookmark": bm})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "bookmark": bm})
 
 	case http.MethodDelete:
 		nodeNumStr := r.URL.Query().Get("node_num")
 		bmType := r.URL.Query().Get("type")
 		if nodeNumStr == "" || bmType == "" {
-			s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num and type required"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "node_num and type required"})
 			return
 		}
 		nodeNum, err := strconv.ParseInt(nodeNumStr, 10, 64)
 		if err != nil {
-			s.writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid node_num"})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid node_num"})
 			return
 		}
 		if err := topologyStoreGlobal.DeleteBookmark(nodeNum, bmType); err != nil {
-			s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to delete bookmark"})
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to delete bookmark"})
 			return
 		}
-		s.writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
 	}
 }
 
@@ -225,22 +225,22 @@ func (s *Server) bookmarksHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) recoveryStateHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	rs, err := topologyStoreGlobal.GetRecoveryState()
 	if err != nil {
-		s.writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load recovery state"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load recovery state"})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, rs)
+	writeJSON(w, http.StatusOK, rs)
 }
 
 // --- Topology export ---
 
 func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
 	if topologyStoreGlobal == nil {
-		s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
 	nodes, _ := topologyStoreGlobal.ListNodes(5000)
@@ -259,16 +259,16 @@ func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bundle := map[string]any{
-		"version":     "mel-topology-export-v1",
-		"exported_at": time.Now().UTC().Format(time.RFC3339),
+		"version":          "mel-topology-export-v1",
+		"exported_at":      time.Now().UTC().Format(time.RFC3339),
 		"privacy_redacted": s.cfg.Privacy.RedactExports,
-		"nodes":       nodes,
-		"links":       links,
-		"sources":     trusts,
-		"bookmarks":   bookmarks,
-		"snapshots":   snapshots,
-		"node_count":  len(nodes),
-		"link_count":  len(links),
+		"nodes":            nodes,
+		"links":            links,
+		"sources":          trusts,
+		"bookmarks":        bookmarks,
+		"snapshots":        snapshots,
+		"node_count":       len(nodes),
+		"link_count":       len(links),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

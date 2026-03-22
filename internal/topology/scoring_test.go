@@ -113,13 +113,13 @@ func TestScoreLinkBasic(t *testing.T) {
 func TestScoreLinkContradiction(t *testing.T) {
 	now := time.Now().UTC()
 	l := Link{
-		LastObservedAt:   now.Format(time.RFC3339),
-		Observed:         true,
-		SourceTrustLevel: 0.5,
-		Reliability:      0.3,
-		Contradiction:    true,
+		LastObservedAt:     now.Format(time.RFC3339),
+		Observed:           true,
+		SourceTrustLevel:   0.5,
+		Reliability:        0.3,
+		Contradiction:      true,
 		IntermittenceCount: 15,
-		ObservationCount: 5,
+		ObservationCount:   5,
 	}
 	score, _ := ScoreLink(l, DefaultStaleThresholds(), now)
 	if score > 0.5 {

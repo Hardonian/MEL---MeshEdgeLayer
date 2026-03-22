@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Operator preflight, readiness clarity, support bundles, and control evidence
+
+- **CLI:** `mel preflight` runs the same checks as `mel doctor`, optionally probes `GET /healthz` on `bind.api` (loopback-safe for `0.0.0.0`), and emits `operator_next_steps` plus `preflight_ok` in JSON.
+- **API:** `/readyz` returns `snapshot_generated_at`, `schema_version`, `operator_next_steps`, and uses HTTP 503 with `error_class` when the status snapshot cannot be built (process up, evidence unavailable).
+- **Support bundle:** `mel support bundle` / `internal/support` now includes status snapshot, operator panel, upgrade readiness, control-plane trust snapshot, recent control actions/decisions, incidents, active transport alerts, and privacy summary (config remains redacted via `privacy.RedactConfig`).
+- **Control plane:** `persistentEvidence` for `backoff_increase` now treats `observation_drops` with `count=0` and `evidence_loss` anomaly rows as first-class evidence (regression test added).
+- **Topology scoring:** Contradicted links are capped low so scores cannot read as healthy when observations conflict.
+- **Web:** Topology handlers use package-level `writeJSON` (fixes `go vet` / build break).
+
 ### Phase 8 - Release Maturity
 **Status: COMPLETED** - 2026-03-20
 

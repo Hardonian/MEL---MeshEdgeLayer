@@ -308,3 +308,42 @@ func TestEvaluateGuardedAutoDeniesSuppressionWithWeakAttribution(t *testing.T) {
 		t.Fatalf("expected attribution_weak denial, got %+v", decision)
 	}
 }
+
+func TestPersistentEvidenceBackoffCountsObservationDropsAndEvidenceLoss(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 3, 19, 14, 0, 0, 0, time.UTC)
+	if err := database.UpsertTransportAnomalySnapshot(db.TransportAnomalySnapshot{
+		BucketStart:      now.Add(-90 * time.Second).Format(time.RFC3339),
+		TransportName:    "mqtt-alt",
+		TransportType:    "mqtt",
+		Reason:           transport.ReasonMalformedFrame,
+		Count:            3,
+		ObservationDrops: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertTransportAnomalySnapshot(db.TransportAnomalySnapshot{
+		BucketStart:      now.Add(-30 * time.Second).Format(time.RFC3339),
+		TransportName:    "mqtt-alt",
+		TransportType:    "mqtt",
+		Reason:           transport.ReasonEvidenceLoss,
+		Count:            0,
+		ObservationDrops: 5,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cand := ControlAction{
+		ActionType:      ActionBackoffIncrease,
+		TargetTransport: "mqtt-alt",
+		CreatedAt:       now.Format(time.RFC3339),
+	}
+	if !persistentEvidence(database, cand, now) {
+		t.Fatal("expected persistent evidence for backoff_increase from drops + evidence_loss")
+	}
+}
