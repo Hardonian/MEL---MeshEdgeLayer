@@ -11,6 +11,17 @@ import (
 	"github.com/mel-project/mel/internal/version"
 )
 
+func schemaVersionNumeric(database *db.DB) (int, string, error) {
+	if database == nil {
+		return 0, "", fmt.Errorf("database not available")
+	}
+	schemaVer, err := database.Scalar(`SELECT version FROM schema_migrations ORDER BY CAST(substr(version,1,4) AS INTEGER) DESC, version DESC LIMIT 1;`)
+	if err != nil {
+		return 0, "", err
+	}
+	return version.MigrationNumeric(schemaVer), schemaVer, nil
+}
+
 // CheckStatus represents the status of a single check
 type CheckStatus string
 
@@ -71,6 +82,14 @@ func RunUpgradeChecks(cfg config.Config, database *db.DB) *UpgradeReadinessRepor
 	report.Checks = append(report.Checks, checkBackupExists(cfg, database)...)
 	report.Checks = append(report.Checks, checkVersionCompatibility()...)
 	report.Checks = append(report.Checks, checkSchemaVersion(database)...)
+
+	if database != nil {
+		cur, id, err := schemaVersionNumeric(database)
+		if err == nil {
+			report.CurrentSchema = cur
+		}
+		_ = id
+	}
 
 	// Calculate summary
 	for _, check := range report.Checks {
@@ -304,8 +323,7 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 		}}
 	}
 
-	// Get current schema version from database
-	schemaVer, err := database.SchemaVersion()
+	currentSchema, schemaVer, err := schemaVersionNumeric(database)
 	if err != nil {
 		return []UpgradeCheck{{
 			Name:        "schema_version",
@@ -316,13 +334,6 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 		}}
 	}
 
-	// Parse schema version
-	currentSchema := 0
-	if schemaVer != "" {
-		// Schema version is stored as e.g., "0001_init" - extract the number
-		fmt.Sscanf(schemaVer, "%d", &currentSchema)
-	}
-
 	requiredSchema := version.CurrentSchemaVersion
 
 	if currentSchema < requiredSchema {
@@ -330,13 +341,14 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 		return []UpgradeCheck{{
 			Name:        "schema_version",
 			Status:      CheckFail,
-			Message:     fmt.Sprintf("Database schema is outdated: v%d, need v%d (%d migrations behind)", currentSchema, requiredSchema, migrationsNeeded),
+			Message:     fmt.Sprintf("Database schema is outdated: migration %q (numeric %d), binary expects %d (%d behind)", schemaVer, currentSchema, requiredSchema, migrationsNeeded),
 			Severity:    "critical",
-			Remediation: "Run migrations: mel serve --config <path> will auto-apply migrations",
+			Remediation: "Run `mel serve --config <path>` or `mel bootstrap run --config <path>` to apply pending SQLite migrations",
 			Details: map[string]any{
-				"current_schema":    currentSchema,
-				"required_schema":   requiredSchema,
-				"migrations_needed": migrationsNeeded,
+				"current_migration_id": schemaVer,
+				"current_schema":       currentSchema,
+				"required_schema":      requiredSchema,
+				"migrations_needed":    migrationsNeeded,
 			},
 		}}
 	}
@@ -345,12 +357,13 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 		return []UpgradeCheck{{
 			Name:        "schema_version",
 			Status:      CheckFail,
-			Message:     fmt.Sprintf("Database schema is newer than app: DB v%d, app v%d", currentSchema, requiredSchema),
+			Message:     fmt.Sprintf("Database schema is newer than app: migration %q (numeric %d), binary expects %d", schemaVer, currentSchema, requiredSchema),
 			Severity:    "critical",
 			Remediation: "Downgrade MEL or restore from a compatible backup",
 			Details: map[string]any{
-				"current_schema":  currentSchema,
-				"required_schema": requiredSchema,
+				"current_migration_id": schemaVer,
+				"current_schema":       currentSchema,
+				"required_schema":      requiredSchema,
 			},
 		}}
 	}
@@ -358,8 +371,11 @@ func checkSchemaVersion(database *db.DB) []UpgradeCheck {
 	return []UpgradeCheck{{
 		Name:     "schema_version",
 		Status:   CheckPass,
-		Message:  fmt.Sprintf("Schema version is current: v%d", currentSchema),
+		Message:  fmt.Sprintf("Schema migration level matches binary (%d, %s)", currentSchema, schemaVer),
 		Severity: "info",
-		Details:  map[string]any{"schema_version": currentSchema},
+		Details: map[string]any{
+			"current_migration_id": schemaVer,
+			"schema_numeric":       currentSchema,
+		},
 	}}
 }

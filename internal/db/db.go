@@ -1,6 +1,8 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mel-project/mel/internal/auth"
@@ -26,7 +29,10 @@ const (
 	MaxIdentifierLen = 128
 )
 
-type DB struct{ Path string }
+type DB struct {
+	Path    string
+	auditMu sync.Mutex
+}
 
 type TransportRuntime struct {
 	Name                string `json:"name"`
@@ -105,6 +111,9 @@ func (d *DB) ApplyMigrations(dir string) error {
 		if err != nil {
 			return fmt.Errorf("sqlite3 migrate %s: %w: %s", name, err, out)
 		}
+	}
+	if err := d.RequireSchemaCompatibleWithBinary(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -307,9 +316,78 @@ func (d *DB) InsertTelemetrySample(nodeNum int64, sampleType string, value any, 
 }
 
 func (d *DB) InsertAuditLog(category, level, message string, details any) error {
-	detailJSON, _ := json.Marshal(details)
-	sql := fmt.Sprintf(`INSERT INTO audit_logs(category,level,message,details_json,created_at) VALUES('%s','%s','%s','%s','%s');`, esc(category), esc(level), esc(message), esc(string(detailJSON)), time.Now().UTC().Format(time.RFC3339))
-	return d.Exec(sql)
+	detailJSON, err := json.Marshal(details)
+	if err != nil {
+		detailJSON = []byte("{}")
+	}
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+
+	d.auditMu.Lock()
+	defer d.auditMu.Unlock()
+
+	prevChain, _ := d.Scalar(`SELECT COALESCE(chain_hash, '') FROM audit_logs ORDER BY id DESC LIMIT 1;`)
+
+	// Single sqlite3 session: last_insert_rowid() is only valid in-process.
+	sqlIns := fmt.Sprintf(`INSERT INTO audit_logs(category,level,message,details_json,created_at) VALUES('%s','%s','%s','%s','%s');`,
+		esc(category), esc(level), esc(message), esc(string(detailJSON)), esc(createdAt))
+	batch := sqlIns + "\nSELECT last_insert_rowid() AS mel_row_id;\n"
+	rows, err := d.QueryRows(batch)
+	if err != nil {
+		return err
+	}
+	var idStr string
+	for _, row := range rows {
+		if v, ok := row["mel_row_id"]; ok {
+			idStr = fmt.Sprint(v)
+			break
+		}
+	}
+	if idStr == "" || idStr == "0" {
+		return fmt.Errorf("audit log insert: could not read row id")
+	}
+	contentCanon := auditLogContentCanonical(idStr, category, level, message, string(detailJSON), createdAt)
+	contentHash := sha256Hex([]byte(contentCanon))
+	var chainInput string
+	if prevChain == "" {
+		chainInput = contentHash
+	} else {
+		chainInput = prevChain + "\n" + contentHash
+	}
+	chainHash := sha256Hex([]byte(chainInput))
+	prevEsc := "NULL"
+	if prevChain != "" {
+		prevEsc = fmt.Sprintf("'%s'", esc(prevChain))
+	}
+	upd := fmt.Sprintf(`UPDATE audit_logs SET chain_prev_hash=%s, content_hash='%s', chain_hash='%s' WHERE id=%s;`,
+		prevEsc, esc(contentHash), esc(chainHash), esc(idStr))
+	return d.Exec(upd)
+}
+
+func auditLogContentCanonical(id, category, level, message, detailsJSON, createdAt string) string {
+	// Stable, explicit field order for tamper-evident hashing.
+	m := map[string]string{
+		"category":     category,
+		"created_at":   createdAt,
+		"details_json": detailsJSON,
+		"id":           id,
+		"level":        level,
+		"message":      message,
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var parts []string
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%q:%q", k, m[k]))
+	}
+	return "audit_log_v1{" + strings.Join(parts, ",") + "}"
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 func (d *DB) InsertDeadLetter(dl DeadLetter) error {

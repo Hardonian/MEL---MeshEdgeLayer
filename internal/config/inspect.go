@@ -6,9 +6,12 @@ import (
 )
 
 type EffectiveConfig struct {
-	Fingerprint string            `json:"fingerprint"`
-	Values      any               `json:"values"`
-	Violations  []SafetyViolation `json:"violations"`
+	// Fingerprint is SHA256 of the on-disk config file bytes when provided; otherwise JSON marshal of cfg.
+	Fingerprint string `json:"fingerprint"`
+	// CanonicalFingerprint is SHA256 of deterministic sorted-json encoding of the effective config (post profile + env).
+	CanonicalFingerprint string            `json:"canonical_fingerprint"`
+	Values                 any               `json:"values"`
+	Violations             []SafetyViolation `json:"violations"`
 }
 
 func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
@@ -20,6 +23,7 @@ func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
 	} else {
 		fingerprint = SHA256(b)
 	}
+	canonFP, _ := CanonicalFingerprintSHA256(cfg)
 
 	var raw map[string]any
 	_ = json.Unmarshal(b, &raw)
@@ -27,9 +31,10 @@ func Inspect(cfg Config, loadedFromFile []byte) EffectiveConfig {
 	redactMap(raw, "")
 
 	return EffectiveConfig{
-		Fingerprint: fingerprint,
-		Values:      raw,
-		Violations:  ValidateSafeDefaults(cfg),
+		Fingerprint:            fingerprint,
+		CanonicalFingerprint:   canonFP,
+		Values:                 raw,
+		Violations:             ValidateSafeDefaults(cfg),
 	}
 }
 
