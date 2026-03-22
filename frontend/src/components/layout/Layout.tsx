@@ -13,6 +13,7 @@ import {
   X,
   HelpCircle,
   Activity,
+  Map,
 } from 'lucide-react'
 
 interface NavItem {
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { label: 'Events', href: '/events', icon: FileText },
   { label: 'Diagnostics', href: '/diagnostics', icon: Shield },
   { label: 'Privacy', href: '/privacy', icon: Shield },
+  { label: 'Topology', href: '/topology', icon: Map },
   { label: 'Recommendations', href: '/recommendations', icon: Activity },
   { label: 'Settings', href: '/settings', icon: Settings },
 ]

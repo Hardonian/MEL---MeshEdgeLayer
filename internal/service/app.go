@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/retention"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/topology"
 	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/web"
 )
@@ -50,6 +51,8 @@ type App struct {
 	kb                  *kernelBridge
 	lastTransportHealth map[string]transport.Health
 	healthMu            sync.Mutex
+	topoStore           *topology.Store
+	lockCleanup         func()
 }
 
 type ingestRequest struct {
@@ -83,6 +86,11 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	state := meshstate.New()
 	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
+	// Initialize topology store and wire into web layer
+	if database != nil && cfg.Topology.Enabled {
+		app.topoStore = topology.NewStore(database)
+		app.Web.SetTopologyStore(app.topoStore)
+	}
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
 	app.Web.SetTrustFuncs(
 		app.ApproveAction,
@@ -169,12 +177,27 @@ func (a *App) Start(ctx context.Context) error {
 	if err := os.MkdirAll(a.Cfg.Storage.DataDir, 0o755); err != nil {
 		return err
 	}
+	// Acquire instance lock to prevent concurrent MEL processes on the same data dir
+	lockCleanup, err := acquireLockFile(a.Cfg.Storage.DataDir)
+	if err != nil {
+		return fmt.Errorf("multi-instance safety: %w", err)
+	}
+	a.lockCleanup = lockCleanup
 	if err := retention.Run(a.DB, a.Cfg); err != nil {
 		return err
 	}
 	if a.DB != nil {
 		a.syncControlReality()
 		a.recoverIncompleteControlActions(time.Now().UTC())
+	}
+	// Record topology startup for crash recovery detection
+	if a.topoStore != nil {
+		unclean, err := a.topoStore.MarkStartup()
+		if err != nil {
+			a.Log.Error("topology_startup_failed", "failed to record startup", map[string]any{"error": err.Error()})
+		} else if unclean {
+			a.Log.Info("topology_recovery", "detected unclean shutdown, entering recovery mode", nil)
+		}
 	}
 	for _, finding := range privacy.Audit(a.Cfg) {
 		a.insertAuditLog("privacy", finding.Severity, finding.Message, finding)
@@ -213,6 +236,14 @@ func (a *App) Start(ctx context.Context) error {
 		a.Web.Start(ctx)
 	}()
 	<-ctx.Done()
+	// Record clean shutdown for topology crash recovery
+	if a.topoStore != nil {
+		_ = a.topoStore.MarkCleanShutdown()
+	}
+	// Release instance lock
+	if a.lockCleanup != nil {
+		a.lockCleanup()
+	}
 	for _, t := range a.Transports {
 		_ = t.Close(context.Background())
 		cfgTransport := findTransport(a.Cfg, t.Name())
@@ -267,6 +298,15 @@ func (a *App) startWorkers(ctx context.Context) {
 		go func() {
 			defer a.wg.Done()
 			a.trustCleanupWorker(ctx)
+		}()
+	}
+
+	// Start topology snapshot worker (periodic rescoring, analysis, snapshot generation)
+	if a.topoStore != nil && a.Cfg.Topology.Enabled {
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
+			a.topologySnapshotWorker(ctx)
 		}()
 	}
 
@@ -869,6 +909,8 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
 	t.MarkIngest(rxAt)
+	// Record topology observation and infer links from this packet
+	a.recordTopologyObservation(env, t.Name())
 	summary := strings.TrimSpace(env.Packet.PayloadText)
 	if summary == "" {
 		summary = fmt.Sprintf("%s packet", messageType)

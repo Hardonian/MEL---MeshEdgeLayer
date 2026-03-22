@@ -10,6 +10,7 @@ import { Recommendations } from './pages/Recommendations'
 import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
+import { TopologyMap } from './pages/TopologyMap'
 import { ApiProvider } from './hooks/useApi'
 import { ToastProvider } from './components/ui/Toast'
 
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/topology" element={<TopologyMap />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

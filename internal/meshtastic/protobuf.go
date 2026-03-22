@@ -388,6 +388,24 @@ func RedactCoord(v *float64) float64 {
 	return math.Round(*v*100) / 100
 }
 
+// GatewayIDToNum converts a Meshtastic gateway ID (e.g. "!aabbccdd") to a uint32 node number.
+// Returns 0 if the gateway ID cannot be parsed.
+func GatewayIDToNum(gatewayID string) int64 {
+	gw := strings.TrimPrefix(gatewayID, "!")
+	if len(gw) == 0 || len(gw) > 8 {
+		return 0
+	}
+	b, err := hex.DecodeString(gw)
+	if err != nil {
+		return 0
+	}
+	var num uint32
+	for _, v := range b {
+		num = num<<8 | uint32(v)
+	}
+	return int64(num)
+}
+
 func TopicEncrypted(topic string) bool {
 	topic = strings.ToLower(topic)
 	return strings.Contains(topic, "/e/") || strings.Contains(topic, "encrypted")
