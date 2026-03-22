@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -125,6 +127,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/version", s.requireMethod(s.versionHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/upgrade", s.requireMethod(s.upgradeHealthHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/audit/verify", s.requireMethod(s.auditVerifyHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/status", s.requireMethod(s.status, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/nodes", s.requireMethod(s.nodes, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/transports", s.requireMethod(s.transports, http.MethodGet, http.MethodHead))
@@ -1340,10 +1343,53 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			return
 		}
 
+		apiKey := strings.TrimSpace(r.Header.Get("X-API-Key"))
+		if apiKey != "" {
+			for _, k := range s.cfg.OperatorAPIKeys {
+				if k == apiKey {
+					sum := sha256.Sum256([]byte(k))
+					short := hex.EncodeToString(sum[:])[:12]
+					id := security.Identity{
+						ActorID:     "apikey:" + short,
+						ActorType:   security.ActorHuman,
+						DisplayName: "API key operator",
+						Role:        "admin",
+						Capabilities: map[security.Capability]bool{
+							security.CapReadStatus:        true,
+							security.CapAcknowledgeAlerts: true,
+							security.CapEscalateAlerts:    true,
+							security.CapSuppressAlerts:    true,
+							security.CapExportBundle:      true,
+							security.CapExecuteAction:     true,
+							security.CapInspectConfig:     true,
+							security.CapAdminSystem:       true,
+						},
+					}
+					next.ServeHTTP(w, r.WithContext(security.WithIdentity(r.Context(), id)))
+					return
+				}
+			}
+			s.log.Security("auth_failure", "invalid X-API-Key", "high", map[string]any{"path": r.URL.Path, "remote": remoteClient(r)})
+			w.Header().Set("WWW-Authenticate", `Basic realm="mel"`)
+			writeJSON(w, http.StatusUnauthorized, logging.APIErrorResponse(
+				logging.NewSafeError("authentication is required for this MEL endpoint", nil, "auth", false),
+			))
+			return
+		}
+
 		user, pass, ok := r.BasicAuth()
 		if ok && user == s.cfg.Auth.UIUser && pass == s.cfg.Auth.UIPassword {
 			ctx := security.WithIdentity(r.Context(), security.BuildAdminIdentity(user))
 			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		if len(s.cfg.OperatorAPIKeys) > 0 {
+			s.log.Security("auth_required", "X-API-Key or Basic auth required", "warning", map[string]any{"path": r.URL.Path, "remote": remoteClient(r)})
+			w.Header().Set("WWW-Authenticate", `Basic realm="mel"`)
+			writeJSON(w, http.StatusUnauthorized, logging.APIErrorResponse(
+				logging.NewSafeError("authentication is required for this MEL endpoint", nil, "auth", false),
+			))
 			return
 		}
 

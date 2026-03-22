@@ -159,3 +159,29 @@ func TestPersistIngestValidationFailureLeavesNoPartialWrites(t *testing.T) {
 		t.Fatalf("expected no partial writes, got messages=%s nodes=%s telemetry=%s", messageCount, nodeCount, telemetryCount)
 	}
 }
+
+func TestAuditLogChainVerify(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertAuditLog("test", "info", "one", map[string]any{"n": 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertAuditLog("test", "info", "two", map[string]any{"n": 2}); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := d.VerifyAuditLogChain()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rep.OK || rep.VerifiedRows != 2 {
+		t.Fatalf("expected chain ok with 2 rows, got %+v", rep)
+	}
+	if rep.HeadChainHash == "" {
+		t.Fatal("expected head chain hash")
+	}
+}

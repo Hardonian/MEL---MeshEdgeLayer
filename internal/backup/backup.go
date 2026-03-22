@@ -106,6 +106,9 @@ func Create(cfg config.Config, cfgPath, outPath string) (Manifest, error) {
 		}
 	}
 	selfobs.MarkFresh("backup")
+	if err := d.RecordBackupCompletion(outPath); err != nil {
+		manifest.Warnings = append(manifest.Warnings, "could not record backup in database metadata: "+err.Error())
+	}
 	return manifest, nil
 }
 

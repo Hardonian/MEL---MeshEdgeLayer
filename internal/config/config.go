@@ -29,6 +29,8 @@ type Config struct {
 	Federation   FederationConfig   `json:"federation"`
 	Integration  IntegrationConfig  `json:"integration"`
 	StrictMode   bool               `json:"strict_mode"`
+	// OperatorAPIKeys loaded from env (Auth.APIKeysEnv); never persisted in JSON.
+	OperatorAPIKeys []string `json:"-"`
 }
 
 type BindConfig struct {
@@ -43,6 +45,9 @@ type AuthConfig struct {
 	UIUser              string `json:"ui_user"`
 	UIPassword          string `json:"ui_password"`
 	AllowInsecureRemote bool   `json:"allow_insecure_remote"`
+	// APIKeysEnv names an environment variable holding comma-separated operator API keys (X-API-Key).
+	// When auth.enabled and keys are present, HTTP API requires X-API-Key or valid Basic auth.
+	APIKeysEnv string `json:"api_keys_env"`
 }
 
 type StorageConfig struct {
@@ -636,6 +641,28 @@ func applyEnv(cfg *Config) {
 	setBool("MEL_CONTROL_ALLOW_SOURCE_SUPPRESSION", &cfg.Control.AllowSourceSuppression)
 	setInt("MEL_CONTROL_MAX_QUEUE", &cfg.Control.MaxQueue)
 	setBool("MEL_STRICT_MODE", &cfg.StrictMode)
+	loadOperatorAPIKeys(cfg)
+}
+
+func loadOperatorAPIKeys(cfg *Config) {
+	var keys []string
+	if env := strings.TrimSpace(cfg.Auth.APIKeysEnv); env != "" {
+		keys = appendCommaSeparatedKeys(keys, os.Getenv(env))
+	}
+	if v := strings.TrimSpace(os.Getenv("MEL_AUTH_API_KEYS")); v != "" {
+		keys = appendCommaSeparatedKeys(keys, v)
+	}
+	cfg.OperatorAPIKeys = keys
+}
+
+func appendCommaSeparatedKeys(dst []string, s string) []string {
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			dst = append(dst, p)
+		}
+	}
+	return dst
 }
 
 type SafetyViolation struct {

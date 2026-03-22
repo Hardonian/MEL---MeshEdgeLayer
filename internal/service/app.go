@@ -30,6 +30,8 @@ import (
 
 type App struct {
 	Cfg                 config.Config
+	// ConfigPath is the on-disk path used to load Cfg (set by cmd/mel for boot metadata).
+	ConfigPath          string
 	Log                 *logging.Logger
 	DB                  *db.DB
 	Bus                 *events.Bus
@@ -75,9 +77,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	log := logging.New(cfg.Logging.Level, debug)
 	database, err := db.Open(cfg)
 	if err != nil {
-		// Degraded boot mode: log the error and proceed without a DB, placing the system in explicit idle mode
-		log.Error("database_open_failed", "failed to open database, entering idle degraded mode", map[string]any{"error": err.Error()})
-		database = nil
+		return nil, fmt.Errorf("open database: %w", err)
 	}
 	bus := events.New()
 	state := meshstate.New()
@@ -173,6 +173,21 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 	if a.DB != nil {
+		canonFP, err := config.CanonicalFingerprintSHA256(a.Cfg)
+		if err == nil {
+			prev, ok, _ := a.DB.GetInstanceMetadata(db.MetaBootConfigFingerprint)
+			if ok && prev != "" && prev != canonFP {
+				a.insertAuditLog("config", "warning", "effective config canonical fingerprint changed since last boot", map[string]any{
+					"previous_canonical_fingerprint": prev,
+					"current_canonical_fingerprint":  canonFP,
+				})
+			}
+			_ = a.DB.SetInstanceMetadata(db.MetaBootConfigFingerprint, canonFP)
+			if strings.TrimSpace(a.ConfigPath) != "" {
+				_ = a.DB.SetInstanceMetadata(db.MetaBootConfigPath, strings.TrimSpace(a.ConfigPath))
+			}
+			_ = a.DB.SetInstanceMetadata(db.MetaBootAt, time.Now().UTC().Format(time.RFC3339))
+		}
 		a.syncControlReality()
 		a.recoverIncompleteControlActions(time.Now().UTC())
 	}

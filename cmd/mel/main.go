@@ -28,6 +28,7 @@ import (
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/ui"
+	"github.com/mel-project/mel/internal/upgrade"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -56,6 +57,12 @@ func main() {
 		serveCmd(rest)
 	case "doctor":
 		doctorCmd(rest)
+	case "bootstrap":
+		bootstrapCmd(rest)
+	case "upgrade":
+		upgradeCmd(rest)
+	case "audit":
+		auditCmd(rest)
 	case "status":
 		statusCmd(rest)
 	case "panel":
@@ -155,6 +162,9 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
 
   init
   version
+  bootstrap run|validate --config <path> [--dry-run]
+  upgrade preflight --config <path>
+  audit verify --config <path>
   doctor --config <path>
   config validate|show|inspect|diff|risk|keys --config <path>
   serve [--debug] --config <path>
@@ -408,6 +418,7 @@ func serveCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
+	app.ConfigPath = *path
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	if err := app.Start(ctx); err != nil {
@@ -435,6 +446,28 @@ func doctorCmd(args []string) {
 		} else {
 			dbChecks["schema_version"] = schemaVersion
 		}
+		if n, err := database.HighestMigrationNumeric(); err == nil {
+			dbChecks["migration_numeric"] = n
+			dbChecks["binary_expects_migration_numeric"] = version.CurrentSchemaVersion
+			if n != version.CurrentSchemaVersion {
+				findings = append(findings, map[string]string{
+					"component": "schema_compat",
+					"severity":  "critical",
+					"message":   version.DescribeSchemaGap(n, version.CurrentSchemaVersion),
+					"guidance":  "Run mel bootstrap run --config <path> or mel serve to apply migrations, or align binary with database backup.",
+				})
+			}
+		}
+		chainRep, cerr := database.VerifyAuditLogChain()
+		if cerr != nil {
+			findings = append(findings, map[string]string{"component": "audit_chain", "severity": "high", "message": cerr.Error(), "guidance": "Run mel audit verify --config <path> after fixing database access."})
+		} else if !chainRep.OK {
+			findings = append(findings, map[string]string{"component": "audit_chain", "severity": "high", "message": chainRep.Error, "guidance": "Treat as potential tampering; restore from backup or investigate audit_logs chain_hash continuity."})
+		} else {
+			dbChecks["audit_chain_ok"] = true
+			dbChecks["audit_chain_verified_rows"] = chainRep.VerifiedRows
+			dbChecks["audit_chain_legacy_rows"] = chainRep.LegacyRows
+		}
 		if err := database.Exec("CREATE TABLE IF NOT EXISTS doctor_write_check(v INTEGER); DELETE FROM doctor_write_check; INSERT INTO doctor_write_check(v) VALUES (1);"); err != nil {
 			findings = append(findings, map[string]string{"component": "db_write", "severity": "critical", "message": err.Error(), "guidance": "Ensure sqlite3 can write to the configured database path."})
 		} else {
@@ -451,9 +484,15 @@ func doctorCmd(args []string) {
 		findings = append(findings, map[string]string{"component": "status", "severity": "high", "message": statusErr.Error(), "guidance": "Fix transport or database reporting before relying on doctor output."})
 	}
 	findings = append(findings, doctorTransportChecks(cfg, database)...)
+	findings = append(findings, doctorBindConflict(cfg)...)
+	loadedBytes, _ := os.ReadFile(path)
+	eff := config.Inspect(cfg, loadedBytes)
+	upgradeReport := upgrade.RunUpgradeChecks(cfg, database)
 	out := map[string]any{
 		"doctor_version": "v2",
 		"config":         path,
+		"config_inspect": eff,
+		"upgrade":        upgradeReport,
 		"findings":       findings,
 		"db":             dbChecks,
 		"summary": map[string]any{
@@ -1349,6 +1388,29 @@ func validateConfigFile(path string, cfg config.Config) []map[string]string {
 }
 
 func requireConfigMode(path string) error { return security.CheckFileMode(path) }
+
+func doctorBindConflict(cfg config.Config) []map[string]string {
+	findings := make([]map[string]string, 0)
+	host, portStr, err := net.SplitHostPort(cfg.Bind.API)
+	if err != nil {
+		return findings
+	}
+	if host != "" && host != "0.0.0.0" && host != "::" && host != "[::]" {
+		return findings
+	}
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", portStr))
+	if err != nil {
+		findings = append(findings, map[string]string{
+			"component": "bind",
+			"severity":  "high",
+			"message":   fmt.Sprintf("port %s appears in use or not bindable on loopback: %v", portStr, err),
+			"guidance":  "Stop the conflicting process or change bind.api before starting MEL.",
+		})
+		return findings
+	}
+	_ = ln.Close()
+	return findings
+}
 
 func doctorTransportChecks(cfg config.Config, database *db.DB) []map[string]string {
 	findings := make([]map[string]string, 0)
