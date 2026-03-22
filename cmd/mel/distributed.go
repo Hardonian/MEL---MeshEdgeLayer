@@ -518,8 +518,7 @@ func regionCmd(args []string) {
 
 func topologyCmd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: mel topology <global> [flags]")
-		os.Exit(1)
+		topologyUsage()
 	}
 	sub := args[0]
 	rest := args[1:]
@@ -532,9 +531,102 @@ func topologyCmd(args []string) {
 			os.Exit(1)
 		}
 		mustPrint(result)
+	case "nodes":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/nodes?limit=500")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology nodes failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "node":
+		if len(rest) < 1 {
+			fmt.Fprintln(os.Stderr, "usage: mel topology node <node_num> [flags]")
+			os.Exit(1)
+		}
+		nodeNum := rest[0]
+		_, _, base := loadCfgForDist(rest[1:])
+		result, err := apiGet(base, "/api/v1/topology/nodes/"+nodeNum)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology node detail failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "links":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/links?limit=500")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology links failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "analysis", "analyze":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/analysis")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology analysis failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "snapshots":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/snapshots?limit=20")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology snapshots failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "sources", "trust":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/sources")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "source trust failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "bookmarks":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/bookmarks")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "bookmarks failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "export":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/topology/export")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "topology export failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
+	case "recovery":
+		_, _, base := loadCfgForDist(rest)
+		result, err := apiGet(base, "/api/v1/recovery/state")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recovery state failed: %v\n", err)
+			os.Exit(1)
+		}
+		mustPrint(result)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n", sub)
-		fmt.Fprintln(os.Stderr, "usage: mel topology global")
-		os.Exit(1)
+		topologyUsage()
 	}
+}
+
+func topologyUsage() {
+	fmt.Fprintln(os.Stderr, `usage: mel topology <subcommand> [flags]
+
+subcommands:
+  global      Global topology overview
+  nodes       List all nodes with health scoring
+  node <num>  Inspect a specific node (health, links, observations, bookmarks)
+  links       List all topology links with quality scoring
+  analysis    Full topology analysis (clusters, bottlenecks, recommendations)
+  snapshots   List recent topology snapshots
+  sources     List source trust classification
+  bookmarks   List operator bookmarks and preferences
+  export      Export full topology bundle (privacy-redacted if configured)
+  recovery    Show crash recovery state`)
+	os.Exit(1)
 }

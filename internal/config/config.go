@@ -28,7 +28,28 @@ type Config struct {
 	Control      ControlConfig      `json:"control"`
 	Federation   FederationConfig   `json:"federation"`
 	Integration  IntegrationConfig  `json:"integration"`
+	Topology     TopologyConfig     `json:"topology"`
 	StrictMode   bool               `json:"strict_mode"`
+}
+
+// TopologyConfig controls the canonical topology model behavior.
+type TopologyConfig struct {
+	// Enabled activates topology model scoring and analysis.
+	Enabled bool `json:"enabled"`
+	// NodeStaleMinutes: how many minutes before a node is marked stale.
+	NodeStaleMinutes int `json:"node_stale_minutes"`
+	// LinkStaleMinutes: how many minutes before a link is marked stale.
+	LinkStaleMinutes int `json:"link_stale_minutes"`
+	// SnapshotIntervalMinutes: how often to generate topology snapshots.
+	SnapshotIntervalMinutes int `json:"snapshot_interval_minutes"`
+	// MaxSnapshotHistory: maximum number of topology snapshots to retain.
+	MaxSnapshotHistory int `json:"max_snapshot_history"`
+	// MaxObservationsPerNode: bounded retention of raw observations per node.
+	MaxObservationsPerNode int `json:"max_observations_per_node"`
+	// DefaultTrustClass for new connectors without explicit trust config.
+	DefaultTrustClass string `json:"default_trust_class"`
+	// ScoreHistoryDays: how many days of node score history to retain.
+	ScoreHistoryDays int `json:"score_history_days"`
 }
 
 type BindConfig struct {
@@ -97,6 +118,8 @@ type TransportConfig struct {
 	ManualOnly          bool   `json:"manual_only"`
 	SuppressAutoActions bool   `json:"suppress_auto_actions"`
 	FreezeRouting       bool   `json:"freeze_routing"`
+	// TrustClass classifies source trust for topology scoring: direct_local, trusted, partial, untrusted, unknown
+	TrustClass string `json:"trust_class"`
 }
 
 func (t TransportConfig) SourceLabel() string {
@@ -233,7 +256,17 @@ func Default() Config {
 		},
 		Federation:  defaultFederationConfig(),
 		Integration: IntegrationConfig{MinIntervalSeconds: 60},
-		StrictMode:  false,
+		Topology: TopologyConfig{
+			Enabled:                 true,
+			NodeStaleMinutes:        30,
+			LinkStaleMinutes:        30,
+			SnapshotIntervalMinutes: 5,
+			MaxSnapshotHistory:      200,
+			MaxObservationsPerNode:  500,
+			DefaultTrustClass:       "unknown",
+			ScoreHistoryDays:        14,
+		},
+		StrictMode: false,
 	}
 }
 

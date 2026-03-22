@@ -228,7 +228,18 @@ Distributed kernel commands (require running daemon):
   federation sync-health --config <path> [--url <url>]
   peers list --config <path> [--url <url>]
   region health [--region <id>] --config <path> [--url <url>]
-  topology global --config <path> [--url <url>]`)
+  topology global --config <path> [--url <url>]
+
+Topology model commands (require running daemon):
+  topology nodes --config <path> [--url <url>]
+  topology node <node_num> --config <path> [--url <url>]
+  topology links --config <path> [--url <url>]
+  topology analysis --config <path> [--url <url>]
+  topology snapshots --config <path> [--url <url>]
+  topology sources --config <path> [--url <url>]
+  topology bookmarks --config <path> [--url <url>]
+  topology export --config <path> [--url <url>]
+  topology recovery --config <path> [--url <url>]`)
 }
 
 func fs(name string) *flag.FlagSet { return flag.NewFlagSet(name, flag.ExitOnError) }

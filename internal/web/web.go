@@ -199,6 +199,17 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/topology/global", s.requireMethod(s.globalTopologyHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/region/", s.requireMethod(s.regionHealthHandler, http.MethodGet, http.MethodHead))
 
+	// Topology model endpoints (Phase 1-8: canonical node/link/topology)
+	mux.HandleFunc("/api/v1/topology/nodes", s.requireMethod(s.topologyNodesHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/nodes/", s.requireMethod(s.topologyNodeDetailHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/links", s.requireMethod(s.topologyLinksHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/analysis", s.requireMethod(s.topologyAnalysisHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/snapshots", s.requireMethod(s.topologySnapshotsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/sources", s.requireMethod(s.sourceTrustHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/bookmarks", s.bookmarksHandler)
+	mux.HandleFunc("/api/v1/topology/export", s.requireMethod(s.topologyExportHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/recovery/state", s.requireMethod(s.recoveryStateHandler, http.MethodGet, http.MethodHead))
+
 	if cfg.Features.WebUI {
 		mux.HandleFunc("/", s.requireMethod(s.ui, http.MethodGet, http.MethodHead))
 	}
