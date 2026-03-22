@@ -3,6 +3,9 @@ package web
 import (
 	"net/http"
 
+	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/upgrade"
 	"github.com/mel-project/mel/internal/version"
 )
@@ -13,18 +16,42 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get schema version from database if available
 	var dbSchemaVersion string
+	var schemaNumeric int
+	var schemaOK bool
 	if s.db != nil {
 		dbSchemaVersion, _ = s.db.SchemaVersion()
+		if n, err := s.db.HighestMigrationNumeric(); err == nil {
+			schemaNumeric = n
+			schemaOK = n == version.CurrentSchemaVersion
+		}
+	}
+
+	eff := config.Inspect(s.cfg, nil)
+	bootMeta := map[string]any{}
+	if s.db != nil {
+		if fp, ok, _ := s.db.GetInstanceMetadata(db.MetaBootConfigFingerprint); ok {
+			bootMeta["last_boot_canonical_fingerprint"] = fp
+		}
+		if p, ok, _ := s.db.GetInstanceMetadata(db.MetaBootConfigPath); ok {
+			bootMeta["last_boot_config_path"] = p
+		}
+		if t, ok, _ := s.db.GetInstanceMetadata(db.MetaBootAt); ok {
+			bootMeta["last_boot_at"] = t
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":             v.Version,
-		"git_commit":          v.GitCommit,
-		"build_time":          v.BuildTime,
-		"go_version":          v.GoVersion,
-		"db_schema_version":   v.DBSchemaVersion,
-		"db_actual_version":   dbSchemaVersion,
-		"compatibility_level": v.CompatibilityLevel,
+		"version":                      v.Version,
+		"git_commit":                   v.GitCommit,
+		"build_time":                   v.BuildTime,
+		"go_version":                   v.GoVersion,
+		"db_schema_version":            v.DBSchemaVersion,
+		"db_actual_version":            dbSchemaVersion,
+		"db_migration_numeric":         schemaNumeric,
+		"schema_matches_binary":        schemaOK,
+		"compatibility_level":          v.CompatibilityLevel,
+		"config_canonical_fingerprint": eff.CanonicalFingerprint,
+		"boot_metadata":                bootMeta,
 	})
 }
 
@@ -34,4 +61,21 @@ func (s *Server) upgradeHealthHandler(w http.ResponseWriter, r *http.Request) {
 	report := upgrade.RunUpgradeChecks(s.cfg, s.db)
 
 	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) auditVerifyHandler(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "error": "database unavailable"})
+		return
+	}
+	rep, err := s.db.VerifyAuditLogChain()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(logging.ClassifyError(err)))
+		return
+	}
+	code := http.StatusOK
+	if !rep.OK {
+		code = http.StatusConflict
+	}
+	writeJSON(w, code, rep)
 }

@@ -1,0 +1,15 @@
+# Requires: docker build -f examples/deployment/Dockerfile -t mel:local .
+# Place a real config at ./mel.json (chmod 600) and optional ./mel.env.
+services:
+  mel:
+    image: mel:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - mel-data:/data
+      - ./mel.json:/config/mel.json:ro
+    # Optional: add env_file: [./mel.env] after creating mel.env
+
+volumes:
+  mel-data:

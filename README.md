@@ -57,9 +57,18 @@ go build -o mel ./cmd/mel
 # Generate a fresh operator config
 ./mel init --config configs/mel.json
 
-# Run a pre-flight health check
+# Create data directories, apply SQLite migrations, validate (no serve yet)
+./mel bootstrap run --config configs/mel.json
+
+# Run a pre-flight health check (config, schema parity, audit chain, transports)
 ./mel doctor --config configs/mel.json
+
+# Optional: upgrade readiness + audit chain proof
+./mel upgrade preflight --config configs/mel.json
+./mel audit verify --config configs/mel.json
 ```
+
+Deployment-oriented examples (systemd, env, Docker) live under `examples/deployment/`.
 
 ### 3. Launch the Control Plane
 

@@ -144,10 +144,11 @@ func RequirePermission(actionClass ActionClass) func(http.Handler) http.Handler 
 func RequireRole(minRole OperatorRole) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// In single-operator mode, always allow
-			// Future: check role hierarchy
-			_ = minRole
-
+			ctx := GetAuthContextFromRequest(r)
+			if RoleHierarchy[ctx.Role] < RoleHierarchy[minRole] {
+				ResponseWithForbidden(w, fmt.Sprintf("requires role %s or higher (current: %s)", minRole, ctx.Role))
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}

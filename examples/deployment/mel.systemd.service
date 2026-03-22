@@ -1,0 +1,19 @@
+[Unit]
+Description=MEL MeshEdgeLayer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mel
+Group=mel
+WorkingDirectory=/var/lib/mel
+EnvironmentFile=-/etc/mel/mel.env
+ExecStart=/usr/local/bin/mel serve --config /etc/mel/mel.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
