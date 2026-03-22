@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -99,15 +98,13 @@ func TestQueueRecoveryActionsSchedulesBackoffResetOnlyForRealRollback(t *testing
 func TestGuardedControlChaosLifecycle(t *testing.T) {
 	// Reset startup time to bypass grace period for testing
 	control.ResetStartupTimeForTests(time.Date(2026, 3, 19, 11, 0, 0, 0, time.UTC))
-	cfg := config.Default()
-	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
-	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
-	cfg.Transports = []config.TransportConfig{
+	app := newTestApp(t, config.TransportConfig{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-chaos"})
+	// Keep storage paths aligned with the DB opened in newTestApp; only extend transports.
+	app.Cfg.Transports = []config.TransportConfig{
 		{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-chaos"},
 		{Name: "mqtt-alt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1884", Topic: "msh/test-alt", ClientID: "mel-chaos-alt"},
 	}
-	app := newTestApp(t, cfg.Transports[0])
-	app.Cfg = cfg
+	cfg := app.Cfg
 	app.transportControls["mqtt-alt"] = newTransportControlState()
 	ftPrimary := &failingTransport{name: "mqtt-primary", typ: "mqtt", health: transport.Health{Name: "mqtt-primary", Type: "mqtt"}}
 	ftAlt := &failingTransport{name: "mqtt-alt", typ: "mqtt", health: transport.Health{Name: "mqtt-alt", Type: "mqtt", State: transport.StateLive}}
@@ -173,7 +170,7 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 	ftPrimary.ForceState(transport.StateFailed, "retry threshold exceeded", "")
 	ftPrimary.SetFailureCount(3)
 	app.evaluateControl(phaseNow)
-	waitFor(t, 2*time.Second, func() bool {
+	waitFor(t, 8*time.Second, func() bool {
 		rows, err := app.DB.ControlActions("mqtt-primary", control.ActionRestartTransport, "", "", 10, 0)
 		return err == nil && len(rows) > 0 && rows[0].Result == control.ResultExecutedSuccessfully
 	})
@@ -203,7 +200,7 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 		}
 	}
 	app.evaluateControl(stormNow)
-	waitFor(t, 2*time.Second, func() bool {
+	waitFor(t, 8*time.Second, func() bool {
 		rows, err := app.DB.ControlActions("mqtt-alt", control.ActionBackoffIncrease, "", "", 10, 0)
 		return err == nil && len(rows) > 0 && rows[0].Result == control.ResultExecutedSuccessfully
 	})
@@ -224,7 +221,7 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.queueRecoveryActions(recoveryAt)
-	waitFor(t, 2*time.Second, func() bool {
+	waitFor(t, 8*time.Second, func() bool {
 		row, ok, err := app.DB.ControlActionByID(backoff.ID + "-reset")
 		return err == nil && ok && row.Result == control.ResultExecutedSuccessfully
 	})

@@ -284,9 +284,16 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 			"error": err.Error(),
 			"path":  r.URL.Path,
 		})
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"ready": false,
-			"error": "Service temporarily unavailable",
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"ready":         false,
+			"process_ready": true,
+			"error_class":   "snapshot_unavailable",
+			"message":       "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"operator_next_steps": []string{
+				"Inspect logs for database or migration errors.",
+				"Verify storage.database_path and permissions.",
+				"Run `mel doctor --config <path>` on the host.",
+			},
 		})
 		return
 	}
@@ -298,14 +305,37 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	next := readinessNextSteps(snap, panel, ingestReady)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ready":          true,
-		"process_ready":  true,
-		"ingest_ready":   ingestReady,
-		"operator_state": panel.OperatorState,
-		"summary":        panel.Summary,
-		"transports":     snap.Transports,
+		"ready":                 true,
+		"process_ready":         true,
+		"ingest_ready":          ingestReady,
+		"snapshot_generated_at": snap.GeneratedAt,
+		"schema_version":        snap.SchemaVersion,
+		"operator_state":        panel.OperatorState,
+		"summary":               panel.Summary,
+		"transports":            snap.Transports,
+		"operator_next_steps":   next,
 	})
+}
+
+func readinessNextSteps(snap statuspkg.Snapshot, panel statuspkg.Panel, ingestReady bool) []string {
+	var steps []string
+	if !ingestReady {
+		steps = append(steps, "Live ingest is not proven on any transport; confirm broker or node reachability and that packets are reaching MEL.")
+	}
+	if panel.OperatorState == "idle" {
+		steps = append(steps, "No transports are configured or all are disabled; MEL will remain idle until you enable serial, TCP, or MQTT.")
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "Subsystem evidence looks consistent; use GET /api/v1/status for drill-down and transport-level truth.")
+	} else {
+		steps = append(steps, "Use GET /api/v1/status for evidence-backed transport state and recent errors.")
+	}
+	if snap.LastSuccessfulIngest == "" && len(snap.Transports) > 0 {
+		steps = append(steps, "No messages are persisted yet; first successful SQLite writes define ingest truth.")
+	}
+	return steps
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

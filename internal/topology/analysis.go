@@ -9,14 +9,14 @@ import (
 
 // AnalysisResult contains the full topology analysis output.
 type AnalysisResult struct {
-	Snapshot        TopologySnapshot  `json:"snapshot"`
-	IsolatedNodes   []int64           `json:"isolated_nodes,omitempty"`
-	BridgeNodes     []int64           `json:"bridge_nodes,omitempty"`
-	WeakClusters    []Cluster         `json:"weak_clusters,omitempty"`
-	StaleRegions    []StaleRegion     `json:"stale_regions,omitempty"`
-	Bottlenecks     []Bottleneck      `json:"bottlenecks,omitempty"`
-	Recommendations []Recommendation  `json:"recommendations,omitempty"`
-	AnalyzedAt      string            `json:"analyzed_at"`
+	Snapshot        TopologySnapshot `json:"snapshot"`
+	IsolatedNodes   []int64          `json:"isolated_nodes,omitempty"`
+	BridgeNodes     []int64          `json:"bridge_nodes,omitempty"`
+	WeakClusters    []Cluster        `json:"weak_clusters,omitempty"`
+	StaleRegions    []StaleRegion    `json:"stale_regions,omitempty"`
+	Bottlenecks     []Bottleneck     `json:"bottlenecks,omitempty"`
+	Recommendations []Recommendation `json:"recommendations,omitempty"`
+	AnalyzedAt      string           `json:"analyzed_at"`
 }
 
 // Cluster represents a group of connected nodes.
@@ -38,10 +38,10 @@ type StaleRegion struct {
 
 // Bottleneck identifies a topology fragility point.
 type Bottleneck struct {
-	Type       string  `json:"type"` // single_point_of_failure, weak_bridge, relay_dependent
-	NodeNums   []int64 `json:"node_nums,omitempty"`
-	Severity   string  `json:"severity"` // critical, high, medium, low
-	Explanation string `json:"explanation"`
+	Type        string  `json:"type"` // single_point_of_failure, weak_bridge, relay_dependent
+	NodeNums    []int64 `json:"node_nums,omitempty"`
+	Severity    string  `json:"severity"` // critical, high, medium, low
+	Explanation string  `json:"explanation"`
 }
 
 // Analyze performs full topology analysis on a set of nodes and links.
@@ -344,15 +344,15 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 	// Recommend adding nodes near isolated ones
 	for _, nodeNum := range isolated {
 		recs = append(recs, Recommendation{
-			ID:       nextID(),
-			Type:     "add_relay",
-			Summary:  fmt.Sprintf("Add a relay or gateway near isolated node %d to restore connectivity", nodeNum),
-			Confidence: 0.7,
-			Impact:     "Restores connectivity for an isolated node",
-			Assumptions: []string{"Node location is approximately known", "A relay within range would restore links"},
-			Evidence:    []string{fmt.Sprintf("Node %d has zero observed links", nodeNum)},
-			RefuteWith:  []string{"Node may have been intentionally isolated", "Node may be powered off"},
-			Basis:       "topology",
+			ID:            nextID(),
+			Type:          "add_relay",
+			Summary:       fmt.Sprintf("Add a relay or gateway near isolated node %d to restore connectivity", nodeNum),
+			Confidence:    0.7,
+			Impact:        "Restores connectivity for an isolated node",
+			Assumptions:   []string{"Node location is approximately known", "A relay within range would restore links"},
+			Evidence:      []string{fmt.Sprintf("Node %d has zero observed links", nodeNum)},
+			RefuteWith:    []string{"Node may have been intentionally isolated", "Node may be powered off"},
+			Basis:         "topology",
 			AffectedNodes: []int64{nodeNum},
 		})
 	}
@@ -360,15 +360,15 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 	// Recommend redundancy for bridge-critical nodes
 	for _, nodeNum := range bridges {
 		recs = append(recs, Recommendation{
-			ID:       nextID(),
-			Type:     "add_relay",
-			Summary:  fmt.Sprintf("Add redundant path around bridge-critical node %d to reduce single-point-of-failure risk", nodeNum),
-			Confidence: 0.8,
-			Impact:     "Reduces dependency on single bridge node",
-			Assumptions: []string{"Graph structure reflects actual RF reachability"},
-			Evidence:    []string{fmt.Sprintf("Node %d is the sole connection for at least one neighbor", nodeNum)},
-			RefuteWith:  []string{"Hidden links not yet observed may provide alternate paths"},
-			Basis:       "topology",
+			ID:            nextID(),
+			Type:          "add_relay",
+			Summary:       fmt.Sprintf("Add redundant path around bridge-critical node %d to reduce single-point-of-failure risk", nodeNum),
+			Confidence:    0.8,
+			Impact:        "Reduces dependency on single bridge node",
+			Assumptions:   []string{"Graph structure reflects actual RF reachability"},
+			Evidence:      []string{fmt.Sprintf("Node %d is the sole connection for at least one neighbor", nodeNum)},
+			RefuteWith:    []string{"Hidden links not yet observed may provide alternate paths"},
+			Basis:         "topology",
 			AffectedNodes: []int64{nodeNum},
 		})
 	}
@@ -377,15 +377,15 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 	for _, n := range nodes {
 		if n.Stale && !n.Quarantined {
 			recs = append(recs, Recommendation{
-				ID:       nextID(),
-				Type:     "inspect",
-				Summary:  fmt.Sprintf("Inspect node %d (%s): no recent observations, may need power/placement check", n.NodeNum, n.ShortName),
-				Confidence: 0.6,
-				Impact:     "Restoring a stale node may improve local coverage",
-				Assumptions: []string{"Node was previously active"},
-				Evidence:    []string{fmt.Sprintf("last_seen_at=%s, health_state=%s", n.LastSeenAt, n.HealthState)},
-				RefuteWith:  []string{"Node intentionally powered down"},
-				Basis:       "topology",
+				ID:            nextID(),
+				Type:          "inspect",
+				Summary:       fmt.Sprintf("Inspect node %d (%s): no recent observations, may need power/placement check", n.NodeNum, n.ShortName),
+				Confidence:    0.6,
+				Impact:        "Restoring a stale node may improve local coverage",
+				Assumptions:   []string{"Node was previously active"},
+				Evidence:      []string{fmt.Sprintf("last_seen_at=%s, health_state=%s", n.LastSeenAt, n.HealthState)},
+				RefuteWith:    []string{"Node intentionally powered down"},
+				Basis:         "topology",
 				AffectedNodes: []int64{n.NodeNum},
 			})
 		}
@@ -395,13 +395,13 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 	for _, n := range nodes {
 		if n.Quarantined {
 			recs = append(recs, Recommendation{
-				ID:       nextID(),
-				Type:     "reduce_trust",
-				Summary:  fmt.Sprintf("Review quarantined node %d (%s): %s", n.NodeNum, n.ShortName, n.QuarantineReason),
-				Confidence: 0.5,
-				Impact:     "Removing noisy/contradictory source improves topology accuracy",
-				Evidence:    []string{n.QuarantineReason},
-				Basis:       "source",
+				ID:            nextID(),
+				Type:          "reduce_trust",
+				Summary:       fmt.Sprintf("Review quarantined node %d (%s): %s", n.NodeNum, n.ShortName, n.QuarantineReason),
+				Confidence:    0.5,
+				Impact:        "Removing noisy/contradictory source improves topology accuracy",
+				Evidence:      []string{n.QuarantineReason},
+				Basis:         "source",
 				AffectedNodes: []int64{n.NodeNum},
 			})
 		}
@@ -411,12 +411,12 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 	for _, c := range clusters {
 		if len(c.NodeNums) > 50 && c.AvgScore < 0.4 {
 			recs = append(recs, Recommendation{
-				ID:       nextID(),
-				Type:     "split",
-				Summary:  fmt.Sprintf("Consider splitting deployment for cluster %s (%d nodes, avg score %.2f) into separate monitored sites", c.ID, len(c.NodeNums), c.AvgScore),
+				ID:         nextID(),
+				Type:       "split",
+				Summary:    fmt.Sprintf("Consider splitting deployment for cluster %s (%d nodes, avg score %.2f) into separate monitored sites", c.ID, len(c.NodeNums), c.AvgScore),
 				Confidence: 0.4,
 				Impact:     "Reduces noise and improves per-site visibility",
-				Basis:       "topology",
+				Basis:      "topology",
 			})
 		}
 	}

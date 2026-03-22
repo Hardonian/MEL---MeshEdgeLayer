@@ -43,7 +43,7 @@ MEL is designed to be up and running before your next packet arrives.
 
 ### 1. Install MEL
 
-**Linux / macOS / Windows (Go 1.21+):**
+**Linux / macOS / Windows (Go 1.24+ per `go.mod`):**
 
 ```bash
 go build -o mel ./cmd/mel
@@ -62,6 +62,9 @@ go build -o mel ./cmd/mel
 
 # Run a pre-flight health check (config, schema parity, audit chain, transports)
 ./mel doctor --config configs/mel.json
+
+# Optional: same checks + HTTP probe of bind.api /healthz and explicit next steps (JSON)
+./mel preflight --config configs/mel.json
 
 # Optional: upgrade readiness + audit chain proof
 ./mel upgrade preflight --config configs/mel.json

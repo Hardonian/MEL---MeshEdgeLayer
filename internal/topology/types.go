@@ -36,9 +36,9 @@ const (
 type MobilityState string
 
 const (
-	MobStatic      MobilityState = "static"
+	MobStatic       MobilityState = "static"
 	MobLikelyMobile MobilityState = "likely_mobile"
-	MobUnknown     MobilityState = "unknown"
+	MobUnknown      MobilityState = "unknown"
 )
 
 // TrustClass classifies source trust level.
@@ -54,17 +54,17 @@ const (
 
 // SourceTrust describes a connector's trust posture.
 type SourceTrust struct {
-	ConnectorID        string  `json:"connector_id"`
-	ConnectorName      string  `json:"connector_name"`
-	ConnectorType      string  `json:"connector_type"`
+	ConnectorID        string     `json:"connector_id"`
+	ConnectorName      string     `json:"connector_name"`
+	ConnectorType      string     `json:"connector_type"`
 	TrustClass         TrustClass `json:"trust_class"`
-	TrustLevel         float64 `json:"trust_level"`
-	FirstSeenAt        string  `json:"first_seen_at"`
-	LastSeenAt         string  `json:"last_seen_at"`
-	ObservationCount   int64   `json:"observation_count"`
-	ContradictionCount int64   `json:"contradiction_count"`
-	StaleCount         int64   `json:"stale_count"`
-	OperatorNotes      string  `json:"operator_notes,omitempty"`
+	TrustLevel         float64    `json:"trust_level"`
+	FirstSeenAt        string     `json:"first_seen_at"`
+	LastSeenAt         string     `json:"last_seen_at"`
+	ObservationCount   int64      `json:"observation_count"`
+	ContradictionCount int64      `json:"contradiction_count"`
+	StaleCount         int64      `json:"stale_count"`
+	OperatorNotes      string     `json:"operator_notes,omitempty"`
 }
 
 // Node is the canonical mesh node entity.
@@ -100,54 +100,54 @@ type Node struct {
 
 // Link represents a node-to-node edge in the topology graph.
 type Link struct {
-	EdgeID            string        `json:"edge_id"`
-	SrcNodeNum        int64         `json:"src_node_num"`
-	DstNodeNum        int64         `json:"dst_node_num"`
-	Observed          bool          `json:"observed"`
-	Directional       bool          `json:"directional"`
-	TransportPath     string        `json:"transport_path,omitempty"`
-	FirstObservedAt   string        `json:"first_observed_at"`
-	LastObservedAt    string        `json:"last_observed_at"`
-	QualityScore      float64       `json:"quality_score"`
-	Reliability       float64       `json:"reliability"`
-	IntermittenceCount int64        `json:"intermittence_count"`
-	SourceTrustLevel  float64       `json:"source_trust_level"`
-	SourceConnectorID string        `json:"source_connector_id,omitempty"`
-	Stale             bool          `json:"stale"`
-	Contradiction     bool          `json:"contradiction"`
-	ContradictionDetail string      `json:"contradiction_detail,omitempty"`
-	RelayDependent    bool          `json:"relay_dependent"`
-	QualityFactors    []ScoreFactor `json:"quality_factors,omitempty"`
-	ObservationCount  int64         `json:"observation_count"`
+	EdgeID              string        `json:"edge_id"`
+	SrcNodeNum          int64         `json:"src_node_num"`
+	DstNodeNum          int64         `json:"dst_node_num"`
+	Observed            bool          `json:"observed"`
+	Directional         bool          `json:"directional"`
+	TransportPath       string        `json:"transport_path,omitempty"`
+	FirstObservedAt     string        `json:"first_observed_at"`
+	LastObservedAt      string        `json:"last_observed_at"`
+	QualityScore        float64       `json:"quality_score"`
+	Reliability         float64       `json:"reliability"`
+	IntermittenceCount  int64         `json:"intermittence_count"`
+	SourceTrustLevel    float64       `json:"source_trust_level"`
+	SourceConnectorID   string        `json:"source_connector_id,omitempty"`
+	Stale               bool          `json:"stale"`
+	Contradiction       bool          `json:"contradiction"`
+	ContradictionDetail string        `json:"contradiction_detail,omitempty"`
+	RelayDependent      bool          `json:"relay_dependent"`
+	QualityFactors      []ScoreFactor `json:"quality_factors,omitempty"`
+	ObservationCount    int64         `json:"observation_count"`
 }
 
 // ScoreFactor explains one component of a health or quality score.
 type ScoreFactor struct {
-	Name        string  `json:"name"`
-	Weight      float64 `json:"weight"`
-	Value       float64 `json:"value"`
+	Name         string  `json:"name"`
+	Weight       float64 `json:"weight"`
+	Value        float64 `json:"value"`
 	Contribution float64 `json:"contribution"` // weight * value
-	Basis       string  `json:"basis"`         // observed, inferred, stale, policy
-	Evidence    string  `json:"evidence,omitempty"`
+	Basis        string  `json:"basis"`        // observed, inferred, stale, policy
+	Evidence     string  `json:"evidence,omitempty"`
 }
 
 // TopologySnapshot is a point-in-time summary of mesh topology.
 type TopologySnapshot struct {
-	SnapshotID        string              `json:"snapshot_id"`
-	CreatedAt         string              `json:"created_at"`
-	NodeCount         int                 `json:"node_count"`
-	EdgeCount         int                 `json:"edge_count"`
-	DirectEdgeCount   int                 `json:"direct_edge_count"`
-	InferredEdgeCount int                 `json:"inferred_edge_count"`
-	HealthyNodes      int                 `json:"healthy_nodes"`
-	DegradedNodes     int                 `json:"degraded_nodes"`
-	StaleNodes        int                 `json:"stale_nodes"`
-	IsolatedNodes     int                 `json:"isolated_nodes"`
-	GraphHash         string              `json:"graph_hash,omitempty"`
-	SourceCoverage    map[string]int      `json:"source_coverage,omitempty"`
-	ConfidenceSummary map[string]float64  `json:"confidence_summary,omitempty"`
-	Explanation       []string            `json:"explanation,omitempty"`
-	RegionSummary     []RegionScore       `json:"region_summary,omitempty"`
+	SnapshotID        string             `json:"snapshot_id"`
+	CreatedAt         string             `json:"created_at"`
+	NodeCount         int                `json:"node_count"`
+	EdgeCount         int                `json:"edge_count"`
+	DirectEdgeCount   int                `json:"direct_edge_count"`
+	InferredEdgeCount int                `json:"inferred_edge_count"`
+	HealthyNodes      int                `json:"healthy_nodes"`
+	DegradedNodes     int                `json:"degraded_nodes"`
+	StaleNodes        int                `json:"stale_nodes"`
+	IsolatedNodes     int                `json:"isolated_nodes"`
+	GraphHash         string             `json:"graph_hash,omitempty"`
+	SourceCoverage    map[string]int     `json:"source_coverage,omitempty"`
+	ConfidenceSummary map[string]float64 `json:"confidence_summary,omitempty"`
+	Explanation       []string           `json:"explanation,omitempty"`
+	RegionSummary     []RegionScore      `json:"region_summary,omitempty"`
 }
 
 // RegionScore summarizes health for a topology cluster or region.
@@ -206,26 +206,26 @@ type LinkPreference struct {
 
 // Recommendation is an actionable topology improvement suggestion.
 type Recommendation struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"` // add_node, add_relay, move_node, prefer_anchor, inspect, reduce_trust, isolate, split
-	Summary      string   `json:"summary"`
-	Confidence   float64  `json:"confidence"`
-	Impact       string   `json:"impact"`
-	Assumptions  []string `json:"assumptions,omitempty"`
-	Evidence     []string `json:"evidence,omitempty"`
-	RefuteWith   []string `json:"refute_with,omitempty"` // what data would disprove this
-	Basis        string   `json:"basis"`                 // topology, source, policy
-	AffectedNodes []int64 `json:"affected_nodes,omitempty"`
+	ID            string   `json:"id"`
+	Type          string   `json:"type"` // add_node, add_relay, move_node, prefer_anchor, inspect, reduce_trust, isolate, split
+	Summary       string   `json:"summary"`
+	Confidence    float64  `json:"confidence"`
+	Impact        string   `json:"impact"`
+	Assumptions   []string `json:"assumptions,omitempty"`
+	Evidence      []string `json:"evidence,omitempty"`
+	RefuteWith    []string `json:"refute_with,omitempty"` // what data would disprove this
+	Basis         string   `json:"basis"`                 // topology, source, policy
+	AffectedNodes []int64  `json:"affected_nodes,omitempty"`
 }
 
 // RecoveryState tracks MEL startup/shutdown state for crash recovery.
 type RecoveryState struct {
-	LastCleanShutdownAt string `json:"last_clean_shutdown_at,omitempty"`
-	LastStartupAt       string `json:"last_startup_at,omitempty"`
-	UncleanShutdown     bool   `json:"unclean_shutdown"`
+	LastCleanShutdownAt string   `json:"last_clean_shutdown_at,omitempty"`
+	LastStartupAt       string   `json:"last_startup_at,omitempty"`
+	UncleanShutdown     bool     `json:"unclean_shutdown"`
 	RecoveredJobs       []string `json:"recovered_jobs,omitempty"`
 	PendingActions      []string `json:"pending_actions,omitempty"`
-	StartupMode         string `json:"startup_mode"` // normal, recovery, degraded
+	StartupMode         string   `json:"startup_mode"` // normal, recovery, degraded
 }
 
 // StaleThresholds configures when data is considered stale.

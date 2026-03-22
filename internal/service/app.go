@@ -29,7 +29,7 @@ import (
 )
 
 type App struct {
-	Cfg                 config.Config
+	Cfg config.Config
 	// ConfigPath is the on-disk path used to load Cfg (set by cmd/mel for boot metadata).
 	ConfigPath          string
 	Log                 *logging.Logger

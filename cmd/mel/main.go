@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -57,6 +58,8 @@ func main() {
 		serveCmd(rest)
 	case "doctor":
 		doctorCmd(rest)
+	case "preflight":
+		preflightCmd(rest)
 	case "bootstrap":
 		bootstrapCmd(rest)
 	case "upgrade":
@@ -166,6 +169,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   upgrade preflight --config <path>
   audit verify --config <path>
   doctor --config <path>
+  preflight --config <path> [--skip-serve-check]
   config validate|show|inspect|diff|risk|keys --config <path>
   serve [--debug] --config <path>
   status --config <path>
@@ -437,14 +441,14 @@ func serveCmd(args []string) {
 	}
 }
 
-func doctorCmd(args []string) {
-	cfg, path := loadCfg(args)
+// runDoctor performs the same checks as `mel doctor` and returns structured output plus findings.
+// Callers may augment the returned map (e.g. preflight adds operator_next_steps).
+func runDoctor(cfg config.Config, path string) (map[string]any, []map[string]string) {
 	findings := validateConfigFile(path, cfg)
 	database, err := db.Open(cfg)
 	if err != nil {
 		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error(), "guidance": "Fix storage.database_path or parent directory permissions before launch."})
 	}
-	// Check database file permissions
 	if _, err := os.Stat(cfg.Storage.DatabasePath); err == nil {
 		if err := security.CheckFileMode(cfg.Storage.DatabasePath); err != nil {
 			findings = append(findings, map[string]string{"component": "db_perms", "severity": "high", "message": err.Error(), "guidance": "Run 'chmod 600 " + cfg.Storage.DatabasePath + "' to restrict access to the database file."})
@@ -523,9 +527,14 @@ func doctorCmd(args []string) {
 			},
 		},
 	}
+	return out, findings
+}
+
+func doctorCmd(args []string) {
+	cfg, path := loadCfg(args)
+	out, findings := runDoctor(cfg, path)
 	mustPrint(out)
 
-	// Add self-observability output
 	fmt.Println()
 	fmt.Println("=== Self-Observability ===")
 	printLocalHealth()
@@ -537,6 +546,114 @@ func doctorCmd(args []string) {
 	if len(findings) > 0 {
 		os.Exit(1)
 	}
+}
+
+func preflightCmd(args []string) {
+	f := fs("preflight")
+	path := f.String("config", configFlagDefault(), "config")
+	skipServe := f.Bool("skip-serve-check", false, "do not probe bind.api for HTTP /healthz (use when mel serve is not expected to be running)")
+	_ = f.Parse(args)
+	cfg, _, err := loadConfigFile(*path)
+	if err != nil {
+		panic(err)
+	}
+	out, findings := runDoctor(cfg, *path)
+	serveProbe := probeServeHealth(cfg, *skipServe)
+	out["serve_probe"] = serveProbe
+	out["preflight_version"] = "v1"
+	preflightOK := len(findings) == 0
+	if !*skipServe && strings.TrimSpace(cfg.Bind.API) != "" {
+		if r, ok := serveProbe["reachable"].(bool); !ok || !r {
+			preflightOK = false
+		}
+	}
+	out["preflight_ok"] = preflightOK
+	next := preflightNextSteps(cfg, *path, findings, serveProbe)
+	out["operator_next_steps"] = next
+	mustPrint(out)
+	if !cliGlobal.JSON {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Operator next steps:")
+		for i, s := range next {
+			fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, s)
+		}
+	}
+	if len(findings) > 0 {
+		os.Exit(1)
+	}
+	if v, ok := serveProbe["reachable"].(bool); ok && !v && !*skipServe {
+		os.Exit(1)
+	}
+}
+
+func probeServeHealth(cfg config.Config, skip bool) map[string]any {
+	bind := strings.TrimSpace(cfg.Bind.API)
+	out := map[string]any{
+		"skipped":     skip,
+		"bind_api":    bind,
+		"reachable":   nil,
+		"http_status": 0,
+		"error":       "",
+	}
+	if skip || bind == "" {
+		if bind == "" {
+			out["error"] = "bind.api not configured"
+		}
+		return out
+	}
+	host, port, err := net.SplitHostPort(bind)
+	if err != nil {
+		out["reachable"] = false
+		out["error"] = fmt.Sprintf("bind.api must be host:port: %v", err)
+		return out
+	}
+	probeHost := host
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		probeHost = "127.0.0.1"
+	}
+	url := "http://" + net.JoinHostPort(probeHost, port) + "/healthz"
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		out["reachable"] = false
+		out["error"] = err.Error()
+		return out
+	}
+	_ = resp.Body.Close()
+	out["http_status"] = resp.StatusCode
+	out["reachable"] = resp.StatusCode == http.StatusOK
+	if resp.StatusCode != http.StatusOK {
+		out["error"] = fmt.Sprintf("HTTP %d from %s", resp.StatusCode, url)
+	}
+	return out
+}
+
+func preflightNextSteps(cfg config.Config, path string, findings []map[string]string, serveProbe map[string]any) []string {
+	var steps []string
+	if len(findings) > 0 {
+		steps = append(steps, "Resolve preflight findings (see findings[] in JSON output), starting with critical severity.")
+	}
+	if skipped, _ := serveProbe["skipped"].(bool); !skipped {
+		if reachable, ok := serveProbe["reachable"].(bool); ok && !reachable {
+			steps = append(steps, "If you expect the API to be up: start `mel serve --config "+path+"` or free the bind port; if this is a cold host check, pass --skip-serve-check.")
+		}
+	}
+	if len(findings) == 0 {
+		if skipped, _ := serveProbe["skipped"].(bool); skipped || serveProbe["reachable"] == true {
+			steps = append(steps, "Start or continue with `mel serve --config "+path+"`, then use GET /readyz and `mel status --config "+path+"` for live subsystem truth.")
+		}
+	}
+	enabled := 0
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			enabled++
+		}
+	}
+	if enabled == 0 {
+		steps = append(steps, "No transports are enabled; MEL will idle until you enable serial, TCP, or MQTT in config.")
+	}
+	steps = append(steps, "Collect triage evidence with `mel support bundle --config "+path+"` before sharing diagnostics externally.")
+	return steps
 }
 
 func statusCmd(args []string) {
