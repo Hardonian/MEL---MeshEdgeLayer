@@ -64,6 +64,9 @@ type Server struct {
 	timeline                func(start, end string, limit int) ([]db.TimelineEvent, error)
 	inspectAction           func(actionID string) (map[string]any, error)
 	operationalState        func() (map[string]any, error)
+
+	// Topology: optional callback — true when at least one enabled transport is live or idle (ingest-capable).
+	topologyTransportLive func() bool
 }
 
 // SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
@@ -97,6 +100,11 @@ func (s *Server) SetTrustFuncs(
 	s.timeline = timeline
 	s.inspectAction = inspect
 	s.operationalState = opState
+}
+
+// SetTopologyTransportLive sets a callback used by GET /api/v1/topology for explicit transport connectivity in the intelligence bundle.
+func (s *Server) SetTopologyTransportLive(f func() bool) {
+	s.topologyTransportLive = f
 }
 
 func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
@@ -213,9 +221,12 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/topology/region/", s.requireMethod(s.regionHealthHandler, http.MethodGet, http.MethodHead))
 
 	// Topology model endpoints (Phase 1-8: canonical node/link/topology)
+	mux.HandleFunc("/api/v1/topology", s.requireMethod(s.topologyIntelligenceHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/nodes", s.requireMethod(s.topologyNodesHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/nodes/", s.requireMethod(s.topologyNodeDetailHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/links", s.requireMethod(s.topologyLinksHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/links/", s.requireMethod(s.topologyLinkDetailHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/topology/segments/", s.requireMethod(s.topologySegmentHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/analysis", s.requireMethod(s.topologyAnalysisHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/snapshots", s.requireMethod(s.topologySnapshotsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/sources", s.requireMethod(s.sourceTrustHandler, http.MethodGet, http.MethodHead))

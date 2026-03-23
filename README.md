@@ -149,6 +149,7 @@ graph TD
 2. **Verify Reachability**: Run `mel doctor` to ensure your serial devices and databases are writable.
 3. **Monitor Ingest**: Tail the audit logs with `./mel logs tail`.
 4. **Explore Nodes**: Visit the Web UI `/nodes` page to see the latest telemetry from across the mesh.
+5. **Topology**: Open `/topology` for an ingest-derived graph (and optional redacted map scatter when map reporting is enabled). Use `GET /api/v1/topology` or `mel inspect topology` for the same evidence model headlessly.
 5. **Audit Privacy**: Run `mel privacy audit` to check for unintended location leaks.
 
 ---

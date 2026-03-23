@@ -243,3 +243,18 @@ func DefaultStaleThresholds() StaleThresholds {
 		ObservationMaxAge: 1 * time.Hour,
 	}
 }
+
+// StaleThresholdsFromConfig maps operator config minutes to durations (falls back to defaults).
+func StaleThresholdsFromConfig(nodeStaleMin, linkStaleMin int) StaleThresholds {
+	if nodeStaleMin <= 0 {
+		nodeStaleMin = 30
+	}
+	if linkStaleMin <= 0 {
+		linkStaleMin = 30
+	}
+	return StaleThresholds{
+		NodeStaleDuration: time.Duration(nodeStaleMin) * time.Minute,
+		LinkStaleDuration: time.Duration(linkStaleMin) * time.Minute,
+		ObservationMaxAge: time.Duration(nodeStaleMin*2) * time.Minute,
+	}
+}

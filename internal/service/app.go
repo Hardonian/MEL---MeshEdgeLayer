@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/retention"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/topology"
 	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/web"
 )
@@ -52,6 +53,7 @@ type App struct {
 	kb                  *kernelBridge
 	lastTransportHealth map[string]transport.Health
 	healthMu            sync.Mutex
+	topo                *topology.Store
 }
 
 type ingestRequest struct {
@@ -81,8 +83,10 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	}
 	bus := events.New()
 	state := meshstate.New()
-	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}}
+	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}, topo: topology.NewStore(database)}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
+	app.Web.SetTopologyStore(app.topo)
+	app.Web.SetTopologyTransportLive(app.transportIngestLikely)
 	if strings.TrimSpace(app.ConfigPath) != "" {
 		app.Web.SetConfigPath(app.ConfigPath)
 	}
@@ -118,6 +122,20 @@ func New(cfg config.Config, debug bool) (*App, error) {
 }
 
 func (a *App) recommendations() []policy.Recommendation { return policy.Explain(a.Cfg) }
+func (a *App) transportIngestLikely() bool {
+	for _, t := range a.Transports {
+		tc := findTransport(a.Cfg, t.Name())
+		if !tc.Enabled {
+			continue
+		}
+		h := t.Health()
+		if h.State == transport.StateLive || h.State == transport.StateIdle {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) TransportHealth() []transport.Health {
 	out := make([]transport.Health, 0, len(a.Transports))
 	for _, t := range a.Transports {
@@ -286,6 +304,13 @@ func (a *App) startWorkers(ctx context.Context) {
 			defer a.wg.Done()
 			a.trustCleanupWorker(ctx)
 		}()
+		if a.Cfg.Topology.Enabled {
+			a.wg.Add(1)
+			go func() {
+				defer a.wg.Done()
+				a.topologyWorker(ctx)
+			}()
+		}
 	}
 
 	// Start kernel bridge workers (event bus adapter, federation, region health, etc.)
@@ -886,6 +911,12 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 	}
 	a.State.UpsertNode(meshstate.Node{Num: int64(env.Packet.From), ID: env.Packet.NodeID, LongName: env.Packet.LongName, ShortName: env.Packet.ShortName, LastSeen: rxTime, GatewayID: env.GatewayID})
 	a.State.IncMessages()
+	if a.topo != nil {
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		lat := meshtastic.RedactCoord(env.Packet.Lat)
+		lon := meshtastic.RedactCoord(env.Packet.Lon)
+		_ = a.topo.ApplyPacketEvidence(a.Cfg, t.Name(), cfgTransport.Type, int64(env.Packet.From), env.Packet.To, env.Packet.RelayNode, rxTime, env.GatewayID, float64(env.Packet.RXSNR), int64(env.Packet.RXRSSI), env.Packet.HopLimit, lat, lon, int64(env.Packet.Altitude))
+	}
 	t.MarkIngest(rxAt)
 	summary := strings.TrimSpace(env.Packet.PayloadText)
 	if summary == "" {

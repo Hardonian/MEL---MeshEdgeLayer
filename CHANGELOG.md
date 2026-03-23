@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Topology intelligence (ingest-derived graph, API, UI, CLI)
+
+- **Ingest:** On each new mesh packet, MEL records a source-attributed `node_observations` row and upserts `topology_links` from `relay_node` and unicast `to_node` (labeled in snapshot explanations as packet evidence, not RF proof).
+- **Service:** Topology store is wired into the web server; a background worker refreshes stale flags, recomputes scores, persists snapshots, and prunes observation/snapshot history per `topology` config.
+- **API:** `GET /api/v1/topology` intelligence bundle; `GET /api/v1/topology/links/{edge_id}` and `GET /api/v1/topology/segments/{cluster_id}` drilldowns; node detail responses now include scored factors and next actions.
+- **Web:** `/topology` page with SVG graph (dashed = non-observed), optional redacted coordinate scatter when `privacy.map_reporting_allowed` and positions exist.
+- **CLI:** `mel inspect topology [--refresh]` reads the local DB (optional on-demand refresh).
+
 ### Readiness API parity, diagnostics UI, support bundle doctor.json
 
 - **API:** `GET /api/v1/readyz` mirrors `GET /readyz` with a stable JSON contract (`api_version`, `status`, `reason_codes`, `components`, etc.). HTTP **503** when enabled transports are not ingesting or the status snapshot cannot be built; explicit **idle** (no enabled transports) returns **200**.

@@ -68,6 +68,28 @@ func (s *Store) GetNode(nodeNum int64) (Node, bool, error) {
 	return nodes[0], true, nil
 }
 
+// GetLink returns a link by edge_id.
+func (s *Store) GetLink(edgeID string) (Link, bool, error) {
+	if strings.TrimSpace(edgeID) == "" {
+		return Link{}, false, nil
+	}
+	rows, err := s.DB.QueryRows(fmt.Sprintf(`SELECT edge_id, src_node_num, dst_node_num, observed, directional,
+		COALESCE(transport_path,'') AS transport_path, first_observed_at, last_observed_at,
+		quality_score, reliability, intermittence_count, source_trust_level,
+		COALESCE(source_connector_id,'') AS source_connector_id,
+		stale, contradiction, COALESCE(contradiction_detail,'') AS contradiction_detail,
+		relay_dependent, COALESCE(quality_factors_json,'') AS quality_factors_json, observation_count
+		FROM topology_links WHERE edge_id='%s' LIMIT 1;`, db.EscString(edgeID)))
+	if err != nil {
+		return Link{}, false, err
+	}
+	if len(rows) == 0 {
+		return Link{}, false, nil
+	}
+	links := rowsToLinks(rows)
+	return links[0], true, nil
+}
+
 // ListLinks returns topology links, bounded by limit.
 func (s *Store) ListLinks(limit int) ([]Link, error) {
 	if limit <= 0 || limit > 10000 {
@@ -175,6 +197,17 @@ func (s *Store) RecordNodeScoreHistory(nodeNum int64, score float64, state Healt
 	now := time.Now().UTC().Format(time.RFC3339)
 	sql := fmt.Sprintf(`INSERT INTO node_score_history(node_num, health_score, health_state, factors_json, recorded_at) VALUES(%d,%f,'%s','%s','%s');`,
 		nodeNum, score, db.EscString(string(state)), db.EscString(factorsJSON), now)
+	return s.DB.Exec(sql)
+}
+
+// PruneSnapshots keeps only the newest limit rows by created_at.
+func (s *Store) PruneSnapshots(limit int) error {
+	if s == nil || s.DB == nil || limit <= 0 {
+		return nil
+	}
+	sql := fmt.Sprintf(`DELETE FROM topology_snapshots WHERE rowid NOT IN (
+  SELECT rowid FROM topology_snapshots ORDER BY created_at DESC LIMIT %d
+);`, limit)
 	return s.DB.Exec(sql)
 }
 
