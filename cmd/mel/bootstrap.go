@@ -7,6 +7,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/doctor"
 	"github.com/mel-project/mel/internal/upgrade"
 )
 
@@ -33,7 +34,7 @@ func bootstrapRun(args []string) {
 	if err != nil {
 		panic(err)
 	}
-	findings := validateConfigFile(*path, cfg)
+	findings := doctor.ValidateConfigFile(*path, cfg)
 	if *dry {
 		mustPrint(map[string]any{"status": "dry_run", "would_create": []string{cfg.Storage.DataDir, filepath.Dir(cfg.Storage.DatabasePath)}, "findings": findings})
 		if len(findings) > 0 {
@@ -70,7 +71,7 @@ func bootstrapValidate(args []string) {
 	if err != nil {
 		panic(err)
 	}
-	findings := validateConfigFile(*path, cfg)
+	findings := doctor.ValidateConfigFile(*path, cfg)
 	database, err := db.Open(cfg)
 	if err != nil {
 		findings = append(findings, map[string]string{"component": "db", "severity": "critical", "message": err.Error(), "guidance": "Fix storage paths and permissions; run mel bootstrap run when ready."})
