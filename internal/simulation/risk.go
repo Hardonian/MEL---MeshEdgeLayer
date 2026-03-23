@@ -500,7 +500,7 @@ func (rs *RiskScorer) evaluateHistoricalRisk(action control.ControlAction) RiskF
 	} else {
 		// Fetch last 24 hours of similar actions
 		start := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
-		records, err := rs.database.ControlActions(action.TargetTransport, action.ActionType, start, "", 50, 0)
+		records, err := rs.database.ControlActions(action.TargetTransport, action.ActionType, start, "", "", 50, 0)
 		if err != nil {
 			return RiskFactorDetail{
 				Category:    "historical_performance",

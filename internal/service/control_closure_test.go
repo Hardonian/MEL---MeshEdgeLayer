@@ -171,7 +171,7 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 	ftPrimary.SetFailureCount(3)
 	app.evaluateControl(phaseNow)
 	waitFor(t, 8*time.Second, func() bool {
-		rows, err := app.DB.ControlActions("mqtt-primary", control.ActionRestartTransport, "", "", 10, 0)
+		rows, err := app.DB.ControlActions("mqtt-primary", control.ActionRestartTransport, "", "", "", 10, 0)
 		return err == nil && len(rows) > 0 && rows[0].Result == control.ResultExecutedSuccessfully
 	})
 
@@ -201,12 +201,12 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 	}
 	app.evaluateControl(stormNow)
 	waitFor(t, 8*time.Second, func() bool {
-		rows, err := app.DB.ControlActions("mqtt-alt", control.ActionBackoffIncrease, "", "", 10, 0)
+		rows, err := app.DB.ControlActions("mqtt-alt", control.ActionBackoffIncrease, "", "", "", 10, 0)
 		return err == nil && len(rows) > 0 && rows[0].Result == control.ResultExecutedSuccessfully
 	})
 
 	// Phase 8: recovery window closes backoff safely.
-	backoffRows, err := app.DB.ControlActions("mqtt-alt", control.ActionBackoffIncrease, "", "", 10, 0)
+	backoffRows, err := app.DB.ControlActions("mqtt-alt", control.ActionBackoffIncrease, "", "", "", 10, 0)
 	if err != nil || len(backoffRows) == 0 {
 		t.Fatalf("expected executed backoff action, rows=%+v err=%v", backoffRows, err)
 	}

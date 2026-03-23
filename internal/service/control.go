@@ -101,11 +101,11 @@ func (a *App) controlExplanation() (map[string]any, error) {
 	}, nil
 }
 
-func (a *App) controlHistory(start, end, transportName string, limit, offset int) (map[string]any, error) {
+func (a *App) controlHistory(start, end, transportName, lifecycleState string, limit, offset int) (map[string]any, error) {
 	if a == nil || a.DB == nil {
 		return map[string]any{"actions": []db.ControlActionRecord{}, "decisions": []db.ControlDecisionRecord{}}, nil
 	}
-	actions, err := a.DB.ControlActions(transportName, "", start, end, limit, offset)
+	actions, err := a.DB.ControlActions(transportName, "", start, end, lifecycleState, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +222,10 @@ func (a *App) evaluateControl(now time.Time) {
 		execMode := a.resolveExecutionMode(action)
 		action.ExecutionMode = execMode
 		action.ProposedBy = "system"
+		action.SubmittedBy = "system"
+		if execMode == control.ExecutionModeApprovalRequired && a.Cfg.Control.RequireSeparateApprover {
+			action.RequiresSeparateApprover = true
+		}
 
 		if execMode == control.ExecutionModeApprovalRequired {
 			// Compute approval expiry
@@ -274,7 +278,7 @@ func (a *App) queueRecoveryActions(now time.Time) {
 	if a == nil || a.DB == nil {
 		return
 	}
-	rows, err := a.DB.ControlActions("", "", now.AddDate(0, 0, -1).UTC().Format(time.RFC3339), "", a.Cfg.Intelligence.Queries.MaxLimit, 0)
+	rows, err := a.DB.ControlActions("", "", now.AddDate(0, 0, -1).UTC().Format(time.RFC3339), "", "", a.Cfg.Intelligence.Queries.MaxLimit, 0)
 	if err != nil {
 		return
 	}
@@ -512,6 +516,7 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 		return
 	}
 	startedAt := time.Now().UTC().Format(time.RFC3339)
+	action.ExecutionStartedAt = startedAt
 	action.ExecutedAt = startedAt
 	action.LifecycleState = control.LifecycleRunning
 	if err := a.DB.UpsertControlAction(controlActionRecord(action)); err != nil {
@@ -647,41 +652,52 @@ func controlActionRecord(action control.ControlAction) db.ControlActionRecord {
 	if blastClass == "" {
 		blastClass = control.BlastRadiusUnknown
 	}
+	submittedBy := action.SubmittedBy
+	if submittedBy == "" {
+		submittedBy = proposedBy
+	}
 	return db.ControlActionRecord{
-		ID:                action.ID,
-		DecisionID:        action.DecisionID,
-		ActionType:        action.ActionType,
-		TargetTransport:   action.TargetTransport,
-		TargetSegment:     action.TargetSegment,
-		TargetNode:        action.TargetNode,
-		Reason:            action.Reason,
-		Confidence:        action.Confidence,
-		TriggerEvidence:   append([]string(nil), action.TriggerEvidence...),
-		EpisodeID:         action.EpisodeID,
-		CreatedAt:         action.CreatedAt,
-		ExecutedAt:        action.ExecutedAt,
-		CompletedAt:       action.CompletedAt,
-		Result:            action.Result,
-		Reversible:        action.Reversible,
-		ExpiresAt:         action.ExpiresAt,
-		OutcomeDetail:     action.OutcomeDetail,
-		Mode:              action.Mode,
-		PolicyRule:        action.PolicyRule,
-		LifecycleState:    action.LifecycleState,
-		AdvisoryOnly:      action.AdvisoryOnly,
-		DenialCode:        action.DenialCode,
-		ClosureState:      action.ClosureState,
-		Metadata:          action.Metadata,
-		ExecutionMode:     execMode,
-		ProposedBy:        proposedBy,
-		ApprovedBy:        action.ApprovedBy,
-		ApprovedAt:        action.ApprovedAt,
-		RejectedBy:        action.RejectedBy,
-		RejectedAt:        action.RejectedAt,
-		ApprovalNote:      action.ApprovalNote,
-		ApprovalExpiresAt: action.ApprovalExpiresAt,
-		BlastRadiusClass:  blastClass,
-		EvidenceBundleID:  action.EvidenceBundleID,
+		ID:                       action.ID,
+		DecisionID:               action.DecisionID,
+		ActionType:               action.ActionType,
+		TargetTransport:          action.TargetTransport,
+		TargetSegment:            action.TargetSegment,
+		TargetNode:               action.TargetNode,
+		Reason:                   action.Reason,
+		Confidence:               action.Confidence,
+		TriggerEvidence:          append([]string(nil), action.TriggerEvidence...),
+		EpisodeID:                action.EpisodeID,
+		CreatedAt:                action.CreatedAt,
+		ExecutedAt:               action.ExecutedAt,
+		CompletedAt:              action.CompletedAt,
+		Result:                   action.Result,
+		Reversible:               action.Reversible,
+		ExpiresAt:                action.ExpiresAt,
+		OutcomeDetail:            action.OutcomeDetail,
+		Mode:                     action.Mode,
+		PolicyRule:               action.PolicyRule,
+		LifecycleState:           action.LifecycleState,
+		AdvisoryOnly:             action.AdvisoryOnly,
+		DenialCode:               action.DenialCode,
+		ClosureState:             action.ClosureState,
+		Metadata:                 action.Metadata,
+		ExecutionMode:            execMode,
+		ProposedBy:               proposedBy,
+		ApprovedBy:               action.ApprovedBy,
+		ApprovedAt:               action.ApprovedAt,
+		RejectedBy:               action.RejectedBy,
+		RejectedAt:               action.RejectedAt,
+		ApprovalNote:             action.ApprovalNote,
+		ApprovalExpiresAt:        action.ApprovalExpiresAt,
+		BlastRadiusClass:         blastClass,
+		EvidenceBundleID:         action.EvidenceBundleID,
+		SubmittedBy:              submittedBy,
+		RequiresSeparateApprover: action.RequiresSeparateApprover,
+		IncidentID:               action.IncidentID,
+		ExecutionStartedAt:       action.ExecutionStartedAt,
+		SodBypass:                action.SodBypass,
+		SodBypassActor:           action.SodBypassActor,
+		SodBypassReason:          action.SodBypassReason,
 	}
 }
 

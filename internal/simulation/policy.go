@@ -676,7 +676,7 @@ func (g *PolicyPreviewGenerator) buildCooldownPreview(input PolicyPreviewInput, 
 	// Check if currently in cooldown
 	if input.Database != nil {
 		start := now.Add(-time.Duration(policy.CooldownPerTarget) * time.Second).UTC().Format(time.RFC3339)
-		rows, _ := input.Database.ControlActions(candidate.TargetTransport, "", start, "", 50, 0)
+		rows, _ := input.Database.ControlActions(candidate.TargetTransport, "", start, "", "", 50, 0)
 
 		for _, row := range rows {
 			if row.Result != control.ResultExecutedSuccessfully && row.Result != control.ResultExecutedNoop {
@@ -794,7 +794,7 @@ func (g *PolicyPreviewGenerator) checkConflicts(database *db.DB, policy control.
 	}
 
 	start := now.Add(-time.Duration(policy.ActionWindowSeconds) * time.Second).UTC().Format(time.RFC3339)
-	rows, _ := database.ControlActions(candidate.TargetTransport, "", start, "", policy.MaxActionsPerWindow+10, 0)
+	rows, _ := database.ControlActions(candidate.TargetTransport, "", start, "", "", policy.MaxActionsPerWindow+10, 0)
 
 	for _, action := range rows {
 		if action.TargetTransport != "" && action.TargetTransport != candidate.TargetTransport {
@@ -819,7 +819,7 @@ func (g *PolicyPreviewGenerator) checkCooldown(database *db.DB, policy control.C
 	rows, ok := historyCache[key]
 	if !ok {
 		start := now.Add(-time.Duration(policy.CooldownPerTarget) * time.Second).UTC().Format(time.RFC3339)
-		rows, _ = database.ControlActions(candidate.TargetTransport, "", start, "", 50, 0)
+		rows, _ = database.ControlActions(candidate.TargetTransport, "", start, "", "", 50, 0)
 	}
 
 	for _, row := range rows {
@@ -851,7 +851,7 @@ func (g *PolicyPreviewGenerator) checkBudget(database *db.DB, policy control.Con
 	}
 
 	start := now.Add(-time.Duration(policy.ActionWindowSeconds) * time.Second).UTC().Format(time.RFC3339)
-	rows, err := database.ControlActions("", "", start, "", policy.MaxActionsPerWindow+10, 0)
+	rows, err := database.ControlActions("", "", start, "", "", policy.MaxActionsPerWindow+10, 0)
 	if err != nil {
 		return false
 	}

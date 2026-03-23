@@ -92,10 +92,59 @@ func (a *App) IncidentHandoff(incidentID, fromActorID string, req models.Inciden
 	return nil
 }
 
-// IncidentByID returns a full incident row for API/CLI.
+// IncidentByID returns a full incident row for API/CLI, including canonical linked control actions.
 func (a *App) IncidentByID(id string) (models.Incident, bool, error) {
 	if a == nil || a.DB == nil {
 		return models.Incident{}, false, fmt.Errorf("service not available")
 	}
-	return a.DB.IncidentByID(strings.TrimSpace(id))
+	inc, ok, err := a.DB.IncidentByID(strings.TrimSpace(id))
+	if err != nil || !ok {
+		return inc, ok, err
+	}
+	linked, err := a.DB.ControlActionsByIncidentID(inc.ID, 100)
+	if err != nil {
+		return models.Incident{}, false, fmt.Errorf("could not load linked actions: %w", err)
+	}
+	if len(linked) > 0 {
+		inc.LinkedControlActions = make([]models.ActionRecord, 0, len(linked))
+		for _, r := range linked {
+			inc.LinkedControlActions = append(inc.LinkedControlActions, ActionRecordFromDB(r))
+		}
+	}
+	return inc, true, nil
+}
+
+// RecentIncidentsWithLinkedActions returns recent incidents with linked_control_actions populated from the canonical FK.
+func (a *App) RecentIncidentsWithLinkedActions(limit int) ([]models.Incident, error) {
+	if a == nil || a.DB == nil {
+		return nil, fmt.Errorf("service not available")
+	}
+	incs, err := a.DB.RecentIncidents(limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(incs) == 0 {
+		return incs, nil
+	}
+	ids := make([]string, 0, len(incs))
+	for _, inc := range incs {
+		ids = append(ids, inc.ID)
+	}
+	actions, err := a.DB.ControlActionsForIncidentIDs(ids, 500)
+	if err != nil {
+		return nil, err
+	}
+	byInc := make(map[string][]models.ActionRecord)
+	for _, r := range actions {
+		if strings.TrimSpace(r.IncidentID) == "" {
+			continue
+		}
+		byInc[r.IncidentID] = append(byInc[r.IncidentID], ActionRecordFromDB(r))
+	}
+	for i := range incs {
+		if linked, ok := byInc[incs[i].ID]; ok && len(linked) > 0 {
+			incs[i].LinkedControlActions = linked
+		}
+	}
+	return incs, nil
 }

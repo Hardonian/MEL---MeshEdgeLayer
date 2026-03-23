@@ -55,7 +55,7 @@ func TestApproveControlAction_DBReturnsErrorWhenWrongState(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.DB.ApproveControlAction("act-wrong", "op", ""); err == nil {
+	if err := a.DB.ApproveControlAction("act-wrong", "op", "", false, "", ""); err == nil {
 		t.Fatal("expected error approving non-pending action")
 	}
 }
