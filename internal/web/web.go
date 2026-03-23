@@ -28,8 +28,8 @@ import (
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/readiness"
 	"github.com/mel-project/mel/internal/security"
-	"github.com/mel-project/mel/internal/support"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/support"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -64,6 +64,8 @@ type Server struct {
 	timeline                func(start, end string, limit int) ([]db.TimelineEvent, error)
 	inspectAction           func(actionID string) (map[string]any, error)
 	operationalState        func() (map[string]any, error)
+	incidentHandoff         func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
+	incidentByID            func(id string) (models.Incident, bool, error)
 
 	// Topology: optional callback — true when at least one enabled transport is live or idle (ingest-capable).
 	topologyTransportLive func() bool
@@ -100,6 +102,15 @@ func (s *Server) SetTrustFuncs(
 	s.timeline = timeline
 	s.inspectAction = inspect
 	s.operationalState = opState
+}
+
+// SetIncidentCollaboration wires incident handoff and lookup for multi-operator coordination.
+func (s *Server) SetIncidentCollaboration(
+	handoff func(string, string, models.IncidentHandoffRequest) error,
+	byID func(string) (models.Incident, bool, error),
+) {
+	s.incidentHandoff = handoff
+	s.incidentByID = byID
 }
 
 // SetTopologyTransportLive sets a callback used by GET /api/v1/topology for explicit transport connectivity in the intelligence bundle.
@@ -174,9 +185,11 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
+	// Register static incident paths before /api/v1/incidents/ so they are not captured as incident IDs.
 	mux.HandleFunc("/api/v1/incidents/acknowledge", s.requireMethod(security.Require(security.CapAcknowledgeAlerts, s.acknowledgeIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.Require(security.CapEscalateAlerts, s.escalateIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/", s.requireMethod(s.incidentsPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
@@ -189,12 +202,14 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/metrics/internal", s.requireMethod(s.InternalMetricsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/trust", s.requireMethod(s.TrustHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))
 
 	// Trust / operability endpoints
 	mux.HandleFunc("/api/v1/control/operational-state", s.requireMethod(s.operationalStateHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions/", s.requireMethod(s.controlActionSubHandler, http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/actions/", s.requireMethod(s.controlActionSubHandler, http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/control/freeze", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeHandler), http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/control/freeze/", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeItemHandler), http.MethodDelete))
 	mux.HandleFunc("/api/v1/control/maintenance", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceHandler), http.MethodGet, http.MethodPost))
@@ -317,16 +332,16 @@ func (s *Server) writeReadinessResponse(w http.ResponseWriter, r *http.Request) 
 			"path":  r.URL.Path,
 		})
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-			"api_version":     "v1",
-			"ready":           false,
-			"status":          "not_ready",
-			"reason_codes":    []string{"SNAPSHOT_UNAVAILABLE"},
-			"summary":         "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
-			"checked_at":      now.Format(time.RFC3339),
-			"process_ready":   true,
-			"ingest_ready":    false,
-			"error_class":     "snapshot_unavailable",
-			"message":         "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"api_version":   "v1",
+			"ready":         false,
+			"status":        "not_ready",
+			"reason_codes":  []string{"SNAPSHOT_UNAVAILABLE"},
+			"summary":       "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"checked_at":    now.Format(time.RFC3339),
+			"process_ready": true,
+			"ingest_ready":  false,
+			"error_class":   "snapshot_unavailable",
+			"message":       "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
 			"operator_next_steps": []string{
 				"Inspect logs for database or migration errors.",
 				"Verify storage.database_path and permissions.",
@@ -818,19 +833,29 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 	actions := make([]models.ActionRecord, 0, len(dbActions))
 	for _, row := range dbActions {
 		actions = append(actions, models.ActionRecord{
-			ID:              row.ID,
-			TransportName:   row.TargetTransport,
-			ActionType:      row.ActionType,
-			LifecycleState:  row.LifecycleState,
-			Result:          row.Result,
-			Reason:          row.Reason,
-			OutcomeDetail:   row.OutcomeDetail,
-			CreatedAt:       row.CreatedAt,
-			ExecutedAt:      row.ExecutedAt,
-			CompletedAt:     row.CompletedAt,
-			ExpiresAt:       row.ExpiresAt,
-			TriggerEvidence: row.TriggerEvidence,
-			Details:         row.Metadata,
+			ID:                row.ID,
+			TransportName:     row.TargetTransport,
+			ActionType:        row.ActionType,
+			LifecycleState:    row.LifecycleState,
+			Result:            row.Result,
+			Reason:            row.Reason,
+			OutcomeDetail:     row.OutcomeDetail,
+			CreatedAt:         row.CreatedAt,
+			ExecutedAt:        row.ExecutedAt,
+			CompletedAt:       row.CompletedAt,
+			ExpiresAt:         row.ExpiresAt,
+			TriggerEvidence:   row.TriggerEvidence,
+			Details:           row.Metadata,
+			ExecutionMode:     row.ExecutionMode,
+			ProposedBy:        row.ProposedBy,
+			ApprovedBy:        row.ApprovedBy,
+			ApprovedAt:        row.ApprovedAt,
+			RejectedBy:        row.RejectedBy,
+			RejectedAt:        row.RejectedAt,
+			ApprovalNote:      row.ApprovalNote,
+			ApprovalExpiresAt: row.ApprovalExpiresAt,
+			BlastRadiusClass:  row.BlastRadiusClass,
+			EvidenceBundleID:  row.EvidenceBundleID,
 		})
 	}
 
@@ -867,19 +892,29 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	actions := make([]models.ActionRecord, 0, len(dbActions))
 	for _, row := range dbActions {
 		actions = append(actions, models.ActionRecord{
-			ID:              row.ID,
-			TransportName:   row.TargetTransport,
-			ActionType:      row.ActionType,
-			LifecycleState:  row.LifecycleState,
-			Result:          row.Result,
-			Reason:          row.Reason,
-			OutcomeDetail:   row.OutcomeDetail,
-			CreatedAt:       row.CreatedAt,
-			ExecutedAt:      row.ExecutedAt,
-			CompletedAt:     row.CompletedAt,
-			ExpiresAt:       row.ExpiresAt,
-			TriggerEvidence: row.TriggerEvidence,
-			Details:         row.Metadata,
+			ID:                row.ID,
+			TransportName:     row.TargetTransport,
+			ActionType:        row.ActionType,
+			LifecycleState:    row.LifecycleState,
+			Result:            row.Result,
+			Reason:            row.Reason,
+			OutcomeDetail:     row.OutcomeDetail,
+			CreatedAt:         row.CreatedAt,
+			ExecutedAt:        row.ExecutedAt,
+			CompletedAt:       row.CompletedAt,
+			ExpiresAt:         row.ExpiresAt,
+			TriggerEvidence:   row.TriggerEvidence,
+			Details:           row.Metadata,
+			ExecutionMode:     row.ExecutionMode,
+			ProposedBy:        row.ProposedBy,
+			ApprovedBy:        row.ApprovedBy,
+			ApprovedAt:        row.ApprovedAt,
+			RejectedBy:        row.RejectedBy,
+			RejectedAt:        row.RejectedAt,
+			ApprovalNote:      row.ApprovalNote,
+			ApprovalExpiresAt: row.ApprovalExpiresAt,
+			BlastRadiusClass:  row.BlastRadiusClass,
+			EvidenceBundleID:  row.EvidenceBundleID,
 		})
 	}
 
@@ -1145,6 +1180,84 @@ func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": rows})
+}
+
+func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
+	const prefix = "/api/v1/incidents/"
+	path := r.URL.Path
+	if !strings.HasPrefix(path, prefix) {
+		writeError(w, http.StatusNotFound, "not found", "")
+		return
+	}
+	rest := strings.TrimPrefix(path, prefix)
+	if rest == "" {
+		writeError(w, http.StatusBadRequest, "incident id required", "")
+		return
+	}
+	parts := strings.SplitN(rest, "/", 2)
+	id := parts[0]
+	sub := ""
+	if len(parts) > 1 {
+		sub = parts[1]
+	}
+	switch {
+	case sub == "" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		security.Require(security.CapReadStatus, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentDetailHandler(w, r, id)
+		})(w, r)
+	case sub == "handoff" && r.Method == http.MethodPost:
+		security.Require(security.CapAcknowledgeAlerts, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentHandoffHandler(w, r, id)
+		})(w, r)
+	default:
+		writeError(w, http.StatusNotFound, "unknown incident path", "")
+	}
+}
+
+func (s *Server) incidentDetailHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
+	if s.incidentByID == nil {
+		writeError(w, http.StatusServiceUnavailable, "incident detail not available", "")
+		return
+	}
+	inc, ok, err := s.incidentByID(incidentID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load incident", err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "incident not found", "")
+		return
+	}
+	writeJSON(w, http.StatusOK, inc)
+}
+
+func (s *Server) incidentHandoffHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if s.incidentHandoff == nil {
+		writeError(w, http.StatusServiceUnavailable, "handoff not available", "")
+		return
+	}
+	var req models.IncidentHandoffRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	from := s.actorFromTrustContext(r)
+	if err := s.incidentHandoff(incidentID, from, req); err != nil {
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "required") {
+			code = http.StatusBadRequest
+		}
+		writeError(w, code, "could not record handoff", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":      "handed_off",
+		"incident_id": incidentID,
+		"to":          strings.TrimSpace(req.ToOperatorID),
+		"from":        from,
+	})
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
@@ -1486,14 +1599,15 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 						DisplayName: "API key operator",
 						Role:        "admin",
 						Capabilities: map[security.Capability]bool{
-							security.CapReadStatus:        true,
-							security.CapAcknowledgeAlerts: true,
-							security.CapEscalateAlerts:    true,
-							security.CapSuppressAlerts:    true,
-							security.CapExportBundle:      true,
-							security.CapExecuteAction:     true,
-							security.CapInspectConfig:     true,
-							security.CapAdminSystem:       true,
+							security.CapReadStatus:           true,
+							security.CapAcknowledgeAlerts:    true,
+							security.CapEscalateAlerts:       true,
+							security.CapSuppressAlerts:       true,
+							security.CapExportBundle:         true,
+							security.CapExecuteAction:        true,
+							security.CapApproveControlAction: true,
+							security.CapInspectConfig:        true,
+							security.CapAdminSystem:          true,
 						},
 					}
 					next.ServeHTTP(w, r.WithContext(security.WithIdentity(r.Context(), id)))

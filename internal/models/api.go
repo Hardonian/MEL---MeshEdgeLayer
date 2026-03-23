@@ -44,6 +44,14 @@ type Incident struct {
 	UpdatedAt    string         `json:"updated_at,omitempty"`
 	ResolvedAt   string         `json:"resolved_at,omitempty"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
+
+	// Collaboration / handoff (durable; migration 0020)
+	OwnerActorID   string           `json:"owner_actor_id,omitempty"`
+	HandoffSummary string           `json:"handoff_summary,omitempty"`
+	PendingActions []string         `json:"pending_actions,omitempty"`
+	RecentActions  []string         `json:"recent_actions,omitempty"`
+	LinkedEvidence []map[string]any `json:"linked_evidence,omitempty"`
+	Risks          []string         `json:"risks,omitempty"`
 }
 
 // SupportManifest defines the inventory of a support bundle
@@ -71,6 +79,18 @@ type ActionRecord struct {
 	ExpiresAt       string         `json:"expires_at,omitempty"`
 	TriggerEvidence []string       `json:"trigger_evidence,omitempty"`
 	Details         map[string]any `json:"details,omitempty"`
+
+	// Trust / provenance (control plane)
+	ExecutionMode     string `json:"execution_mode,omitempty"`
+	ProposedBy        string `json:"proposed_by,omitempty"`
+	ApprovedBy        string `json:"approved_by,omitempty"`
+	ApprovedAt        string `json:"approved_at,omitempty"`
+	RejectedBy        string `json:"rejected_by,omitempty"`
+	RejectedAt        string `json:"rejected_at,omitempty"`
+	ApprovalNote      string `json:"approval_note,omitempty"`
+	ApprovalExpiresAt string `json:"approval_expires_at,omitempty"`
+	BlastRadiusClass  string `json:"blast_radius_class,omitempty"`
+	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
 }
 
 // DecisionRecord represents a control decision in history
@@ -128,6 +148,16 @@ type PriorityItem struct {
 	IsActionable      bool           `json:"is_actionable"`
 	BlocksRecovery    bool           `json:"blocks_recovery"`
 	Metadata          map[string]any `json:"metadata,omitempty"`
+}
+
+// IncidentHandoffRequest is the body for POST /api/v1/incidents/{id}/handoff.
+type IncidentHandoffRequest struct {
+	ToOperatorID   string           `json:"to_operator_id"`
+	HandoffSummary string           `json:"handoff_summary"`
+	PendingActions []string         `json:"pending_actions,omitempty"`
+	RecentActions  []string         `json:"recent_actions,omitempty"`
+	LinkedEvidence []map[string]any `json:"linked_evidence,omitempty"`
+	Risks          []string         `json:"risks,omitempty"`
 }
 
 // RecoveryStep represents a single step in a recovery sequence for the API

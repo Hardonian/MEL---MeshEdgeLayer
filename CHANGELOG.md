@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Multi-operator trust: control approvals, action aliases, incident handoff
+
+- **Execution guard:** `approval_required` control actions are refused at execution time if they are still in `pending_approval` (closes queue-injection / recovery bypass).
+- **DB contract:** `ApproveControlAction` / `RejectControlAction` return an error when no row transitions (no silent “success” on wrong lifecycle).
+- **HTTP attribution:** Trust endpoints use `security.Identity` for durable actor ids; `X-Operator-ID` is honored only when `auth.enabled` is true (prevents spoofing under the default local-unauthenticated admin identity).
+- **Capabilities:** New `approve_control_action`; approve/reject/inspect (POST/GET) and operator-note POST require capabilities consistent with other mutating control APIs.
+- **API aliases:** `GET /api/v1/actions` and `/api/v1/actions/{id}/inspect|approve|reject` mirror `/api/v1/control/actions/...`.
+- **Incidents:** Migration `0020_incident_handoff` adds owner, handoff summary, pending/recent action id lists, linked evidence, and risks; `POST /api/v1/incidents/{id}/handoff` persists handoff + RBAC audit + timeline; `GET /api/v1/incidents/{id}` returns the full row.
+- **CLI:** `mel action list|pending|inspect|approve|reject` uses `App.ApproveAction` / `RejectAction` / `InspectAction` (audit + timeline + queue); `mel incident inspect|handoff`.
+- **UI:** Control page shows pending approvals from operational state and richer action attribution when the API returns trust fields.
+
 ### Topology intelligence (ingest-derived graph, API, UI, CLI)
 
 - **Ingest:** On each new mesh packet, MEL records a source-attributed `node_observations` row and upserts `topology_links` from `relay_node` and unicast `to_node` (labeled in snapshot explanations as packet evidence, not RF proof).

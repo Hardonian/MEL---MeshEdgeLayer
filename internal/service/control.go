@@ -424,9 +424,50 @@ func (a *App) seenControlAction(id string) (db.ControlActionRecord, bool) {
 	return row, ok
 }
 
+// ProcessNextQueuedControlAction runs one action from the control queue if one is waiting.
+// Used by headless CLI after ApproveAction so approvals take effect without a long-running serve process.
+func (a *App) ProcessNextQueuedControlAction(ctx context.Context) bool {
+	if a == nil {
+		return false
+	}
+	select {
+	case action := <-a.controlQueue:
+		a.executeControlAction(ctx, action)
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *App) executeControlAction(ctx context.Context, action control.ControlAction) {
 	if a == nil || a.DB == nil {
 		return
+	}
+
+	// Approval-required actions must never execute until explicitly approved:
+	// lifecycle must be pending (post-approve) or running (re-entrant), never pending_approval.
+	if action.ExecutionMode == control.ExecutionModeApprovalRequired {
+		switch action.LifecycleState {
+		case control.LifecyclePendingApproval:
+			now := time.Now().UTC().Format(time.RFC3339)
+			action.ExecutedAt = now
+			action.CompletedAt = now
+			action.LifecycleState = control.LifecycleCompleted
+			action.Result = control.ResultDeniedByPolicy
+			action.DenialCode = control.DenialAttributionWeak
+			action.ClosureState = control.ClosureSuperseded
+			action.OutcomeDetail = "execution blocked: action requires operator approval before execution (not approved)"
+			_ = a.DB.UpsertControlAction(controlActionRecord(action))
+			a.Log.Warn("control_action_blocked_unapproved", "refused execution of approval_required action without approval", map[string]any{
+				"action_id": action.ID,
+			})
+			return
+		case control.LifecyclePending, control.LifecycleRunning:
+			// allowed
+		default:
+			// Terminal or unexpected: do not execute actuators
+			return
+		}
 	}
 
 	// Re-check freeze and maintenance window at execution time
