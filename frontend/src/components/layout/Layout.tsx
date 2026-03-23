@@ -13,6 +13,7 @@ import {
   X,
   HelpCircle,
   Activity,
+  GitBranch,
 } from 'lucide-react'
 
 interface NavItem {
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Status', href: '/status', icon: Activity },
   { label: 'Nodes', href: '/nodes', icon: Radio },
+  { label: 'Topology', href: '/topology', icon: GitBranch },
   { label: 'Messages', href: '/messages', icon: MessageSquare },
   { label: 'Dead Letters', href: '/dead-letters', icon: Inbox },
   { label: 'Events', href: '/events', icon: FileText },
