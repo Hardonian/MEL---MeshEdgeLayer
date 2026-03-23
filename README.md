@@ -46,6 +46,13 @@ Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it on
 
 Support bundles may include topology and message samples; review before sharing.
 
+### Multi-operator control and incidents
+
+- **Sensitive actions** can be held for approval via `control.require_approval_for_action_types` / `control.require_approval_for_high_blast_radius` (see `docs/architecture/control-plane.md`). They stay in `pending_approval` until approved; execution is blocked if they reach the executor without approval.
+- **API:** `POST /api/v1/actions/{id}/approve` and `/reject` (same paths under `/api/v1/control/actions/`) require a caller with the `approve_control_action` capability (admin / API key today). With `auth.enabled`, set `X-Operator-ID` to record a human-readable operator id in the audit trail.
+- **CLI:** Prefer `mel action approve|reject` (full service path: RBAC `audit_log`, timeline, queue) over `mel control approve|reject` (direct SQL only; legacy / emergency use).
+- **Handoff:** `POST /api/v1/incidents/{id}/handoff` and `mel incident handoff` store owner, summary, pending action ids, and risks on the incident for the next operator.
+
 ---
 
 ## Quickstart (Under 5 Minutes)

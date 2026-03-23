@@ -1,4 +1,4 @@
-import { useControlStatus, useControlHistory } from '@/hooks/useApi'
+import { useControlStatus, useControlHistory, useOperationalState } from '@/hooks/useApi'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loading } from '@/components/ui/StateViews'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
@@ -20,6 +20,11 @@ interface ControlAction {
   created_at?: string;
   outcome_detail?: string;
   advisory_only?: boolean;
+  lifecycle_state?: string;
+  execution_mode?: string;
+  proposed_by?: string;
+  approved_by?: string;
+  evidence_bundle_id?: string;
 }
 
 interface RealityMatrixItem {
@@ -35,18 +40,19 @@ interface RealityMatrixItem {
 export function Control() {
   const { data: status, loading: statusLoading, error: statusError } = useControlStatus()
   const { data: history, loading: historyLoading, error: historyError } = useControlHistory()
+  const { data: opState, loading: opLoading, error: opError } = useOperationalState()
 
-  if ((statusLoading && !status) || (historyLoading && !history)) {
+  if ((statusLoading && !status) || (historyLoading && !history) || (opLoading && !opState)) {
     return <Loading message="Syncing with control plane..." />
   }
 
-  if (statusError || historyError) {
+  if (statusError || historyError || opError) {
     return (
       <div className="p-8">
         <AlertCard
           variant="critical"
           title="Control Plane Desync"
-          description={statusError || historyError || 'Unexpected error communicating with control plane.'}
+          description={statusError || historyError || opError || 'Unexpected error communicating with control plane.'}
         />
       </div>
     )
@@ -54,6 +60,7 @@ export function Control() {
 
   const actions: ControlAction[] = Array.isArray(history?.actions) ? history.actions : []
   const realityMatrix: RealityMatrixItem[] = Array.isArray(status?.reality_matrix) ? status.reality_matrix : []
+  const pendingApprovals: ControlAction[] = Array.isArray(opState?.pending_approvals) ? opState.pending_approvals : []
 
   return (
     <div className="space-y-6 pb-12">
@@ -122,6 +129,40 @@ export function Control() {
           </CardContent>
         </Card>
       </div>
+
+      {pendingApprovals.length > 0 && (
+        <Card className="border-warning/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-warning" />
+              Pending approvals
+            </CardTitle>
+            <CardDescription>
+              These actions require an operator approval before execution. Use{' '}
+              <code className="text-xs bg-muted px-1 rounded">POST /api/v1/actions/&#123;id&#125;/approve</code>
+              {' '}or <code className="text-xs bg-muted px-1 rounded">mel action approve</code> with the same config as the running daemon.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingApprovals.map((pa) => (
+              <div key={pa.id} className="rounded-lg border border-border/60 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="font-mono text-xs font-semibold">{pa.action_type || 'action'}</span>
+                  <code className="text-[10px] px-1.5 py-0.5 bg-muted rounded">{pa.id}</code>
+                  <Badge variant="warning" className="text-[10px]">awaiting_review</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <div><span className="text-foreground font-medium">Proposed by:</span> {pa.proposed_by || 'system'}</div>
+                  <div><span className="text-foreground font-medium">Transport:</span> {pa.target_transport || pa.transport_name || '—'}</div>
+                  {pa.evidence_bundle_id ? (
+                    <div><span className="text-foreground font-medium">Evidence bundle:</span> {pa.evidence_bundle_id}</div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {realityMatrix.length > 0 && (
         <Card>
@@ -193,7 +234,11 @@ export function Control() {
                 const isExecuted = action.result === 'executed_successfully'
                 const isBlocked = action.result === 'blocked' || action.result === 'denied' || action.result === 'denied_by_policy' || action.result === 'denied_by_cooldown'
                 const isFailed = action.result === 'failed' || action.result === 'error' || action.result === 'failed_terminal'
-                const isPending = action.result === 'requested' || action.result === 'pending'
+                const isPending =
+                  action.result === 'requested' ||
+                  action.result === 'pending' ||
+                  action.result === 'pending_approval' ||
+                  action.lifecycle_state === 'pending_approval'
                 
                 let icon = <Send className="h-4 w-4 text-muted-foreground" />
                 let badgeVariant: 'success' | 'critical' | 'warning' | 'default' = 'default'
@@ -229,6 +274,9 @@ export function Control() {
                         {action.advisory_only && (
                           <Badge variant="outline" className="text-[10px] h-4 font-normal">Advisory</Badge>
                         )}
+                        {action.execution_mode === 'approval_required' && (
+                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-warning/40">approval_required</Badge>
+                        )}
                       </div>
                       <Badge variant={badgeVariant} className="capitalize text-[10px]">{badgeText}</Badge>
                     </div>
@@ -243,6 +291,15 @@ export function Control() {
                           <span className="font-medium mr-1 text-foreground">Time:</span>
                           {formatOperatorTime(action.created_at)}
                         </div>
+                        {(action.proposed_by || action.approved_by) && (
+                          <div className="md:col-span-2">
+                            <span className="font-medium mr-1 text-foreground">Attribution:</span>
+                            <span className="text-muted-foreground">
+                              proposed {action.proposed_by || '—'}
+                              {action.approved_by ? ` · approved ${action.approved_by}` : ''}
+                            </span>
+                          </div>
+                        )}
                         <div className="md:col-span-2 lg:col-span-1">
                           <span className="font-medium mr-1 text-foreground">Detail:</span>
                           <span className="italic">{action.outcome_detail || 'No outcome detail reported'}</span>

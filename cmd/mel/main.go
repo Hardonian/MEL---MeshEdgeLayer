@@ -23,6 +23,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/doctor"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
@@ -89,6 +90,10 @@ func main() {
 		policyCmd(rest)
 	case "control":
 		controlCmd(rest)
+	case "action":
+		actionCmd(rest)
+	case "incident":
+		incidentCmd(rest)
 	case "timeline":
 		timelineCmd(rest)
 	case "freeze":
@@ -195,6 +200,9 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   control pending --config <path>
   control inspect <action-id> --config <path>
   control operational-state --config <path>
+  action list|pending|inspect|approve|reject --config <path>  (trust-aligned control actions; approve/reject use full service path)
+  incident inspect <id> --config <path>
+  incident handoff <id> --to <operator> --summary "..." --config <path> [--pending-actions id1,id2] [--recent-actions ...] [--risks ...]
   freeze create --config <path> --reason "..." [--scope-type global|transport|action_type] [--scope-value <name>] [--expires-at <RFC3339>]
   freeze list --config <path>
   freeze clear <freeze-id> --config <path>
@@ -1143,6 +1151,181 @@ func controlCmd(args []string) {
 		mustPrint(state)
 	default:
 		panic("usage: mel control status|history|pending|approve|reject|inspect|operational-state --config <path>")
+	}
+}
+
+func openServiceApp(cfg config.Config) *service.App {
+	app, err := service.New(cfg, false)
+	if err != nil {
+		panic(err)
+	}
+	return app
+}
+
+func actionCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel action list|pending|inspect|approve|reject --config <path>")
+	}
+	switch args[0] {
+	case "list":
+		f := fs("action-list")
+		path := f.String("config", configFlagDefault(), "config")
+		transportName := f.String("transport", "", "filter by transport")
+		start := f.String("start", "", "start time RFC3339")
+		end := f.String("end", "", "end time RFC3339")
+		limit := f.Int("limit", 50, "max rows")
+		offset := f.Int("offset", 0, "offset")
+		_ = f.Parse(args[1:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		actions, err := d.ControlActions(*transportName, "", *start, *end, *limit, *offset)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"actions": actions, "transport": *transportName, "start": *start, "end": *end, "pagination": map[string]any{"limit": *limit, "offset": *offset}})
+	case "pending":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		pending, err := d.PendingApprovalActions(100)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"pending_approval": pending, "count": len(pending)})
+	case "inspect":
+		if len(args) < 2 {
+			panic("usage: mel action inspect <action-id> --config <path>")
+		}
+		actionID := args[1]
+		cfg, _ := loadCfg(args[2:])
+		app := openServiceApp(cfg)
+		out, err := app.InspectAction(actionID)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(out)
+	case "approve":
+		if len(args) < 2 {
+			panic("usage: mel action approve <action-id> --config <path> [--note '...'] [--actor id]")
+		}
+		actionID := args[1]
+		f := fs("action-approve")
+		path := f.String("config", configFlagDefault(), "config")
+		note := f.String("note", "", "approval note")
+		actor := f.String("actor", "cli-operator", "operator identity (recorded in audit trail)")
+		_ = f.Parse(args[2:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		if err := app.ApproveAction(actionID, *actor, *note); err != nil {
+			panic(err)
+		}
+		did := app.ProcessNextQueuedControlAction(context.Background())
+		mustPrint(map[string]any{"status": "approved", "action_id": actionID, "actor": *actor, "processed_queue": did})
+	case "reject":
+		if len(args) < 2 {
+			panic("usage: mel action reject <action-id> --config <path> [--note '...'] [--actor id]")
+		}
+		actionID := args[1]
+		f := fs("action-reject")
+		path := f.String("config", configFlagDefault(), "config")
+		note := f.String("note", "", "rejection reason")
+		actor := f.String("actor", "cli-operator", "operator identity (recorded in audit trail)")
+		_ = f.Parse(args[2:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		if err := app.RejectAction(actionID, *actor, *note); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "rejected", "action_id": actionID, "actor": *actor})
+	default:
+		panic("usage: mel action list|pending|inspect|approve|reject --config <path>")
+	}
+}
+
+func incidentCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel incident inspect <id>|handoff <id> --config <path> ...")
+	}
+	switch args[0] {
+	case "inspect":
+		if len(args) < 2 {
+			panic("usage: mel incident inspect <id> --config <path>")
+		}
+		id := args[1]
+		cfg, _ := loadCfg(args[2:])
+		app := openServiceApp(cfg)
+		inc, ok, err := app.IncidentByID(id)
+		if err != nil {
+			panic(err)
+		}
+		if !ok {
+			panic("incident not found: " + id)
+		}
+		mustPrint(inc)
+	case "handoff":
+		if len(args) < 2 {
+			panic("usage: mel incident handoff <id> --to <operator> --summary \"...\" --config <path>")
+		}
+		id := args[1]
+		f := fs("incident-handoff")
+		path := f.String("config", configFlagDefault(), "config")
+		to := f.String("to", "", "assignee operator id (required)")
+		summary := f.String("summary", "", "handoff summary for the next operator (required)")
+		from := f.String("from", "cli-operator", "handing-off operator identity")
+		pending := f.String("pending-actions", "", "comma-separated control action ids")
+		recent := f.String("recent-actions", "", "comma-separated control action ids")
+		risks := f.String("risks", "", "comma-separated risk notes")
+		_ = f.Parse(args[2:])
+		if strings.TrimSpace(*to) == "" || strings.TrimSpace(*summary) == "" {
+			panic("--to and --summary are required")
+		}
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		req := models.IncidentHandoffRequest{
+			ToOperatorID:   strings.TrimSpace(*to),
+			HandoffSummary: strings.TrimSpace(*summary),
+		}
+		if strings.TrimSpace(*pending) != "" {
+			for _, p := range strings.Split(*pending, ",") {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					req.PendingActions = append(req.PendingActions, p)
+				}
+			}
+		}
+		if strings.TrimSpace(*recent) != "" {
+			for _, p := range strings.Split(*recent, ",") {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					req.RecentActions = append(req.RecentActions, p)
+				}
+			}
+		}
+		if strings.TrimSpace(*risks) != "" {
+			for _, p := range strings.Split(*risks, ",") {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					req.Risks = append(req.Risks, p)
+				}
+			}
+		}
+		if err := app.IncidentHandoff(id, strings.TrimSpace(*from), req); err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "handed_off", "incident_id": id, "to": *to, "from": *from})
+	default:
+		panic("usage: mel incident inspect <id>|handoff <id> --config <path> ...")
 	}
 }
 

@@ -16,6 +16,18 @@ MEL supports three operational modes for the Control Plane:
 
 ---
 
+## Approval gate (multi-operator)
+
+Some actions are configured to require **explicit operator approval** before they may run (`control.require_approval_for_action_types`, `control.require_approval_for_high_blast_radius`). Those actions are persisted in `pending_approval`, capture an **evidence bundle** at proposal time, and transition to `pending` only after `ApproveAction` succeeds.
+
+**Enforcement:** the executor refuses to run any action whose `execution_mode` is `approval_required` while `lifecycle_state` is still `pending_approval` (even if a stale copy were injected into the queue).
+
+**HTTP:** `POST /api/v1/actions/{id}/approve` and `.../reject` require the `approve_control_action` capability. Actor attribution uses the authenticated `security.Identity`; when `auth.enabled` is true you may also send `X-Operator-ID` to record a human-readable operator label in durable audit rows.
+
+**CLI:** use `mel action approve|reject` for the full service path (RBAC audit + timeline + queue). `mel control approve|reject` updates SQLite only and should be treated as a break-glass / offline path.
+
+---
+
 ## The Reality Matrix
 
 Not all actions are created equal. MEL maintains an internal "Reality Matrix" that defines the capabilities and safety profile of every possible action.
