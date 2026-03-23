@@ -181,7 +181,7 @@ Look for these key log lines:
 
 ## Minute 8-10: Verify Operation
 
-### Check health endpoint
+### Check health endpoint (liveness only)
 
 ```bash
 curl http://127.0.0.1:8080/healthz
@@ -190,20 +190,21 @@ curl http://127.0.0.1:8080/healthz
 **Expected:**
 
 ```json
-{"status":"healthy","node":"mel-7f3a9b2e"}
+{"ok":true}
 ```
 
-### Check ready endpoint
+This proves the HTTP process responds — **not** MQTT, serial, or ingest.
+
+### Check readiness endpoint
 
 ```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/readyz
 curl http://127.0.0.1:8080/readyz
+# Same semantics as:
+curl http://127.0.0.1:8080/api/v1/readyz
 ```
 
-**Expected:**
-
-```json
-{"status":"ready","checks":{"storage":true,"api":true}}
-```
+**Expected:** HTTP **200** when ready (idle with no enabled transports, or at least one enabled transport **ingesting**); HTTP **503** when not ready or snapshot assembly failed. Body includes `ready`, `status`, `reason_codes`, `ingest_ready`, and `transports` evidence. Use `GET /api/v1/status` for full transport truth; use `mel doctor` for host-level checks.
 
 ### Check CLI status
 

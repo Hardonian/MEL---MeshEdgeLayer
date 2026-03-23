@@ -35,6 +35,17 @@ Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it on
 - **Intelligence Layer**: Deep packet inspection that classifies traffic into `text`, `position`, `node_info`, and `telemetry` with raw fallbacks.
 - **Privacy by Design**: Built-in redaction, privacy audits, and local-only position storage by default.
 
+### Health and readiness (operator cheat sheet)
+
+| Check | Use when |
+|-------|-----------|
+| `GET /healthz` | Load balancer **liveness** — process responds only. |
+| `GET /readyz` or `GET /api/v1/readyz` | **Readiness** — snapshot + ingest contract (503 when not ready). |
+| `GET /api/v1/status` | Full **transport/system** truth. |
+| `mel doctor` / `mel preflight` | **Host** checks (DB, paths, serial/TCP); preflight optionally probes `/healthz`. |
+
+Support bundles may include topology and message samples; review before sharing.
+
 ---
 
 ## Quickstart (Under 5 Minutes)

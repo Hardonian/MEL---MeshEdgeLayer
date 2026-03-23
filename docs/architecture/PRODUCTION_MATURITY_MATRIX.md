@@ -132,12 +132,10 @@ This document provides a ruthlessly honest assessment of MEL's production readin
 **What breaks if weak:** Traffic routed to unhealthy instances; false-positive failures.
 
 **Current state assessment:**
-- `/healthz` endpoint ([`internal/web/web.go`](internal/web/web.go:66)) returns HTTP 200 if process is running
-- `/readyz` endpoint ([`internal/web/web.go`](internal/web/web.go:67)) returns HTTP 200 if process is running
-- Status endpoint ([`internal/web/web.go`](internal/web/web.go:69)) provides detailed health
-- **Gap:** `/readyz` does not check database connectivity
-- **Gap:** No degraded state (binary healthy/unhealthy only)
-- **Gap:** No readiness gate for transport initialization
+- `/healthz` returns HTTP 200 with `{"ok":true}` for **process liveness only** ([`internal/web/web.go`](internal/web/web.go)).
+- `/readyz` and `/api/v1/readyz` share one handler: HTTP **200** when a status snapshot is built and either no transports are enabled (explicit idle) or at least one enabled transport is **ingesting**; HTTP **503** when the snapshot fails or enabled transports are not ingesting ([`internal/web/web.go`](internal/web/web.go)).
+- `GET /api/v1/status` remains the detailed transport/system view.
+- **Note:** Readiness depends on assembling the same SQLite-backed snapshot as status; a 503 with `error_class=snapshot_unavailable` indicates evidence could not be assembled (often DB/migrations).
 
 ### diagnostics
 **Classification:** DONE_REAL
