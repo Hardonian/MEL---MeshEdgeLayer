@@ -10,8 +10,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/mel-project/mel/internal/security"
 )
 
 type Config struct {
@@ -32,6 +35,14 @@ type Config struct {
 	StrictMode   bool               `json:"strict_mode"`
 	// OperatorAPIKeys loaded from env (Auth.APIKeysEnv); never persisted in JSON.
 	OperatorAPIKeys []string `json:"-"`
+	// OperatorAPIKeyEntries merges auth.operator_keys from JSON with env keys (env-only keys get full admin caps).
+	OperatorAPIKeyEntries []OperatorAPIKeyEntry `json:"-"`
+}
+
+// OperatorAPIKeyEntry is one X-API-Key credential and its enforced capability set.
+type OperatorAPIKeyEntry struct {
+	Key          string
+	Capabilities map[security.Capability]bool
 }
 
 // TopologyConfig controls the canonical topology model behavior.
@@ -69,6 +80,16 @@ type AuthConfig struct {
 	// APIKeysEnv names an environment variable holding comma-separated operator API keys (X-API-Key).
 	// When auth.enabled and keys are present, HTTP API requires X-API-Key or valid Basic auth.
 	APIKeysEnv string `json:"api_keys_env"`
+	// OperatorKeys defines API keys with explicit capabilities. When non-empty, these keys are used
+	// for X-API-Key auth with per-key grants; env-only keys (MEL_AUTH_API_KEYS / api_keys_env) still
+	// merge in as full-admin break-glass credentials.
+	OperatorKeys []OperatorKeyConfig `json:"operator_keys"`
+}
+
+// OperatorKeyConfig is a single X-API-Key credential with an explicit capability list.
+type OperatorKeyConfig struct {
+	Key          string   `json:"key"`
+	Capabilities []string `json:"capabilities"`
 }
 
 type StorageConfig struct {
@@ -397,6 +418,9 @@ func Validate(cfg Config) error {
 	if cfg.Auth.Enabled && len(cfg.Auth.SessionSecret) < 16 {
 		errs = appendErr(errs, "auth.session_secret must be at least 16 chars when auth.enabled")
 	}
+	if cfg.Auth.Enabled {
+		errs = append(errs, validateOperatorKeys(cfg.Auth)...)
+	}
 	if cfg.Bind.AllowRemote && !cfg.Auth.Enabled && !cfg.Auth.AllowInsecureRemote {
 		errs = appendErr(errs, "remote bind requires auth.enabled unless auth.allow_insecure_remote=true")
 	}
@@ -494,6 +518,39 @@ func Validate(cfg Config) error {
 }
 
 func appendErr(errs []string, msg string) []string { return append(errs, msg) }
+
+func validateOperatorKeys(auth AuthConfig) []string {
+	var errs []string
+	if len(auth.OperatorKeys) == 0 {
+		return errs
+	}
+	seen := map[string]struct{}{}
+	for i, okc := range auth.OperatorKeys {
+		prefix := fmt.Sprintf("auth.operator_keys[%d]", i)
+		k := strings.TrimSpace(okc.Key)
+		if k == "" {
+			errs = appendErr(errs, prefix+".key is required")
+			continue
+		}
+		if _, dup := seen[k]; dup {
+			errs = appendErr(errs, prefix+": duplicate key material; each operator_keys entry must be unique")
+		}
+		seen[k] = struct{}{}
+		if len(okc.Capabilities) == 0 {
+			errs = appendErr(errs, prefix+".capabilities must list at least one capability")
+			continue
+		}
+		for _, c := range okc.Capabilities {
+			if strings.TrimSpace(c) == "" {
+				errs = appendErr(errs, prefix+".capabilities contains an empty entry")
+			}
+		}
+		if _, err := security.ParseCapabilities(okc.Capabilities); err != nil {
+			errs = appendErr(errs, prefix+".capabilities: "+err.Error())
+		}
+	}
+	return errs
+}
 
 func LintConfig(cfg Config) []Lint {
 	out := make([]Lint, 0)
@@ -678,13 +735,48 @@ func applyEnv(cfg *Config) {
 }
 
 func loadOperatorAPIKeys(cfg *Config) {
-	var keys []string
+	var envKeys []string
 	if env := strings.TrimSpace(cfg.Auth.APIKeysEnv); env != "" {
-		keys = appendCommaSeparatedKeys(keys, os.Getenv(env))
+		envKeys = appendCommaSeparatedKeys(envKeys, os.Getenv(env))
 	}
 	if v := strings.TrimSpace(os.Getenv("MEL_AUTH_API_KEYS")); v != "" {
-		keys = appendCommaSeparatedKeys(keys, v)
+		envKeys = appendCommaSeparatedKeys(envKeys, v)
 	}
+
+	byKey := make(map[string]OperatorAPIKeyEntry, len(cfg.Auth.OperatorKeys)+len(envKeys))
+	for _, okc := range cfg.Auth.OperatorKeys {
+		k := strings.TrimSpace(okc.Key)
+		if k == "" {
+			continue
+		}
+		caps, err := security.ParseCapabilities(okc.Capabilities)
+		if err != nil {
+			// Validate() should reject before we get here; leave map empty for this key.
+			continue
+		}
+		byKey[k] = OperatorAPIKeyEntry{Key: k, Capabilities: caps}
+	}
+	for _, k := range envKeys {
+		if k == "" {
+			continue
+		}
+		if _, exists := byKey[k]; exists {
+			// Explicit JSON entry wins; do not widen to env admin superset.
+			continue
+		}
+		byKey[k] = OperatorAPIKeyEntry{Key: k, Capabilities: security.FullAdminCapabilitySet()}
+	}
+
+	keys := make([]string, 0, len(byKey))
+	for k := range byKey {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	entries := make([]OperatorAPIKeyEntry, 0, len(keys))
+	for _, k := range keys {
+		entries = append(entries, byKey[k])
+	}
+	cfg.OperatorAPIKeyEntries = entries
 	cfg.OperatorAPIKeys = keys
 }
 

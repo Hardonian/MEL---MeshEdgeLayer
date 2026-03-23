@@ -78,6 +78,46 @@ export interface DeadLetter {
   created_at: string
 }
 
+/** Incident row (list/detail); handoff fields optional on older DB rows */
+export interface Incident {
+  id: string
+  category?: string
+  severity?: string
+  title?: string
+  summary?: string
+  resource_type?: string
+  resource_id?: string
+  state?: string
+  actor_id?: string
+  occurred_at?: string
+  updated_at?: string
+  resolved_at?: string
+  metadata?: Record<string, unknown>
+  owner_actor_id?: string
+  handoff_summary?: string
+  pending_actions?: string[]
+  recent_actions?: string[]
+  linked_evidence?: Record<string, unknown>[]
+  risks?: string[]
+}
+
+export interface TrustUIHints {
+  approve_control: boolean
+  reject_control: boolean
+  execute_control: boolean
+  read_actions: boolean
+  incident_handoff_write: boolean
+  incident_mutate: boolean
+}
+
+export interface PanelResponse {
+  generated_at?: string
+  operator_state?: string
+  summary?: string
+  capabilities?: string[]
+  trust_ui?: TrustUIHints
+}
+
 export interface Finding {
   component: string;
   severity: string;

@@ -9,7 +9,8 @@
     "session_secret": "replace-with-32-byte-secret",
     "ui_user": "admin",
     "ui_password": "change-me",
-    "allow_insecure_remote": false
+    "allow_insecure_remote": false,
+    "operator_keys": []
   },
   "storage": {
     "data_dir": "./data",

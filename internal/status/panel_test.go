@@ -3,6 +3,7 @@ package status
 import (
 	"testing"
 
+	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -67,5 +68,34 @@ func TestCollectBuildsRetryAndDeadLetterEvidence(t *testing.T) {
 	}
 	if panel.Transports[0].Detail == "" {
 		t.Fatalf("expected detail to remain populated, got %+v", panel.Transports[0])
+	}
+}
+
+func TestEnrichPanelAuthViewerTrustUI(t *testing.T) {
+	snap := Snapshot{GeneratedAt: "2026-03-19T00:00:00Z"}
+	p := EnrichPanelAuth(BuildPanel(snap), security.BuildViewerIdentity("u"))
+	if p.TrustUI == nil || p.TrustUI.ApproveControl || p.TrustUI.RejectControl || p.TrustUI.ExecuteControl {
+		t.Fatalf("viewer must not get trust mutator hints: %+v", p.TrustUI)
+	}
+	if !p.TrustUI.ReadActions {
+		t.Fatalf("viewer should see read_actions hint: %+v", p.TrustUI)
+	}
+}
+
+func TestEnrichPanelAuthApproverTrustUI(t *testing.T) {
+	snap := Snapshot{GeneratedAt: "2026-03-19T00:00:00Z"}
+	id := security.IdentityFromAPIKey("abc", map[security.Capability]bool{
+		security.CapReadStatus:           true,
+		security.CapReadIncidents:        true,
+		security.CapReadActions:          true,
+		security.CapApproveControlAction: true,
+		security.CapRejectControlAction:  true,
+	})
+	p := EnrichPanelAuth(BuildPanel(snap), id)
+	if p.TrustUI == nil || !p.TrustUI.ApproveControl || !p.TrustUI.RejectControl {
+		t.Fatalf("approver hints: %+v", p.TrustUI)
+	}
+	if p.TrustUI.ExecuteControl {
+		t.Fatalf("approver without execute should not get execute hint: %+v", p.TrustUI)
 	}
 }

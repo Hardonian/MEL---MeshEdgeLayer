@@ -1,8 +1,10 @@
 package status
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/mel-project/mel/internal/security"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -14,6 +16,47 @@ type Panel struct {
 	WebHints      []string         `json:"web_hints"`
 	OperatorMenu  []OperatorAction `json:"operator_menu"`
 	Transports    []PanelMetric    `json:"transports"`
+	// Capabilities lists granted capability strings for the current request identity (auth-aware UI).
+	Capabilities []string `json:"capabilities,omitempty"`
+	// TrustUI summarizes which trust/control actions the UI may expose without false affordances.
+	TrustUI *TrustUIHints `json:"trust_ui,omitempty"`
+}
+
+// TrustUIHints mirrors server-side capability checks for operator console wiring.
+type TrustUIHints struct {
+	ApproveControl       bool `json:"approve_control"`
+	RejectControl        bool `json:"reject_control"`
+	ExecuteControl       bool `json:"execute_control"`
+	ReadActions          bool `json:"read_actions"`
+	IncidentHandoffWrite bool `json:"incident_handoff_write"`
+	IncidentMutate       bool `json:"incident_mutate"`
+}
+
+// EnrichPanelAuth attaches capability-derived hints for the given identity.
+func EnrichPanelAuth(p Panel, id security.Identity) Panel {
+	var caps []string
+	if id.Capabilities != nil {
+		for c, on := range id.Capabilities {
+			if on {
+				caps = append(caps, string(c))
+			}
+		}
+	}
+	sort.Strings(caps)
+	p.Capabilities = caps
+	incidentMutate := id.Can(security.CapIncidentUpdate) ||
+		id.Can(security.CapAcknowledgeAlerts) ||
+		id.Can(security.CapEscalateAlerts) ||
+		id.Can(security.CapSuppressAlerts)
+	p.TrustUI = &TrustUIHints{
+		ApproveControl:       id.Can(security.CapApproveControlAction),
+		RejectControl:        id.Can(security.CapRejectControlAction),
+		ExecuteControl:       id.Can(security.CapExecuteAction),
+		ReadActions:          id.Can(security.CapReadActions) || id.Can(security.CapReadStatus),
+		IncidentHandoffWrite: id.Can(security.CapIncidentHandoffWrite),
+		IncidentMutate:       incidentMutate,
+	}
+	return p
 }
 
 type PanelMetric struct {

@@ -1080,14 +1080,22 @@ func controlCmd(args []string) {
 		mustPrint(map[string]any{"pending_approval": pending, "count": len(pending)})
 	case "approve":
 		if len(args) < 2 {
-			panic("usage: mel control approve <action-id> --config <path> [--note '...']")
+			panic("usage: mel control approve <action-id> --config <path> [--note '...'] --i-understand-bypasses-audit")
 		}
 		actionID := args[1]
 		f := fs("control-approve")
 		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "approval note")
 		actor := f.String("actor", "cli-operator", "operator identity")
+		bypassAck := f.Bool("i-understand-bypasses-audit", false, "required acknowledgement: this path bypasses canonical action audit (use mel action approve instead)")
 		_ = f.Parse(args[2:])
+		if !*bypassAck {
+			fmt.Fprintln(os.Stderr, "mel control approve: BLOCKED — legacy break-glass path.")
+			fmt.Fprintln(os.Stderr, "This command updates SQLite directly and does NOT match the canonical mel action audit/timeline/queue path.")
+			fmt.Fprintln(os.Stderr, "Preferred operator path: mel action approve <action-id> --config <path>")
+			fmt.Fprintln(os.Stderr, "To proceed anyway, pass: --i-understand-bypasses-audit")
+			os.Exit(2)
+		}
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
@@ -1096,17 +1104,33 @@ func controlCmd(args []string) {
 		if err := d.ApproveControlAction(actionID, *actor, *note); err != nil {
 			panic(err)
 		}
-		mustPrint(map[string]any{"status": "approved", "action_id": actionID, "actor": *actor})
+		fmt.Fprintln(os.Stderr, "WARNING: break-glass approval applied via direct SQL (legacy). Canonical path: mel action approve.")
+		mustPrint(map[string]any{
+			"status":                          "approved",
+			"action_id":                       actionID,
+			"actor":                           *actor,
+			"break_glass":                     true,
+			"bypasses_canonical_action_audit": true,
+			"preferred_path":                  "mel action approve",
+		})
 	case "reject":
 		if len(args) < 2 {
-			panic("usage: mel control reject <action-id> --config <path> [--note '...']")
+			panic("usage: mel control reject <action-id> --config <path> [--note '...'] --i-understand-bypasses-audit")
 		}
 		actionID := args[1]
 		f := fs("control-reject")
 		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "rejection reason")
 		actor := f.String("actor", "cli-operator", "operator identity")
+		bypassAck := f.Bool("i-understand-bypasses-audit", false, "required acknowledgement: this path bypasses canonical action audit (use mel action reject instead)")
 		_ = f.Parse(args[2:])
+		if !*bypassAck {
+			fmt.Fprintln(os.Stderr, "mel control reject: BLOCKED — legacy break-glass path.")
+			fmt.Fprintln(os.Stderr, "This command updates SQLite directly and does NOT match the canonical mel action audit/timeline path.")
+			fmt.Fprintln(os.Stderr, "Preferred operator path: mel action reject <action-id> --config <path>")
+			fmt.Fprintln(os.Stderr, "To proceed anyway, pass: --i-understand-bypasses-audit")
+			os.Exit(2)
+		}
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
@@ -1115,7 +1139,15 @@ func controlCmd(args []string) {
 		if err := d.RejectControlAction(actionID, *actor, *note); err != nil {
 			panic(err)
 		}
-		mustPrint(map[string]any{"status": "rejected", "action_id": actionID, "actor": *actor})
+		fmt.Fprintln(os.Stderr, "WARNING: break-glass rejection applied via direct SQL (legacy). Canonical path: mel action reject.")
+		mustPrint(map[string]any{
+			"status":                          "rejected",
+			"action_id":                       actionID,
+			"actor":                           *actor,
+			"break_glass":                     true,
+			"bypasses_canonical_action_audit": true,
+			"preferred_path":                  "mel action reject",
+		})
 	case "inspect":
 		if len(args) < 2 {
 			panic("usage: mel control inspect <action-id> --config <path>")

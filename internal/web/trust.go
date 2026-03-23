@@ -105,7 +105,7 @@ func (s *Server) controlActionSubHandler(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		security.Require(security.CapReadStatus, func(w http.ResponseWriter, r *http.Request) {
+		security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
 			s.inspectActionHandler(w, r, actionID)
 		})(w, r)
 	case "approve":
@@ -121,7 +121,7 @@ func (s *Server) controlActionSubHandler(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		security.Require(security.CapApproveControlAction, func(w http.ResponseWriter, r *http.Request) {
+		security.Require(security.CapRejectControlAction, func(w http.ResponseWriter, r *http.Request) {
 			s.rejectActionHandler(w, r, actionID)
 		})(w, r)
 	default:
@@ -206,10 +206,14 @@ func (s *Server) rejectActionHandler(w http.ResponseWriter, r *http.Request, act
 
 func (s *Server) freezeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
-		s.listFreezesHandler(w, r)
+		security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
+			s.listFreezesHandler(w, r)
+		})(w, r)
 		return
 	}
-	s.createFreezeHandler(w, r)
+	security.Require(security.CapExecuteAction, func(w http.ResponseWriter, r *http.Request) {
+		s.createFreezeHandler(w, r)
+	})(w, r)
 }
 
 func (s *Server) listFreezesHandler(w http.ResponseWriter, _ *http.Request) {
@@ -262,6 +266,12 @@ func (s *Server) createFreezeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) freezeItemHandler(w http.ResponseWriter, r *http.Request) {
+	security.Require(security.CapExecuteAction, func(w http.ResponseWriter, r *http.Request) {
+		s.freezeItemHandlerInner(w, r)
+	})(w, r)
+}
+
+func (s *Server) freezeItemHandlerInner(w http.ResponseWriter, r *http.Request) {
 	// DELETE /api/v1/control/freeze/{id}
 	freezeID := strings.TrimPrefix(r.URL.Path, "/api/v1/control/freeze/")
 	if freezeID == "" {
@@ -288,10 +298,14 @@ func (s *Server) freezeItemHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) maintenanceHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
-		s.listMaintenanceHandler(w, r)
+		security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
+			s.listMaintenanceHandler(w, r)
+		})(w, r)
 		return
 	}
-	s.createMaintenanceHandler(w, r)
+	security.Require(security.CapExecuteAction, func(w http.ResponseWriter, r *http.Request) {
+		s.createMaintenanceHandler(w, r)
+	})(w, r)
 }
 
 func (s *Server) listMaintenanceHandler(w http.ResponseWriter, _ *http.Request) {
@@ -346,6 +360,12 @@ func (s *Server) createMaintenanceHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) maintenanceItemHandler(w http.ResponseWriter, r *http.Request) {
+	security.Require(security.CapExecuteAction, func(w http.ResponseWriter, r *http.Request) {
+		s.maintenanceItemHandlerInner(w, r)
+	})(w, r)
+}
+
+func (s *Server) maintenanceItemHandlerInner(w http.ResponseWriter, r *http.Request) {
 	// DELETE /api/v1/control/maintenance/{id}
 	windowID := strings.TrimPrefix(r.URL.Path, "/api/v1/control/maintenance/")
 	if windowID == "" {
@@ -405,7 +425,9 @@ func (s *Server) operatorNotesHandler(w http.ResponseWriter, r *http.Request) {
 		})(w, r)
 		return
 	}
-	s.listOperatorNotesHandler(w, r)
+	security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
+		s.listOperatorNotesHandler(w, r)
+	})(w, r)
 }
 
 func (s *Server) listOperatorNotesHandler(w http.ResponseWriter, r *http.Request) {
