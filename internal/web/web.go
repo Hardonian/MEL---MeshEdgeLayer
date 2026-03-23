@@ -184,37 +184,37 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/events", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/incidents", s.requireMethod(s.incidents, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/incidents", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, s.incidents), http.MethodGet, http.MethodHead))
 	// Register static incident paths before /api/v1/incidents/ so they are not captured as incident IDs.
-	mux.HandleFunc("/api/v1/incidents/acknowledge", s.requireMethod(security.Require(security.CapAcknowledgeAlerts, s.acknowledgeIncident), http.MethodPost))
-	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.Require(security.CapEscalateAlerts, s.escalateIncident), http.MethodPost))
-	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.Require(security.CapSuppressAlerts, s.resolveIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/acknowledge", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapAcknowledgeAlerts}, s.acknowledgeIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapEscalateAlerts}, s.escalateIncident), http.MethodPost))
+	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapSuppressAlerts}, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/", s.requireMethod(s.incidentsPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support-bundle", s.requireMethod(security.Require(security.CapExportBundle, s.supportBundleHandler), http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/status", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlStatusHandler), http.MethodGet, http.MethodHead))
 	// Self-observability endpoints
 	mux.HandleFunc("/api/v1/health/internal", s.requireMethod(s.InternalHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/freshness", s.requireMethod(s.FreshnessHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/slo", s.requireMethod(s.SLOHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/metrics/internal", s.requireMethod(s.InternalMetricsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/trust", s.requireMethod(s.TrustHealthHandler, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/actions", s.requireMethod(s.controlActionsHandler, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/control/history", s.requireMethod(s.controlHistoryHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlActionsHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/actions", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlActionsHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/history", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlHistoryHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))
 
 	// Trust / operability endpoints
-	mux.HandleFunc("/api/v1/control/operational-state", s.requireMethod(s.operationalStateHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/operational-state", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.operationalStateHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions/", s.requireMethod(s.controlActionSubHandler, http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/actions/", s.requireMethod(s.controlActionSubHandler, http.MethodGet, http.MethodPost))
-	mux.HandleFunc("/api/v1/control/freeze", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeHandler), http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/control/freeze", s.requireMethod(s.freezeHandler, http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/control/freeze/", s.requireMethod(security.Require(security.CapExecuteAction, s.freezeItemHandler), http.MethodDelete))
-	mux.HandleFunc("/api/v1/control/maintenance", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceHandler), http.MethodGet, http.MethodPost))
+	mux.HandleFunc("/api/v1/control/maintenance", s.requireMethod(s.maintenanceHandler, http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/control/maintenance/", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceItemHandler), http.MethodDelete))
-	mux.HandleFunc("/api/v1/timeline", s.requireMethod(s.timelineHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/timeline", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, s.timelineHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/operator/notes", s.requireMethod(s.operatorNotesHandler, http.MethodGet, http.MethodPost))
 
 	// Federation / distributed kernel endpoints
@@ -1071,7 +1071,11 @@ func (s *Server) panel(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	writeJSON(w, http.StatusOK, statuspkg.BuildPanel(snap))
+	panel := statuspkg.BuildPanel(snap)
+	if id, ok := security.GetIdentity(r.Context()); ok {
+		panel = statuspkg.EnrichPanelAuth(panel, id)
+	}
+	writeJSON(w, http.StatusOK, panel)
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -1202,11 +1206,11 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case sub == "" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
-		security.Require(security.CapReadStatus, func(w http.ResponseWriter, r *http.Request) {
+		security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentDetailHandler(w, r, id)
 		})(w, r)
 	case sub == "handoff" && r.Method == http.MethodPost:
-		security.Require(security.CapAcknowledgeAlerts, func(w http.ResponseWriter, r *http.Request) {
+		security.Require(security.CapIncidentHandoffWrite, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentHandoffHandler(w, r, id)
 		})(w, r)
 	default:
@@ -1272,25 +1276,7 @@ func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
-	incidents := make([]models.Incident, 0, len(records))
-	for _, rec := range records {
-		incidents = append(incidents, models.Incident{
-			ID:           rec.ID,
-			Category:     rec.Category,
-			Severity:     rec.Severity,
-			Title:        rec.Title,
-			Summary:      rec.Summary,
-			ResourceType: rec.ResourceType,
-			ResourceID:   rec.ResourceID,
-			State:        rec.State,
-			ActorID:      rec.ActorID,
-			OccurredAt:   rec.OccurredAt,
-			UpdatedAt:    rec.UpdatedAt,
-			ResolvedAt:   rec.ResolvedAt,
-			Metadata:     rec.Metadata,
-		})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"recent_incidents": incidents})
+	writeJSON(w, http.StatusOK, map[string]any{"recent_incidents": records})
 }
 
 func (s *Server) deadLetters(w http.ResponseWriter, r *http.Request) {
@@ -1589,27 +1575,11 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 
 		apiKey := strings.TrimSpace(r.Header.Get("X-API-Key"))
 		if apiKey != "" {
-			for _, k := range s.cfg.OperatorAPIKeys {
-				if k == apiKey {
-					sum := sha256.Sum256([]byte(k))
+			for _, ent := range s.cfg.OperatorAPIKeyEntries {
+				if ent.Key == apiKey {
+					sum := sha256.Sum256([]byte(ent.Key))
 					short := hex.EncodeToString(sum[:])[:12]
-					id := security.Identity{
-						ActorID:     "apikey:" + short,
-						ActorType:   security.ActorHuman,
-						DisplayName: "API key operator",
-						Role:        "admin",
-						Capabilities: map[security.Capability]bool{
-							security.CapReadStatus:           true,
-							security.CapAcknowledgeAlerts:    true,
-							security.CapEscalateAlerts:       true,
-							security.CapSuppressAlerts:       true,
-							security.CapExportBundle:         true,
-							security.CapExecuteAction:        true,
-							security.CapApproveControlAction: true,
-							security.CapInspectConfig:        true,
-							security.CapAdminSystem:          true,
-						},
-					}
+					id := security.IdentityFromAPIKey(short, ent.Capabilities)
 					next.ServeHTTP(w, r.WithContext(security.WithIdentity(r.Context(), id)))
 					return
 				}
