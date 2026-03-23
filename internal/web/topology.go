@@ -19,6 +19,51 @@ func (s *Server) SetTopologyStore(ts *topology.Store) {
 	topologyStoreGlobal = ts
 }
 
+func (s *Server) topologyThresholds() topology.StaleThresholds {
+	return topology.StaleThresholdsFromConfig(s.cfg.Topology.NodeStaleMinutes, s.cfg.Topology.LinkStaleMinutes)
+}
+
+func (s *Server) topologyTransportConnected() bool {
+	if s.topologyTransportLive != nil {
+		return s.topologyTransportLive()
+	}
+	for _, h := range s.transportHealth() {
+		if h.State == "live" || h.State == "idle" {
+			return true
+		}
+	}
+	return false
+}
+
+// topologyIntelligenceHandler GET /api/v1/topology — summary + full analysis (bounded).
+func (s *Server) topologyIntelligenceHandler(w http.ResponseWriter, r *http.Request) {
+	if topologyStoreGlobal == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		return
+	}
+	if !s.cfg.Topology.Enabled {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"topology_enabled": false,
+			"message":          "topology model disabled in config",
+		})
+		return
+	}
+	nodes, err := topologyStoreGlobal.ListNodes(5000)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load nodes"})
+		return
+	}
+	links, err := topologyStoreGlobal.ListLinks(10000)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load links"})
+		return
+	}
+	th := s.topologyThresholds()
+	ar := topology.Analyze(nodes, links, th, time.Now().UTC())
+	view := topology.BuildIntelligenceView(s.cfg, ar, s.topologyTransportConnected(), time.Now().UTC())
+	writeJSON(w, http.StatusOK, view)
+}
+
 // --- Topology nodes with health scoring ---
 
 func (s *Server) topologyNodesHandler(w http.ResponseWriter, r *http.Request) {
@@ -75,13 +120,9 @@ func (s *Server) topologyNodeDetailHandler(w http.ResponseWriter, r *http.Reques
 	// Get bookmarks
 	bookmarks, _ := topologyStoreGlobal.BookmarksForNode(nodeNum)
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"node":         node,
-		"links":        links,
-		"observations": observations,
-		"bookmarks":    bookmarks,
-		"link_count":   len(links),
-	})
+	th := s.topologyThresholds()
+	drill := topology.BuildNodeDrilldown(node, links, bookmarks, observations, th, time.Now().UTC())
+	writeJSON(w, http.StatusOK, drill)
 }
 
 // --- Topology links ---
@@ -121,8 +162,65 @@ func (s *Server) topologyAnalysisHandler(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load links"})
 		return
 	}
-	result := topology.Analyze(nodes, links, topology.DefaultStaleThresholds(), time.Now().UTC())
+	th := s.topologyThresholds()
+	result := topology.Analyze(nodes, links, th, time.Now().UTC())
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) topologyLinkDetailHandler(w http.ResponseWriter, r *http.Request) {
+	if topologyStoreGlobal == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		return
+	}
+	edgeID := strings.TrimPrefix(r.URL.Path, "/api/v1/topology/links/")
+	edgeID = strings.Trim(edgeID, "/")
+	if edgeID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "edge_id required"})
+		return
+	}
+	l, ok, err := topologyStoreGlobal.GetLink(edgeID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load link"})
+		return
+	}
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "link not found"})
+		return
+	}
+	th := s.topologyThresholds()
+	drill := topology.BuildLinkDrilldown(l, th, time.Now().UTC())
+	writeJSON(w, http.StatusOK, drill)
+}
+
+func (s *Server) topologySegmentHandler(w http.ResponseWriter, r *http.Request) {
+	if topologyStoreGlobal == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
+		return
+	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/topology/segments/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "segment id required"})
+		return
+	}
+	segID := parts[0]
+	nodes, err := topologyStoreGlobal.ListNodes(5000)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load nodes"})
+		return
+	}
+	links, err := topologyStoreGlobal.ListLinks(10000)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load links"})
+		return
+	}
+	th := s.topologyThresholds()
+	ar := topology.Analyze(nodes, links, th, time.Now().UTC())
+	dd, ok := topology.BuildClusterDrilldown(segID, ar.WeakClusters, ar.Clusters)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "segment not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, dd)
 }
 
 // --- Topology snapshots ---

@@ -178,6 +178,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   transports list --config <path>
   inspect transport <name> --config <path>
   inspect mesh --config <path>
+  inspect topology [--refresh] --config <path>
   alerts --config <path> [--active=false] [--since RFC3339] [--filter s] [--limit n]
   actions list|pending|history --config <path>
   explain policy --config <path>
@@ -685,7 +686,7 @@ func transportsCmd(args []string) {
 
 func inspectCmd(args []string) {
 	if len(args) == 0 {
-		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path>")
+		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path> | mel inspect topology [--refresh] --config <path>")
 	}
 	switch args[0] {
 	case "transport":
@@ -708,8 +709,10 @@ func inspectCmd(args []string) {
 			panic(err)
 		}
 		mustPrint(drilldown)
+	case "topology":
+		inspectTopologyCmd(args[1:])
 	default:
-		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path>")
+		panic("usage: mel inspect transport <name> --config <path> | mel inspect mesh --config <path> | mel inspect topology [--refresh] --config <path>")
 	}
 }
 

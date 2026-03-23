@@ -4,15 +4,19 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
 // AnalysisResult contains the full topology analysis output.
 type AnalysisResult struct {
 	Snapshot        TopologySnapshot `json:"snapshot"`
+	ScoredNodes     []Node           `json:"-"`
+	ScoredLinks     []Link           `json:"-"`
 	IsolatedNodes   []int64          `json:"isolated_nodes,omitempty"`
 	BridgeNodes     []int64          `json:"bridge_nodes,omitempty"`
 	WeakClusters    []Cluster        `json:"weak_clusters,omitempty"`
+	Clusters        []Cluster        `json:"clusters,omitempty"`
 	StaleRegions    []StaleRegion    `json:"stale_regions,omitempty"`
 	Bottlenecks     []Bottleneck     `json:"bottlenecks,omitempty"`
 	Recommendations []Recommendation `json:"recommendations,omitempty"`
@@ -95,9 +99,12 @@ func Analyze(nodes []Node, links []Link, thresholds StaleThresholds, now time.Ti
 
 	return AnalysisResult{
 		Snapshot:        snapshot,
+		ScoredNodes:     scoredNodes,
+		ScoredLinks:     scoredLinks,
 		IsolatedNodes:   isolated,
 		BridgeNodes:     bridges,
 		WeakClusters:    filterWeakClusters(clusters),
+		Clusters:        clusters,
 		StaleRegions:    staleRegions,
 		Bottlenecks:     bottlenecks,
 		Recommendations: recs,
@@ -349,8 +356,8 @@ func generateRecommendations(nodes []Node, links []Link, clusters []Cluster, iso
 			Summary:       fmt.Sprintf("Add a relay or gateway near isolated node %d to restore connectivity", nodeNum),
 			Confidence:    0.7,
 			Impact:        "Restores connectivity for an isolated node",
-			Assumptions:   []string{"Node location is approximately known", "A relay within range would restore links"},
-			Evidence:      []string{fmt.Sprintf("Node %d has zero observed links", nodeNum)},
+			Assumptions:   []string{"MEL graph has zero topology_links for this node; RF layout may still have neighbors not yet observed"},
+			Evidence:      []string{fmt.Sprintf("Node %d has zero edges in topology_links", nodeNum)},
 			RefuteWith:    []string{"Node may have been intentionally isolated", "Node may be powered off"},
 			Basis:         "topology",
 			AffectedNodes: []int64{nodeNum},
@@ -493,6 +500,68 @@ func buildSnapshot(nodes []Node, links []Link, clusters []Cluster, now time.Time
 		})
 	}
 
+	sourceCoverage := map[string]int{}
+	for _, n := range nodes {
+		k := strings.TrimSpace(n.SourceConnector)
+		if k == "" {
+			k = "unknown"
+		}
+		sourceCoverage[k]++
+	}
+
+	meanNode := 0.0
+	for _, n := range nodes {
+		meanNode += n.HealthScore
+	}
+	if len(nodes) > 0 {
+		meanNode /= float64(len(nodes))
+	}
+	meanLink := 0.0
+	for _, l := range links {
+		meanLink += l.QualityScore
+	}
+	if len(links) > 0 {
+		meanLink /= float64(len(links))
+	}
+	observedTouch := map[int64]bool{}
+	for _, l := range links {
+		if l.Observed {
+			observedTouch[l.SrcNodeNum] = true
+			observedTouch[l.DstNodeNum] = true
+		}
+	}
+	nonIso := 0
+	covered := 0
+	for _, n := range nodes {
+		if n.HealthState == HealthIsolated {
+			continue
+		}
+		nonIso++
+		if observedTouch[n.NodeNum] {
+			covered++
+		}
+	}
+	disc := 1.0
+	if nonIso > 0 {
+		disc = float64(covered) / float64(nonIso)
+	}
+	mapEligible := 0
+	for _, n := range nodes {
+		if (n.LocationState == LocExact || n.LocationState == LocApproximate) && (n.LatRedacted != 0 || n.LonRedacted != 0) {
+			mapEligible++
+		}
+	}
+	confSummary := map[string]float64{
+		"mean_node_health":       meanNode,
+		"mean_link_quality":      meanLink,
+		"discovery_completeness": disc,
+	}
+	explanation := []string{
+		fmt.Sprintf("nodes=%d links=%d direct_edges=%d inferred_edges=%d", len(nodes), len(links), directEdges, inferredEdges),
+		fmt.Sprintf("map_eligible_nodes=%d", mapEligible),
+		"link_evidence=packet_relay_or_unicast_destination_not_rf_proof",
+	}
+
 	return TopologySnapshot{
 		SnapshotID:        fmt.Sprintf("topo-%s-%s", now.UTC().Format("20060102-150405"), graphHash[:8]),
 		CreatedAt:         now.UTC().Format(time.RFC3339),
@@ -505,6 +574,9 @@ func buildSnapshot(nodes []Node, links []Link, clusters []Cluster, now time.Time
 		StaleNodes:        stale,
 		IsolatedNodes:     isolated,
 		GraphHash:         graphHash,
+		SourceCoverage:    sourceCoverage,
+		ConfidenceSummary: confSummary,
+		Explanation:       explanation,
 		RegionSummary:     regionSummary,
 	}
 }
