@@ -1,4 +1,5 @@
 import { useControlStatus, useControlHistory, useOperationalState } from '@/hooks/useApi'
+import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loading } from '@/components/ui/StateViews'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
@@ -41,6 +42,8 @@ export function Control() {
   const { data: status, loading: statusLoading, error: statusError } = useControlStatus()
   const { data: history, loading: historyLoading, error: historyError } = useControlHistory()
   const { data: opState, loading: opLoading, error: opError } = useOperationalState()
+  const { trustUI } = useOperatorContext()
+  const canApprove = trustUI?.approve_control === true
 
   if ((statusLoading && !status) || (historyLoading && !history) || (opLoading && !opState)) {
     return <Loading message="Syncing with control plane..." />
@@ -138,9 +141,22 @@ export function Control() {
               Pending approvals
             </CardTitle>
             <CardDescription>
-              These actions require an operator approval before execution. Use{' '}
-              <code className="text-xs bg-muted px-1 rounded">POST /api/v1/actions/&#123;id&#125;/approve</code>
-              {' '}or <code className="text-xs bg-muted px-1 rounded">mel action approve</code> with the same config as the running daemon.
+              These actions require an operator approval before execution.
+              {canApprove ? (
+                <>
+                  {' '}
+                  Use{' '}
+                  <code className="text-xs bg-muted px-1 rounded">POST /api/v1/actions/&#123;id&#125;/approve</code>
+                  {' '}or <code className="text-xs bg-muted px-1 rounded">mel action approve</code> with the same config as the running daemon.
+                </>
+              ) : (
+                <>
+                  {' '}
+                  Your session does not include the <code className="text-xs bg-muted px-1 rounded">approve_control_action</code>{' '}
+                  capability; you can review the queue but cannot approve via this API identity. Use credentials with that capability or a
+                  full-admin API key / UI login.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
