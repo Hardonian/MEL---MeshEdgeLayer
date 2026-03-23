@@ -21,20 +21,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/mel-project/mel/internal/security"
 )
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-func actorFromRequest(r *http.Request) string {
-	// Prefer X-Operator-ID header; fall back to Basic Auth user; fall back to "system"
-	if actor := r.Header.Get("X-Operator-ID"); actor != "" {
-		return actor
-	}
-	if user, _, ok := r.BasicAuth(); ok && user != "" {
-		return user
-	}
-	return "system"
-}
 
 func decodeBody(r *http.Request, v any) error {
 	if r.Body == nil {
@@ -88,9 +79,20 @@ func (s *Server) operationalStateHandler(w http.ResponseWriter, r *http.Request)
 //	/api/v1/control/actions/{id}/approve
 //	/api/v1/control/actions/{id}/reject
 func (s *Server) controlActionSubHandler(w http.ResponseWriter, r *http.Request) {
-	const prefix = "/api/v1/control/actions/"
-	actionID := idFromPath(r.URL.Path, prefix)
-	subPath := subPathAfterID(r.URL.Path, prefix)
+	const prefixControl = "/api/v1/control/actions/"
+	const prefixAlias = "/api/v1/actions/"
+	var actionID, subPath string
+	switch {
+	case strings.HasPrefix(r.URL.Path, prefixControl):
+		actionID = idFromPath(r.URL.Path, prefixControl)
+		subPath = subPathAfterID(r.URL.Path, prefixControl)
+	case strings.HasPrefix(r.URL.Path, prefixAlias):
+		actionID = idFromPath(r.URL.Path, prefixAlias)
+		subPath = subPathAfterID(r.URL.Path, prefixAlias)
+	default:
+		writeError(w, http.StatusBadRequest, "invalid actions path", "")
+		return
+	}
 
 	if actionID == "" {
 		writeError(w, http.StatusBadRequest, "action id required", "")
@@ -99,21 +101,30 @@ func (s *Server) controlActionSubHandler(w http.ResponseWriter, r *http.Request)
 
 	switch subPath {
 	case "inspect":
-		s.inspectActionHandler(w, r, actionID)
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		security.Require(security.CapReadStatus, func(w http.ResponseWriter, r *http.Request) {
+			s.inspectActionHandler(w, r, actionID)
+		})(w, r)
 	case "approve":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		s.approveActionHandler(w, r, actionID)
+		security.Require(security.CapApproveControlAction, func(w http.ResponseWriter, r *http.Request) {
+			s.approveActionHandler(w, r, actionID)
+		})(w, r)
 	case "reject":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		s.rejectActionHandler(w, r, actionID)
+		security.Require(security.CapApproveControlAction, func(w http.ResponseWriter, r *http.Request) {
+			s.rejectActionHandler(w, r, actionID)
+		})(w, r)
 	default:
-		// Fall through to regular action lookup
 		writeError(w, http.StatusNotFound, "unknown action sub-path: "+subPath, "")
 	}
 }
@@ -144,7 +155,7 @@ func (s *Server) approveActionHandler(w http.ResponseWriter, r *http.Request, ac
 		Note string `json:"note"`
 	}
 	_ = decodeBody(r, &body)
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 
 	if err := s.approveAction(actionID, actor, body.Note); err != nil {
 		code := http.StatusInternalServerError
@@ -172,7 +183,7 @@ func (s *Server) rejectActionHandler(w http.ResponseWriter, r *http.Request, act
 		Note string `json:"note"`
 	}
 	_ = decodeBody(r, &body)
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 
 	if err := s.rejectAction(actionID, actor, body.Note); err != nil {
 		code := http.StatusInternalServerError
@@ -236,7 +247,7 @@ func (s *Server) createFreezeHandler(w http.ResponseWriter, r *http.Request) {
 	if body.ScopeType == "" {
 		body.ScopeType = "global"
 	}
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 	id, err := s.createFreeze(body.ScopeType, body.ScopeValue, body.Reason, actor, body.ExpiresAt)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create freeze", err.Error())
@@ -261,7 +272,7 @@ func (s *Server) freezeItemHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "clear freeze not available", "trust hooks not wired")
 		return
 	}
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 	if err := s.clearFreeze(freezeID, actor); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not clear freeze", err.Error())
 		return
@@ -320,7 +331,7 @@ func (s *Server) createMaintenanceHandler(w http.ResponseWriter, r *http.Request
 	if body.ScopeType == "" {
 		body.ScopeType = "global"
 	}
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 	id, err := s.createMaintenanceWindow(body.Title, body.Reason, body.ScopeType, body.ScopeValue, actor, body.StartsAt, body.EndsAt)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create maintenance window", err.Error())
@@ -345,7 +356,7 @@ func (s *Server) maintenanceItemHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusServiceUnavailable, "cancel maintenance not available", "trust hooks not wired")
 		return
 	}
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 	if err := s.cancelMaintenanceWindow(windowID, actor); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not cancel maintenance window", err.Error())
 		return
@@ -389,7 +400,9 @@ func (s *Server) timelineHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) operatorNotesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		s.createOperatorNoteHandler(w, r)
+		security.Require(security.CapExecuteAction, func(w http.ResponseWriter, r *http.Request) {
+			s.createOperatorNoteHandler(w, r)
+		})(w, r)
 		return
 	}
 	s.listOperatorNotesHandler(w, r)
@@ -433,7 +446,7 @@ func (s *Server) createOperatorNoteHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "ref_type, ref_id, and content are required", "")
 		return
 	}
-	actor := actorFromRequest(r)
+	actor := s.actorFromTrustContext(r)
 	id, err := s.addOperatorNote(body.RefType, body.RefID, actor, body.Content)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create note", err.Error())

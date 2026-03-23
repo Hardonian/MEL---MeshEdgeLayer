@@ -146,34 +146,75 @@ FROM control_actions WHERE lifecycle_state='pending_approval' ORDER BY created_a
 }
 
 // ApproveControlAction moves a pending_approval action to pending (ready for execution).
-// Returns ErrNotFound if the action does not exist or is not in pending_approval state.
+// Returns an error if the action does not exist or was not in pending_approval (no silent no-op).
 func (d *DB) ApproveControlAction(id, approvedBy, note string) error {
 	safeID, err := ValidateSQLInput(id)
 	if err != nil {
 		logSuspiciousSQL(id, err.Error())
 		return fmt.Errorf("invalid id: %w", err)
 	}
+	recBefore, okBefore, err := d.ControlActionByID(id)
+	if err != nil {
+		return fmt.Errorf("could not load action: %w", err)
+	}
+	if !okBefore {
+		return fmt.Errorf("action not found: %s", id)
+	}
+	if recBefore.LifecycleState != "pending_approval" {
+		return fmt.Errorf("action %s is not pending approval (state: %s)", id, recBefore.LifecycleState)
+	}
 	safeBy := esc(approvedBy)
 	safeNote := esc(note)
 	now := esc(time.Now().UTC().Format(time.RFC3339))
 	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='pending', result='approved', approved_by='%s', approved_at='%s', approval_note='%s' WHERE id='%s' AND lifecycle_state='pending_approval';`,
 		safeBy, now, safeNote, safeID)
-	return d.Exec(sql)
+	if err := d.Exec(sql); err != nil {
+		return err
+	}
+	recAfter, okAfter, err := d.ControlActionByID(id)
+	if err != nil || !okAfter {
+		return fmt.Errorf("could not verify approval for action %s", id)
+	}
+	if recAfter.LifecycleState == "pending_approval" {
+		return fmt.Errorf("could not approve action %s: database state unchanged (still pending_approval)", id)
+	}
+	return nil
 }
 
 // RejectControlAction moves a pending_approval action to a rejected terminal state.
+// Returns an error if the action does not exist or was not in pending_approval (no silent no-op).
 func (d *DB) RejectControlAction(id, rejectedBy, note string) error {
 	safeID, err := ValidateSQLInput(id)
 	if err != nil {
 		logSuspiciousSQL(id, err.Error())
 		return fmt.Errorf("invalid id: %w", err)
 	}
+	recBefore, okBefore, err := d.ControlActionByID(id)
+	if err != nil {
+		return fmt.Errorf("could not load action: %w", err)
+	}
+	if !okBefore {
+		return fmt.Errorf("action not found: %s", id)
+	}
+	if recBefore.LifecycleState != "pending_approval" {
+		return fmt.Errorf("action %s is not pending approval (state: %s)", id, recBefore.LifecycleState)
+	}
 	safeBy := esc(rejectedBy)
 	safeNote := esc(note)
 	now := esc(time.Now().UTC().Format(time.RFC3339))
 	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='completed', result='rejected', closure_state='rejected_by_operator', rejected_by='%s', rejected_at='%s', approval_note='%s', completed_at='%s' WHERE id='%s' AND lifecycle_state='pending_approval';`,
 		safeBy, now, safeNote, now, safeID)
-	return d.Exec(sql)
+	if err := d.Exec(sql); err != nil {
+		return err
+	}
+	recAfter, okAfter, err := d.ControlActionByID(id)
+	if err != nil || !okAfter {
+		return fmt.Errorf("could not verify rejection for action %s", id)
+	}
+	if recAfter.LifecycleState == "pending_approval" {
+		return fmt.Errorf("could not reject action %s: database state unchanged (still pending_approval)", id)
+	}
+	return nil
 }
 
 // ExpireStaleApprovalActions marks all pending_approval actions whose

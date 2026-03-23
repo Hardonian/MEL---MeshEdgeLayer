@@ -17,14 +17,15 @@ const (
 type Capability string
 
 const (
-	CapReadStatus        Capability = "read_status"
-	CapAcknowledgeAlerts Capability = "acknowledge_alerts"
-	CapEscalateAlerts    Capability = "escalate_alerts"
-	CapSuppressAlerts    Capability = "suppress_alerts"
-	CapExportBundle      Capability = "export_support_bundle"
-	CapExecuteAction     Capability = "execute_control_action"
-	CapInspectConfig     Capability = "inspect_config"
-	CapAdminSystem       Capability = "admin_system"
+	CapReadStatus           Capability = "read_status"
+	CapAcknowledgeAlerts    Capability = "acknowledge_alerts"
+	CapEscalateAlerts       Capability = "escalate_alerts"
+	CapSuppressAlerts       Capability = "suppress_alerts"
+	CapExportBundle         Capability = "export_support_bundle"
+	CapExecuteAction        Capability = "execute_control_action"
+	CapApproveControlAction Capability = "approve_control_action"
+	CapInspectConfig        Capability = "inspect_config"
+	CapAdminSystem          Capability = "admin_system"
 )
 
 type Identity struct {
@@ -50,11 +51,12 @@ var SystemIdentity = Identity{
 	DisplayName: "System",
 	Role:        "system",
 	Capabilities: map[Capability]bool{
-		CapReadStatus:        true,
-		CapExecuteAction:     true,
-		CapAcknowledgeAlerts: true,
-		CapEscalateAlerts:    true,
-		CapSuppressAlerts:    true,
+		CapReadStatus:           true,
+		CapExecuteAction:        true,
+		CapApproveControlAction: true,
+		CapAcknowledgeAlerts:    true,
+		CapEscalateAlerts:       true,
+		CapSuppressAlerts:       true,
 	},
 }
 
@@ -81,14 +83,15 @@ func BuildAdminIdentity(username string) Identity {
 		DisplayName: "Local Admin (" + username + ")",
 		Role:        "admin",
 		Capabilities: map[Capability]bool{
-			CapReadStatus:        true,
-			CapAcknowledgeAlerts: true,
-			CapEscalateAlerts:    true,
-			CapSuppressAlerts:    true,
-			CapExportBundle:      true,
-			CapExecuteAction:     true,
-			CapInspectConfig:     true,
-			CapAdminSystem:       true,
+			CapReadStatus:           true,
+			CapAcknowledgeAlerts:    true,
+			CapEscalateAlerts:       true,
+			CapSuppressAlerts:       true,
+			CapExportBundle:         true,
+			CapExecuteAction:        true,
+			CapApproveControlAction: true,
+			CapInspectConfig:        true,
+			CapAdminSystem:          true,
 		},
 	}
 }
