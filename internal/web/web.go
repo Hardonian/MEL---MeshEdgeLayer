@@ -26,13 +26,16 @@ import (
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
+	"github.com/mel-project/mel/internal/readiness"
 	"github.com/mel-project/mel/internal/security"
+	"github.com/mel-project/mel/internal/support"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/transport"
 )
 
 type Server struct {
 	cfg              config.Config
+	configPath       string
 	log              *logging.Logger
 	db               *db.DB
 	state            *meshstate.State
@@ -61,6 +64,11 @@ type Server struct {
 	timeline                func(start, end string, limit int) ([]db.TimelineEvent, error)
 	inspectAction           func(actionID string) (map[string]any, error)
 	operationalState        func() (map[string]any, error)
+}
+
+// SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
+func (s *Server) SetConfigPath(path string) {
+	s.configPath = strings.TrimSpace(path)
 }
 
 func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
@@ -124,6 +132,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.requireMethod(s.healthz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/readyz", s.requireMethod(s.readyz, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/readyz", s.requireMethod(s.apiV1readyz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/version", s.requireMethod(s.versionHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/upgrade", s.requireMethod(s.upgradeHealthHandler, http.MethodGet, http.MethodHead))
@@ -163,6 +172,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/support-bundle", s.requireMethod(security.Require(security.CapExportBundle, s.supportBundleHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(s.controlStatusHandler, http.MethodGet, http.MethodHead))
 	// Self-observability endpoints
 	mux.HandleFunc("/api/v1/health/internal", s.requireMethod(s.InternalHealthHandler, http.MethodGet, http.MethodHead))
@@ -278,17 +288,34 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
+	s.writeReadinessResponse(w, r)
+}
+
+func (s *Server) apiV1readyz(w http.ResponseWriter, r *http.Request) {
+	s.writeReadinessResponse(w, r)
+}
+
+// writeReadinessResponse serves GET /readyz and GET /api/v1/readyz with identical semantics:
+// HTTP 200 only when readiness.Evaluate reports ready; HTTP 503 when snapshot fails or ingest is not proven for enabled transports.
+func (s *Server) writeReadinessResponse(w http.ResponseWriter, r *http.Request) {
 	snap, err := s.statusSnapshot()
+	now := time.Now().UTC()
 	if err != nil {
 		s.log.Error("readyz_failed", "readiness check failed", map[string]any{
 			"error": err.Error(),
 			"path":  r.URL.Path,
 		})
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-			"ready":         false,
-			"process_ready": true,
-			"error_class":   "snapshot_unavailable",
-			"message":       "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"api_version":     "v1",
+			"ready":           false,
+			"status":          "not_ready",
+			"reason_codes":    []string{"SNAPSHOT_UNAVAILABLE"},
+			"summary":         "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"checked_at":      now.Format(time.RFC3339),
+			"process_ready":   true,
+			"ingest_ready":    false,
+			"error_class":     "snapshot_unavailable",
+			"message":         "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
 			"operator_next_steps": []string{
 				"Inspect logs for database or migration errors.",
 				"Verify storage.database_path and permissions.",
@@ -297,35 +324,57 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	panel := statuspkg.BuildPanel(snap)
-	ingestReady := false
-	for _, tr := range snap.Transports {
-		if tr.EffectiveState == transport.StateIngesting {
-			ingestReady = true
-			break
-		}
-	}
-	next := readinessNextSteps(snap, panel, ingestReady)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ready":                 true,
-		"process_ready":         true,
-		"ingest_ready":          ingestReady,
-		"snapshot_generated_at": snap.GeneratedAt,
-		"schema_version":        snap.SchemaVersion,
-		"operator_state":        panel.OperatorState,
-		"summary":               panel.Summary,
+	eval := readiness.Evaluate(s.cfg, snap, true, now)
+	next := readinessNextSteps(snap, eval)
+	body := map[string]any{
+		"api_version":           "v1",
+		"ready":                 eval.Ready,
+		"status":                eval.Status,
+		"reason_codes":          eval.ReasonCodes,
+		"summary":               eval.Summary,
+		"checked_at":            eval.CheckedAt,
+		"process_ready":         eval.ProcessReady,
+		"ingest_ready":          eval.IngestReady,
+		"stale_ingest_evidence": eval.StaleIngest,
+		"snapshot_generated_at": eval.SnapshotAt,
+		"schema_version":        eval.SchemaVersion,
+		"operator_state":        eval.OperatorState,
+		"mesh_state":            eval.MeshState,
+		"components":            eval.Components,
 		"transports":            snap.Transports,
 		"operator_next_steps":   next,
-	})
+	}
+	code := http.StatusOK
+	if !eval.Ready {
+		code = http.StatusServiceUnavailable
+		body["error_class"] = "not_ready"
+		body["message"] = eval.Summary
+	}
+	writeJSON(w, code, body)
 }
 
-func readinessNextSteps(snap statuspkg.Snapshot, panel statuspkg.Panel, ingestReady bool) []string {
+func readinessNextSteps(snap statuspkg.Snapshot, eval readiness.Result) []string {
+	panel := statuspkg.BuildPanel(snap)
 	var steps []string
-	if !ingestReady {
-		steps = append(steps, "Live ingest is not proven on any transport; confirm broker or node reachability and that packets are reaching MEL.")
+	if !eval.IngestReady {
+		enabled := 0
+		for _, t := range snap.Transports {
+			if t.Enabled {
+				enabled++
+			}
+		}
+		if enabled > 0 {
+			steps = append(steps, "Live ingest is not proven on any enabled transport; confirm broker or node reachability and that packets are reaching MEL.")
+		}
 	}
 	if panel.OperatorState == "idle" {
 		steps = append(steps, "No transports are configured or all are disabled; MEL will remain idle until you enable serial, TCP, or MQTT.")
+	}
+	if eval.StaleIngest && eval.IngestReady {
+		steps = append(steps, "Last persisted ingest is older than expected; verify traffic is still flowing or investigate transport disconnects.")
+	}
+	if panel.OperatorState == "degraded" {
+		steps = append(steps, "One or more transports are degraded; inspect effective_state, last_error, and guidance in GET /api/v1/status.")
 	}
 	if len(steps) == 0 {
 		steps = append(steps, "Subsystem evidence looks consistent; use GET /api/v1/status for drill-down and transport-level truth.")
@@ -335,6 +384,7 @@ func readinessNextSteps(snap statuspkg.Snapshot, panel statuspkg.Panel, ingestRe
 	if snap.LastSuccessfulIngest == "" && len(snap.Transports) > 0 {
 		steps = append(steps, "No messages are persisted yet; first successful SQLite writes define ingest truth.")
 	}
+	steps = append(steps, "For host-level checks (paths, DB, serial/TCP reachability) run `mel doctor` or `mel preflight` on the server.")
 	return steps
 }
 
@@ -687,6 +737,35 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) supportBundleHandler(w http.ResponseWriter, r *http.Request) {
+	bundle, err := support.Create(s.cfg, s.db, version.GetFullVersionString(), s.configPath)
+	if err != nil {
+		s.log.Error("support_bundle_failed", "support bundle generation failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.ClassifyError(err),
+		))
+		return
+	}
+	z, err := bundle.ToZip()
+	if err != nil {
+		s.log.Error("support_bundle_zip_failed", "support bundle zip failed", map[string]any{
+			"error": err.Error(),
+			"path":  r.URL.Path,
+		})
+		writeJSON(w, http.StatusInternalServerError, logging.APIErrorResponse(
+			logging.NewSafeError("failed to assemble support bundle archive", err, "internal", false),
+		))
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="mel-support-bundle.zip"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(z)
 }
 
 func (s *Server) manifestHandler(w http.ResponseWriter, r *http.Request) {

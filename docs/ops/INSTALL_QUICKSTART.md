@@ -119,6 +119,8 @@ Look for `"ingest_ok": true` and at least one transport in `"connected"` state.
 curl http://127.0.0.1:18080/api/v1/status
 ```
 
+**HTTP probes:** `GET /healthz` is **liveness only** (`{"ok":true}`). `GET /readyz` and `GET /api/v1/readyz` are **readiness** (HTTP 200 vs 503 with `reason_codes`). Full transport fields live in `/api/v1/status`. **`mel support bundle`** produces a ZIP with `bundle.json` plus `doctor.json` (offline doctor-equivalent, review before sharing).
+
 ## Step 7 — (Optional) Enable operator-approval controls
 
 To require explicit operator approval before MEL executes high-blast-radius

@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
+	"github.com/mel-project/mel/internal/doctor"
 	"github.com/mel-project/mel/internal/privacy"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/upgrade"
@@ -32,13 +34,16 @@ type Bundle struct {
 	RecentIncidents        []map[string]any                `json:"recent_incidents,omitempty"`
 	ActiveTransportAlerts  []db.TransportAlertRecord       `json:"active_transport_alerts,omitempty"`
 	PrivacySummary         map[string]int                  `json:"privacy_summary,omitempty"`
+	DoctorJSON             map[string]any                  `json:"doctor_json,omitempty"`
+	DoctorJSONNote         string                          `json:"doctor_json_note,omitempty"`
 	Nodes                  []map[string]any                `json:"nodes"`
 	Messages               []map[string]any                `json:"messages"`
 	DeadLetters            []map[string]any                `json:"dead_letters"`
 	AuditLogs              []map[string]any                `json:"audit_logs"`
 }
 
-func Create(cfg config.Config, d *db.DB, version string) (*Bundle, error) {
+// Create builds a support bundle. cfgPath is the operator config path on disk (used for doctor.json parity with mel doctor); pass empty if unknown.
+func Create(cfg config.Config, d *db.DB, version string, cfgPath string) (*Bundle, error) {
 	diagnosticsRun := diagnostics.RunAllChecks(cfg, d, nil, nil, time.Now().UTC())
 
 	nodes, err := d.QueryRows("SELECT node_num,node_id,long_name,short_name,last_seen,lat_redacted,lon_redacted,altitude FROM nodes ORDER BY node_num;")
@@ -90,6 +95,15 @@ func Create(cfg config.Config, d *db.DB, version string) (*Bundle, error) {
 	}
 	alerts, _ := d.TransportAlerts(true)
 
+	var doctorForBundle map[string]any
+	doctorNote := "Structured mel doctor payload (redacted for bundle export). Same checks as CLI; review before sharing externally."
+	if p := strings.TrimSpace(cfgPath); p != "" {
+		doctorRaw, _ := doctor.Run(cfg, p)
+		doctorForBundle = doctor.RedactForSupportBundle(doctorRaw)
+	} else {
+		doctorNote = "doctor.json omitted: config file path was not provided to the bundle generator."
+	}
+
 	bundle := &Bundle{
 		GeneratedAt:            time.Now().UTC(),
 		Version:                version,
@@ -106,6 +120,8 @@ func Create(cfg config.Config, d *db.DB, version string) (*Bundle, error) {
 		RecentIncidents:        incMaps,
 		ActiveTransportAlerts:  alerts,
 		PrivacySummary:         privacy.Summary(privacy.Audit(cfg)),
+		DoctorJSON:             doctorForBundle,
+		DoctorJSONNote:         doctorNote,
 		Nodes:                  nodes,
 		Messages:               messages,
 		DeadLetters:            deadLetters,
@@ -125,6 +141,9 @@ func (b *Bundle) ToZip() ([]byte, error) {
 
 	files := map[string]any{
 		"bundle.json": b,
+	}
+	if b.DoctorJSON != nil {
+		files["doctor.json"] = b.DoctorJSON
 	}
 
 	for name, content := range files {

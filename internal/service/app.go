@@ -83,6 +83,9 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	state := meshstate.New()
 	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
+	if strings.TrimSpace(app.ConfigPath) != "" {
+		app.Web.SetConfigPath(app.ConfigPath)
+	}
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
 	app.Web.SetTrustFuncs(
 		app.ApproveAction,

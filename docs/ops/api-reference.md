@@ -24,8 +24,19 @@ Unauthenticated requests receive:
 
 ## Health & Readiness Endpoints
 
+### Semantics (read this first)
+
+| Surface | What it proves |
+|--------|----------------|
+| `GET /healthz` | **Liveness only** — the HTTP process responds. |
+| `GET /readyz` and `GET /api/v1/readyz` | **Readiness** — status snapshot built; HTTP **200** when at least one **enabled** transport is in `ingesting`, or when **no transports are enabled** (explicit idle). HTTP **503** when snapshot assembly fails or enabled transports exist but none are ingesting. |
+| `GET /api/v1/status` | **Authoritative transport/system truth** — full `Snapshot` plus operator `panel`. |
+| `mel doctor` / `mel preflight` | **Host-level checks** — config file mode, DB/schema, audit chain, serial/TCP reachability, etc. Preflight adds optional `GET /healthz` against `bind.api`. |
+
+Support bundles and exports may still contain topology samples, message excerpts, and broker **endpoints** (passwords are redacted in `config`). Review before sharing.
+
 ### GET /healthz
-Basic health check endpoint.
+Basic **liveness** check — does not prove ingest, MQTT, or serial.
 
 **Response:**
 ```json
@@ -34,56 +45,65 @@ Basic health check endpoint.
 }
 ```
 
-**Error Responses:**
-- `503 Service Unavailable` - Service is not healthy
-
 ---
 
 ### GET /readyz
-Readiness check with detailed ingest status.
+Readiness with the same JSON contract as `GET /api/v1/readyz` (see below).
 
-**Response:**
+---
+
+### GET /api/v1/readyz
+Versioned readiness for probes and automation. **Semantically identical** to `GET /readyz` (same handler).
+
+**HTTP status:** `200` when `ready` is true; `503` when `ready` is false or the status snapshot cannot be built.
+
+**Example (ready, ingest proven):**
 ```json
 {
+  "api_version": "v1",
   "ready": true,
+  "status": "ready",
+  "reason_codes": [],
+  "summary": "Live ingest is confirmed by SQLite writes.",
+  "checked_at": "2026-03-23T12:00:00Z",
   "process_ready": true,
   "ingest_ready": true,
+  "stale_ingest_evidence": false,
+  "snapshot_generated_at": "2026-03-23T12:00:00Z",
+  "schema_version": "…",
   "operator_state": "ready",
-  "summary": "Live ingest is confirmed by SQLite writes.",
-  "transports": [
-    {
-      "name": "mqtt-primary",
-      "type": "mqtt",
-      "effective_state": "live",
-      "runtime_state": "live",
-      "health": {
-        "score": 100,
-        "state": "healthy",
-        "primary_reason": "",
-        "explanation": {...}
-      },
-      "active_alerts": [],
-      "recent_anomalies": [],
-      "failure_clusters": [],
-      "last_failure_at": "",
-      "episode_id": "",
-      "failure_count": 0,
-      "observation_drops": 0
-    }
-  ]
+  "mesh_state": "healthy",
+  "components": [
+    {"name": "process", "state": "ok", "detail": "HTTP handler responding"},
+    {"name": "snapshot", "state": "ok", "detail": "status snapshot assembled"},
+    {"name": "ingest", "state": "ok", "detail": "at least one transport in ingesting state"}
+  ],
+  "transports": [],
+  "operator_next_steps": []
 }
 ```
 
-**Fields:**
-- `ready` - Overall readiness status
-- `process_ready` - Process is running
-- `ingest_ready` - At least one transport is in `ingesting` state
-- `operator_state` - One of: `idle`, `degraded`, `ready`
-- `summary` - Human-readable status summary
-- `transports` - Array of transport health reports
+**Stable fields:**
+- `api_version` — contract version (`v1`).
+- `ready` / `status` — `ready` boolean and `status` of `ready` or `not_ready`.
+- `reason_codes` — machine codes (e.g. `INGEST_NOT_PROVEN`, `TRANSPORT_IDLE`, `STALE_INGEST_EVIDENCE`, `SNAPSHOT_UNAVAILABLE`, `DEGRADED_TRANSPORT`, `MESH_*`).
+- `summary` — short operator-facing explanation.
+- `checked_at` — RFC3339 when the handler evaluated readiness.
+- `ingest_ready` — at least one enabled transport in `ingesting` effective state.
+- `stale_ingest_evidence` — last persisted ingest older than the server threshold while still ingesting.
+- `components` — bounded sub-checks (`process`, `snapshot`, `ingest`, `mesh`).
+- `transports` — same transport reports as the status snapshot (for evidence; use `/api/v1/status` for the full document).
+- `operator_next_steps` — actionable strings including CLI hints.
 
 **Error Responses:**
-- `500 Internal Server Error` - Status snapshot failed
+- `503` — `error_class`: `not_ready` (ingest not proven) or `snapshot_unavailable` (DB/migration/evidence assembly failure).
+
+---
+
+### GET /api/v1/support-bundle
+**Requires** capability `export_support_bundle` (same as manifest export). Returns `application/zip` containing:
+- `bundle.json` — redacted support payload (see `internal/support`).
+- `doctor.json` — structured output aligned with `mel doctor`, with bundle-specific redaction (config path omitted; `config_inspect` fingerprint only).
 
 ---
 

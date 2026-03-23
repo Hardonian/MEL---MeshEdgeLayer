@@ -26,13 +26,20 @@ func TestUIStateResiliency(t *testing.T) {
 			path:       "/api/v1/diagnostics",
 			wantStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body []byte) {
-				var res []interface{}
+				var res map[string]interface{}
 				if err := json.Unmarshal(body, &res); err != nil {
 					t.Fatalf("Failed to parse JSON: %v", err)
 				}
-				// It should return a non-null JSON array even if empty (e.g. `[]`)
-				if res == nil {
-					t.Errorf("Expected result to be an array, got nil")
+				raw, ok := res["findings"]
+				if !ok || raw == nil {
+					t.Fatalf("Expected 'findings' to be present and non-null, got: %v", res)
+				}
+				findings, ok := raw.([]interface{})
+				if !ok {
+					t.Fatalf("Expected 'findings' to be a JSON array, got %T", raw)
+				}
+				if findings == nil {
+					t.Errorf("Expected findings array non-nil")
 				}
 			},
 		},

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Readiness API parity, diagnostics UI, support bundle doctor.json
+
+- **API:** `GET /api/v1/readyz` mirrors `GET /readyz` with a stable JSON contract (`api_version`, `status`, `reason_codes`, `components`, etc.). HTTP **503** when enabled transports are not ingesting or the status snapshot cannot be built; explicit **idle** (no enabled transports) returns **200**.
+- **Web:** Diagnostics page includes an operator readiness panel wired to `/api/v1/readyz` and `/api/v1/status`; `/api/v1/diagnostics` returns `{ generated_at, summary, findings }` for the UI.
+- **Support bundle:** ZIP from `mel support bundle` and `GET /api/v1/support-bundle` includes `doctor.json` (same logic as `mel doctor`, with bundle redaction: no raw config path; `config_inspect` fingerprint only). `bundle.json` carries `doctor_json` metadata when generated with a known config path.
+- **CLI:** Doctor implementation lives in `internal/doctor` for reuse by CLI and bundles.
+
 ### Operator preflight, readiness clarity, support bundles, and control evidence
 
 - **CLI:** `mel preflight` runs the same checks as `mel doctor`, optionally probes `GET /healthz` on `bind.api` (loopback-safe for `0.0.0.0`), and emits `operator_next_steps` plus `preflight_ok` in JSON.

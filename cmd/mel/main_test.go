@@ -6,13 +6,14 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/doctor"
 	status "github.com/mel-project/mel/internal/status"
 )
 
 func TestDoctorTransportChecksSerialMissing(t *testing.T) {
 	cfg := config.Default()
 	cfg.Transports = []config.TransportConfig{{Name: "radio", Type: "serial", Enabled: true, SerialDevice: filepath.Join(t.TempDir(), "missing-tty")}}
-	checks := doctorTransportChecks(cfg, nil)
+	checks := doctor.TransportChecks(cfg, nil)
 	if len(checks) == 0 {
 		t.Fatal("expected doctor findings")
 	}

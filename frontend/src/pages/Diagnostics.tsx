@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { OperatorReadinessPanel } from '@/components/diagnostics/OperatorReadinessPanel';
 import { SupportBundleExport } from '@/components/diagnostics/SupportBundleExport';
 import { OperatorEmptyState } from '@/components/states/OperatorEmptyState';
 import { safeArray } from '@/utils/apiResilience';
@@ -48,8 +49,10 @@ export function Diagnostics() {
     <div className="space-y-6">
       <PageHeader
         title="System Diagnostics"
-        description="Real-time health evaluation of transports, databases, and control limits."
+        description="Liveness vs readiness vs deep checks — wired to live API responses."
       />
+
+      <OperatorReadinessPanel />
 
       <div className="mb-8">
         <SupportBundleExport />

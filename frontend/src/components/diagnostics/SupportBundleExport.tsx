@@ -15,6 +15,9 @@ export const SupportBundleExport: React.FC = () => {
         setErrorMessage('Support bundle export API is currently disabled or not implemented in this backend version.');
         return;
       }
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`${response.status}: authentication or capability required (export_support_bundle). Use mel support bundle --config … from the host if the UI cannot authorize.`);
+      }
       if (!response.ok) {
         throw new Error(`Export failed: ${response.status} ${response.statusText}`);
       }
@@ -23,7 +26,7 @@ export const SupportBundleExport: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `mel-support-bundle-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.download = `mel-support-bundle-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -44,7 +47,8 @@ export const SupportBundleExport: React.FC = () => {
     <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
       <h3 className="text-lg font-medium text-gray-900 mb-2">Export Support Bundle</h3>
       <p className="text-sm text-gray-600 mb-4">
-        Generates a redacted JSON bundle containing recent logs, diagnostic findings, transport states, and control actions.
+        Downloads a ZIP with <code className="text-xs">bundle.json</code> (redacted config, nodes, messages sample, control evidence) and{' '}
+        <code className="text-xs">doctor.json</code> (same checks as <code className="text-xs">mel doctor</code>, bundle-redacted). Review before sharing externally.
       </p>
       <button
         onClick={handleExport}

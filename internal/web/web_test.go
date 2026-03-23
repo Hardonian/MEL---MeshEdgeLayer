@@ -1,9 +1,12 @@
 package web
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,16 +17,45 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
+	"github.com/mel-project/mel/internal/support"
 	"github.com/mel-project/mel/internal/transport"
 )
 
-func TestReadyzReturnsSnapshot(t *testing.T) {
+func TestReadyzNotReadyWithoutIngest(t *testing.T) {
 	srv := newTestServer(t, []transport.Health{{Name: "tcp", Type: "tcp", State: transport.StateError, Detail: "connect failed"}}, nil)
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	for _, path := range []string{"/readyz", "/api/v1/readyz"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.http.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s: unexpected status: %d body=%s", path, rec.Code, rec.Body.String())
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["ready"] != false {
+			t.Fatalf("%s: expected ready=false, got %#v", path, payload["ready"])
+		}
+		if payload["status"] != "not_ready" {
+			t.Fatalf("%s: expected status not_ready, got %#v", path, payload["status"])
+		}
+		rc, ok := payload["reason_codes"].([]any)
+		if !ok || len(rc) == 0 {
+			t.Fatalf("%s: expected reason_codes, got %#v", path, payload["reason_codes"])
+		}
+		transports := payload["transports"].([]any)
+		if len(transports) != 1 {
+			t.Fatalf("%s: expected one transport snapshot, got %#v", path, payload)
+		}
+	}
+}
+
+func TestReadyzIdleWhenNoTransportsEnabled(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/readyz", nil)
 	rec := httptest.NewRecorder()
-
 	srv.http.Handler.ServeHTTP(rec, req)
-
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
@@ -32,11 +64,66 @@ func TestReadyzReturnsSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if payload["ready"] != true {
-		t.Fatalf("expected ready=true, got %#v", payload["ready"])
+		t.Fatalf("expected ready=true for idle, got %#v", payload["ready"])
 	}
-	transports := payload["transports"].([]any)
-	if len(transports) != 1 {
-		t.Fatalf("expected one transport snapshot, got %#v", payload)
+}
+
+func TestReadyzReadyWhenIngesting(t *testing.T) {
+	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateIngesting, Detail: "live"}}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/readyz", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["ingest_ready"] != true {
+		t.Fatalf("expected ingest_ready, got %#v", payload["ingest_ready"])
+	}
+}
+
+func TestSupportBundleZipIncludesDoctorJSON(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(t.TempDir(), "mel.json")
+	if err := os.WriteFile(cfgPath, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b, err := support.Create(cfg, database, "test-version", cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zb, err := b.ToZip()
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(zb), int64(len(zb)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawDoctor, sawBundle bool
+	for _, f := range zr.File {
+		switch f.Name {
+		case "doctor.json":
+			sawDoctor = true
+		case "bundle.json":
+			sawBundle = true
+		}
+	}
+	if !sawBundle {
+		t.Fatal("expected bundle.json in zip")
+	}
+	if !sawDoctor {
+		t.Fatal("expected doctor.json in zip")
 	}
 }
 
