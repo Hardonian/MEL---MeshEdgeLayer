@@ -71,23 +71,17 @@ flowchart TB
     style Mesh fill:#fce4ec
 ```
 
-### Operator Identity Limitations
+### Operator identity and API keys (current)
 
-**Current State:** MEL has a single shared credential model ([`internal/config/config.go`](internal/config/config.go:38)):
+**UI (Basic auth):** One shared `ui_user` / `ui_password` receives the **full capability superset** enforced by [`internal/security/security.go`](../../internal/security/security.go) and [`internal/web/web.go`](../../internal/web/web.go) (`BuildAdminIdentity`).
 
-- One username/password pair
-- No per-operator identity
-- No session tracking
-- Actions attributed to "system" or "api"
+**API keys (`X-API-Key`):** When `auth.enabled`, keys are loaded from `auth.operator_keys` (explicit `capabilities` per key) and/or from environment (`MEL_AUTH_API_KEYS`, optional `auth.api_keys_env`). Keys that appear **only** in the environment receive the same **full-admin capability superset** as today (explicit break-glass compatibility). If the same key material is listed in `auth.operator_keys`, the JSON entry wins and env does not widen it.
 
-**Trust Implication:**
+**Capabilities** are the authorization source of truth (not decorative role labels). Examples: `read_status`, `read_incidents`, `read_actions`, `approve_control_action`, `reject_control_action`, `execute_control_action`, `incident_handoff_write`, `incident_update`, plus existing alert/export/config caps. HTTP handlers use [`security.Require` / `RequireAny`](../../internal/security/security.go).
 
-- Cannot distinguish between operators
-- Cannot attribute actions to individuals
-- Cannot implement role-based access
-- All authenticated users have full control
+**CLI (local):** Filesystem access to the config and SQLite still implies full mutability for OS users; `mel control approve|reject` is documented as **legacy break-glass** and requires `--i-understand-bypasses-audit`. Prefer `mel action approve|reject` for canonical audit/timeline/queue behavior.
 
-**Planned Improvement:** Phase 1 of PRODUCTION_CLOSURE_ROADMAP.md addresses identity
+**Remaining limitations:** No maker-checker / separation of duties; `X-Operator-ID` is an audit hint, not a second authentication factor.
 
 ---
 

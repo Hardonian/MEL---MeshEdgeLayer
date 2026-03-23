@@ -10,6 +10,7 @@ import { Recommendations } from './pages/Recommendations'
 import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
+import { Incidents } from './pages/Incidents'
 import { Topology } from './pages/Topology'
 import { ApiProvider } from './hooks/useApi'
 import { ToastProvider } from './components/ui/Toast'
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/messages" element={<Messages />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/dead-letters" element={<DeadLetters />} />
+          <Route path="/incidents" element={<Incidents />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/events" element={<Events />} />
           <Route path="/settings" element={<SettingsPage />} />
