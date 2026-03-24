@@ -161,7 +161,7 @@ func (s *Server) approveActionHandler(w http.ResponseWriter, r *http.Request, ac
 		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
 			code = http.StatusNotFound
-		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "expired") {
+		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "expired") || strings.Contains(err.Error(), "separation of duties") {
 			code = http.StatusConflict
 		}
 		writeError(w, code, "could not approve action", err.Error())
@@ -189,7 +189,7 @@ func (s *Server) rejectActionHandler(w http.ResponseWriter, r *http.Request, act
 		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
 			code = http.StatusNotFound
-		} else if strings.Contains(err.Error(), "not pending approval") {
+		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "separation of duties") {
 			code = http.StatusConflict
 		}
 		writeError(w, code, "could not reject action", err.Error())

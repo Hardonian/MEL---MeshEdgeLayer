@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/doctor"
 	"github.com/mel-project/mel/internal/models"
+	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/security"
@@ -195,8 +196,8 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   policy explain --config <path>
   control status --config <path>
   control history --config <path> [--transport <name>] [--limit <n>]
-  control approve <action-id> --config <path> [--note "..."]
-  control reject <action-id> --config <path> [--note "..."]
+  control approve <action-id> --config <path> [--note "..."] [--i-understand-break-glass-sod]
+  control reject <action-id> --config <path> [--note "..."] [--i-understand-break-glass-sod]
   control pending --config <path>
   control inspect <action-id> --config <path>
   control operational-state --config <path>
@@ -1080,73 +1081,74 @@ func controlCmd(args []string) {
 		mustPrint(map[string]any{"pending_approval": pending, "count": len(pending)})
 	case "approve":
 		if len(args) < 2 {
-			panic("usage: mel control approve <action-id> --config <path> [--note '...'] --i-understand-bypasses-audit")
+			panic("usage: mel control approve <action-id> --config <path> [--note '...'] --i-understand-break-glass-sod")
 		}
 		actionID := args[1]
 		f := fs("control-approve")
 		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "approval note")
 		actor := f.String("actor", "cli-operator", "operator identity")
-		bypassAck := f.Bool("i-understand-bypasses-audit", false, "required acknowledgement: this path bypasses canonical action audit (use mel action approve instead)")
+		breakGlassAck := f.Bool("i-understand-break-glass-sod", false, "required: acknowledge emergency use of legacy entrypoint (canonical: mel action approve)")
 		_ = f.Parse(args[2:])
-		if !*bypassAck {
-			fmt.Fprintln(os.Stderr, "mel control approve: BLOCKED — legacy break-glass path.")
-			fmt.Fprintln(os.Stderr, "This command updates SQLite directly and does NOT match the canonical mel action audit/timeline/queue path.")
-			fmt.Fprintln(os.Stderr, "Preferred operator path: mel action approve <action-id> --config <path>")
-			fmt.Fprintln(os.Stderr, "To proceed anyway, pass: --i-understand-bypasses-audit")
+		if !*breakGlassAck {
+			fmt.Fprintln(os.Stderr, "mel control approve: BLOCKED — legacy entrypoint.")
+			fmt.Fprintln(os.Stderr, "Canonical path runs the full service approve path (audit, timeline, executor queue): mel action approve <action-id> --config <path>")
+			fmt.Fprintln(os.Stderr, "mel control approve exists only as break-glass and still records durable metadata marking this entrypoint.")
+			fmt.Fprintln(os.Stderr, "To proceed: pass --i-understand-break-glass-sod")
 			os.Exit(2)
 		}
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
-		d := openDB(cfg)
-		if err := d.ApproveControlAction(actionID, *actor, *note); err != nil {
+		app := openServiceApp(cfg)
+		if err := app.ApproveActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
 			panic(err)
 		}
-		fmt.Fprintln(os.Stderr, "WARNING: break-glass approval applied via direct SQL (legacy). Canonical path: mel action approve.")
+		did := app.ProcessNextQueuedControlAction(context.Background())
+		fmt.Fprintln(os.Stderr, "WARNING: break-glass legacy entrypoint used (mel control approve). Canonical operator path: mel action approve. Executor queue processed one slot if pending.")
 		mustPrint(map[string]any{
-			"status":                          "approved",
-			"action_id":                       actionID,
-			"actor":                           *actor,
-			"break_glass":                     true,
-			"bypasses_canonical_action_audit": true,
-			"preferred_path":                  "mel action approve",
+			"status":            "approved",
+			"action_id":         actionID,
+			"actor":             *actor,
+			"break_glass":       true,
+			"legacy_entrypoint": "mel_control_approve",
+			"preferred_path":    "mel action approve",
+			"processed_queue":   did,
 		})
 	case "reject":
 		if len(args) < 2 {
-			panic("usage: mel control reject <action-id> --config <path> [--note '...'] --i-understand-bypasses-audit")
+			panic("usage: mel control reject <action-id> --config <path> [--note '...'] --i-understand-break-glass-sod")
 		}
 		actionID := args[1]
 		f := fs("control-reject")
 		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "rejection reason")
 		actor := f.String("actor", "cli-operator", "operator identity")
-		bypassAck := f.Bool("i-understand-bypasses-audit", false, "required acknowledgement: this path bypasses canonical action audit (use mel action reject instead)")
+		breakGlassAck := f.Bool("i-understand-break-glass-sod", false, "required: acknowledge emergency use of legacy entrypoint (canonical: mel action reject)")
 		_ = f.Parse(args[2:])
-		if !*bypassAck {
-			fmt.Fprintln(os.Stderr, "mel control reject: BLOCKED — legacy break-glass path.")
-			fmt.Fprintln(os.Stderr, "This command updates SQLite directly and does NOT match the canonical mel action audit/timeline path.")
-			fmt.Fprintln(os.Stderr, "Preferred operator path: mel action reject <action-id> --config <path>")
-			fmt.Fprintln(os.Stderr, "To proceed anyway, pass: --i-understand-bypasses-audit")
+		if !*breakGlassAck {
+			fmt.Fprintln(os.Stderr, "mel control reject: BLOCKED — legacy entrypoint.")
+			fmt.Fprintln(os.Stderr, "Canonical path: mel action reject <action-id> --config <path>")
+			fmt.Fprintln(os.Stderr, "To proceed: pass --i-understand-break-glass-sod")
 			os.Exit(2)
 		}
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
-		d := openDB(cfg)
-		if err := d.RejectControlAction(actionID, *actor, *note); err != nil {
+		app := openServiceApp(cfg)
+		if err := app.RejectActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
 			panic(err)
 		}
-		fmt.Fprintln(os.Stderr, "WARNING: break-glass rejection applied via direct SQL (legacy). Canonical path: mel action reject.")
+		fmt.Fprintln(os.Stderr, "WARNING: break-glass legacy entrypoint used (mel control reject). Canonical operator path: mel action reject.")
 		mustPrint(map[string]any{
-			"status":                          "rejected",
-			"action_id":                       actionID,
-			"actor":                           *actor,
-			"break_glass":                     true,
-			"bypasses_canonical_action_audit": true,
-			"preferred_path":                  "mel action reject",
+			"status":            "rejected",
+			"action_id":         actionID,
+			"actor":             *actor,
+			"break_glass":       true,
+			"legacy_entrypoint": "mel_control_reject",
+			"preferred_path":    "mel action reject",
 		})
 	case "inspect":
 		if len(args) < 2 {
@@ -1194,6 +1196,24 @@ func openServiceApp(cfg config.Config) *service.App {
 	return app
 }
 
+func enrichControlActionsCLI(rows []db.ControlActionRecord) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		m, err := json.Marshal(row)
+		if err != nil {
+			continue
+		}
+		var base map[string]any
+		if err := json.Unmarshal(m, &base); err != nil {
+			continue
+		}
+		ov := operatorlang.ActionOperatorLabels(row)
+		base["operator_view"] = ov
+		out = append(out, base)
+	}
+	return out
+}
+
 func actionCmd(args []string) {
 	if len(args) == 0 {
 		panic("usage: mel action list|pending|inspect|approve|reject --config <path>")
@@ -1217,7 +1237,7 @@ func actionCmd(args []string) {
 		if err != nil {
 			panic(err)
 		}
-		mustPrint(map[string]any{"actions": actions, "transport": *transportName, "start": *start, "end": *end, "pagination": map[string]any{"limit": *limit, "offset": *offset}})
+		mustPrint(map[string]any{"actions": enrichControlActionsCLI(actions), "transport": *transportName, "start": *start, "end": *end, "pagination": map[string]any{"limit": *limit, "offset": *offset}})
 	case "pending":
 		cfg, _ := loadCfg(args[1:])
 		d := openDB(cfg)

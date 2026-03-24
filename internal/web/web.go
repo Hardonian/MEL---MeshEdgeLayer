@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
+	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/readiness"
@@ -835,6 +836,8 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 		actions = append(actions, models.ActionRecord{
 			ID:                row.ID,
 			TransportName:     row.TargetTransport,
+			TargetNode:        row.TargetNode,
+			TargetSegment:     row.TargetSegment,
 			ActionType:        row.ActionType,
 			LifecycleState:    row.LifecycleState,
 			Result:            row.Result,
@@ -856,6 +859,7 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 			ApprovalExpiresAt: row.ApprovalExpiresAt,
 			BlastRadiusClass:  row.BlastRadiusClass,
 			EvidenceBundleID:  row.EvidenceBundleID,
+			OperatorView:      operatorlang.ActionOperatorLabels(row),
 		})
 	}
 
@@ -894,6 +898,8 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		actions = append(actions, models.ActionRecord{
 			ID:                row.ID,
 			TransportName:     row.TargetTransport,
+			TargetNode:        row.TargetNode,
+			TargetSegment:     row.TargetSegment,
 			ActionType:        row.ActionType,
 			LifecycleState:    row.LifecycleState,
 			Result:            row.Result,
@@ -915,6 +921,7 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 			ApprovalExpiresAt: row.ApprovalExpiresAt,
 			BlastRadiusClass:  row.BlastRadiusClass,
 			EvidenceBundleID:  row.EvidenceBundleID,
+			OperatorView:      operatorlang.ActionOperatorLabels(row),
 		})
 	}
 
