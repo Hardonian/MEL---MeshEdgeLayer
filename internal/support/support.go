@@ -83,7 +83,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string) (*Bundl
 		controlPlaneErr = terr.Error()
 	}
 
-	actions, _ := d.ControlActions("", "", "", "", 50, 0)
+	actions, _ := d.ControlActions("", "", "", "", "", 50, 0)
 	decisions, _ := d.ControlDecisions("", "", "", "", 50, 0)
 	incidents, _ := d.RecentIncidents(25)
 	incMaps := make([]map[string]any, 0, len(incidents))

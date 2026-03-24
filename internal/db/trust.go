@@ -133,21 +133,21 @@ func evidenceBundleFromRow(row map[string]any) EvidenceBundleRecord {
 // PendingApprovalActions returns all control_actions in pending_approval state.
 func (d *DB) PendingApprovalActions(limit int) ([]ControlActionRecord, error) {
 	limit = clampLimit(limit)
-	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id
-FROM control_actions WHERE lifecycle_state='pending_approval' ORDER BY created_at ASC LIMIT %d;`, limit))
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT %s
+FROM control_actions WHERE lifecycle_state='pending_approval' ORDER BY created_at ASC LIMIT %d;`, sqlControlActionSelectList, limit))
 	if err != nil {
 		return nil, err
 	}
 	out := make([]ControlActionRecord, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, controlActionFromRowExtended(row))
+		out = append(out, controlActionFromRow(row))
 	}
 	return out, nil
 }
 
 // ApproveControlAction moves a pending_approval action to pending (ready for execution).
 // Returns an error if the action does not exist or was not in pending_approval (no silent no-op).
-func (d *DB) ApproveControlAction(id, approvedBy, note string) error {
+func (d *DB) ApproveControlAction(id, approvedBy, note string, sodBypass bool, sodBypassActor, sodBypassReason string) error {
 	safeID, err := ValidateSQLInput(id)
 	if err != nil {
 		logSuspiciousSQL(id, err.Error())
@@ -166,8 +166,14 @@ func (d *DB) ApproveControlAction(id, approvedBy, note string) error {
 	safeBy := esc(approvedBy)
 	safeNote := esc(note)
 	now := esc(time.Now().UTC().Format(time.RFC3339))
-	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='pending', result='approved', approved_by='%s', approved_at='%s', approval_note='%s' WHERE id='%s' AND lifecycle_state='pending_approval';`,
-		safeBy, now, safeNote, safeID)
+	safeBypassActor := esc(sodBypassActor)
+	safeBypassReason := esc(sodBypassReason)
+	bypassInt := 0
+	if sodBypass {
+		bypassInt = 1
+	}
+	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='pending', result='approved', approved_by='%s', approved_at='%s', approval_note='%s', sod_bypass=%d, sod_bypass_actor='%s', sod_bypass_reason='%s' WHERE id='%s' AND lifecycle_state='pending_approval';`,
+		safeBy, now, safeNote, bypassInt, safeBypassActor, safeBypassReason, safeID)
 	if err := d.Exec(sql); err != nil {
 		return err
 	}
@@ -224,22 +230,6 @@ func (d *DB) ExpireStaleApprovalActions(now time.Time) error {
 	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='completed', result='approval_expired', closure_state='approval_expired', completed_at='%s'
 WHERE lifecycle_state='pending_approval' AND approval_expires_at != '' AND approval_expires_at <= '%s';`, ts, ts)
 	return d.Exec(sql)
-}
-
-// controlActionFromRowExtended extends controlActionFromRow with the new trust columns.
-func controlActionFromRowExtended(row map[string]any) ControlActionRecord {
-	base := controlActionFromRow(row)
-	base.ExecutionMode = asString(row["execution_mode"])
-	base.ProposedBy = asString(row["proposed_by"])
-	base.ApprovedBy = asString(row["approved_by"])
-	base.ApprovedAt = asString(row["approved_at"])
-	base.RejectedBy = asString(row["rejected_by"])
-	base.RejectedAt = asString(row["rejected_at"])
-	base.ApprovalNote = asString(row["approval_note"])
-	base.ApprovalExpiresAt = asString(row["approval_expires_at"])
-	base.BlastRadiusClass = asString(row["blast_radius_class"])
-	base.EvidenceBundleID = asString(row["evidence_bundle_id"])
-	return base
 }
 
 // ─── Control Freezes ─────────────────────────────────────────────────────────

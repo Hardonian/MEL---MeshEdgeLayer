@@ -38,7 +38,7 @@ func TestApprovalLifecycle_ApproveAction(t *testing.T) {
 	}
 
 	// Approve it
-	if err := d.ApproveControlAction("action-pending-1", "operator@test", "looks good"); err != nil {
+	if err := d.ApproveControlAction("action-pending-1", "operator@test", "looks good", false, "", ""); err != nil {
 		t.Fatalf("ApproveControlAction: %v", err)
 	}
 
@@ -115,7 +115,7 @@ func TestApprovalLifecycle_ApproveNonPendingFails(t *testing.T) {
 	}
 
 	// Approving a non-pending action must not change state
-	_ = d.ApproveControlAction("action-completed-1", "operator@test", "")
+	_ = d.ApproveControlAction("action-completed-1", "operator@test", "", false, "", "")
 
 	action, _, err := d.ControlActionByID("action-completed-1")
 	if err != nil {

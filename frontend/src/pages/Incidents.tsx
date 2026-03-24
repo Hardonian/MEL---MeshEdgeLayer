@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { formatTimestamp, type Incident } from '@/types/api'
+import { formatTimestamp, type ControlActionRecord, type Incident } from '@/types/api'
 import { ClipboardCopy, RefreshCw } from 'lucide-react'
 
 function isOpenIncident(inc: Incident): boolean {
@@ -56,7 +56,7 @@ export function Incidents() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
-          description="Open incidents with durable handoff context. Pending action IDs are operator-supplied references; use mel action or the API for canonical approve/reject paths."
+          description="Open incidents with durable handoff context. Linked control actions show the canonical incident_id FK from the database. Pending action IDs remain operator-supplied references from handoff when used."
         />
         <button
           type="button"
@@ -121,6 +121,7 @@ export function Incidents() {
 
 function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
   const pending = inc.pending_actions?.filter(Boolean) ?? []
+  const linked = inc.linked_control_actions ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
   const owner = inc.owner_actor_id?.trim()
 
@@ -161,6 +162,23 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
           </div>
         </div>
         <div>
+          <div className="mb-1 text-xs uppercase text-muted-foreground">Linked control actions</div>
+          {linked.length === 0 ? (
+            <p className="text-muted-foreground">None linked via incident_id on control actions.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {linked.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                >
+                  <LinkedActionSummary action={a} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
           <div className="mb-1 text-xs uppercase text-muted-foreground">Pending action IDs</div>
           {pending.length === 0 ? (
             <p className="text-muted-foreground">None recorded for this incident.</p>
@@ -188,5 +206,28 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function LinkedActionSummary({ action: a }: { action: ControlActionRecord }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div>
+        <span className="font-mono">{a.id}</span>
+        <span className="text-muted-foreground"> · {a.action_type}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {a.lifecycle_state && (
+          <Badge variant="outline" className="text-[10px]">
+            {a.lifecycle_state}
+          </Badge>
+        )}
+        {a.result && (
+          <Badge variant="secondary" className="text-[10px]">
+            {a.result}
+          </Badge>
+        )}
+      </div>
+    </div>
   )
 }

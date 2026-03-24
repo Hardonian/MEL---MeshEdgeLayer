@@ -231,6 +231,10 @@ type ControlConfig struct {
 	// ApprovalTimeoutSeconds: how long a pending-approval action waits before
 	// being automatically expired. 0 = no timeout.
 	ApprovalTimeoutSeconds int `json:"approval_timeout_seconds"`
+	// RequireSeparateApprover enforces maker–checker: the actor recorded as
+	// submitter cannot approve the same action when it requires approval,
+	// unless an explicit break-glass acknowledgement is supplied on approve.
+	RequireSeparateApprover bool `json:"require_separate_approver"`
 }
 
 type Lint struct {
@@ -279,6 +283,7 @@ func Default() Config {
 			MaxQueue:                 32,
 			ActionTimeoutSeconds:     10,
 			RetentionDays:            14,
+			RequireSeparateApprover:  true,
 		},
 		Federation:  defaultFederationConfig(),
 		Integration: IntegrationConfig{MinIntervalSeconds: 60},

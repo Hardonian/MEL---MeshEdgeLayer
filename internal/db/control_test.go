@@ -58,7 +58,7 @@ func TestControlActionAndDecisionPersistence(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	actions, err := d.ControlActions("mqtt", "", "", "", 10, 0)
+	actions, err := d.ControlActions("mqtt", "", "", "", "", 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestControlActionAndDecisionPersistence(t *testing.T) {
 	if err := d.PruneControlHistory(time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC), 100); err != nil {
 		t.Fatal(err)
 	}
-	actions, err = d.ControlActions("mqtt", "", "", "", 10, 0)
+	actions, err = d.ControlActions("mqtt", "", "", "", "", 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

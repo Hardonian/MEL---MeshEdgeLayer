@@ -173,9 +173,18 @@ func (a *App) captureEvidenceBundle(action control.ControlAction, transportHealt
 
 // ─── Approval workflow ────────────────────────────────────────────────────────
 
+func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
+	if rec.RequiresSeparateApprover {
+		return true
+	}
+	return rec.ExecutionMode == control.ExecutionModeApprovalRequired
+}
+
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.
-func (a *App) ApproveAction(actionID, actorID, note string) error {
+// When breakGlassSodAck is true and breakGlassSodReason is non-empty, a same-actor
+// approval may proceed for SoD-protected actions (audited in-row and in RBAC audit).
+func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error {
 	if a == nil || a.DB == nil {
 		return fmt.Errorf("service not available")
 	}
@@ -198,6 +207,14 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
 	}
 
+	submitter := strings.TrimSpace(rec.SubmittedBy)
+	if submitter == "" {
+		submitter = strings.TrimSpace(rec.ProposedBy)
+	}
+	if submitter == "" {
+		submitter = "system"
+	}
+
 	// Check if approval has already expired
 	if rec.ApprovalExpiresAt != "" {
 		exp, err2 := time.Parse(time.RFC3339, rec.ApprovalExpiresAt)
@@ -206,7 +223,24 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		}
 	}
 
-	if err := a.DB.ApproveControlAction(actionID, actorID, note); err != nil {
+	needSoD := a.Cfg.Control.RequireSeparateApprover && requiresSeparateApproverForRecord(rec)
+	if needSoD {
+		if strings.EqualFold(strings.TrimSpace(actorID), strings.TrimSpace(submitter)) {
+			if !breakGlassSodAck || strings.TrimSpace(breakGlassSodReason) == "" {
+				return fmt.Errorf("separation of duties: submitter %q cannot approve this action; require a different approver or explicit break_glass_sod_ack with break_glass_sod_reason", submitter)
+			}
+		}
+	}
+
+	sodBypass := false
+	var sodActor, sodReason string
+	if needSoD && strings.EqualFold(strings.TrimSpace(actorID), strings.TrimSpace(submitter)) {
+		sodBypass = true
+		sodActor = actorID
+		sodReason = strings.TrimSpace(breakGlassSodReason)
+	}
+
+	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, sodActor, sodReason); err != nil {
 		return fmt.Errorf("could not approve action: %w", err)
 	}
 
@@ -224,8 +258,10 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 	})
 
 	a.Log.Info("action_approved", "operator approved pending control action", map[string]any{
-		"action_id": actionID,
-		"actor":     actorID,
+		"action_id":    actionID,
+		"actor":        actorID,
+		"sod_bypass":   sodBypass,
+		"submitted_by": submitter,
 	})
 	a.integrationForwardControlAction("action approved: "+actionID, map[string]any{
 		"action_id": actionID,
@@ -239,7 +275,10 @@ func (a *App) ApproveAction(actionID, actorID, note string) error {
 		Severity:   "info",
 		ActorID:    actorID,
 		ResourceID: actionID,
-		Details:    map[string]any{"action_id": actionID, "note": note},
+		Details: map[string]any{
+			"action_id": actionID, "note": note,
+			"submitted_by": submitter, "sod_bypass": sodBypass, "sod_bypass_reason": sodReason,
+		},
 	})
 
 	// Re-load the action and queue for execution
@@ -664,39 +703,46 @@ func newTrustID(prefix string) string {
 // This is defined here to keep db package free of service imports.
 func db_ControlActionRecordToControlAction(r db.ControlActionRecord) control.ControlAction {
 	return control.ControlAction{
-		ID:                r.ID,
-		DecisionID:        r.DecisionID,
-		ActionType:        r.ActionType,
-		TargetTransport:   r.TargetTransport,
-		TargetSegment:     r.TargetSegment,
-		TargetNode:        r.TargetNode,
-		Reason:            r.Reason,
-		Confidence:        r.Confidence,
-		TriggerEvidence:   append([]string(nil), r.TriggerEvidence...),
-		EpisodeID:         r.EpisodeID,
-		CreatedAt:         r.CreatedAt,
-		ExecutedAt:        r.ExecutedAt,
-		CompletedAt:       r.CompletedAt,
-		Result:            r.Result,
-		Reversible:        r.Reversible,
-		ExpiresAt:         r.ExpiresAt,
-		OutcomeDetail:     r.OutcomeDetail,
-		Mode:              r.Mode,
-		PolicyRule:        r.PolicyRule,
-		LifecycleState:    r.LifecycleState,
-		AdvisoryOnly:      r.AdvisoryOnly,
-		DenialCode:        r.DenialCode,
-		ClosureState:      r.ClosureState,
-		Metadata:          r.Metadata,
-		ExecutionMode:     r.ExecutionMode,
-		ProposedBy:        r.ProposedBy,
-		ApprovedBy:        r.ApprovedBy,
-		ApprovedAt:        r.ApprovedAt,
-		RejectedBy:        r.RejectedBy,
-		RejectedAt:        r.RejectedAt,
-		ApprovalNote:      r.ApprovalNote,
-		ApprovalExpiresAt: r.ApprovalExpiresAt,
-		BlastRadiusClass:  r.BlastRadiusClass,
-		EvidenceBundleID:  r.EvidenceBundleID,
+		ID:                       r.ID,
+		DecisionID:               r.DecisionID,
+		ActionType:               r.ActionType,
+		TargetTransport:          r.TargetTransport,
+		TargetSegment:            r.TargetSegment,
+		TargetNode:               r.TargetNode,
+		Reason:                   r.Reason,
+		Confidence:               r.Confidence,
+		TriggerEvidence:          append([]string(nil), r.TriggerEvidence...),
+		EpisodeID:                r.EpisodeID,
+		CreatedAt:                r.CreatedAt,
+		ExecutedAt:               r.ExecutedAt,
+		CompletedAt:              r.CompletedAt,
+		Result:                   r.Result,
+		Reversible:               r.Reversible,
+		ExpiresAt:                r.ExpiresAt,
+		OutcomeDetail:            r.OutcomeDetail,
+		Mode:                     r.Mode,
+		PolicyRule:               r.PolicyRule,
+		LifecycleState:           r.LifecycleState,
+		AdvisoryOnly:             r.AdvisoryOnly,
+		DenialCode:               r.DenialCode,
+		ClosureState:             r.ClosureState,
+		Metadata:                 r.Metadata,
+		ExecutionMode:            r.ExecutionMode,
+		ProposedBy:               r.ProposedBy,
+		ApprovedBy:               r.ApprovedBy,
+		ApprovedAt:               r.ApprovedAt,
+		RejectedBy:               r.RejectedBy,
+		RejectedAt:               r.RejectedAt,
+		ApprovalNote:             r.ApprovalNote,
+		ApprovalExpiresAt:        r.ApprovalExpiresAt,
+		BlastRadiusClass:         r.BlastRadiusClass,
+		EvidenceBundleID:         r.EvidenceBundleID,
+		SubmittedBy:              r.SubmittedBy,
+		RequiresSeparateApprover: r.RequiresSeparateApprover,
+		IncidentID:               r.IncidentID,
+		ExecutionStartedAt:       r.ExecutionStartedAt,
+		SodBypass:                r.SodBypass,
+		SodBypassActor:           r.SodBypassActor,
+		SodBypassReason:          r.SodBypassReason,
 	}
 }
