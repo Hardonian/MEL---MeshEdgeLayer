@@ -79,7 +79,7 @@ flowchart TB
 
 **Capabilities** are the authorization source of truth (not decorative role labels). Examples: `read_status`, `read_incidents`, `read_actions`, `approve_control_action`, `reject_control_action`, `execute_control_action`, `incident_handoff_write`, `incident_update`, plus existing alert/export/config caps. HTTP handlers use [`security.Require` / `RequireAny`](../../internal/security/security.go).
 
-**CLI (local):** Filesystem access to the config and SQLite still implies full mutability for OS users; `mel control approve|reject` is documented as **legacy break-glass** and requires `--i-understand-bypasses-audit`. Prefer `mel action approve|reject` for canonical audit/timeline/queue behavior.
+**CLI (local):** Filesystem access to the config and SQLite still implies full mutability for OS users; `mel control approve|reject` is **legacy break-glass** and requires `--i-understand-break-glass-sod`. It invokes the same service-layer approve/reject as `mel action` (audit_log, timeline, executor queue) and stamps durable `metadata_json` break-glass fields. Prefer `mel action approve|reject` for normal operations.
 
 **Remaining limitations:** No maker-checker / separation of duties; `X-Operator-ID` is an audit hint, not a second authentication factor.
 

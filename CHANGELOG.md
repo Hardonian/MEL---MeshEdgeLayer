@@ -6,7 +6,7 @@
 
 - **Per-key capabilities:** `auth.operator_keys` maps each `X-API-Key` to an explicit `capabilities` list; unknown capability names fail config validation. Env-only API keys (`MEL_AUTH_API_KEYS` / `api_keys_env`) still merge as **full-admin** credentials when not overridden by a JSON entry for the same key material.
 - **HTTP authz:** Added capabilities `read_incidents`, `read_actions`, `reject_control_action`, `control_action_write`, `incident_handoff_write`, `incident_update`. Approve vs reject are split; incident handoff no longer piggybacks on `acknowledge_alerts`. `GET /api/v1/panel` includes `capabilities` and `trust_ui` hints for honest UI affordances.
-- **Break-glass CLI:** `mel control approve|reject` exits non-zero unless `--i-understand-bypasses-audit` is set; stderr documents bypass of canonical `mel action` audit path.
+- **Break-glass CLI:** `mel control approve|reject` exits non-zero unless `--i-understand-break-glass-sod` is set; the command routes through the canonical service approve/reject path (audit, timeline, queue) and records break-glass metadata on the action row when used.
 - **Incidents API:** `GET /api/v1/incidents` returns full incident rows including handoff columns when present.
 - **Web UI:** New `/incidents` page lists open incidents with owner, handoff summary, and pending action IDs (copy buttons); read-only messaging when `incident_handoff_write` is absent.
 

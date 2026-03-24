@@ -56,7 +56,7 @@ export function Incidents() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
-          description="Open incidents with durable handoff context. Pending action IDs are operator-supplied references; use mel action or the API for canonical approve/reject paths."
+          description="Mesh / link / transport disruptions with durable handoff context. Pending action IDs are operator references only — approve or reject via mel action or the HTTP API, not by editing this list."
         />
         <button
           type="button"
@@ -161,7 +161,7 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
           </div>
         </div>
         <div>
-          <div className="mb-1 text-xs uppercase text-muted-foreground">Pending action IDs</div>
+          <div className="mb-1 text-xs uppercase text-muted-foreground">Referenced mesh / node action IDs</div>
           {pending.length === 0 ? (
             <p className="text-muted-foreground">None recorded for this incident.</p>
           ) : (

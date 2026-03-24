@@ -13,12 +13,15 @@ interface ControlAction {
   id: string;
   command?: string;
   action_type?: string;
+  target_node?: string;
+  target_segment?: string;
   target_node_id?: string;
   target_transport?: string;
   transport_name?: string;
   result: string;
   denial_reason?: string;
   created_at?: string;
+  executed_at?: string;
   outcome_detail?: string;
   advisory_only?: boolean;
   lifecycle_state?: string;
@@ -26,6 +29,9 @@ interface ControlAction {
   proposed_by?: string;
   approved_by?: string;
   evidence_bundle_id?: string;
+  /** Derived operator-facing labels from backend (queue vs approval vs execution truth). */
+  operator_view?: Record<string, unknown>;
+  details?: Record<string, unknown>;
 }
 
 interface RealityMatrixItem {
@@ -38,6 +44,22 @@ interface RealityMatrixItem {
   notes: string;
 }
 
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+
+function incidentFromAction(a: ControlAction): string {
+  const ov = a.operator_view
+  if (ov && str(ov.linked_incident_id)) return str(ov.linked_incident_id)
+  const d = a.details
+  if (!d) return ''
+  for (const k of ['incident_id', 'mel_incident_id', 'linked_incident_id']) {
+    const x = d[k]
+    if (typeof x === 'string' && x.trim()) return x.trim()
+  }
+  return ''
+}
+
 export function Control() {
   const { data: status, loading: statusLoading, error: statusError } = useControlStatus()
   const { data: history, loading: historyLoading, error: historyError } = useControlHistory()
@@ -46,7 +68,7 @@ export function Control() {
   const canApprove = trustUI?.approve_control === true
 
   if ((statusLoading && !status) || (historyLoading && !history) || (opLoading && !opState)) {
-    return <Loading message="Syncing with control plane..." />
+    return <Loading message="Loading mesh action queue…" />
   }
 
   if (statusError || historyError || opError) {
@@ -54,8 +76,8 @@ export function Control() {
       <div className="p-8">
         <AlertCard
           variant="critical"
-          title="Control Plane Desync"
-          description={statusError || historyError || opError || 'Unexpected error communicating with control plane.'}
+          title="Mesh / node actions — API error"
+          description={statusError || historyError || opError || 'Unexpected error communicating with the backend.'}
         />
       </div>
     )
@@ -68,8 +90,8 @@ export function Control() {
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        title="Control Plane"
-        description="Truth-driven mesh remediation and guarded automation."
+        title="Mesh / node actions"
+        description="Guarded automation against transports, MQTT bridges, and node targets. Refresh the page to reload this view — it is not a live stream."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -86,21 +108,21 @@ export function Control() {
             </div>
             <CardDescription>
               {status?.mode === 'guarded_auto' 
-                ? 'MEL is monitoring mesh health and will automatically execute safe remediation actions.'
+                ? 'MEL watches link / transport health and can run safe remediation on your behalf when policy allows.'
                 : status?.mode === 'advisory'
-                ? 'Control actions are evaluated and suggested, but never executed. Requires operator intervention.'
-                : 'Control processes are dormant. Enable in mel.json to activate guardrails.'}
+                ? 'Mesh-side actions are evaluated and surfaced, but not executed automatically — operators drive changes.'
+                : 'Automation is off. Enable guarded mode in mel.json to activate mesh-aware guardrails.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Queue Depth</div>
+                  <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Executor queue depth</div>
                   <div className="text-2xl font-bold font-mono">{status?.queue_depth || 0} / {status?.queue_capacity || 0}</div>
                 </div>
                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Active Actions</div>
+                  <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">In-flight actions</div>
                   <div className="text-2xl font-bold font-mono">{status?.active_actions || 0}</div>
                 </div>
               </div>
@@ -138,44 +160,56 @@ export function Control() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-warning" />
-              Pending approvals
+              Needs second-operator approval
             </CardTitle>
             <CardDescription>
-              These actions require an operator approval before execution.
+              These mesh / node actions are held until a different operator approves them (separation of duties when a human proposed the action).
               {canApprove ? (
                 <>
                   {' '}
-                  Use{' '}
+                  Approve via{' '}
                   <code className="text-xs bg-muted px-1 rounded">POST /api/v1/actions/&#123;id&#125;/approve</code>
-                  {' '}or <code className="text-xs bg-muted px-1 rounded">mel action approve</code> with the same config as the running daemon.
+                  {' '}or <code className="text-xs bg-muted px-1 rounded">mel action approve</code> using the same config as <code className="text-xs bg-muted px-1 rounded">mel serve</code>.
+                  {' '}Avoid <code className="text-xs bg-muted px-1 rounded">mel control approve</code> except documented break-glass.
                 </>
               ) : (
                 <>
                   {' '}
-                  Your session does not include the <code className="text-xs bg-muted px-1 rounded">approve_control_action</code>{' '}
-                  capability; you can review the queue but cannot approve via this API identity. Use credentials with that capability or a
-                  full-admin API key / UI login.
+                  Your session does not include <code className="text-xs bg-muted px-1 rounded">approve_control_action</code>; you can read the queue but not approve with this API identity.
                 </>
               )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pendingApprovals.map((pa) => (
+            {pendingApprovals.map((pa) => {
+              const ov = pa.operator_view
+              const targetLine = str(ov?.target_summary) || [pa.target_node, pa.target_transport || pa.transport_name].filter(Boolean).join(' · ') || '—'
+              const sod = ov?.sod_blocks_self === true
+              return (
               <div key={pa.id} className="rounded-lg border border-border/60 p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="font-mono text-xs font-semibold">{pa.action_type || 'action'}</span>
+                  <span className="font-mono text-xs font-semibold">{pa.action_type || 'mesh action'}</span>
                   <code className="text-[10px] px-1.5 py-0.5 bg-muted rounded">{pa.id}</code>
-                  <Badge variant="warning" className="text-[10px]">awaiting_review</Badge>
+                  <Badge variant="warning" className="text-[10px]">{str(ov?.approval_status) || 'awaiting approver'}</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5">
+                  <div><span className="text-foreground font-medium">Target summary:</span> {targetLine}</div>
                   <div><span className="text-foreground font-medium">Proposed by:</span> {pa.proposed_by || 'system'}</div>
-                  <div><span className="text-foreground font-medium">Transport:</span> {pa.target_transport || pa.transport_name || '—'}</div>
+                  {str(ov?.second_operator_note) ? (
+                    <div className="text-warning">{str(ov?.second_operator_note)}</div>
+                  ) : null}
+                  {sod ? (
+                    <div className="text-muted-foreground">Self-approval blocked for this row — use another operator id.</div>
+                  ) : null}
+                  {incidentFromAction(pa) ? (
+                    <div><span className="text-foreground font-medium">Linked incident:</span> <code className="text-[10px] bg-muted px-1 rounded">{incidentFromAction(pa)}</code></div>
+                  ) : null}
                   {pa.evidence_bundle_id ? (
                     <div><span className="text-foreground font-medium">Evidence bundle:</span> {pa.evidence_bundle_id}</div>
                   ) : null}
                 </div>
               </div>
-            ))}
+            )})}
           </CardContent>
         </Card>
       )}
@@ -183,18 +217,18 @@ export function Control() {
       {realityMatrix.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Reality Matrix</CardTitle>
-            <CardDescription>Supported actuators and their safety profiles.</CardDescription>
+            <CardTitle>Action capability matrix</CardTitle>
+            <CardDescription>What MEL can actually drive on-node or on-link vs advisory-only paths.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left font-medium py-2 px-4">Action</th>
+                    <th className="text-left font-medium py-2 px-4">Node / link action</th>
                     <th className="text-left font-medium py-2 px-4">Actuator</th>
                     <th className="text-left font-medium py-2 px-4">Reversible</th>
-                    <th className="text-left font-medium py-2 px-4">Blast Radius</th>
+                    <th className="text-left font-medium py-2 px-4">Impact scope</th>
                     <th className="text-left font-medium py-2 px-4">Automation</th>
                   </tr>
                 </thead>
@@ -235,55 +269,78 @@ export function Control() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Action History</CardTitle>
-          <CardDescription>Recent outbound commands and their outcomes.</CardDescription>
+          <CardTitle>Recent mesh / node actions</CardTitle>
+          <CardDescription>Approval state and executor state are distinct: &quot;approved&quot; does not mean the change already ran on the target.</CardDescription>
         </CardHeader>
         <CardContent>
           {actions.length === 0 ? (
             <OperatorEmptyState 
-              title="No control history" 
-              description="No automated or manual commands have been recorded in the database." 
+              title="No mesh / node action history" 
+              description="No automated or operator-driven actions are recorded in the database yet." 
             />
           ) : (
             <div className="space-y-4">
               {actions.map((action) => {
-                const isExecuted = action.result === 'executed_successfully'
+                const ov = action.operator_view
+                const execLabel = str(ov?.execution_status)
+                const isExecuted = action.result === 'executed_successfully' || execLabel.toLowerCase().includes('completed') || execLabel.toLowerCase().includes('finished')
                 const isBlocked = action.result === 'blocked' || action.result === 'denied' || action.result === 'denied_by_policy' || action.result === 'denied_by_cooldown'
-                const isFailed = action.result === 'failed' || action.result === 'error' || action.result === 'failed_terminal'
-                const isPending =
-                  action.result === 'requested' ||
-                  action.result === 'pending' ||
+                const isFailed = action.result === 'failed' || action.result === 'error' || action.result === 'failed_terminal' || execLabel.toLowerCase() === 'failed'
+                const isPendingApproval =
                   action.result === 'pending_approval' ||
                   action.lifecycle_state === 'pending_approval'
+                const approvedWaiting =
+                  action.result === 'approved' &&
+                  action.lifecycle_state === 'pending' &&
+                  !action.executed_at
                 
                 let icon = <Send className="h-4 w-4 text-muted-foreground" />
                 let badgeVariant: 'success' | 'critical' | 'warning' | 'default' = 'default'
-                let badgeText = action.result?.replace(/_/g, ' ') || 'Unknown'
+                let badgeText = execLabel || action.result?.replace(/_/g, ' ') || 'Unknown'
 
                 if (isExecuted) {
                   icon = <CheckCircle2 className="h-4 w-4 text-success" />
                   badgeVariant = 'success'
-                  badgeText = 'Executed'
+                  badgeText = execLabel || 'Completed on target'
                 } else if (isBlocked) {
                   icon = <ShieldAlert className="h-4 w-4 text-warning" />
                   badgeVariant = 'warning'
-                  badgeText = 'Blocked'
+                  badgeText = execLabel || 'Blocked'
                 } else if (isFailed) {
                   icon = <XCircle className="h-4 w-4 text-critical" />
                   badgeVariant = 'critical'
-                  badgeText = 'Failed'
-                } else if (isPending) {
+                  badgeText = execLabel || 'Failed'
+                } else if (isPendingApproval) {
                   icon = <Clock className="h-4 w-4 text-muted-foreground" />
                   badgeVariant = 'secondary' as any
-                  badgeText = 'Pending'
+                  badgeText = str(ov?.approval_status) || 'Needs approver'
+                } else if (approvedWaiting) {
+                  icon = <Clock className="h-4 w-4 text-warning" />
+                  badgeVariant = 'warning'
+                  badgeText = execLabel || 'Approved — waiting executor'
+                } else if (
+                  action.result === 'requested' ||
+                  action.result === 'pending' ||
+                  action.lifecycle_state === 'pending'
+                ) {
+                  icon = <Clock className="h-4 w-4 text-muted-foreground" />
+                  badgeVariant = 'secondary' as any
+                  badgeText = execLabel || 'Queued / running'
                 }
+
+                const targetLine =
+                  str(ov?.target_summary) ||
+                  [action.target_node, action.target_transport || action.transport_name].filter(Boolean).join(' · ') ||
+                  '—'
+                const breakGlass = ov?.break_glass_in_history === true
+                const incId = incidentFromAction(action)
 
                 return (
                   <div key={action.id} className="rounded-lg border p-4 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {icon}
-                        <span className="font-semibold">{action.action_type || action.command || 'Unknown'}</span>
+                        <span className="font-semibold">{action.action_type || action.command || 'mesh action'}</span>
                         <code className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">
                           {action.id.slice(0, 8)}
                         </code>
@@ -291,7 +348,10 @@ export function Control() {
                           <Badge variant="outline" className="text-[10px] h-4 font-normal">Advisory</Badge>
                         )}
                         {action.execution_mode === 'approval_required' && (
-                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-warning/40">approval_required</Badge>
+                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-warning/40">second-operator gate</Badge>
+                        )}
+                        {breakGlass && (
+                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-critical/40 text-critical">break-glass</Badge>
                         )}
                       </div>
                       <Badge variant={badgeVariant} className="capitalize text-[10px]">{badgeText}</Badge>
@@ -299,9 +359,25 @@ export function Control() {
                     
                     <div className="mt-3 bg-muted/20 dark:bg-black/20 p-3 rounded-md border border-border/50">
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-6 text-xs text-muted-foreground">
+                        {ov ? (
+                          <>
+                            <div>
+                              <span className="font-medium mr-1 text-foreground">Queue:</span>
+                              {str(ov.queue_status)}
+                            </div>
+                            <div>
+                              <span className="font-medium mr-1 text-foreground">Approval:</span>
+                              {str(ov.approval_status)}
+                            </div>
+                            <div>
+                              <span className="font-medium mr-1 text-foreground">Execution:</span>
+                              {str(ov.execution_status)}
+                            </div>
+                          </>
+                        ) : null}
                         <div>
-                          <span className="font-medium mr-1 text-foreground">Target:</span>
-                          <span className="font-mono">{action.target_transport || action.transport_name || 'Global'}</span>
+                          <span className="font-medium mr-1 text-foreground">Target summary:</span>
+                          <span>{targetLine}</span>
                         </div>
                         <div>
                           <span className="font-medium mr-1 text-foreground">Time:</span>
@@ -316,6 +392,12 @@ export function Control() {
                             </span>
                           </div>
                         )}
+                        {incId ? (
+                          <div className="md:col-span-2">
+                            <span className="font-medium mr-1 text-foreground">Linked incident:</span>
+                            <code className="text-[10px] bg-muted px-1 rounded">{incId}</code>
+                          </div>
+                        ) : null}
                         <div className="md:col-span-2 lg:col-span-1">
                           <span className="font-medium mr-1 text-foreground">Detail:</span>
                           <span className="italic">{action.outcome_detail || 'No outcome detail reported'}</span>
