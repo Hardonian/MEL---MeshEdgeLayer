@@ -89,7 +89,7 @@ func TestMelControlApproveBreakGlassRequiresAck(t *testing.T) {
 	cmdNoAck := run("run", "./cmd/mel", "control", "approve", actionID, "--config", cfgPath)
 	out, err := cmdNoAck.CombinedOutput()
 	if err == nil {
-		t.Fatalf("expected error without --i-understand-bypasses-audit, output=%s", string(out))
+		t.Fatalf("expected error without --i-understand-break-glass-sod, output=%s", string(out))
 	}
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		// go run / toolchain may surface the subprocess exit differently; require non-zero + message.
@@ -101,7 +101,7 @@ func TestMelControlApproveBreakGlassRequiresAck(t *testing.T) {
 		t.Fatalf("expected guidance to mel action approve, got: %s", string(out))
 	}
 
-	cmdAck := run("run", "./cmd/mel", "control", "approve", actionID, "--config", cfgPath, "--i-understand-bypasses-audit")
+	cmdAck := run("run", "./cmd/mel", "control", "approve", actionID, "--config", cfgPath, "--i-understand-break-glass-sod")
 	out2, err := cmdAck.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected success with ack flag: %v output=%s", err, string(out2))

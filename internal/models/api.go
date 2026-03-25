@@ -71,6 +71,8 @@ type SupportManifest struct {
 type ActionRecord struct {
 	ID              string         `json:"id"`
 	TransportName   string         `json:"transport_name"`
+	TargetNode      string         `json:"target_node,omitempty"`
+	TargetSegment   string         `json:"target_segment,omitempty"`
 	ActionType      string         `json:"action_type"`
 	LifecycleState  string         `json:"lifecycle_state"`
 	Result          string         `json:"result"`
@@ -95,15 +97,8 @@ type ActionRecord struct {
 	BlastRadiusClass  string `json:"blast_radius_class,omitempty"`
 	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
 
-	SubmittedBy              string `json:"submitted_by,omitempty"`
-	RequiresSeparateApprover bool   `json:"requires_separate_approver,omitempty"`
-	IncidentID               string `json:"incident_id,omitempty"`
-	ExecutionStartedAt       string `json:"execution_started_at,omitempty"`
-	SodBypass                bool   `json:"sod_bypass,omitempty"`
-	SodBypassActor           string `json:"sod_bypass_actor,omitempty"`
-	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
-	TargetSegment            string `json:"target_segment,omitempty"`
-	TargetNode               string `json:"target_node,omitempty"`
+	// OperatorView is derived from canonical fields for UI/CLI legibility (not a second source of truth).
+	OperatorView map[string]any `json:"operator_view,omitempty"`
 }
 
 // DecisionRecord represents a control decision in history

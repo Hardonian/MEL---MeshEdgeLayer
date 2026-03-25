@@ -24,8 +24,51 @@ import (
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/selfobs"
 )
+
+// ApprovalOpts configures approve/reject behavior beyond the default canonical path.
+type ApprovalOpts struct {
+	// BreakGlassLegacyCLI is set only by mel control approve|reject after explicit CLI ack.
+	// It records durable metadata and allows separation-of-duties override when the human
+	// proposer would otherwise match the approver identity.
+	BreakGlassLegacyCLI bool
+}
+
+func approvalSodWouldBlock(rec db.ControlActionRecord, actorID string) bool {
+	if rec.ExecutionMode != control.ExecutionModeApprovalRequired {
+		return false
+	}
+	if rec.LifecycleState != control.LifecyclePendingApproval {
+		return false
+	}
+	proposer := strings.TrimSpace(rec.ProposedBy)
+	if proposer == "" || strings.EqualFold(proposer, "system") {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(actorID), proposer)
+}
+
+func (a *App) mergeControlActionMetadata(actionID string, patch map[string]any) error {
+	if a == nil || a.DB == nil || len(patch) == 0 {
+		return nil
+	}
+	rec, ok, err := a.DB.ControlActionByID(actionID)
+	if err != nil {
+		return fmt.Errorf("could not load action for metadata merge: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("action not found for metadata merge: %s", actionID)
+	}
+	if rec.Metadata == nil {
+		rec.Metadata = map[string]any{}
+	}
+	for k, v := range patch {
+		rec.Metadata[k] = v
+	}
+	return a.DB.UpsertControlAction(rec)
+}
 
 // ─── Execution mode helpers ───────────────────────────────────────────────────
 
@@ -182,9 +225,12 @@ func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
 
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.
-// When breakGlassSodAck is true and breakGlassSodReason is non-empty, a same-actor
-// approval may proceed for SoD-protected actions (audited in-row and in RBAC audit).
-func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error {
+func (a *App) ApproveAction(actionID, actorID, note string) error {
+	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+}
+
+// ApproveActionWithOpts approves a pending_approval action with optional break-glass behavior.
+func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) error {
 	if a == nil || a.DB == nil {
 		return fmt.Errorf("service not available")
 	}
@@ -223,25 +269,28 @@ func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck boo
 		}
 	}
 
-	needSoD := a.Cfg.Control.RequireSeparateApprover && requiresSeparateApproverForRecord(rec)
-	if needSoD {
-		if strings.EqualFold(strings.TrimSpace(actorID), strings.TrimSpace(submitter)) {
-			if !breakGlassSodAck || strings.TrimSpace(breakGlassSodReason) == "" {
-				return fmt.Errorf("separation of duties: submitter %q cannot approve this action; require a different approver or explicit break_glass_sod_ack with break_glass_sod_reason", submitter)
-			}
-		}
+	if approvalSodWouldBlock(rec, actorID) && !opts.BreakGlassLegacyCLI {
+		return fmt.Errorf("separation of duties: proposer and approver cannot be the same operator (%s); use a different operator identity or mel control approve with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.ProposedBy))
 	}
 
-	sodBypass := false
-	var sodActor, sodReason string
-	if needSoD && strings.EqualFold(strings.TrimSpace(actorID), strings.TrimSpace(submitter)) {
-		sodBypass = true
-		sodActor = actorID
-		sodReason = strings.TrimSpace(breakGlassSodReason)
-	}
-
-	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, sodActor, sodReason); err != nil {
+	if err := a.DB.ApproveControlAction(actionID, actorID, note); err != nil {
 		return fmt.Errorf("could not approve action: %w", err)
+	}
+
+	if opts.BreakGlassLegacyCLI {
+		now := time.Now().UTC().Format(time.RFC3339)
+		patch := map[string]any{
+			"mel_break_glass_approval": true,
+			"mel_break_glass_path":     "mel_control_legacy",
+			"mel_break_glass_at":       now,
+			"mel_break_glass_actor":    actorID,
+		}
+		if approvalSodWouldBlock(rec, actorID) {
+			patch["mel_break_glass_sod_override"] = true
+		}
+		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
+			return fmt.Errorf("approved action but could not persist break-glass metadata: %w", err)
+		}
 	}
 
 	// Audit the approval
@@ -252,9 +301,17 @@ func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck boo
 		ActionDetail: "approve_action",
 		ResourceType: "control_action",
 		ResourceID:   actionID,
-		Reason:       note,
-		Result:       auth.AuditResultSuccess,
-		Timestamp:    time.Now().UTC(),
+		Reason: func() string {
+			if opts.BreakGlassLegacyCLI {
+				if strings.TrimSpace(note) != "" {
+					return "break_glass_legacy_cli: " + note
+				}
+				return "break_glass_legacy_cli"
+			}
+			return note
+		}(),
+		Result:    auth.AuditResultSuccess,
+		Timestamp: time.Now().UTC(),
 	})
 
 	a.Log.Info("action_approved", "operator approved pending control action", map[string]any{
@@ -275,10 +332,7 @@ func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck boo
 		Severity:   "info",
 		ActorID:    actorID,
 		ResourceID: actionID,
-		Details: map[string]any{
-			"action_id": actionID, "note": note,
-			"submitted_by": submitter, "sod_bypass": sodBypass, "sod_bypass_reason": sodReason,
-		},
+		Details:    map[string]any{"action_id": actionID, "note": note, "break_glass_legacy_cli": opts.BreakGlassLegacyCLI},
 	})
 
 	// Re-load the action and queue for execution
@@ -299,6 +353,11 @@ func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck boo
 
 // RejectAction rejects a pending_approval action and marks it closed.
 func (a *App) RejectAction(actionID, actorID, note string) error {
+	return a.RejectActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+}
+
+// RejectActionWithOpts rejects a pending_approval action with optional break-glass metadata.
+func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) error {
 	if a == nil || a.DB == nil {
 		return fmt.Errorf("service not available")
 	}
@@ -320,8 +379,28 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
 	}
 
+	if approvalSodWouldBlock(rec, actorID) && !opts.BreakGlassLegacyCLI {
+		return fmt.Errorf("separation of duties: proposer and rejector cannot be the same operator (%s); use a different operator identity or mel control reject with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.ProposedBy))
+	}
+
 	if err := a.DB.RejectControlAction(actionID, actorID, note); err != nil {
 		return fmt.Errorf("could not reject action: %w", err)
+	}
+
+	if opts.BreakGlassLegacyCLI {
+		now := time.Now().UTC().Format(time.RFC3339)
+		patch := map[string]any{
+			"mel_break_glass_reject": true,
+			"mel_break_glass_path":   "mel_control_legacy",
+			"mel_break_glass_at":     now,
+			"mel_break_glass_actor":  actorID,
+		}
+		if approvalSodWouldBlock(rec, actorID) {
+			patch["mel_break_glass_sod_override"] = true
+		}
+		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
+			return fmt.Errorf("rejected action but could not persist break-glass metadata: %w", err)
+		}
 	}
 
 	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
@@ -331,9 +410,17 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 		ActionDetail: "reject_action",
 		ResourceType: "control_action",
 		ResourceID:   actionID,
-		Reason:       note,
-		Result:       auth.AuditResultSuccess,
-		Timestamp:    time.Now().UTC(),
+		Reason: func() string {
+			if opts.BreakGlassLegacyCLI {
+				if strings.TrimSpace(note) != "" {
+					return "break_glass_legacy_cli: " + note
+				}
+				return "break_glass_legacy_cli"
+			}
+			return note
+		}(),
+		Result:    auth.AuditResultSuccess,
+		Timestamp: time.Now().UTC(),
 	})
 
 	a.Log.Info("action_rejected", "operator rejected pending control action", map[string]any{
@@ -352,7 +439,7 @@ func (a *App) RejectAction(actionID, actorID, note string) error {
 		Severity:   "warning",
 		ActorID:    actorID,
 		ResourceID: actionID,
-		Details:    map[string]any{"action_id": actionID, "note": note},
+		Details:    map[string]any{"action_id": actionID, "note": note, "break_glass_legacy_cli": opts.BreakGlassLegacyCLI},
 	})
 	return nil
 }
@@ -606,6 +693,7 @@ func (a *App) InspectAction(actionID string) (map[string]any, error) {
 		"evidence_bundle": evidenceBundle,
 		"notes":           notes,
 		"inspected_at":    time.Now().UTC().Format(time.RFC3339),
+		"operator_view":   operatorlang.ActionOperatorLabels(action),
 	}
 	return out, nil
 }
@@ -618,7 +706,29 @@ func (a *App) OperationalState() (map[string]any, error) {
 	if a == nil || a.DB == nil {
 		return map[string]any{"status": "degraded", "reason": "database unavailable"}, nil
 	}
-	return a.DB.ControlPlaneStateSnapshot(time.Now().UTC())
+	state, err := a.DB.ControlPlaneStateSnapshot(time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	raw, _ := state["pending_approvals"].([]db.ControlActionRecord)
+	if len(raw) == 0 {
+		return state, nil
+	}
+	enriched := make([]map[string]any, 0, len(raw))
+	for _, row := range raw {
+		b, err := json.Marshal(row)
+		if err != nil {
+			continue
+		}
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
+		m["operator_view"] = operatorlang.ActionOperatorLabels(row)
+		enriched = append(enriched, m)
+	}
+	state["pending_approvals"] = enriched
+	return state, nil
 }
 
 // ─── Approval expiry cleanup ──────────────────────────────────────────────────

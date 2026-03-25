@@ -14,6 +14,7 @@ package service
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,6 +132,60 @@ func TestServiceApproveAction_ExpiredApprovalWindow(t *testing.T) {
 	err := a.ApproveAction("act-expired", "op", "", false, "")
 	if err == nil {
 		t.Fatal("expected error when approving expired action")
+	}
+}
+
+func TestServiceApproveAction_SameActorBlockedBySoD(t *testing.T) {
+	a := newTrustTestApp(t)
+	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
+		ID:               "act-sod-1",
+		ActionType:       control.ActionRestartTransport,
+		TargetTransport:  "mqtt-test",
+		Reason:           "test",
+		Confidence:       0.9,
+		ExecutionMode:    control.ExecutionModeApprovalRequired,
+		LifecycleState:   control.LifecyclePendingApproval,
+		ProposedBy:       "operator-a",
+		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
+		BlastRadiusClass: "transport",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := a.ApproveAction("act-sod-1", "operator-a", "self-approve")
+	if err == nil {
+		t.Fatal("expected SoD error")
+	}
+	if !strings.Contains(err.Error(), "separation of duties") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestServiceApproveActionWithOpts_BreakGlassAllowsSameActorSoD(t *testing.T) {
+	a := newTrustTestApp(t)
+	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
+		ID:               "act-sod-bg",
+		ActionType:       control.ActionRestartTransport,
+		TargetTransport:  "mqtt-test",
+		Reason:           "test",
+		Confidence:       0.9,
+		ExecutionMode:    control.ExecutionModeApprovalRequired,
+		LifecycleState:   control.LifecyclePendingApproval,
+		ProposedBy:       "operator-a",
+		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
+		BlastRadiusClass: "transport",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ApproveActionWithOpts("act-sod-bg", "operator-a", "emergency", ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
+		t.Fatalf("break-glass approve: %v", err)
+	}
+	rec, ok, err := a.DB.ControlActionByID("act-sod-bg")
+	if err != nil || !ok {
+		t.Fatalf("reload: err=%v ok=%v", err, ok)
+	}
+	v, has := rec.Metadata["mel_break_glass_approval"]
+	if !has || v != true {
+		t.Fatalf("expected mel_break_glass_approval true in metadata, got %#v", rec.Metadata)
 	}
 }
 
@@ -317,6 +372,9 @@ func TestServiceInspectAction_ReturnsFullBundle(t *testing.T) {
 	if _, ok := result["inspected_at"]; !ok {
 		t.Error("inspect result missing 'inspected_at' field")
 	}
+	if ov, ok := result["operator_view"].(map[string]any); !ok || ov["queue_status"] == nil {
+		t.Error("inspect result missing operator_view with queue_status")
+	}
 
 	// Evidence bundle should be present since we linked it
 	if result["evidence_bundle"] == nil {
@@ -393,6 +451,13 @@ func TestServiceOperationalState_ApprovalBacklog(t *testing.T) {
 	bl, _ := state["approval_backlog"].(int)
 	if bl < 3 {
 		t.Errorf("expected approval_backlog >= 3, got %v", state["approval_backlog"])
+	}
+	pending, _ := state["pending_approvals"].([]map[string]any)
+	if len(pending) < 3 {
+		t.Fatalf("expected enriched pending_approvals, got %T %#v", state["pending_approvals"], state["pending_approvals"])
+	}
+	if _, ok := pending[0]["operator_view"].(map[string]any); !ok {
+		t.Error("expected operator_view on pending approval row")
 	}
 }
 

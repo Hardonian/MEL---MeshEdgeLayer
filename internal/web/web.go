@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
+	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/readiness"
@@ -847,7 +848,34 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 	dbActions, _ := payload["actions"].([]db.ControlActionRecord)
 	actions := make([]models.ActionRecord, 0, len(dbActions))
 	for _, row := range dbActions {
-		actions = append(actions, actionRecordFromDBRow(row))
+		actions = append(actions, models.ActionRecord{
+			ID:                row.ID,
+			TransportName:     row.TargetTransport,
+			TargetNode:        row.TargetNode,
+			TargetSegment:     row.TargetSegment,
+			ActionType:        row.ActionType,
+			LifecycleState:    row.LifecycleState,
+			Result:            row.Result,
+			Reason:            row.Reason,
+			OutcomeDetail:     row.OutcomeDetail,
+			CreatedAt:         row.CreatedAt,
+			ExecutedAt:        row.ExecutedAt,
+			CompletedAt:       row.CompletedAt,
+			ExpiresAt:         row.ExpiresAt,
+			TriggerEvidence:   row.TriggerEvidence,
+			Details:           row.Metadata,
+			ExecutionMode:     row.ExecutionMode,
+			ProposedBy:        row.ProposedBy,
+			ApprovedBy:        row.ApprovedBy,
+			ApprovedAt:        row.ApprovedAt,
+			RejectedBy:        row.RejectedBy,
+			RejectedAt:        row.RejectedAt,
+			ApprovalNote:      row.ApprovalNote,
+			ApprovalExpiresAt: row.ApprovalExpiresAt,
+			BlastRadiusClass:  row.BlastRadiusClass,
+			EvidenceBundleID:  row.EvidenceBundleID,
+			OperatorView:      operatorlang.ActionOperatorLabels(row),
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -884,7 +912,34 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 
 	actions := make([]models.ActionRecord, 0, len(dbActions))
 	for _, row := range dbActions {
-		actions = append(actions, actionRecordFromDBRow(row))
+		actions = append(actions, models.ActionRecord{
+			ID:                row.ID,
+			TransportName:     row.TargetTransport,
+			TargetNode:        row.TargetNode,
+			TargetSegment:     row.TargetSegment,
+			ActionType:        row.ActionType,
+			LifecycleState:    row.LifecycleState,
+			Result:            row.Result,
+			Reason:            row.Reason,
+			OutcomeDetail:     row.OutcomeDetail,
+			CreatedAt:         row.CreatedAt,
+			ExecutedAt:        row.ExecutedAt,
+			CompletedAt:       row.CompletedAt,
+			ExpiresAt:         row.ExpiresAt,
+			TriggerEvidence:   row.TriggerEvidence,
+			Details:           row.Metadata,
+			ExecutionMode:     row.ExecutionMode,
+			ProposedBy:        row.ProposedBy,
+			ApprovedBy:        row.ApprovedBy,
+			ApprovedAt:        row.ApprovedAt,
+			RejectedBy:        row.RejectedBy,
+			RejectedAt:        row.RejectedAt,
+			ApprovalNote:      row.ApprovalNote,
+			ApprovalExpiresAt: row.ApprovalExpiresAt,
+			BlastRadiusClass:  row.BlastRadiusClass,
+			EvidenceBundleID:  row.EvidenceBundleID,
+			OperatorView:      operatorlang.ActionOperatorLabels(row),
+		})
 	}
 
 	decisions := make([]models.DecisionRecord, 0, len(dbDecisions))
