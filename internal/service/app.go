@@ -104,6 +104,8 @@ func New(cfg config.Config, debug bool) (*App, error) {
 		app.OperationalState,
 	)
 	app.Web.SetIncidentCollaboration(app.IncidentHandoff, app.IncidentByID)
+	app.Web.SetRecentIncidents(app.RecentIncidentsWithLinkedActions)
+	app.Web.SetOperatorControlQueue(app.QueueOperatorControlAction)
 	for _, tc := range cfg.Transports {
 		app.transportControls[tc.Name] = newTransportControlState()
 		t, err := transport.Build(tc, log, bus)

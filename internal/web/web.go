@@ -46,7 +46,7 @@ type Server struct {
 	recommendations  func() []policy.Recommendation
 	statusSnapshot   func() (statuspkg.Snapshot, error)
 	controlStatus    func() (map[string]any, error)
-	controlHistory   func(string, string, string, int, int) (map[string]any, error)
+	controlHistory   func(string, string, string, string, int, int) (map[string]any, error)
 	diagnosticsRun   func(config.Config, *db.DB) []diagnostics.Finding
 	operatorBriefing func() models.OperatorBriefingDTO
 	queueDepths      func() map[string]int
@@ -55,7 +55,7 @@ type Server struct {
 	federationHandlers *FederationHandlers
 
 	// Trust / operability hooks (wired from service layer)
-	approveAction           func(actionID, actorID, note string) error
+	approveAction           func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error
 	rejectAction            func(actionID, actorID, note string) error
 	createFreeze            func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
 	clearFreeze             func(freezeID, clearedBy string) error
@@ -67,6 +67,8 @@ type Server struct {
 	operationalState        func() (map[string]any, error)
 	incidentHandoff         func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
 	incidentByID            func(id string) (models.Incident, bool, error)
+	recentIncidents         func(limit int) ([]models.Incident, error)
+	queueOperatorControl    func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
 
 	// Topology: optional callback — true when at least one enabled transport is live or idle (ingest-capable).
 	topologyTransportLive func() bool
@@ -82,7 +84,7 @@ func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
 }
 
 func (s *Server) SetTrustFuncs(
-	approve func(string, string, string) error,
+	approve func(string, string, string, bool, string) error,
 	reject func(string, string, string) error,
 	createFreeze func(string, string, string, string, string) (string, error),
 	clearFreeze func(string, string) error,
@@ -114,12 +116,22 @@ func (s *Server) SetIncidentCollaboration(
 	s.incidentByID = byID
 }
 
+// SetRecentIncidents wires list enrichment (e.g. linked control actions); falls back to DB when nil.
+func (s *Server) SetRecentIncidents(f func(limit int) ([]models.Incident, error)) {
+	s.recentIncidents = f
+}
+
+// SetOperatorControlQueue wires operator-initiated control action enqueue (canonical service path).
+func (s *Server) SetOperatorControlQueue(f func(string, string, string, string, string, string, float64, string) (string, error)) {
+	s.queueOperatorControl = f
+}
+
 // SetTopologyTransportLive sets a callback used by GET /api/v1/topology for explicit transport connectivity in the intelligence bundle.
 func (s *Server) SetTopologyTransportLive(f func() bool) {
 	s.topologyTransportLive = f
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
 	snapFn := statusSnapshot
 	if snapFn == nil {
 		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
@@ -132,8 +144,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	}
 	controlHistoryFn := controlHistory
 	if controlHistoryFn == nil {
-		controlHistoryFn = func(start, end, transport string, limit, offset int) (map[string]any, error) {
-			return map[string]any{"actions": []any{}, "decisions": []any{}, "start": start, "end": end, "transport": transport, "pagination": map[string]any{"limit": limit, "offset": offset}}, nil
+		controlHistoryFn = func(start, end, transport, lifecycle string, limit, offset int) (map[string]any, error) {
+			return map[string]any{"actions": []any{}, "decisions": []any{}, "start": start, "end": end, "transport": transport, "lifecycle_state": lifecycle, "pagination": map[string]any{"limit": limit, "offset": offset}}, nil
 		}
 	}
 	diagnosticsRunFn := diagnosticsRun
@@ -203,7 +215,9 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/metrics/internal", s.requireMethod(s.InternalMetricsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/trust", s.requireMethod(s.TrustHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/actions", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlActionsHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/control/operator-action", s.requireMethod(security.Require(security.CapExecuteAction, s.operatorControlQueueHandler), http.MethodPost))
 	mux.HandleFunc("/api/v1/actions", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlActionsHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/operator-action", s.requireMethod(security.Require(security.CapExecuteAction, s.operatorControlQueueHandler), http.MethodPost))
 	mux.HandleFunc("/api/v1/control/history", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlHistoryHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/config/inspect", s.requireMethod(security.Require(security.CapInspectConfig, s.configInspectHandler), http.MethodGet, http.MethodHead))
 
@@ -818,7 +832,8 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
 		return
 	}
-	payload, err := s.controlHistory(start, end, transportName, limit, offset)
+	lifecycleState := strings.TrimSpace(r.URL.Query().Get("lifecycle_state"))
+	payload, err := s.controlHistory(start, end, transportName, lifecycleState, limit, offset)
 	if err != nil {
 		s.log.Error("control_history_failed", "control history query failed", map[string]any{
 			"error": err.Error(),
@@ -864,11 +879,12 @@ func (s *Server) controlActionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"actions":    actions,
-		"transport":  transportName,
-		"start":      start,
-		"end":        end,
-		"pagination": payload["pagination"],
+		"actions":         actions,
+		"transport":       transportName,
+		"lifecycle_state": lifecycleState,
+		"start":           start,
+		"end":             end,
+		"pagination":      payload["pagination"],
 	})
 }
 
@@ -878,7 +894,8 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, logging.APIErrorResponse(err))
 		return
 	}
-	payload, err := s.controlHistory(start, end, transportName, limit, offset)
+	lifecycleState := strings.TrimSpace(r.URL.Query().Get("lifecycle_state"))
+	payload, err := s.controlHistory(start, end, transportName, lifecycleState, limit, offset)
 	if err != nil {
 		s.log.Error("control_history_failed", "control history query failed", map[string]any{
 			"error": err.Error(),
@@ -943,14 +960,15 @@ func (s *Server) controlHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"actions":        actions,
-		"decisions":      decisions,
-		"in_flight":      payload["in_flight"],
-		"reality_matrix": payload["reality_matrix"],
-		"transport":      transportName,
-		"start":          start,
-		"end":            end,
-		"pagination":     payload["pagination"],
+		"actions":         actions,
+		"decisions":       decisions,
+		"in_flight":       payload["in_flight"],
+		"reality_matrix":  payload["reality_matrix"],
+		"transport":       transportName,
+		"lifecycle_state": lifecycleState,
+		"start":           start,
+		"end":             end,
+		"pagination":      payload["pagination"],
 	})
 }
 
@@ -1272,7 +1290,13 @@ func (s *Server) incidentHandoffHandler(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
-	records, err := s.db.RecentIncidents(100)
+	var records []models.Incident
+	var err error
+	if s.recentIncidents != nil {
+		records, err = s.recentIncidents(100)
+	} else {
+		records, err = s.db.RecentIncidents(100)
+	}
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
 			"error": err.Error(),

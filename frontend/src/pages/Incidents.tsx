@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { formatTimestamp, type Incident } from '@/types/api'
+import { formatTimestamp, type ControlActionRecord, type Incident } from '@/types/api'
 import { ClipboardCopy, RefreshCw } from 'lucide-react'
 
 function isOpenIncident(inc: Incident): boolean {
@@ -121,6 +121,7 @@ export function Incidents() {
 
 function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
   const pending = inc.pending_actions?.filter(Boolean) ?? []
+  const linked = inc.linked_control_actions ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
   const owner = inc.owner_actor_id?.trim()
 
@@ -188,5 +189,28 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function LinkedActionSummary({ action: a }: { action: ControlActionRecord }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div>
+        <span className="font-mono">{a.id}</span>
+        <span className="text-muted-foreground"> · {a.action_type}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {a.lifecycle_state && (
+          <Badge variant="outline" className="text-[10px]">
+            {a.lifecycle_state}
+          </Badge>
+        )}
+        {a.result && (
+          <Badge variant="secondary" className="text-[10px]">
+            {a.result}
+          </Badge>
+        )}
+      </div>
+    </div>
   )
 }

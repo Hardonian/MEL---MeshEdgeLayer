@@ -52,6 +52,9 @@ type Incident struct {
 	RecentActions  []string         `json:"recent_actions,omitempty"`
 	LinkedEvidence []map[string]any `json:"linked_evidence,omitempty"`
 	Risks          []string         `json:"risks,omitempty"`
+
+	// LinkedControlActions: rows where control_actions.incident_id = this incident (canonical).
+	LinkedControlActions []ActionRecord `json:"linked_control_actions,omitempty"`
 }
 
 // SupportManifest defines the inventory of a support bundle
@@ -153,6 +156,13 @@ type PriorityItem struct {
 	IsActionable      bool           `json:"is_actionable"`
 	BlocksRecovery    bool           `json:"blocks_recovery"`
 	Metadata          map[string]any `json:"metadata,omitempty"`
+}
+
+// ApproveActionRequest is the body for POST .../control/actions/{id}/approve.
+type ApproveActionRequest struct {
+	Note                string `json:"note,omitempty"`
+	BreakGlassSodAck    bool   `json:"break_glass_sod_ack,omitempty"`
+	BreakGlassSodReason string `json:"break_glass_sod_reason,omitempty"`
 }
 
 // IncidentHandoffRequest is the body for POST /api/v1/incidents/{id}/handoff.

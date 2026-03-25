@@ -162,6 +162,15 @@ type ControlAction struct {
 	BeforeStateJSON   string `json:"before_state_json,omitempty"`
 	AfterStateJSON    string `json:"after_state_json,omitempty"`
 	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
+
+	// Submitter / SoD / incident linkage (migration 0021)
+	SubmittedBy              string `json:"submitted_by,omitempty"`
+	RequiresSeparateApprover bool   `json:"requires_separate_approver,omitempty"`
+	IncidentID               string `json:"incident_id,omitempty"`
+	ExecutionStartedAt       string `json:"execution_started_at,omitempty"`
+	SodBypass                bool   `json:"sod_bypass,omitempty"`
+	SodBypassActor           string `json:"sod_bypass_actor,omitempty"`
+	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
 }
 
 type ControlPolicy struct {
@@ -257,7 +266,7 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 	policy := PolicyFromConfig(cfg)
 	activeActions := []db.ControlActionRecord{}
 	if database != nil {
-		activeActions, _ = database.ControlActions("", "", now.Add(-time.Duration(policy.ActionWindowSeconds)*time.Second).Format(time.RFC3339), "", cfg.Intelligence.Queries.MaxLimit, 0)
+		activeActions, _ = database.ControlActions("", "", now.Add(-time.Duration(policy.ActionWindowSeconds)*time.Second).Format(time.RFC3339), "", "", cfg.Intelligence.Queries.MaxLimit, 0)
 	}
 	decisions := make([]ControlDecision, 0)
 	denialReasons := []string{}
@@ -275,7 +284,7 @@ func Evaluate(cfg config.Config, database *db.DB, runtime []transport.Health, no
 
 	recent := []db.ControlActionRecord{}
 	if database != nil {
-		recent, _ = database.ControlActions("", "", now.Add(-24*time.Hour).Format(time.RFC3339), "", minPositive(cfg.Intelligence.Queries.DefaultLimit, 50), 0)
+		recent, _ = database.ControlActions("", "", now.Add(-24*time.Hour).Format(time.RFC3339), "", "", minPositive(cfg.Intelligence.Queries.DefaultLimit, 50), 0)
 	}
 	active := filterActiveActions(activeActions, now)
 	pending := []db.ControlActionRecord{}
@@ -811,7 +820,7 @@ func cooldownSatisfied(database *db.DB, policy ControlPolicy, candidate ControlA
 	rows, ok := historyCache[key]
 	if !ok {
 		start := now.Add(-time.Duration(policy.CooldownPerTarget) * time.Second).UTC().Format(time.RFC3339)
-		rows, _ = database.ControlActions(candidate.TargetTransport, "", start, "", 50, 0)
+		rows, _ = database.ControlActions(candidate.TargetTransport, "", start, "", "", 50, 0)
 		historyCache[key] = rows
 	}
 	for _, row := range rows {
@@ -840,7 +849,7 @@ func budgetSatisfied(database *db.DB, policy ControlPolicy, candidate ControlAct
 		return true
 	}
 	start := now.Add(-time.Duration(policy.ActionWindowSeconds) * time.Second).UTC().Format(time.RFC3339)
-	rows, err := database.ControlActions("", "", start, "", policy.MaxActionsPerWindow+10, 0)
+	rows, err := database.ControlActions("", "", start, "", "", policy.MaxActionsPerWindow+10, 0)
 	if err != nil {
 		return false
 	}

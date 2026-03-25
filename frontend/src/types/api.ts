@@ -99,6 +99,40 @@ export interface Incident {
   recent_actions?: string[]
   linked_evidence?: Record<string, unknown>[]
   risks?: string[]
+  /** Canonical FK-linked control actions (when backend enriches list/detail) */
+  linked_control_actions?: ControlActionRecord[]
+}
+
+/** Control-plane action row (matches backend ActionRecord) */
+export interface ControlActionRecord {
+  id: string
+  transport_name?: string
+  action_type: string
+  lifecycle_state?: string
+  result?: string
+  reason?: string
+  outcome_detail?: string
+  created_at?: string
+  executed_at?: string
+  completed_at?: string
+  expires_at?: string
+  execution_mode?: string
+  proposed_by?: string
+  submitted_by?: string
+  approved_by?: string
+  approved_at?: string
+  rejected_by?: string
+  rejected_at?: string
+  approval_expires_at?: string
+  blast_radius_class?: string
+  requires_separate_approver?: boolean
+  incident_id?: string
+  execution_started_at?: string
+  sod_bypass?: boolean
+  sod_bypass_actor?: string
+  sod_bypass_reason?: string
+  target_segment?: string
+  target_node?: string
 }
 
 export interface TrustUIHints {

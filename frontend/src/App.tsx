@@ -11,6 +11,7 @@ import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
 import { Incidents } from './pages/Incidents'
+import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
 import { ApiProvider } from './hooks/useApi'
 import { ToastProvider } from './components/ui/Toast'
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/dead-letters" element={<DeadLetters />} />
           <Route path="/incidents" element={<Incidents />} />
+          <Route path="/control-actions" element={<ControlActions />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/events" element={<Events />} />
           <Route path="/settings" element={<SettingsPage />} />

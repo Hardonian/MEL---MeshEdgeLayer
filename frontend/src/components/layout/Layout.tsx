@@ -15,6 +15,7 @@ import {
   Activity,
   GitBranch,
   AlertTriangle,
+  Zap,
 } from 'lucide-react'
 
 interface NavItem {
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
   { label: 'Messages', href: '/messages', icon: MessageSquare },
   { label: 'Dead Letters', href: '/dead-letters', icon: Inbox },
   { label: 'Incidents', href: '/incidents', icon: AlertTriangle },
+  { label: 'Control actions', href: '/control-actions', icon: Zap },
   { label: 'Events', href: '/events', icon: FileText },
   { label: 'Diagnostics', href: '/diagnostics', icon: Shield },
   { label: 'Privacy', href: '/privacy', icon: Shield },

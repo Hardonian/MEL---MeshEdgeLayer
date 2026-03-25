@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/security"
 )
 
@@ -52,6 +53,41 @@ func subPathAfterID(path, prefix string) string {
 }
 
 // ─── Operational state ────────────────────────────────────────────────────────
+
+type operatorControlQueueRequest struct {
+	ActionType      string  `json:"action_type"`
+	TargetTransport string  `json:"target_transport,omitempty"`
+	TargetSegment   string  `json:"target_segment,omitempty"`
+	TargetNode      string  `json:"target_node,omitempty"`
+	Reason          string  `json:"reason"`
+	Confidence      float64 `json:"confidence,omitempty"`
+	IncidentID      string  `json:"incident_id,omitempty"`
+}
+
+func (s *Server) operatorControlQueueHandler(w http.ResponseWriter, r *http.Request) {
+	if s.queueOperatorControl == nil {
+		writeError(w, http.StatusServiceUnavailable, "operator action queue not available", "service hooks not wired")
+		return
+	}
+	var body operatorControlQueueRequest
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body", err.Error())
+		return
+	}
+	actor := s.actorFromTrustContext(r)
+	id, err := s.queueOperatorControl(actor, body.ActionType, body.TargetTransport, body.TargetSegment, body.TargetNode, body.Reason, body.Confidence, body.IncidentID)
+	if err != nil {
+		code := http.StatusBadRequest
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "queue full") {
+			code = http.StatusServiceUnavailable
+		}
+		writeError(w, code, "could not queue control action", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "queued", "action_id": id})
+}
 
 func (s *Server) operationalStateHandler(w http.ResponseWriter, r *http.Request) {
 	if s.operationalState == nil {
@@ -151,18 +187,18 @@ func (s *Server) approveActionHandler(w http.ResponseWriter, r *http.Request, ac
 		writeError(w, http.StatusServiceUnavailable, "approve not available", "trust hooks not wired")
 		return
 	}
-	var body struct {
-		Note string `json:"note"`
-	}
+	var body models.ApproveActionRequest
 	_ = decodeBody(r, &body)
 	actor := s.actorFromTrustContext(r)
 
-	if err := s.approveAction(actionID, actor, body.Note); err != nil {
+	if err := s.approveAction(actionID, actor, body.Note, body.BreakGlassSodAck, body.BreakGlassSodReason); err != nil {
 		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
 			code = http.StatusNotFound
 		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "expired") || strings.Contains(err.Error(), "separation of duties") {
 			code = http.StatusConflict
+		} else if strings.Contains(err.Error(), "separation of duties") {
+			code = http.StatusForbidden
 		}
 		writeError(w, code, "could not approve action", err.Error())
 		return

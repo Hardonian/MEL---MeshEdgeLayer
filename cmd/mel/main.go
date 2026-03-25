@@ -201,7 +201,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   control pending --config <path>
   control inspect <action-id> --config <path>
   control operational-state --config <path>
-  action list|pending|inspect|approve|reject --config <path>  (trust-aligned control actions; approve/reject use full service path)
+  action list|pending|inspect|queue|approve|reject --config <path>  (trust-aligned control actions; approve/reject use full service path)
   incident inspect <id> --config <path>
   incident handoff <id> --to <operator> --summary "..." --config <path> [--pending-actions id1,id2] [--recent-actions ...] [--risks ...]
   freeze create --config <path> --reason "..." [--scope-type global|transport|action_type] [--scope-value <name>] [--expires-at <RFC3339>]
@@ -1062,7 +1062,7 @@ func controlCmd(args []string) {
 			panic(err)
 		}
 		d := openDB(cfg)
-		actions, err := d.ControlActions(*transportName, "", *start, *end, *limit, *offset)
+		actions, err := d.ControlActions(*transportName, "", *start, *end, "", *limit, *offset)
 		if err != nil {
 			panic(err)
 		}
@@ -1216,13 +1216,14 @@ func enrichControlActionsCLI(rows []db.ControlActionRecord) []map[string]any {
 
 func actionCmd(args []string) {
 	if len(args) == 0 {
-		panic("usage: mel action list|pending|inspect|approve|reject --config <path>")
+		panic("usage: mel action list|pending|inspect|queue|approve|reject --config <path>")
 	}
 	switch args[0] {
 	case "list":
 		f := fs("action-list")
 		path := f.String("config", configFlagDefault(), "config")
 		transportName := f.String("transport", "", "filter by transport")
+		lifecycle := f.String("lifecycle-state", "", "filter by lifecycle_state (e.g. pending_approval, pending, running, completed)")
 		start := f.String("start", "", "start time RFC3339")
 		end := f.String("end", "", "end time RFC3339")
 		limit := f.Int("limit", 50, "max rows")
@@ -1233,7 +1234,7 @@ func actionCmd(args []string) {
 			panic(err)
 		}
 		d := openDB(cfg)
-		actions, err := d.ControlActions(*transportName, "", *start, *end, *limit, *offset)
+		actions, err := d.ControlActions(*transportName, "", *start, *end, *lifecycle, *limit, *offset)
 		if err != nil {
 			panic(err)
 		}
@@ -1258,6 +1259,31 @@ func actionCmd(args []string) {
 			panic(err)
 		}
 		mustPrint(out)
+	case "queue":
+		f := fs("action-queue")
+		path := f.String("config", configFlagDefault(), "config")
+		actionType := f.String("type", "", "control action type (required)")
+		transport := f.String("transport", "", "target transport name")
+		segment := f.String("segment", "", "target segment")
+		node := f.String("node", "", "target node")
+		reason := f.String("reason", "", "rationale (required)")
+		incident := f.String("incident", "", "incident id to link (optional)")
+		conf := f.Float64("confidence", 0.9, "confidence 0..1")
+		actor := f.String("actor", "cli-operator", "operator identity (recorded as submitter)")
+		_ = f.Parse(args[1:])
+		if strings.TrimSpace(*actionType) == "" || strings.TrimSpace(*reason) == "" {
+			panic("usage: mel action queue --type <action_type> --reason \"...\" --config <path> [--transport name] [--incident id] [--actor id]")
+		}
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		id, err := app.QueueOperatorControlAction(*actor, *actionType, *transport, *segment, *node, *reason, *conf, *incident)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"status": "queued", "action_id": id})
 	case "approve":
 		if len(args) < 2 {
 			panic("usage: mel action approve <action-id> --config <path> [--note '...'] [--actor id]")
@@ -1267,13 +1293,15 @@ func actionCmd(args []string) {
 		path := f.String("config", configFlagDefault(), "config")
 		note := f.String("note", "", "approval note")
 		actor := f.String("actor", "cli-operator", "operator identity (recorded in audit trail)")
+		breakGlassSod := f.Bool("break-glass-sod-ack", false, "acknowledge same-actor approval when separation-of-duties would otherwise block (requires --break-glass-sod-reason)")
+		breakGlassReason := f.String("break-glass-sod-reason", "", "required with --break-glass-sod-ack: auditable reason for SoD bypass")
 		_ = f.Parse(args[2:])
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		if err := app.ApproveAction(actionID, *actor, *note); err != nil {
+		if err := app.ApproveAction(actionID, *actor, *note, *breakGlassSod, *breakGlassReason); err != nil {
 			panic(err)
 		}
 		did := app.ProcessNextQueuedControlAction(context.Background())
@@ -1298,7 +1326,7 @@ func actionCmd(args []string) {
 		}
 		mustPrint(map[string]any{"status": "rejected", "action_id": actionID, "actor": *actor})
 	default:
-		panic("usage: mel action list|pending|inspect|approve|reject --config <path>")
+		panic("usage: mel action list|pending|inspect|queue|approve|reject --config <path>")
 	}
 }
 
