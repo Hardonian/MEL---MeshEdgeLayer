@@ -29,7 +29,9 @@ Plan comparison ranks candidates using explicit dimensions: reversibility, obser
 2. Mark **steps** as attempted with notes.
 3. After your observation window, run **validation** to compare post-change metrics to baseline.
 
-Verdicts are honest: **supported**, **contradicted**, **inconclusive**, **insufficient observation**, or confounded when multiple changes overlap. Validation loads the **baseline mesh assessment from the database** when available so “before” is not accidentally the same snapshot as “after.”
+**What “validation” means here:** directional, topology-derived deltas (fragmentation, aggregate resilience proxies). It is **not** RF coverage, propagation simulation, or proof that a specific change caused an outcome.
+
+Verdicts are explicit: **supported**, **contradicted**, **inconclusive**, **insufficient observation**, **confounded** when execution and “after” share the same mesh assessment id (not independent snapshots), when the baseline assessment row was **pruned** from `mesh_intelligence_snapshots`, or when **graph hash** drift suggests concurrent changes. If no baseline assessment id was recorded on the execution, the UI and API surface that **before/after may both reflect the same live compute** — deltas are non-causal.
 
 ## Resilience advisory alerts
 
