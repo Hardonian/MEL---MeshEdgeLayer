@@ -99,6 +99,80 @@ interface PlanExecution {
   observation_horizon_hours: number
 }
 
+interface EvidenceSignal {
+  id: string
+  message: string
+}
+
+function includesAny(text: string, patterns: string[]): boolean {
+  return patterns.some((p) => text.includes(p))
+}
+
+function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlertRow[]): EvidenceSignal[] {
+  const bn = bundle.best_next_move
+  const source = [bundle.evidence_model, ...(bundle.limits ?? []), ...(bn?.uncertainty_notes ?? [])]
+    .join(' ')
+    .toLowerCase()
+
+  const signals: EvidenceSignal[] = []
+
+  if (includesAny(source, ['baseline is missing', 'no baseline mesh assessment id', 'baseline snapshot was pruned'])) {
+    signals.push({
+      id: 'baseline-missing',
+      message: 'Baseline evidence is missing or unavailable; before/after deltas are directional only.',
+    })
+  }
+
+  if (
+    bundle.mesh_assessment_id &&
+    includesAny(source, ['confounded', 'same live compute', 'same mesh_assessment_id', 'non-causal'])
+  ) {
+    signals.push({
+      id: 'confounded',
+      message:
+        'Current and baseline references are potentially confounded (same or concurrent assessment context), so causality is not established.',
+    })
+  }
+
+  if (includesAny(source, ['directional', 'inconclusive', 'no strong directional signal'])) {
+    signals.push({
+      id: 'directional',
+      message: 'Validation remains directional/inconclusive and does not prove propagation or RF behavior.',
+    })
+  }
+
+  if (includesAny(source, ['graph hash changed', 'topology drift', 'graph-shape concerns', 'concurrent operational changes'])) {
+    signals.push({
+      id: 'topology-drift',
+      message: 'Graph/topology drift is present, so trend comparison can be confounded by concurrent changes.',
+    })
+  }
+
+  if (
+    advisories.length === 0 &&
+    includesAny(source, ['directional', 'confounded', 'inconclusive', 'baseline'])
+  ) {
+    signals.push({
+      id: 'empty-advisories-not-clear',
+      message: 'No advisory rows here is not an all-clear; evidence uncertainty still applies.',
+    })
+  }
+
+  const limitedConfidence =
+    bundle.resilience.confidence.level !== 'high' ||
+    (bn?.uncertainty_notes?.length ?? 0) > 0 ||
+    includesAny((bn?.evidence_classification ?? '').toLowerCase(), ['directional', 'confounded', 'inconclusive'])
+
+  if (limitedConfidence) {
+    signals.push({
+      id: 'limited-confidence',
+      message: 'Recommendations exist, but confidence is limited by missing or non-independent evidence.',
+    })
+  }
+
+  return signals
+}
+
 export function Planning() {
   const [bundle, setBundle] = useState<PlanningBundle | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -212,6 +286,7 @@ export function Planning() {
   }
 
   const bn = bundle.best_next_move
+  const evidenceSignals = deriveEvidenceSignals(bundle, advisories)
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -235,6 +310,21 @@ export function Planning() {
             <Badge variant="outline">Assessment {bundle.mesh_assessment_id}</Badge>
           )}
         </div>
+        {evidenceSignals.length > 0 && (
+          <div className="mt-3 border-t border-amber-500/20 pt-3" data-testid="planning-evidence-signals">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Evidence posture (operator caution)</p>
+            <ul className="space-y-2">
+              {evidenceSignals.map((signal) => (
+                <li key={signal.id} className="text-sm text-foreground flex items-start gap-2">
+                  <Badge variant="warning" className="mt-0.5">
+                    Caution
+                  </Badge>
+                  <span>{signal.message}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {bundle.wait_versus_expand_hint && (
           <p className="text-sm mt-3 border-t border-amber-500/20 pt-3">
             <span className="font-medium text-foreground">Wait vs expand: </span>
@@ -278,7 +368,7 @@ export function Planning() {
             </div>
           )}
           {(bn.uncertainty_notes?.length ?? 0) > 0 && (
-            <ul className="mt-2 text-xs text-muted-foreground list-disc list-inside">
+            <ul className="mt-2 text-xs text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
               {(bn.uncertainty_notes ?? []).map((x, i) => (
                 <li key={i}>{x}</li>
               ))}
