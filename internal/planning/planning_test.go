@@ -37,6 +37,45 @@ func TestComputeResilience_twoNodeBridge(t *testing.T) {
 	}
 }
 
+func TestValidateExecution_usesBaselineWhenCaptured(t *testing.T) {
+	before := meshintel.Assessment{
+		Topology: meshintel.MeshTopologyMetrics{FragmentationScore: 0.5},
+	}
+	after := meshintel.Assessment{
+		Topology: meshintel.MeshTopologyMetrics{FragmentationScore: 0.4},
+	}
+	ar := topology.AnalysisResult{}
+	exec := PlanExecutionRecord{
+		BaselineMetrics: PostChangeMetricsSnapshot{
+			Captured:            true,
+			FragmentationBefore: 0.5,
+			ResilienceBefore:    0.4,
+		},
+		ObservationHorizonHours: 0,
+	}
+	v := ValidateExecution(exec, before, ar, after, time.Now().UTC())
+	if v.Metrics.FragmentationBefore != 0.5 {
+		t.Fatalf("expected baseline frag 0.5, got %v", v.Metrics.FragmentationBefore)
+	}
+}
+
+func TestComparePlans_hasDimensionScores(t *testing.T) {
+	p1 := DeploymentPlan{PlanID: "p1", Title: "observe", Steps: []DeploymentStep{{Kind: StepObserveOnly}}}
+	p2 := DeploymentPlan{PlanID: "p2", Title: "add", Steps: []DeploymentStep{{Kind: StepAddNode}}}
+	ar := topology.AnalysisResult{}
+	mi := meshintel.Assessment{Bootstrap: meshintel.BootstrapAssessment{Confidence: meshintel.ConfidenceMedium}}
+	pc := ComparePlans([]DeploymentPlan{p1, p2}, ar, mi, time.Now().UTC())
+	if len(pc.RankedByUpside) != 2 {
+		t.Fatalf("expected 2 ranked upside")
+	}
+	if pc.RankedByUpside[0].Dimensions.LowRegretScore <= 0 {
+		t.Fatalf("expected positive low_regret score")
+	}
+	if pc.EvidenceClassification != EvidenceTopologyOnly {
+		t.Fatalf("evidence class")
+	}
+}
+
 func TestComparePlans_prefersReversible(t *testing.T) {
 	p1 := DeploymentPlan{PlanID: "p1", Title: "wait and observe", Steps: []DeploymentStep{{Kind: StepObserveOnly}}}
 	p2 := DeploymentPlan{PlanID: "p2", Title: "add nodes", Steps: []DeploymentStep{{Kind: StepAddNode}, {Kind: StepAddNode}}}

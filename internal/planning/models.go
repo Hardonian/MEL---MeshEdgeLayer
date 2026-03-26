@@ -155,15 +155,110 @@ type DeploymentStep struct {
 
 // DeploymentPlan is a persisted or ephemeral operator deployment proposal.
 type DeploymentPlan struct {
-	PlanID      string           `json:"plan_id"`
-	Title       string           `json:"title"`
-	Status      string           `json:"status"` // draft, active, archived
-	Intent      string           `json:"intent"`
-	Steps       []DeploymentStep `json:"steps"`
-	CreatedAt   string           `json:"created_at,omitempty"`
-	UpdatedAt   string           `json:"updated_at,omitempty"`
-	GraphHashAt string           `json:"graph_hash_at,omitempty"`
-	Notes       []string         `json:"notes,omitempty"`
+	PlanID             string `json:"plan_id"`
+	Title              string `json:"title"`
+	Status             string `json:"status"` // draft, active, archived
+	Intent             string `json:"intent"`
+	Steps              []DeploymentStep `json:"steps"`
+	CreatedAt          string `json:"created_at,omitempty"`
+	UpdatedAt          string `json:"updated_at,omitempty"`
+	GraphHashAt        string `json:"graph_hash_at,omitempty"`
+	Notes              []string `json:"notes,omitempty"`
+	InputSetVersionID  string `json:"input_set_version_id,omitempty"` // optional FK to planning_input_versions.version_id
+}
+
+// EvidenceModelClassification states how much operator assumption augmented the analysis.
+type EvidenceModelClassification string
+
+const (
+	EvidenceTopologyOnly              EvidenceModelClassification = "topology_only"
+	EvidenceTopologyAssumptionAugmented EvidenceModelClassification = "topology_operator_assumptions"
+)
+
+// AssumptionSource tags where an assumption came from.
+type AssumptionSource string
+
+const (
+	AssumptionSourceObserved  AssumptionSource = "observed"
+	AssumptionSourceOperator  AssumptionSource = "operator"
+	AssumptionSourceInferred  AssumptionSource = "inferred"
+	AssumptionSourceUnknown   AssumptionSource = "unknown"
+)
+
+// AssumptionConfidence is a coarse band (not statistical certainty).
+type AssumptionConfidence string
+
+const (
+	AssumptionConfLow    AssumptionConfidence = "low"
+	AssumptionConfMedium AssumptionConfidence = "medium"
+	AssumptionConfHigh   AssumptionConfidence = "high"
+)
+
+// AssumptionSensitivity estimates how much outcomes move if this input is wrong.
+type AssumptionSensitivity string
+
+const (
+	SensitivityLow    AssumptionSensitivity = "low"
+	SensitivityMedium AssumptionSensitivity = "medium"
+	SensitivityHigh   AssumptionSensitivity = "high"
+)
+
+// AssumptionItem is one structured planning input with provenance.
+type AssumptionItem struct {
+	Key         string               `json:"key"`
+	Value       string               `json:"value,omitempty"`
+	Source      AssumptionSource     `json:"source"`
+	Confidence  AssumptionConfidence `json:"confidence,omitempty"`
+	Sensitivity AssumptionSensitivity `json:"sensitivity,omitempty"`
+	Description string               `json:"description,omitempty"`
+	UsedByModel bool                 `json:"used_by_model"` // false if captured but not yet consumed by estimators
+}
+
+// EvidenceReference points at observed artifacts (graph hash, assessment id, etc.).
+type EvidenceReference struct {
+	Kind string `json:"kind"` // graph_hash, mesh_assessment, topology_snapshot
+	Ref  string `json:"ref"`
+}
+
+// ValidationTarget describes what signal would confirm or refute a prediction.
+type ValidationTarget struct {
+	Label       string `json:"label"`
+	MetricHint  string `json:"metric_hint,omitempty"`
+	ObserveHours int   `json:"observe_hours,omitempty"`
+}
+
+// MissingInputNotice lists inputs that weaken confidence when absent.
+type MissingInputNotice struct {
+	Key         string `json:"key"`
+	Impact      string `json:"impact"` // weakens_confidence, blocks_specific_claim
+	Description string `json:"description,omitempty"`
+}
+
+// InputConflictNotice surfaces contradictory operator inputs.
+type InputConflictNotice struct {
+	Keys        []string `json:"keys"`
+	Description string   `json:"description"`
+}
+
+// PlanningInputVersionPayload is the versioned document stored for an input set.
+type PlanningInputVersionPayload struct {
+	VersionNum        int               `json:"version_num"`
+	InputSetID        string            `json:"input_set_id"`
+	EvidenceModel     EvidenceModelClassification `json:"evidence_classification"`
+	Assumptions       []AssumptionItem  `json:"assumptions"`
+	ObservedAnchors   []EvidenceReference `json:"observed_anchors,omitempty"`
+	MissingInputs     []MissingInputNotice `json:"missing_inputs,omitempty"`
+	Conflicts         []InputConflictNotice `json:"conflicts,omitempty"`
+	ValidationTargets []ValidationTarget `json:"validation_targets,omitempty"`
+	Notes             []string          `json:"notes,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+}
+
+// PlanningInputSetMeta is list metadata for an input set.
+type PlanningInputSetMeta struct {
+	InputSetID string `json:"input_set_id"`
+	Title      string `json:"title"`
+	UpdatedAt  string `json:"updated_at,omitempty"`
 }
 
 // ScenarioKind is the what-if scenario type.
@@ -311,13 +406,32 @@ type PlanComparison struct {
 	ComparedIDs      []string                `json:"compared_ids"`
 	RankedByUpside   []ComparisonRankEntry `json:"ranked_by_upside"`
 	RankedBySafety   []ComparisonRankEntry `json:"ranked_by_safety"`
+	RankedByLowRegret []ComparisonRankEntry `json:"ranked_by_low_regret,omitempty"`
 	LowRegretPick    string                  `json:"low_regret_pick_id,omitempty"`
 	BestUpsidePick   string                  `json:"best_upside_pick_id,omitempty"`
 	BestResiliencePick string                `json:"best_resilience_pick_id,omitempty"`
+	BestDiagnosticPick string                `json:"best_diagnostic_pick_id,omitempty"`
 	CheapestPlausible string                 `json:"cheapest_plausible_pick_id,omitempty"`
 	WaitObserveOption string                 `json:"wait_observe_option_id,omitempty"`
+	RankingCouldChangeIf []string           `json:"ranking_could_change_if,omitempty"`
 	SummaryLines      []string                `json:"summary_lines"`
 	Confidence        ConfidenceAssessment  `json:"confidence"`
+	EvidenceClassification EvidenceModelClassification `json:"evidence_classification"`
+}
+
+// DecisionDimensionScores are explicit 0–1 scores for ranking narratives (not dollar costs).
+type DecisionDimensionScores struct {
+	ReversibilityScore        float64 `json:"reversibility_score"`
+	ObservationBurdenScore    float64 `json:"observation_burden_score"`
+	DiagnosticValueScore      float64 `json:"diagnostic_value_score"`
+	LearningValueScore        float64 `json:"learning_value_score"`
+	CostComplexityProxy       float64 `json:"cost_complexity_proxy"`
+	LowRegretScore            float64 `json:"low_regret_score"`
+	ExpansionReadinessScore   float64 `json:"expansion_readiness_score"`
+	AssumptionFragilityScore  float64 `json:"assumption_fragility_score"`
+	OperationalDisruptionScore float64 `json:"operational_disruption_score"`
+	UpsideScore               float64 `json:"upside_score"`
+	UncertaintyPenalty        float64 `json:"uncertainty_penalty"`
 }
 
 // ComparisonRankEntry ranks one candidate with tradeoff notes.
@@ -329,6 +443,74 @@ type ComparisonRankEntry struct {
 	ConfidenceNote  string   `json:"confidence_note"`
 	Reversibility   string   `json:"reversibility"` // high, medium, low
 	ObservationBurden string `json:"observation_burden"`
+	Dimensions      DecisionDimensionScores `json:"dimensions"`
+	NarrativeLines  []string `json:"narrative_lines,omitempty"`
+}
+
+// OutcomeVerdict closes the loop on plan predictions.
+type OutcomeVerdict string
+
+const (
+	OutcomeVerdictSupported     OutcomeVerdict = "prediction_direction_supported"
+	OutcomeVerdictContradicted  OutcomeVerdict = "prediction_contradicted"
+	OutcomeVerdictInconclusive  OutcomeVerdict = "inconclusive"
+	OutcomeVerdictInsufficientObservation OutcomeVerdict = "insufficient_observation_period"
+	OutcomeVerdictConfounded    OutcomeVerdict = "confounded_concurrent_changes"
+)
+
+// PlanExecutionRecord captures operator attempt and observation window.
+type PlanExecutionRecord struct {
+	ExecutionID      string `json:"execution_id"`
+	PlanID           string `json:"plan_id"`
+	PlanGraphHash    string `json:"plan_graph_hash"`
+	MeshAssessmentID string `json:"mesh_assessment_id"`
+	BaselineMetrics  PostChangeMetricsSnapshot `json:"baseline_metrics,omitempty"`
+	Status           string `json:"status"` // attempted, in_observation, completed
+	StartedAt        string `json:"started_at"`
+	UpdatedAt        string `json:"updated_at"`
+	ObservationHorizonHours int `json:"observation_horizon_hours"`
+	Notes            string `json:"notes,omitempty"`
+}
+
+// StepExecutionRecord is one step marked executed.
+type StepExecutionRecord struct {
+	StepExecutionID string `json:"step_execution_id"`
+	ExecutionID     string `json:"execution_id"`
+	StepID          string `json:"step_id"`
+	Status          string `json:"status"`
+	AttemptedAt     string `json:"attempted_at"`
+	OperatorNote    string `json:"operator_note,omitempty"`
+}
+
+// ValidationResult compares post-change mesh to expectations.
+type ValidationResult struct {
+	ValidationID         string         `json:"validation_id"`
+	ExecutionID          string         `json:"execution_id"`
+	ValidatedAt          string         `json:"validated_at"`
+	GraphHashAfter       string         `json:"graph_hash_after"`
+	MeshAssessmentIDAfter string        `json:"mesh_assessment_id_after"`
+	Verdict              OutcomeVerdict `json:"verdict"`
+	Caveat               string         `json:"caveat,omitempty"`
+	Lines                []string       `json:"lines"`
+	Metrics              PostChangeMetricsSnapshot `json:"metrics"`
+}
+
+// PostChangeMetricsSnapshot is compact before/after style signals.
+type PostChangeMetricsSnapshot struct {
+	Captured            bool    `json:"captured,omitempty"` // true when execution recorded baseline at start
+	FragmentationBefore float64 `json:"fragmentation_before,omitempty"`
+	FragmentationAfter  float64 `json:"fragmentation_after,omitempty"`
+	ResilienceBefore    float64 `json:"resilience_before,omitempty"`
+	ResilienceAfter     float64 `json:"resilience_after,omitempty"`
+}
+
+// RecommendationRetrospective is stored history for a recommendation key.
+type RecommendationRetrospective struct {
+	RecommendationKey string `json:"recommendation_key"`
+	SuccessCount      int    `json:"success_count"`
+	InconclusiveCount int    `json:"inconclusive_count"`
+	ContradictedCount int    `json:"contradicted_count"`
+	TotalRecorded     int    `json:"total_recorded"`
 }
 
 // PlanningBundle is the full advisory snapshot for API responses.
@@ -341,6 +523,8 @@ type PlanningBundle struct {
 	Resilience          MeshResilienceSummary   `json:"resilience"`
 	NodeProfiles        []NodeResilienceProfile `json:"node_profiles"`
 	RankedNextPlans     []RankedPlanHint        `json:"ranked_next_plans"`
+	BestNextMove        BestNextMove            `json:"best_next_move"`
+	WaitVersusExpand    string                  `json:"wait_versus_expand_hint"`
 	Playbooks           []Playbook              `json:"playbooks"`
 	Limits              []string                `json:"limits"`
 	ComputedAt          string                  `json:"computed_at"`

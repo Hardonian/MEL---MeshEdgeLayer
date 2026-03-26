@@ -31,4 +31,8 @@ func TestSaveAndRecentSnapshots(t *testing.T) {
 	if len(list) != 1 || list[0].AssessmentID != a.AssessmentID {
 		t.Fatalf("unexpected list: %+v", list)
 	}
+	got, ok, err := GetAssessmentByID(database, a.AssessmentID)
+	if err != nil || !ok || got.AssessmentID != a.AssessmentID {
+		t.Fatalf("GetAssessmentByID: ok=%v err=%v %+v", ok, err, got)
+	}
 }

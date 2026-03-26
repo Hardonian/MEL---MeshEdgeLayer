@@ -28,6 +28,7 @@ Guides for running MEL in a production environment:
 - [**CLI Reference**](ops/cli-reference.md) - Mastering the `mel` command line.
 - [**Diagnostics & Doctor**](ops/diagnostics.md) - Using `mel doctor` to maintain health.
 - [**Incident Triage**](ops/incident-triage.md) - Handling mesh alerts and failures.
+- [**Deployment planning**](ops/deployment-planning.md) - Assumptions, validation loop, resilience advisories (topology truth, not RF maps).
 - [**Backup & Restore**](ops/runbooks.md) - Protecting your mesh data.
 - [**Privacy Audit**](privacy/overview.md) - Managing your privacy posture.
 

@@ -39,10 +39,11 @@ func SavePlan(d *db.DB, p *DeploymentPlan) error {
 		status = "draft"
 	}
 	intent := db.EscString(p.Intent)
-	sql := fmt.Sprintf(`INSERT INTO deployment_plans(plan_id, title, status, intent, created_at, updated_at, payload_json)
-		VALUES('%s','%s','%s','%s','%s','%s','%s')
-		ON CONFLICT(plan_id) DO UPDATE SET title=excluded.title, status=excluded.status, intent=excluded.intent, updated_at=excluded.updated_at, payload_json=excluded.payload_json;`,
-		db.EscString(p.PlanID), title, status, intent, db.EscString(p.CreatedAt), db.EscString(p.UpdatedAt), db.EscString(string(b)))
+	inpVer := db.EscString(strings.TrimSpace(p.InputSetVersionID))
+	sql := fmt.Sprintf(`INSERT INTO deployment_plans(plan_id, title, status, intent, created_at, updated_at, payload_json, input_set_version_id)
+		VALUES('%s','%s','%s','%s','%s','%s','%s','%s')
+		ON CONFLICT(plan_id) DO UPDATE SET title=excluded.title, status=excluded.status, intent=excluded.intent, updated_at=excluded.updated_at, payload_json=excluded.payload_json, input_set_version_id=excluded.input_set_version_id;`,
+		db.EscString(p.PlanID), title, status, intent, db.EscString(p.CreatedAt), db.EscString(p.UpdatedAt), db.EscString(string(b)), inpVer)
 	return d.Exec(sql)
 }
 
@@ -128,6 +129,20 @@ func SaveArtifact(d *db.DB, kind string, graphHash, assessmentID string, payload
 		db.EscString(id), db.EscString(kind), db.EscString(now), db.EscString(graphHash), db.EscString(assessmentID), db.EscString(string(b)))
 	if err := d.Exec(sql); err != nil {
 		return err
+	}
+	if maxKeep <= 0 {
+		maxKeep = defaultArtifactRetention
+	}
+	prune := fmt.Sprintf(`DELETE FROM planning_artifacts WHERE artifact_id NOT IN (
+		SELECT artifact_id FROM planning_artifacts ORDER BY created_at DESC LIMIT %d
+	);`, maxKeep)
+	return d.Exec(prune)
+}
+
+// PruneArtifacts keeps the newest maxKeep planning artifact rows (scenario/compare outputs).
+func PruneArtifacts(d *db.DB, maxKeep int) error {
+	if d == nil {
+		return nil
 	}
 	if maxKeep <= 0 {
 		maxKeep = defaultArtifactRetention
