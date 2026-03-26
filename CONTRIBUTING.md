@@ -27,6 +27,10 @@ make test
 
 Use `make verify` when you want the full repo pass, including cross-builds.
 
+**Frontend:** `cd frontend && npm ci && npm run lint && npm run typecheck && npm test` (Vitest).
+
+**CI merge gate (today):** `.github/workflows/ci.yml` runs Go tests for the whole module, build, and smoke. It does not run frontend tests unless you add a job — document any new jobs so reviewers know what is and is not gated.
+
 ## Deployment planning (what-if / resilience)
 
 - Planning APIs and CLI output are **advisory**: they combine packet-derived topology, mesh intelligence, and optional operator hints.

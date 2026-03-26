@@ -1,3 +1,5 @@
+# Merge gate: Go fmt/vet, full `go test ./...`, build, smoke.
+# Frontend unit tests are not run here; run `cd frontend && npm test` locally or add a job explicitly.
 name: ci
 on: [push, pull_request]
 jobs:

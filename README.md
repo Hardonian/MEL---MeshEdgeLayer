@@ -35,6 +35,11 @@ Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it on
 - **Intelligence Layer**: Deep packet inspection that classifies traffic into `text`, `position`, `node_info`, and `telemetry` with raw fallbacks.
 - **Privacy by Design**: Built-in redaction, privacy audits, and local-only position storage by default.
 
+### CI and repo health (for reviewers)
+
+- **Default GitHub Actions** (`.github/workflows/ci.yml`) runs `gofmt`, `go vet`, **`go test ./...`** (all Go packages), `make build`, and `scripts/smoke.sh`. Passing CI means those steps succeeded on `ubuntu-latest` with the workflow’s Go version — **not** that the frontend Vitest suite ran (run `cd frontend && npm ci && npm test` locally or extend CI if you need it enforced).
+- **Deployment planning** validation is **directional** and can be **inconclusive or confounded**; it does **not** claim RF maps or propagation (see `docs/ops/deployment-planning.md`).
+
 ### Health and readiness (operator cheat sheet)
 
 | Check | Use when |

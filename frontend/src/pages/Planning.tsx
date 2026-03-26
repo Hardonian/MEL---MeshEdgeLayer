@@ -221,7 +221,9 @@ export function Planning() {
       />
 
       <Card className="p-4 border-amber-500/30 bg-amber-500/5">
-        <p className="text-sm text-muted-foreground leading-relaxed">{bundle.evidence_model}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
+          {bundle.evidence_model}
+        </p>
         <div className="flex flex-wrap gap-2 mt-3">
           <Badge variant={bundle.transport_connected ? 'default' : 'secondary'}>
             Transport: {bundle.transport_connected ? 'connected' : 'not connected'}
@@ -339,7 +341,9 @@ export function Planning() {
           Synthetic advisories (transport planning/advisory). Not transport failures — graph-shape concerns with evidence references.
         </p>
         {advisories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active advisories, or alerts API unavailable.</p>
+          <p className="text-sm text-muted-foreground" data-testid="planning-advisories-empty">
+            No active advisories in this response. If the alerts API failed or returned empty, this does not prove the mesh is free of risk — only that no advisory rows were returned here.
+          </p>
         ) : (
           <ul className="space-y-2 text-sm">
             {advisories.map((a) => (

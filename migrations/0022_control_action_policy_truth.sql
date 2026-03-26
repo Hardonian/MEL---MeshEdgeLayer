@@ -10,3 +10,6 @@ ALTER TABLE control_actions ADD COLUMN approval_policy_source TEXT NOT NULL DEFA
 ALTER TABLE control_actions ADD COLUMN high_blast_radius INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE control_actions ADD COLUMN approval_escalated_due_to_blast_radius INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE control_actions ADD COLUMN execution_source TEXT NOT NULL DEFAULT '';
+
+INSERT OR IGNORE INTO schema_migrations(version, applied_at)
+    VALUES ('0022_control_action_policy_truth', datetime('now'));

@@ -8,21 +8,21 @@ import (
 	"github.com/mel-project/mel/internal/db"
 )
 
-func TestSaveAndGetPlan(t *testing.T) {
+func TestSaveArtifact_prunesToMaxKeep(t *testing.T) {
 	cfg := config.Default()
-	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "plan.db")
-	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
-	database, err := db.Open(cfg)
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	d, err := db.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := DeploymentPlan{Title: "t", Intent: "i", Status: "draft"}
-	if err := SavePlan(database, &p); err != nil {
-		t.Fatal(err)
+	for i := 0; i < 5; i++ {
+		if err := SaveArtifact(d, "compare", "gh", "aid", map[string]int{"i": i}, 3); err != nil {
+			t.Fatal(err)
+		}
 	}
-	id := p.PlanID
-	got, ok, err := GetPlan(database, id)
-	if err != nil || !ok || got.Title != "t" {
-		t.Fatalf("get plan: ok=%v err=%v %+v", ok, err, got)
+	count, err := d.Scalar("SELECT COUNT(*) FROM planning_artifacts;")
+	if err != nil || count != "3" {
+		t.Fatalf("expected 3 artifacts after retention, got %s err=%v", count, err)
 	}
 }

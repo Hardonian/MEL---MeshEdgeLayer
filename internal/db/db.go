@@ -79,7 +79,29 @@ func Open(cfg config.Config) (*DB, error) {
 	return db, nil
 }
 
+// repairMigration0022ControlActionPolicyTruth backfills schema_migrations when an older
+// database applied the ALTERs from 0022_control_action_policy_truth.sql without recording
+// the migration row. Without this, a later ApplyMigrations would re-run that file and fail
+// with duplicate column errors.
+func (d *DB) repairMigration0022ControlActionPolicyTruth() error {
+	rows, err := d.QueryRows(`SELECT 1 FROM pragma_table_info('control_actions') WHERE name='approval_mode' LIMIT 1;`)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	rows, err = d.QueryRows(`SELECT 1 FROM schema_migrations WHERE version='0022_control_action_policy_truth' LIMIT 1;`)
+	if err != nil {
+		return err
+	}
+	if len(rows) > 0 {
+		return nil
+	}
+	return d.Exec(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES ('0022_control_action_policy_truth', datetime('now'));`)
+}
+
 func (d *DB) ApplyMigrations(dir string) error {
+	if err := d.repairMigration0022ControlActionPolicyTruth(); err != nil {
+		return err
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err

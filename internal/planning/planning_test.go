@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,55 @@ func TestComputeResilience_twoNodeBridge(t *testing.T) {
 	}
 	if len(profiles) != 2 {
 		t.Fatalf("expected 2 profiles, got %d", len(profiles))
+	}
+}
+
+func TestValidateExecution_sameMeshAssessmentIdIsConfounded(t *testing.T) {
+	before := meshintel.Assessment{
+		AssessmentID: "assess-same",
+		Topology:     meshintel.MeshTopologyMetrics{FragmentationScore: 0.5},
+	}
+	after := meshintel.Assessment{
+		AssessmentID: "assess-same",
+		Topology:     meshintel.MeshTopologyMetrics{FragmentationScore: 0.4},
+	}
+	ar := topology.AnalysisResult{}
+	exec := PlanExecutionRecord{
+		MeshAssessmentID:        "assess-same",
+		ObservationHorizonHours: 0,
+	}
+	v := ValidateExecution(exec, before, ar, after, time.Now().UTC())
+	if v.Verdict != OutcomeVerdictConfounded {
+		t.Fatalf("expected confounded, got %s", v.Verdict)
+	}
+	if v.Caveat == "" {
+		t.Fatal("expected caveat")
+	}
+}
+
+func TestValidateExecution_warnsWhenBaselineAssessmentMissing(t *testing.T) {
+	before := meshintel.Assessment{
+		Topology: meshintel.MeshTopologyMetrics{FragmentationScore: 0.5},
+	}
+	after := meshintel.Assessment{
+		AssessmentID: "after-only",
+		Topology:     meshintel.MeshTopologyMetrics{FragmentationScore: 0.4},
+	}
+	ar := topology.AnalysisResult{}
+	exec := PlanExecutionRecord{
+		MeshAssessmentID:        "",
+		ObservationHorizonHours: 0,
+	}
+	v := ValidateExecution(exec, before, ar, after, time.Now().UTC())
+	found := false
+	for _, line := range v.Lines {
+		if strings.Contains(line, "No baseline mesh assessment id") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected baseline-missing warning in lines: %#v", v.Lines)
 	}
 }
 
