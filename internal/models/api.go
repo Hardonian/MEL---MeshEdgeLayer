@@ -97,6 +97,24 @@ type ActionRecord struct {
 	BlastRadiusClass  string `json:"blast_radius_class,omitempty"`
 	EvidenceBundleID  string `json:"evidence_bundle_id,omitempty"`
 
+	SubmittedBy              string `json:"submitted_by,omitempty"`
+	RequiresSeparateApprover bool   `json:"requires_separate_approver,omitempty"`
+	IncidentID               string `json:"incident_id,omitempty"`
+	ExecutionStartedAt       string `json:"execution_started_at,omitempty"`
+	SodBypass                bool   `json:"sod_bypass,omitempty"`
+	SodBypassActor           string `json:"sod_bypass_actor,omitempty"`
+	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
+
+	// Policy / execution truth (migration 0022)
+	ApprovalMode                     string   `json:"approval_mode,omitempty"`
+	RequiredApprovals                int      `json:"required_approvals,omitempty"`
+	CollectedApprovals               int      `json:"collected_approvals,omitempty"`
+	ApprovalBasis                    []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource             string   `json:"approval_policy_source,omitempty"`
+	HighBlastRadius                  bool     `json:"high_blast_radius,omitempty"`
+	ApprovalEscalatedDueToBlastRadius bool    `json:"approval_escalated_due_to_blast_radius,omitempty"`
+	ExecutionSource                  string   `json:"execution_source,omitempty"`
+
 	// OperatorView is derived from canonical fields for UI/CLI legibility (not a second source of truth).
 	OperatorView map[string]any `json:"operator_view,omitempty"`
 }
@@ -158,11 +176,69 @@ type PriorityItem struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 }
 
+// ApprovalPolicyDTO mirrors structured approval policy for API consumers.
+type ApprovalPolicyDTO struct {
+	RequiresApproval                  bool     `json:"requires_approval"`
+	ApprovalMode                      string   `json:"approval_mode"`
+	RequiredApprovals                 int      `json:"required_approvals"`
+	CollectedApprovals                int      `json:"collected_approvals"`
+	ApprovalBasis                     []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource              string   `json:"approval_policy_source"`
+	HighBlastRadius                   bool     `json:"high_blast_radius"`
+	BlastRadiusClassification         string   `json:"blast_radius_classification"`
+	ApprovalEscalatedDueToBlastRadius bool     `json:"approval_escalated_due_to_blast_radius"`
+	SubmitterDisqualifiedFromApproval bool   `json:"submitter_disqualified_from_approval"`
+	ApproverAllowed                   bool     `json:"approver_allowed"`
+	ApproverDenialReason              string   `json:"approver_denial_reason,omitempty"`
+	ApprovedDoesNotImplyExecution     bool     `json:"approved_does_not_imply_execution"`
+	BacklogExecutionRequiresExecutor  bool     `json:"backlog_execution_requires_executor"`
+}
+
 // ApproveActionRequest is the body for POST .../control/actions/{id}/approve.
 type ApproveActionRequest struct {
 	Note                string `json:"note,omitempty"`
 	BreakGlassSodAck    bool   `json:"break_glass_sod_ack,omitempty"`
 	BreakGlassSodReason string `json:"break_glass_sod_reason,omitempty"`
+}
+
+// ApproveActionResponse is returned after HTTP approve; approval does not imply execution
+// and does not drain unrelated queued work.
+type ApproveActionResponse struct {
+	Status    string `json:"status"`
+	ActionID  string `json:"action_id"`
+	ActorID   string `json:"actor"`
+
+	LifecycleState string `json:"lifecycle_state"`
+	Result         string `json:"result"`
+
+	FullyApprovedSingleStep        bool `json:"fully_approved_single_step"`
+	ApprovalDoesNotImplyExecution bool `json:"approval_does_not_imply_execution"`
+
+	QueuedForExecution bool `json:"queued_for_execution"`
+	ExecutionOccurred  bool `json:"execution_occurred"`
+
+	HTTPApproveDoesNotDrainQueue           bool `json:"http_approve_does_not_drain_queue"`
+	BacklogMayRemain                       bool `json:"backlog_may_remain"`
+	BacklogExecutionRequiresActiveExecutor bool `json:"backlog_execution_requires_active_executor"`
+
+	Policy ApprovalPolicyDTO `json:"policy"`
+}
+
+// RejectActionRequest is the body for POST .../control/actions/{id}/reject.
+type RejectActionRequest struct {
+	Note                string `json:"note,omitempty"`
+	BreakGlassSodAck    bool   `json:"break_glass_sod_ack,omitempty"`
+	BreakGlassSodReason string `json:"break_glass_sod_reason,omitempty"`
+}
+
+// RejectActionResponse is returned after HTTP reject.
+type RejectActionResponse struct {
+	Status         string              `json:"status"`
+	ActionID       string              `json:"action_id"`
+	ActorID        string              `json:"actor"`
+	LifecycleState string              `json:"lifecycle_state"`
+	Result         string              `json:"result"`
+	Policy         ApprovalPolicyDTO   `json:"policy"`
 }
 
 // IncidentHandoffRequest is the body for POST /api/v1/incidents/{id}/handoff.

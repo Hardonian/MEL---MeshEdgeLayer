@@ -24,6 +24,7 @@ import (
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/control"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/selfobs"
 )
@@ -34,6 +35,14 @@ type ApprovalOpts struct {
 	// It records durable metadata and allows separation-of-duties override when the human
 	// proposer would otherwise match the approver identity.
 	BreakGlassLegacyCLI bool
+	// BreakGlassHTTP is set from the JSON API when the client acknowledges SoD override.
+	BreakGlassHTTP bool
+	// BreakGlassSodReason is required context for HTTP break-glass (stored in sod_bypass_reason when used).
+	BreakGlassSodReason string
+}
+
+func breakGlassEffective(opts ApprovalOpts) bool {
+	return opts.BreakGlassLegacyCLI || opts.BreakGlassHTTP
 }
 
 func approvalSodWouldBlock(rec db.ControlActionRecord, actorID string) bool {
@@ -43,11 +52,14 @@ func approvalSodWouldBlock(rec db.ControlActionRecord, actorID string) bool {
 	if rec.LifecycleState != control.LifecyclePendingApproval {
 		return false
 	}
-	proposer := strings.TrimSpace(rec.ProposedBy)
-	if proposer == "" || strings.EqualFold(proposer, "system") {
+	submitter := strings.TrimSpace(rec.SubmittedBy)
+	if submitter == "" {
+		submitter = strings.TrimSpace(rec.ProposedBy)
+	}
+	if submitter == "" || strings.EqualFold(submitter, "system") {
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(actorID), proposer)
+	return strings.EqualFold(strings.TrimSpace(actorID), submitter)
 }
 
 func (a *App) mergeControlActionMetadata(actionID string, patch map[string]any) error {
@@ -225,17 +237,21 @@ func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
 
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.
-func (a *App) ApproveAction(actionID, actorID, note string) error {
-	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+// breakGlassSodAck / breakGlassSodReason are used by the HTTP API body (not legacy CLI).
+func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error) {
+	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{
+		BreakGlassHTTP:      breakGlassSodAck,
+		BreakGlassSodReason: breakGlassSodReason,
+	})
 }
 
 // ApproveActionWithOpts approves a pending_approval action with optional break-glass behavior.
-func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) error {
+func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) (*models.ApproveActionResponse, error) {
 	if a == nil || a.DB == nil {
-		return fmt.Errorf("service not available")
+		return nil, fmt.Errorf("service not available")
 	}
 	if strings.TrimSpace(actionID) == "" {
-		return fmt.Errorf("action_id is required")
+		return nil, fmt.Errorf("action_id is required")
 	}
 	if strings.TrimSpace(actorID) == "" {
 		actorID = "system"
@@ -244,13 +260,13 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 	// Verify the action exists and is pending approval
 	rec, ok, err := a.DB.ControlActionByID(actionID)
 	if err != nil {
-		return fmt.Errorf("could not load action: %w", err)
+		return nil, fmt.Errorf("could not load action: %w", err)
 	}
 	if !ok {
-		return fmt.Errorf("action not found: %s", actionID)
+		return nil, fmt.Errorf("action not found: %s", actionID)
 	}
 	if rec.LifecycleState != control.LifecyclePendingApproval {
-		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
+		return nil, fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
 	}
 
 	submitter := strings.TrimSpace(rec.SubmittedBy)
@@ -265,16 +281,51 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 	if rec.ApprovalExpiresAt != "" {
 		exp, err2 := time.Parse(time.RFC3339, rec.ApprovalExpiresAt)
 		if err2 == nil && time.Now().UTC().After(exp) {
-			return fmt.Errorf("approval window for action %s has expired", actionID)
+			return nil, fmt.Errorf("approval window for action %s has expired", actionID)
 		}
 	}
 
-	if approvalSodWouldBlock(rec, actorID) && !opts.BreakGlassLegacyCLI {
-		return fmt.Errorf("separation of duties: proposer and approver cannot be the same operator (%s); use a different operator identity or mel control approve with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.ProposedBy))
+	if approvalSodWouldBlock(rec, actorID) && opts.BreakGlassHTTP && strings.TrimSpace(opts.BreakGlassSodReason) == "" {
+		return nil, fmt.Errorf("break_glass_sod_reason is required when break_glass_sod_ack is true for same-submitter approval")
 	}
 
-	if err := a.DB.ApproveControlAction(actionID, actorID, note); err != nil {
-		return fmt.Errorf("could not approve action: %w", err)
+	if approvalSodWouldBlock(rec, actorID) && !breakGlassEffective(opts) {
+		pol := a.EvaluateApprovalPolicyForRecord(rec, actorID)
+		_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+			ID:           newTrustID("aud"),
+			ActorID:      auth.OperatorID(actorID),
+			ActionClass:  auth.ActionControl,
+			ActionDetail: "approve_action_denied",
+			ResourceType: "control_action",
+			ResourceID:   actionID,
+			Reason:       pol.ApproverDenialReason,
+			Result:       auth.AuditResultDenied,
+			Timestamp:    time.Now().UTC(),
+		})
+		return nil, fmt.Errorf("separation of duties: submitter and approver cannot be the same operator (%s); use a different operator identity, HTTP break_glass_sod_ack with reason, or mel control approve with --i-understand-break-glass-sod (emergency only)", submitter)
+	}
+
+	sodBypass := false
+	sodBypassActor := ""
+	sodBypassReason := ""
+	if approvalSodWouldBlock(rec, actorID) && breakGlassEffective(opts) {
+		sodBypass = true
+		sodBypassActor = actorID
+		if opts.BreakGlassLegacyCLI {
+			sodBypassReason = strings.TrimSpace(note)
+			if sodBypassReason == "" {
+				sodBypassReason = "legacy_cli_break_glass_sod"
+			}
+		} else {
+			sodBypassReason = strings.TrimSpace(opts.BreakGlassSodReason)
+			if sodBypassReason == "" {
+				sodBypassReason = "http_break_glass_sod_ack_missing_reason"
+			}
+		}
+	}
+
+	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, sodBypassActor, sodBypassReason); err != nil {
+		return nil, fmt.Errorf("could not approve action: %w", err)
 	}
 
 	if opts.BreakGlassLegacyCLI {
@@ -289,7 +340,20 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 			patch["mel_break_glass_sod_override"] = true
 		}
 		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
-			return fmt.Errorf("approved action but could not persist break-glass metadata: %w", err)
+			return nil, fmt.Errorf("approved action but could not persist break-glass metadata: %w", err)
+		}
+	}
+	if opts.BreakGlassHTTP && approvalSodWouldBlock(rec, actorID) {
+		now := time.Now().UTC().Format(time.RFC3339)
+		patch := map[string]any{
+			"mel_break_glass_approval": true,
+			"mel_break_glass_path":     "http_api",
+			"mel_break_glass_at":       now,
+			"mel_break_glass_actor":    actorID,
+			"mel_break_glass_sod_override": true,
+		}
+		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
+			return nil, fmt.Errorf("approved action but could not persist break-glass metadata: %w", err)
 		}
 	}
 
@@ -307,6 +371,13 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 					return "break_glass_legacy_cli: " + note
 				}
 				return "break_glass_legacy_cli"
+			}
+			if opts.BreakGlassHTTP {
+				r := strings.TrimSpace(opts.BreakGlassSodReason)
+				if r != "" {
+					return "break_glass_http_api: " + r
+				}
+				return "break_glass_http_api"
 			}
 			return note
 		}(),
@@ -332,37 +403,69 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 		Severity:   "info",
 		ActorID:    actorID,
 		ResourceID: actionID,
-		Details:    map[string]any{"action_id": actionID, "note": note, "break_glass_legacy_cli": opts.BreakGlassLegacyCLI},
+		Details: map[string]any{
+			"action_id":              actionID,
+			"note":                   note,
+			"break_glass_legacy_cli": opts.BreakGlassLegacyCLI,
+			"break_glass_http":       opts.BreakGlassHTTP,
+		},
 	})
 
 	// Re-load the action and queue for execution
 	updated, ok, err := a.DB.ControlActionByID(actionID)
 	if err != nil || !ok {
-		return fmt.Errorf("could not reload approved action: %v", err)
+		return nil, fmt.Errorf("could not reload approved action: %v", err)
 	}
 
 	action := db_ControlActionRecordToControlAction(updated)
+	queued := false
 	select {
 	case a.controlQueue <- action:
+		queued = true
 	default:
 		a.Log.Error("control_queue_full", "approved action could not be queued", map[string]any{"action_id": actionID})
-		return fmt.Errorf("control queue full; action approved but could not be queued immediately")
+		return nil, fmt.Errorf("control queue full; action approved but could not be queued immediately")
 	}
-	return nil
+
+	out := models.ApproveActionResponse{
+		Status:                         "approved",
+		ActionID:                       actionID,
+		ActorID:                        actorID,
+		LifecycleState:                 updated.LifecycleState,
+		Result:                         updated.Result,
+		FullyApprovedSingleStep:        true,
+		ApprovalDoesNotImplyExecution: true,
+		QueuedForExecution:             queued,
+		ExecutionOccurred:              false,
+		HTTPApproveDoesNotDrainQueue:   true,
+		BacklogMayRemain:               true,
+		BacklogExecutionRequiresActiveExecutor: true,
+		Policy:                         approvalPolicyToDTO(a.EvaluateApprovalPolicyForRecord(updated, "")),
+	}
+	return &out, nil
 }
 
-// RejectAction rejects a pending_approval action and marks it closed.
+// RejectAction rejects a pending_approval action and marks it closed (CLI / internal).
 func (a *App) RejectAction(actionID, actorID, note string) error {
-	return a.RejectActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+	_, err := a.RejectActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+	return err
+}
+
+// RejectActionHTTP is wired to the HTTP API (break-glass flags from JSON body).
+func (a *App) RejectActionHTTP(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error) {
+	return a.RejectActionWithOpts(actionID, actorID, note, ApprovalOpts{
+		BreakGlassHTTP:      breakGlassSodAck,
+		BreakGlassSodReason: breakGlassSodReason,
+	})
 }
 
 // RejectActionWithOpts rejects a pending_approval action with optional break-glass metadata.
-func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) error {
+func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts ApprovalOpts) (*models.RejectActionResponse, error) {
 	if a == nil || a.DB == nil {
-		return fmt.Errorf("service not available")
+		return nil, fmt.Errorf("service not available")
 	}
 	if strings.TrimSpace(actionID) == "" {
-		return fmt.Errorf("action_id is required")
+		return nil, fmt.Errorf("action_id is required")
 	}
 	if strings.TrimSpace(actorID) == "" {
 		actorID = "system"
@@ -370,21 +473,37 @@ func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts Approval
 
 	rec, ok, err := a.DB.ControlActionByID(actionID)
 	if err != nil {
-		return fmt.Errorf("could not load action: %w", err)
+		return nil, fmt.Errorf("could not load action: %w", err)
 	}
 	if !ok {
-		return fmt.Errorf("action not found: %s", actionID)
+		return nil, fmt.Errorf("action not found: %s", actionID)
 	}
 	if rec.LifecycleState != control.LifecyclePendingApproval {
-		return fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
+		return nil, fmt.Errorf("action %s is not pending approval (state: %s)", actionID, rec.LifecycleState)
 	}
 
-	if approvalSodWouldBlock(rec, actorID) && !opts.BreakGlassLegacyCLI {
-		return fmt.Errorf("separation of duties: proposer and rejector cannot be the same operator (%s); use a different operator identity or mel control reject with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.ProposedBy))
+	if approvalSodWouldBlock(rec, actorID) && opts.BreakGlassHTTP && strings.TrimSpace(opts.BreakGlassSodReason) == "" {
+		return nil, fmt.Errorf("break_glass_sod_reason is required when break_glass_sod_ack is true for same-submitter rejection")
+	}
+
+	if approvalSodWouldBlock(rec, actorID) && !breakGlassEffective(opts) {
+		pol := a.EvaluateApprovalPolicyForRecord(rec, actorID)
+		_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+			ID:           newTrustID("aud"),
+			ActorID:      auth.OperatorID(actorID),
+			ActionClass:  auth.ActionControl,
+			ActionDetail: "reject_action_denied",
+			ResourceType: "control_action",
+			ResourceID:   actionID,
+			Reason:       pol.ApproverDenialReason,
+			Result:       auth.AuditResultDenied,
+			Timestamp:    time.Now().UTC(),
+		})
+		return nil, fmt.Errorf("separation of duties: submitter and rejector cannot be the same operator (%s); use a different operator identity, HTTP break_glass_sod_ack with reason, or mel control reject with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.SubmittedBy))
 	}
 
 	if err := a.DB.RejectControlAction(actionID, actorID, note); err != nil {
-		return fmt.Errorf("could not reject action: %w", err)
+		return nil, fmt.Errorf("could not reject action: %w", err)
 	}
 
 	if opts.BreakGlassLegacyCLI {
@@ -399,7 +518,20 @@ func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts Approval
 			patch["mel_break_glass_sod_override"] = true
 		}
 		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
-			return fmt.Errorf("rejected action but could not persist break-glass metadata: %w", err)
+			return nil, fmt.Errorf("rejected action but could not persist break-glass metadata: %w", err)
+		}
+	}
+	if opts.BreakGlassHTTP && approvalSodWouldBlock(rec, actorID) {
+		now := time.Now().UTC().Format(time.RFC3339)
+		patch := map[string]any{
+			"mel_break_glass_reject":       true,
+			"mel_break_glass_path":         "http_api",
+			"mel_break_glass_at":           now,
+			"mel_break_glass_actor":        actorID,
+			"mel_break_glass_sod_override": true,
+		}
+		if err := a.mergeControlActionMetadata(actionID, patch); err != nil {
+			return nil, fmt.Errorf("rejected action but could not persist break-glass metadata: %w", err)
 		}
 	}
 
@@ -416,6 +548,13 @@ func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts Approval
 					return "break_glass_legacy_cli: " + note
 				}
 				return "break_glass_legacy_cli"
+			}
+			if opts.BreakGlassHTTP {
+				r := strings.TrimSpace(opts.BreakGlassSodReason)
+				if r != "" {
+					return "break_glass_http_api: " + r
+				}
+				return "break_glass_http_api"
 			}
 			return note
 		}(),
@@ -439,9 +578,25 @@ func (a *App) RejectActionWithOpts(actionID, actorID, note string, opts Approval
 		Severity:   "warning",
 		ActorID:    actorID,
 		ResourceID: actionID,
-		Details:    map[string]any{"action_id": actionID, "note": note, "break_glass_legacy_cli": opts.BreakGlassLegacyCLI},
+		Details: map[string]any{
+			"action_id":              actionID,
+			"note":                   note,
+			"break_glass_legacy_cli": opts.BreakGlassLegacyCLI,
+			"break_glass_http":       opts.BreakGlassHTTP,
+		},
 	})
-	return nil
+	updated, ok2, err2 := a.DB.ControlActionByID(actionID)
+	if err2 != nil || !ok2 {
+		return nil, fmt.Errorf("could not reload rejected action: %v", err2)
+	}
+	return &models.RejectActionResponse{
+		Status:         "rejected",
+		ActionID:       actionID,
+		ActorID:        actorID,
+		LifecycleState: updated.LifecycleState,
+		Result:         updated.Result,
+		Policy:         approvalPolicyToDTO(a.EvaluateApprovalPolicyForRecord(updated, "")),
+	}, nil
 }
 
 // ─── Freeze management ────────────────────────────────────────────────────────
@@ -694,6 +849,7 @@ func (a *App) InspectAction(actionID string) (map[string]any, error) {
 		"notes":           notes,
 		"inspected_at":    time.Now().UTC().Format(time.RFC3339),
 		"operator_view":   operatorlang.ActionOperatorLabels(action),
+		"approval_policy": approvalPolicyToDTO(a.EvaluateApprovalPolicyForRecord(action, "")),
 	}
 	return out, nil
 }
@@ -854,5 +1010,13 @@ func db_ControlActionRecordToControlAction(r db.ControlActionRecord) control.Con
 		SodBypass:                r.SodBypass,
 		SodBypassActor:           r.SodBypassActor,
 		SodBypassReason:          r.SodBypassReason,
+		ApprovalMode:                     r.ApprovalMode,
+		RequiredApprovals:                r.RequiredApprovals,
+		CollectedApprovals:               r.CollectedApprovals,
+		ApprovalBasis:                    append([]string(nil), r.ApprovalBasis...),
+		ApprovalPolicySource:             r.ApprovalPolicySource,
+		HighBlastRadius:                  r.HighBlastRadius,
+		ApprovalEscalatedDueToBlastRadius: r.ApprovalEscalatedDueToBlastRadius,
+		ExecutionSource:                  r.ExecutionSource,
 	}
 }

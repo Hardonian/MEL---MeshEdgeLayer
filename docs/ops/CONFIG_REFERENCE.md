@@ -94,7 +94,7 @@ Controls MEL's autonomous control plane behaviour.
 | `enabled` | bool | `false` | Enable the control plane. |
 | `mode` | string | `"guarded_auto"` | `observe_only` \| `guarded_auto` \| `approval_required` \| `disabled`. |
 | `require_approval_for_action_types` | []string | `[]` | Action types that must wait for operator approval before executing. Example: `["restart_transport", "reconfigure_transport"]`. |
-| `require_approval_for_high_blast_radius` | bool | `false` | When `true`, actions with blast radius `mesh`, `global`, or `unknown` require operator approval. |
+| `require_approval_for_high_blast_radius` | bool | `false` | When `true`, actions whose stored blast-radius class is `mesh` or `global` require operator approval. `unknown` is **not** auto-gated by this flag (it remains visible on the row for operators). |
 | `approval_timeout_seconds` | int | `0` | Seconds before a `pending_approval` action automatically expires. `0` = no timeout. Max: 86400 (24 h). |
 
 ### `control.mode` values

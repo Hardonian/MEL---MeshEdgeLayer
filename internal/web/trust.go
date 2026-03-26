@@ -191,23 +191,23 @@ func (s *Server) approveActionHandler(w http.ResponseWriter, r *http.Request, ac
 	_ = decodeBody(r, &body)
 	actor := s.actorFromTrustContext(r)
 
-	if err := s.approveAction(actionID, actor, body.Note, body.BreakGlassSodAck, body.BreakGlassSodReason); err != nil {
+	resp, err := s.approveAction(actionID, actor, body.Note, body.BreakGlassSodAck, body.BreakGlassSodReason)
+	if err != nil {
 		code := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
+		msg := err.Error()
+		if strings.Contains(msg, "not found") {
 			code = http.StatusNotFound
-		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "expired") || strings.Contains(err.Error(), "separation of duties") {
+		} else if strings.Contains(msg, "break_glass_sod_reason is required") {
+			code = http.StatusUnprocessableEntity
+		} else if strings.Contains(msg, "not pending approval") || strings.Contains(msg, "expired") {
 			code = http.StatusConflict
-		} else if strings.Contains(err.Error(), "separation of duties") {
+		} else if strings.Contains(msg, "separation of duties") {
 			code = http.StatusForbidden
 		}
-		writeError(w, code, "could not approve action", err.Error())
+		writeError(w, code, "could not approve action", msg)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":    "approved",
-		"action_id": actionID,
-		"actor":     actor,
-	})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) rejectActionHandler(w http.ResponseWriter, r *http.Request, actionID string) {
@@ -215,27 +215,27 @@ func (s *Server) rejectActionHandler(w http.ResponseWriter, r *http.Request, act
 		writeError(w, http.StatusServiceUnavailable, "reject not available", "trust hooks not wired")
 		return
 	}
-	var body struct {
-		Note string `json:"note"`
-	}
+	var body models.RejectActionRequest
 	_ = decodeBody(r, &body)
 	actor := s.actorFromTrustContext(r)
 
-	if err := s.rejectAction(actionID, actor, body.Note); err != nil {
+	resp, err := s.rejectAction(actionID, actor, body.Note, body.BreakGlassSodAck, body.BreakGlassSodReason)
+	if err != nil {
 		code := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
+		msg := err.Error()
+		if strings.Contains(msg, "not found") {
 			code = http.StatusNotFound
-		} else if strings.Contains(err.Error(), "not pending approval") || strings.Contains(err.Error(), "separation of duties") {
+		} else if strings.Contains(msg, "break_glass_sod_reason is required") {
+			code = http.StatusUnprocessableEntity
+		} else if strings.Contains(msg, "not pending approval") {
 			code = http.StatusConflict
+		} else if strings.Contains(msg, "separation of duties") {
+			code = http.StatusForbidden
 		}
-		writeError(w, code, "could not reject action", err.Error())
+		writeError(w, code, "could not reject action", msg)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":    "rejected",
-		"action_id": actionID,
-		"actor":     actor,
-	})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ─── Freeze ───────────────────────────────────────────────────────────────────

@@ -54,6 +54,9 @@ type App struct {
 	lastTransportHealth map[string]transport.Health
 	healthMu            sync.Mutex
 	topo                *topology.Store
+
+	lastExecutorHeartbeatMu sync.Mutex
+	lastExecutorHeartbeat   time.Time
 }
 
 type ingestRequest struct {
@@ -93,7 +96,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
 	app.Web.SetTrustFuncs(
 		app.ApproveAction,
-		app.RejectAction,
+		app.RejectActionHTTP,
 		app.CreateFreeze,
 		app.ClearFreeze,
 		app.CreateMaintenanceWindow,
@@ -585,30 +588,13 @@ func (a *App) consumeTransportEvents(ctx context.Context) {
 				a.Log.Error("transport_observation_invalid", "ignored malformed transport observation", map[string]any{"event_type": evt.Type})
 				continue
 			}
+			// Block until the observation worker accepts the event. A non-blocking send
+			// dropped observations under parallel test load when the bounded queue briefly
+			// filled, causing flaky dead-letter persistence tests without improving safety.
 			select {
 			case <-ctx.Done():
 				return
 			case a.observationCh <- obs:
-			default:
-				a.insertAuditLog("transport", "warning", transport.ReasonObservationDropped, map[string]any{
-					"transport":   obs.TransportName,
-					"type":        obs.TransportType,
-					"topic":       obs.Topic,
-					"dead_letter": false,
-					"timestamp":   time.Now().UTC().Format(time.RFC3339),
-					"drop_count":  1,
-					"drop_cause":  "observation_queue_saturation",
-					"details": map[string]any{
-						"reason": obs.Reason,
-						"queue":  "observation",
-					},
-				})
-				if t := a.transportByName(obs.TransportName); t != nil {
-					if controller, ok := t.(transport.RuntimeStateController); ok {
-						controller.RecordObservationDrop(1)
-					}
-				}
-				a.Log.Error("transport_observation_dropped", "dropped observation because persistence worker is saturated", map[string]any{"transport": obs.TransportName, "reason": obs.Reason})
 			}
 		}
 	}

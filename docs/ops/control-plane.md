@@ -16,6 +16,21 @@ The MEL control plane evaluates mesh health conditions and proposes or executes 
 - **advisory** (recommended default): Use to observe what MEL would do without risk; review logs to tune confidence thresholds and allowed actions before enabling automation
 - **guarded_auto**: Use only after validation in advisory mode; requires all safety checks to pass for execution
 
+## Operator approval and execution (truth)
+
+When an action requires approval (`execution_mode: approval_required`), it stays in
+`pending_approval` until an operator approves. MEL uses a **single-approver** model
+(`required_approvals: 1`); there is no quorum.
+
+- **`require_approval_for_action_types`**: explicit list match forces approval.
+- **`require_approval_for_high_blast_radius`**: when enabled, stored classes `mesh` and
+  `global` force approval. Other classes are **not** auto-promoted by this flag.
+
+**Approval is not execution.** After approve, the action moves to `pending` and still
+needs the **control executor** (`mel serve`). HTTP approve does not drain the full
+queue; `mel action approve` may dequeue **one** slot in that CLI process when the
+bounded queue has work.
+
 ## Configuration
 
 Control settings are nested under the `control` key in MEL configuration:
