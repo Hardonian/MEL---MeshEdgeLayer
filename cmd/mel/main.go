@@ -164,6 +164,8 @@ func main() {
 		planCmd(rest)
 	case "playbook":
 		playbookCmd(rest)
+	case "recommend":
+		recommendCmd(rest)
 	default:
 		usage()
 		os.Exit(1)
@@ -192,8 +194,9 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   inspect mesh --config <path>
   inspect topology [--refresh] --config <path>
   mesh bootstrap|topology|diagnose|recommend|inspect|history|simulate|resilience|critical --config <path>
-  plan create|list|show|compare --config <path>
+  plan create|list|show|edit|compare|inputs|mark-step|outcome --config <path>
   playbook suggest --config <path>
+  recommend next --config <path>
   alerts --config <path> [--active=false] [--since RFC3339] [--filter s] [--limit n]
   actions list|pending|history --config <path>
   explain policy --config <path>

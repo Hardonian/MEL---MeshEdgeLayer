@@ -6,6 +6,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/planning"
 )
 
 func Run(database *db.DB, cfg config.Config) error {
@@ -48,6 +49,18 @@ func Run(database *db.DB, cfg config.Config) error {
 	// Retention for retention_jobs itself: 30 days prevents unbounded growth of job metadata
 	retentionJobsCutoff := time.Now().UTC().AddDate(0, 0, -30).Format(time.RFC3339)
 	if err := database.Exec(fmt.Sprintf("DELETE FROM retention_jobs WHERE last_run < '%s';", retentionJobsCutoff)); err != nil {
+		return err
+	}
+	if err := planning.PrunePlans(database, 200); err != nil {
+		return err
+	}
+	if err := planning.PruneArtifacts(database, 300); err != nil {
+		return err
+	}
+	if err := planning.PruneRecommendationOutcomes(database, 500); err != nil {
+		return err
+	}
+	if err := planning.PrunePlanExecutions(database, 300); err != nil {
 		return err
 	}
 	return database.Exec("INSERT INTO retention_jobs(job_name,last_run,last_status,details) VALUES('default', datetime('now'), 'ok', 'retention sweep complete incl. transport intelligence pruning');")

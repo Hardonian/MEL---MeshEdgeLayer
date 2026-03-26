@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/meshintel"
+	"github.com/mel-project/mel/internal/planning"
 	"github.com/mel-project/mel/internal/topology"
 )
 
@@ -59,6 +60,10 @@ func (a *App) runTopologyRefresh(th topology.StaleThresholds) {
 	sig, _ := meshintel.RollupRecentMessages(a.DB, 24*time.Hour, transportOK)
 	assess := meshintel.Compute(a.Cfg, ar, sig, transportOK, now)
 	a.setMeshIntel(assess)
+	if a.DB != nil {
+		advisories := planning.DeriveResilienceAdvisoryAlerts(ar, assess, now)
+		_ = planning.SyncAdvisoryAlertsToStore(a.DB, advisories)
+	}
 	keepMI := a.Cfg.Topology.MaxMeshIntelHistory
 	if keepMI <= 0 {
 		keepMI = 120

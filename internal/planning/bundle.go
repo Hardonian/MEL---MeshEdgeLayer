@@ -11,10 +11,11 @@ import (
 )
 
 // BuildBundle is the main entry: resilience + playbooks + ranked hints from mesh intel.
-func BuildBundle(cfg config.Config, ar topology.AnalysisResult, mi meshintel.Assessment, transportConnected bool, now time.Time) PlanningBundle {
+func BuildBundle(cfg config.Config, ar topology.AnalysisResult, mi meshintel.Assessment, transportConnected bool, now time.Time, retro RecommendationRetrospective) PlanningBundle {
 	resSummary, profiles := ComputeResilience(ar, mi)
 	playbooks := SuggestPlaybooks(ar, mi)
 	ranked := rankNextPlans(ar, mi)
+	best := ComputeBestNextMove(ar, mi, retro)
 
 	limits := ExplainLimits()
 	if !cfg.Topology.Enabled {
@@ -33,6 +34,8 @@ func BuildBundle(cfg config.Config, ar topology.AnalysisResult, mi meshintel.Ass
 		Resilience:         resSummary,
 		NodeProfiles:       profiles,
 		RankedNextPlans:    ranked,
+		BestNextMove:       best,
+		WaitVersusExpand:   WaitVersusExpandHeuristic(mi),
 		Playbooks:          playbooks,
 		Limits:             limits,
 		ComputedAt:         now.UTC().Format(time.RFC3339),
@@ -64,7 +67,7 @@ func rankNextPlans(ar topology.AnalysisResult, mi meshintel.Assessment) []Ranked
 		hints = append(hints, RankedPlanHint{
 			Rank:        i + 1,
 			ID:          id,
-			Title:       r.Title,
+			Title:       QualifyRecommendation(r.Title),
 			Verdict:     v,
 			BenefitBand: band,
 			Lines: append([]string{

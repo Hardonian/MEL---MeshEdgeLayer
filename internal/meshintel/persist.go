@@ -71,3 +71,24 @@ func LatestSnapshot(d *db.DB) (Assessment, bool, error) {
 	}
 	return list[0], true, nil
 }
+
+// GetAssessmentByID loads a persisted snapshot by assessment_id (for planning validation baselines).
+func GetAssessmentByID(d *db.DB, assessmentID string) (Assessment, bool, error) {
+	if d == nil || strings.TrimSpace(assessmentID) == "" {
+		return Assessment{}, false, nil
+	}
+	rows, err := d.QueryRows(fmt.Sprintf(
+		`SELECT payload_json FROM mesh_intelligence_snapshots WHERE assessment_id='%s' ORDER BY created_at DESC LIMIT 1;`,
+		db.EscString(assessmentID)))
+	if err != nil {
+		return Assessment{}, false, err
+	}
+	if len(rows) == 0 {
+		return Assessment{}, false, nil
+	}
+	var a Assessment
+	if err := json.Unmarshal([]byte(fmt.Sprint(rows[0]["payload_json"])), &a); err != nil {
+		return Assessment{}, false, err
+	}
+	return a, true, nil
+}
