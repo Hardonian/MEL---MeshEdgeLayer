@@ -13,6 +13,7 @@ import { Diagnostics } from './pages/Diagnostics'
 import { Incidents } from './pages/Incidents'
 import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
+import { Planning } from './pages/Planning'
 import { ApiProvider } from './hooks/useApi'
 import { ToastProvider } from './components/ui/Toast'
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/nodes" element={<Nodes />} />
           <Route path="/nodes/:nodeId" element={<Nodes />} />
           <Route path="/topology" element={<Topology />} />
+          <Route path="/planning" element={<Planning />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/dead-letters" element={<DeadLetters />} />
