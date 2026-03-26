@@ -140,7 +140,7 @@ type inputSetRequest struct {
 }
 
 type inputVersionRequest struct {
-	InputSetID string `json:"input_set_id"`
+	InputSetID string                    `json:"input_set_id"`
 	Items      []planning.AssumptionItem `json:"items"`
 }
 
@@ -434,7 +434,14 @@ func (s *Server) planningAdvisoryAlertsHandler(w http.ResponseWriter, r *http.Re
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"advisory_nature": "synthetic topology advisories stored under transport planning/advisory", "alerts": alertsDTO(alerts), "count": len(alerts)})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"advisory_nature": "synthetic topology advisories stored under transport planning/advisory",
+		"alerts":          alertsDTO(alerts),
+		"count":           len(alerts),
+		"evidence_flags": planning.PlanningEvidenceFlags{
+			NoAdvisories: len(alerts) == 0,
+		},
+	})
 }
 
 func alertsDTO(in []db.TransportAlertRecord) []map[string]any {
@@ -481,9 +488,9 @@ func (s *Server) planningRecommendNextHandler(w http.ResponseWriter, r *http.Req
 }
 
 type outcomeRecordReq struct {
-	RecommendationKey string `json:"recommendation_key"`
+	RecommendationKey string                  `json:"recommendation_key"`
 	Verdict           planning.OutcomeVerdict `json:"verdict"`
-	Payload           map[string]any `json:"payload"`
+	Payload           map[string]any          `json:"payload"`
 }
 
 // planningOutcomeRecordHandler POST /api/v1/planning/outcomes
@@ -576,7 +583,7 @@ func (s *Server) planningScenarioHandler(w http.ResponseWriter, r *http.Request)
 }
 
 type compareRequest struct {
-	PlanIDs []string               `json:"plan_ids"`
+	PlanIDs []string                  `json:"plan_ids"`
 	Plans   []planning.DeploymentPlan `json:"plans,omitempty"`
 }
 

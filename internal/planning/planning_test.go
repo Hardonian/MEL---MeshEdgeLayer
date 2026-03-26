@@ -59,6 +59,9 @@ func TestValidateExecution_sameMeshAssessmentIdIsConfounded(t *testing.T) {
 	if v.Caveat == "" {
 		t.Fatal("expected caveat")
 	}
+	if !v.EvidenceFlags.ConfoundedSameAssessmentContext {
+		t.Fatalf("expected confounded_same_assessment_context flag")
+	}
 }
 
 func TestValidateExecution_warnsWhenBaselineAssessmentMissing(t *testing.T) {
@@ -85,6 +88,12 @@ func TestValidateExecution_warnsWhenBaselineAssessmentMissing(t *testing.T) {
 	if !found {
 		t.Fatalf("expected baseline-missing warning in lines: %#v", v.Lines)
 	}
+	if !v.EvidenceFlags.BaselineMissing {
+		t.Fatalf("expected baseline_missing flag")
+	}
+	if !v.EvidenceFlags.DirectionalOnly {
+		t.Fatalf("expected directional_only flag")
+	}
 }
 
 func TestValidateExecution_usesBaselineWhenCaptured(t *testing.T) {
@@ -106,6 +115,35 @@ func TestValidateExecution_usesBaselineWhenCaptured(t *testing.T) {
 	v := ValidateExecution(exec, before, ar, after, time.Now().UTC())
 	if v.Metrics.FragmentationBefore != 0.5 {
 		t.Fatalf("expected baseline frag 0.5, got %v", v.Metrics.FragmentationBefore)
+	}
+}
+
+func TestValidateExecution_setsInconclusiveAndDriftFlags(t *testing.T) {
+	before := meshintel.Assessment{
+		AssessmentID: "before-a",
+		GraphHash:    "graph-a",
+		Topology:     meshintel.MeshTopologyMetrics{FragmentationScore: 0.5},
+	}
+	after := meshintel.Assessment{
+		AssessmentID: "after-b",
+		GraphHash:    "graph-b",
+		Topology:     meshintel.MeshTopologyMetrics{FragmentationScore: 0.49},
+	}
+	ar := topology.AnalysisResult{}
+	exec := PlanExecutionRecord{
+		MeshAssessmentID:        "before-a",
+		PlanGraphHash:           "graph-a",
+		ObservationHorizonHours: 0,
+	}
+	v := ValidateExecution(exec, before, ar, after, time.Now().UTC())
+	if v.Verdict != OutcomeVerdictInconclusive {
+		t.Fatalf("expected inconclusive verdict, got %s", v.Verdict)
+	}
+	if !v.EvidenceFlags.Inconclusive {
+		t.Fatalf("expected inconclusive evidence flag")
+	}
+	if !v.EvidenceFlags.TopologyOrGraphDriftDetected {
+		t.Fatalf("expected topology_or_graph_drift_detected flag")
 	}
 }
 

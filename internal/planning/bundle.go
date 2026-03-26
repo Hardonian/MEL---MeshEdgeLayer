@@ -16,6 +16,7 @@ func BuildBundle(cfg config.Config, ar topology.AnalysisResult, mi meshintel.Ass
 	playbooks := SuggestPlaybooks(ar, mi)
 	ranked := rankNextPlans(ar, mi)
 	best := ComputeBestNextMove(ar, mi, retro)
+	limitedConfidence := resSummary.Confidence.Level != meshintel.ConfidenceHigh || len(best.UncertaintyNotes) > 0
 
 	limits := ExplainLimits()
 	if !cfg.Topology.Enabled {
@@ -31,14 +32,19 @@ func BuildBundle(cfg config.Config, ar topology.AnalysisResult, mi meshintel.Ass
 		MeshAssessmentID:   mi.AssessmentID,
 		TransportConnected: transportConnected,
 		TopologyEnabled:    cfg.Topology.Enabled,
-		Resilience:         resSummary,
-		NodeProfiles:       profiles,
-		RankedNextPlans:    ranked,
-		BestNextMove:       best,
-		WaitVersusExpand:   WaitVersusExpandHeuristic(mi),
-		Playbooks:          playbooks,
-		Limits:             limits,
-		ComputedAt:         now.UTC().Format(time.RFC3339),
+		EvidenceFlags: PlanningEvidenceFlags{
+			DirectionalOnly:   true,
+			LimitedConfidence: limitedConfidence,
+			RecommendationPresentWithUncertainEvidence: len(mi.Recommendations) > 0 && limitedConfidence,
+		},
+		Resilience:       resSummary,
+		NodeProfiles:     profiles,
+		RankedNextPlans:  ranked,
+		BestNextMove:     best,
+		WaitVersusExpand: WaitVersusExpandHeuristic(mi),
+		Playbooks:        playbooks,
+		Limits:           limits,
+		ComputedAt:       now.UTC().Format(time.RFC3339),
 	}
 }
 

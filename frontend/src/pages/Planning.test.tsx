@@ -10,6 +10,8 @@ interface PlanningScenario {
   confidenceLevel?: string
   evidenceClassification?: string
   uncertaintyNotes?: string[]
+  evidenceFlags?: Record<string, boolean>
+  advisoryEvidenceFlags?: Record<string, boolean>
 }
 
 function setupPlanningFetch(scenario: PlanningScenario = {}) {
@@ -20,6 +22,7 @@ function setupPlanningFetch(scenario: PlanningScenario = {}) {
     mesh_assessment_id: scenario.meshAssessmentId,
     transport_connected: false,
     topology_enabled: true,
+    evidence_flags: scenario.evidenceFlags ?? {},
     resilience: {
       resilience_score: 0.5,
       redundancy_score: 0.4,
@@ -50,7 +53,10 @@ function setupPlanningFetch(scenario: PlanningScenario = {}) {
         return Promise.resolve({ ok: true, json: async () => bundle } as Response)
       }
       if (url.includes('/api/v1/planning/advisory-alerts')) {
-        return Promise.resolve({ ok: true, json: async () => ({ alerts: scenario.advisories ?? [] }) } as Response)
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ alerts: scenario.advisories ?? [], evidence_flags: scenario.advisoryEvidenceFlags ?? {} }),
+        } as Response)
       }
       return Promise.reject(new Error(`unexpected fetch: ${url}`))
     }),
@@ -76,9 +82,8 @@ describe('Planning', () => {
 
   it('shows baseline-missing and directional caution semantics', async () => {
     setupPlanningFetch({
-      evidenceModel:
-        'No baseline mesh assessment id was recorded; validation here is directional and inconclusive for causal claims.',
-      confidenceLevel: 'low',
+      evidenceModel: 'Planning evidence model copy changed with no baseline wording.',
+      evidenceFlags: { baseline_missing: true, directional_only: true },
     })
 
     render(<Planning />)
@@ -94,8 +99,8 @@ describe('Planning', () => {
   it('shows confounded caution when same assessment context is reported', async () => {
     setupPlanningFetch({
       meshAssessmentId: 'assessment-123',
-      evidenceModel:
-        'Before and after currently point to the same mesh_assessment_id and can be confounded by same live compute.',
+      evidenceModel: 'Confounding wording is intentionally absent from prose.',
+      evidenceFlags: { confounded_same_assessment_context: true },
     })
 
     render(<Planning />)
@@ -110,8 +115,8 @@ describe('Planning', () => {
 
   it('shows topology drift warning text when graph drift evidence exists', async () => {
     setupPlanningFetch({
-      evidenceModel: 'Graph hash changed since plan baseline; concurrent operational changes can confound directional validation.',
-      limits: ['Topology drift may affect comparison windows.'],
+      evidenceModel: 'No graph drift wording in fallback prose.',
+      evidenceFlags: { topology_or_graph_drift_detected: true },
     })
 
     render(<Planning />)
@@ -124,9 +129,11 @@ describe('Planning', () => {
 
   it('keeps empty advisories and uncertainty visible together (not all-clear)', async () => {
     setupPlanningFetch({
-      evidenceModel: 'Directional and confounded signals remain; no strong directional signal yet.',
+      evidenceModel: 'No uncertainty wording in prose.',
       advisories: [],
+      advisoryEvidenceFlags: { no_advisories: true },
       uncertaintyNotes: ['Short observation horizon'],
+      evidenceFlags: { limited_confidence: true },
     })
 
     render(<Planning />)
@@ -142,9 +149,9 @@ describe('Planning', () => {
 
   it('surfaces limited-confidence semantics when advisory/recommendation exists', async () => {
     setupPlanningFetch({
-      evidenceClassification: 'confounded_concurrent_changes',
-      confidenceLevel: 'medium',
-      uncertaintyNotes: ['Concurrent operational changes can confound outcomes'],
+      evidenceClassification: 'topology_only',
+      uncertaintyNotes: [],
+      evidenceFlags: { recommendation_present_with_uncertain_evidence: true },
       advisories: [{ id: 'a-1', severity: 'warning', reason: 'partition-risk', summary: 'Potential fragility increase' }],
     })
 
@@ -156,5 +163,17 @@ describe('Planning', () => {
     expect(screen.getByTestId('planning-evidence-signals').textContent).toContain(
       'Recommendations exist, but confidence is limited',
     )
+  })
+
+  it('falls back to legacy phrase parsing when evidence flags are absent', async () => {
+    setupPlanningFetch({
+      evidenceFlags: {},
+      evidenceModel: 'No baseline mesh assessment id was recorded and validation is directional.',
+    })
+    render(<Planning />)
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
+    })
+    expect(screen.getByTestId('planning-evidence-signals').textContent).toContain('Baseline evidence is missing or unavailable')
   })
 })
