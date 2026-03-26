@@ -12,10 +12,10 @@ const PlanningEvidenceModel = "Derived from topology_links and nodes (packet rel
 type ProvenanceKind string
 
 const (
-	ProvenanceObserved          ProvenanceKind = "observed"
-	ProvenanceOperatorSupplied  ProvenanceKind = "operator_supplied"
-	ProvenanceInferred          ProvenanceKind = "inferred"
-	ProvenanceUnknown           ProvenanceKind = "unknown"
+	ProvenanceObserved         ProvenanceKind = "observed"
+	ProvenanceOperatorSupplied ProvenanceKind = "operator_supplied"
+	ProvenanceInferred         ProvenanceKind = "inferred"
+	ProvenanceUnknown          ProvenanceKind = "unknown"
 )
 
 // PlanningInput is an optional operator hint with explicit provenance.
@@ -36,12 +36,12 @@ type AssumptionSet struct {
 type QualitativeOutcome string
 
 const (
-	OutcomeLikelyLowBenefit       QualitativeOutcome = "likely_low_benefit"
-	OutcomePlausibleModerate      QualitativeOutcome = "plausible_moderate_benefit"
-	OutcomeLikelyHighLeverage     QualitativeOutcome = "likely_high_leverage"
-	OutcomeUncertainButPromising  QualitativeOutcome = "uncertain_but_promising"
-	OutcomeHighRiskLowConfidence  QualitativeOutcome = "high_risk_low_confidence"
-	OutcomeLikelyHarmful          QualitativeOutcome = "likely_harmful"
+	OutcomeLikelyLowBenefit      QualitativeOutcome = "likely_low_benefit"
+	OutcomePlausibleModerate     QualitativeOutcome = "plausible_moderate_benefit"
+	OutcomeLikelyHighLeverage    QualitativeOutcome = "likely_high_leverage"
+	OutcomeUncertainButPromising QualitativeOutcome = "uncertain_but_promising"
+	OutcomeHighRiskLowConfidence QualitativeOutcome = "high_risk_low_confidence"
+	OutcomeLikelyHarmful         QualitativeOutcome = "likely_harmful"
 )
 
 // ExpectedOutcome summarizes expected effects in qualitative terms.
@@ -100,78 +100,78 @@ const (
 type DeploymentClassHint string
 
 const (
-	ClassHandheld       DeploymentClassHint = "handheld_companion"
-	ClassBase           DeploymentClassHint = "base_always_on"
-	ClassElevatedFixed  DeploymentClassHint = "elevated_stationary"
-	ClassCorridorRelay  DeploymentClassHint = "corridor_relay"
-	ClassEventTemp      DeploymentClassHint = "event_temporary"
-	ClassUnknown        DeploymentClassHint = "unspecified"
+	ClassHandheld      DeploymentClassHint = "handheld_companion"
+	ClassBase          DeploymentClassHint = "base_always_on"
+	ClassElevatedFixed DeploymentClassHint = "elevated_stationary"
+	ClassCorridorRelay DeploymentClassHint = "corridor_relay"
+	ClassEventTemp     DeploymentClassHint = "event_temporary"
+	ClassUnknown       DeploymentClassHint = "unspecified"
 )
 
 // CandidatePlacement describes a hypothetical new or moved node placement (no map precision).
 type CandidatePlacement struct {
-	Label            string              `json:"label,omitempty"`
-	DeploymentClass  DeploymentClassHint `json:"deployment_class"`
-	PlacementNotes   []string            `json:"placement_notes,omitempty"`
-	OperatorHints    []PlanningInput     `json:"operator_hints,omitempty"`
+	Label           string              `json:"label,omitempty"`
+	DeploymentClass DeploymentClassHint `json:"deployment_class"`
+	PlacementNotes  []string            `json:"placement_notes,omitempty"`
+	OperatorHints   []PlanningInput     `json:"operator_hints,omitempty"`
 }
 
 // CandidateRoleChange is a proposed Meshtastic-style role change (advisory).
 type CandidateRoleChange struct {
-	NodeNum       int64  `json:"node_num,omitempty"`
-	FromRole      string `json:"from_role,omitempty"`
-	ToRole        string `json:"to_role,omitempty"`
-	Rationale     string `json:"rationale,omitempty"`
+	NodeNum   int64  `json:"node_num,omitempty"`
+	FromRole  string `json:"from_role,omitempty"`
+	ToRole    string `json:"to_role,omitempty"`
+	Rationale string `json:"rationale,omitempty"`
 }
 
 // CandidateNodeClass classifies a hypothetical node for add scenarios.
 type CandidateNodeClass string
 
 const (
-	NodeClassHandheld      CandidateNodeClass = "handheld"
-	NodeClassFixedRelay    CandidateNodeClass = "fixed_relay"
-	NodeClassInfraAnchor   CandidateNodeClass = "infrastructure_anchor"
+	NodeClassHandheld       CandidateNodeClass = "handheld"
+	NodeClassFixedRelay     CandidateNodeClass = "fixed_relay"
+	NodeClassInfraAnchor    CandidateNodeClass = "infrastructure_anchor"
 	NodeClassEventEphemeral CandidateNodeClass = "event_ephemeral"
 )
 
 // DeploymentStep is one unit of work in a plan.
 type DeploymentStep struct {
-	ID                  string             `json:"id"`
-	Intent              string             `json:"intent"`
-	Kind                DeploymentStepKind `json:"kind"`
-	TargetNodeNums      []int64            `json:"target_node_nums,omitempty"`
-	TargetClusterHint   string             `json:"target_cluster_hint,omitempty"`
-	CandidatePlacement  *CandidatePlacement `json:"candidate_placement,omitempty"`
-	RoleChange          *CandidateRoleChange  `json:"role_change,omitempty"`
-	CandidateClass      CandidateNodeClass    `json:"candidate_class,omitempty"`
-	Assumptions         AssumptionSet         `json:"assumptions"`
-	ExpectedBenefits    []string              `json:"expected_benefits,omitempty"`
-	ExpectedRisks       []RiskFactor          `json:"expected_risks,omitempty"`
-	EvidenceBasis       []string              `json:"evidence_basis,omitempty"`
-	Uncertainty         ConfidenceAssessment  `json:"uncertainty"`
-	ObserveAfterHours     int                 `json:"observe_after_hours,omitempty"`
-	DoNotProceedIf        []string            `json:"do_not_proceed_if,omitempty"`
+	ID                 string               `json:"id"`
+	Intent             string               `json:"intent"`
+	Kind               DeploymentStepKind   `json:"kind"`
+	TargetNodeNums     []int64              `json:"target_node_nums,omitempty"`
+	TargetClusterHint  string               `json:"target_cluster_hint,omitempty"`
+	CandidatePlacement *CandidatePlacement  `json:"candidate_placement,omitempty"`
+	RoleChange         *CandidateRoleChange `json:"role_change,omitempty"`
+	CandidateClass     CandidateNodeClass   `json:"candidate_class,omitempty"`
+	Assumptions        AssumptionSet        `json:"assumptions"`
+	ExpectedBenefits   []string             `json:"expected_benefits,omitempty"`
+	ExpectedRisks      []RiskFactor         `json:"expected_risks,omitempty"`
+	EvidenceBasis      []string             `json:"evidence_basis,omitempty"`
+	Uncertainty        ConfidenceAssessment `json:"uncertainty"`
+	ObserveAfterHours  int                  `json:"observe_after_hours,omitempty"`
+	DoNotProceedIf     []string             `json:"do_not_proceed_if,omitempty"`
 }
 
 // DeploymentPlan is a persisted or ephemeral operator deployment proposal.
 type DeploymentPlan struct {
-	PlanID             string `json:"plan_id"`
-	Title              string `json:"title"`
-	Status             string `json:"status"` // draft, active, archived
-	Intent             string `json:"intent"`
-	Steps              []DeploymentStep `json:"steps"`
-	CreatedAt          string `json:"created_at,omitempty"`
-	UpdatedAt          string `json:"updated_at,omitempty"`
-	GraphHashAt        string `json:"graph_hash_at,omitempty"`
-	Notes              []string `json:"notes,omitempty"`
-	InputSetVersionID  string `json:"input_set_version_id,omitempty"` // optional FK to planning_input_versions.version_id
+	PlanID            string           `json:"plan_id"`
+	Title             string           `json:"title"`
+	Status            string           `json:"status"` // draft, active, archived
+	Intent            string           `json:"intent"`
+	Steps             []DeploymentStep `json:"steps"`
+	CreatedAt         string           `json:"created_at,omitempty"`
+	UpdatedAt         string           `json:"updated_at,omitempty"`
+	GraphHashAt       string           `json:"graph_hash_at,omitempty"`
+	Notes             []string         `json:"notes,omitempty"`
+	InputSetVersionID string           `json:"input_set_version_id,omitempty"` // optional FK to planning_input_versions.version_id
 }
 
 // EvidenceModelClassification states how much operator assumption augmented the analysis.
 type EvidenceModelClassification string
 
 const (
-	EvidenceTopologyOnly              EvidenceModelClassification = "topology_only"
+	EvidenceTopologyOnly                EvidenceModelClassification = "topology_only"
 	EvidenceTopologyAssumptionAugmented EvidenceModelClassification = "topology_operator_assumptions"
 )
 
@@ -179,10 +179,10 @@ const (
 type AssumptionSource string
 
 const (
-	AssumptionSourceObserved  AssumptionSource = "observed"
-	AssumptionSourceOperator  AssumptionSource = "operator"
-	AssumptionSourceInferred  AssumptionSource = "inferred"
-	AssumptionSourceUnknown   AssumptionSource = "unknown"
+	AssumptionSourceObserved AssumptionSource = "observed"
+	AssumptionSourceOperator AssumptionSource = "operator"
+	AssumptionSourceInferred AssumptionSource = "inferred"
+	AssumptionSourceUnknown  AssumptionSource = "unknown"
 )
 
 // AssumptionConfidence is a coarse band (not statistical certainty).
@@ -205,13 +205,13 @@ const (
 
 // AssumptionItem is one structured planning input with provenance.
 type AssumptionItem struct {
-	Key         string               `json:"key"`
-	Value       string               `json:"value,omitempty"`
-	Source      AssumptionSource     `json:"source"`
-	Confidence  AssumptionConfidence `json:"confidence,omitempty"`
+	Key         string                `json:"key"`
+	Value       string                `json:"value,omitempty"`
+	Source      AssumptionSource      `json:"source"`
+	Confidence  AssumptionConfidence  `json:"confidence,omitempty"`
 	Sensitivity AssumptionSensitivity `json:"sensitivity,omitempty"`
-	Description string               `json:"description,omitempty"`
-	UsedByModel bool                 `json:"used_by_model"` // false if captured but not yet consumed by estimators
+	Description string                `json:"description,omitempty"`
+	UsedByModel bool                  `json:"used_by_model"` // false if captured but not yet consumed by estimators
 }
 
 // EvidenceReference points at observed artifacts (graph hash, assessment id, etc.).
@@ -222,9 +222,9 @@ type EvidenceReference struct {
 
 // ValidationTarget describes what signal would confirm or refute a prediction.
 type ValidationTarget struct {
-	Label       string `json:"label"`
-	MetricHint  string `json:"metric_hint,omitempty"`
-	ObserveHours int   `json:"observe_hours,omitempty"`
+	Label        string `json:"label"`
+	MetricHint   string `json:"metric_hint,omitempty"`
+	ObserveHours int    `json:"observe_hours,omitempty"`
 }
 
 // MissingInputNotice lists inputs that weaken confidence when absent.
@@ -242,16 +242,16 @@ type InputConflictNotice struct {
 
 // PlanningInputVersionPayload is the versioned document stored for an input set.
 type PlanningInputVersionPayload struct {
-	VersionNum        int               `json:"version_num"`
-	InputSetID        string            `json:"input_set_id"`
+	VersionNum        int                         `json:"version_num"`
+	InputSetID        string                      `json:"input_set_id"`
 	EvidenceModel     EvidenceModelClassification `json:"evidence_classification"`
-	Assumptions       []AssumptionItem  `json:"assumptions"`
-	ObservedAnchors   []EvidenceReference `json:"observed_anchors,omitempty"`
-	MissingInputs     []MissingInputNotice `json:"missing_inputs,omitempty"`
-	Conflicts         []InputConflictNotice `json:"conflicts,omitempty"`
-	ValidationTargets []ValidationTarget `json:"validation_targets,omitempty"`
-	Notes             []string          `json:"notes,omitempty"`
-	CreatedAt         string            `json:"created_at,omitempty"`
+	Assumptions       []AssumptionItem            `json:"assumptions"`
+	ObservedAnchors   []EvidenceReference         `json:"observed_anchors,omitempty"`
+	MissingInputs     []MissingInputNotice        `json:"missing_inputs,omitempty"`
+	Conflicts         []InputConflictNotice       `json:"conflicts,omitempty"`
+	ValidationTargets []ValidationTarget          `json:"validation_targets,omitempty"`
+	Notes             []string                    `json:"notes,omitempty"`
+	CreatedAt         string                      `json:"created_at,omitempty"`
 }
 
 // PlanningInputSetMeta is list metadata for an input set.
@@ -279,32 +279,32 @@ const (
 
 // ScenarioAssessment is the bounded output of a what-if run.
 type ScenarioAssessment struct {
-	ScenarioID        string                 `json:"scenario_id"`
-	Kind              ScenarioKind           `json:"kind"`
-	TargetNodeNum     int64                  `json:"target_node_num,omitempty"`
-	Outcome           ExpectedOutcome        `json:"expected_outcome"`
-	Verdict           PlanVerdict            `json:"verdict"`
-	Confidence        ConfidenceAssessment   `json:"confidence"`
-	Drivers           []string               `json:"drivers"` // observed facts
-	AssumptionImpact  []string               `json:"assumption_impact,omitempty"`
-	Risks             []RiskFactor           `json:"risks,omitempty"`
-	EffectsSummary    ScenarioEffectsSummary `json:"effects_summary"`
-	EvidenceModel     string                 `json:"evidence_model"`
-	ComputedAt        string                 `json:"computed_at"`
-	ReferencedGraph   string                 `json:"referenced_graph_hash,omitempty"`
-	ReferencedAssessment string              `json:"referenced_mesh_assessment_id,omitempty"`
+	ScenarioID           string                 `json:"scenario_id"`
+	Kind                 ScenarioKind           `json:"kind"`
+	TargetNodeNum        int64                  `json:"target_node_num,omitempty"`
+	Outcome              ExpectedOutcome        `json:"expected_outcome"`
+	Verdict              PlanVerdict            `json:"verdict"`
+	Confidence           ConfidenceAssessment   `json:"confidence"`
+	Drivers              []string               `json:"drivers"` // observed facts
+	AssumptionImpact     []string               `json:"assumption_impact,omitempty"`
+	Risks                []RiskFactor           `json:"risks,omitempty"`
+	EffectsSummary       ScenarioEffectsSummary `json:"effects_summary"`
+	EvidenceModel        string                 `json:"evidence_model"`
+	ComputedAt           string                 `json:"computed_at"`
+	ReferencedGraph      string                 `json:"referenced_graph_hash,omitempty"`
+	ReferencedAssessment string                 `json:"referenced_mesh_assessment_id,omitempty"`
 }
 
 // ScenarioEffectsSummary lists qualitative deltas (not numeric RF).
 type ScenarioEffectsSummary struct {
-	BootstrapViability   string `json:"bootstrap_viability_delta"`   // e.g. "likely_improve", "likely_worsen", "uncertain"
-	Fragmentation        string `json:"fragmentation_delta"`
+	BootstrapViability      string `json:"bootstrap_viability_delta"` // e.g. "likely_improve", "likely_worsen", "uncertain"
+	Fragmentation           string `json:"fragmentation_delta"`
 	DependencyConcentration string `json:"dependency_concentration_delta"`
-	Resilience           string `json:"resilience_delta"`
-	RoutingStress        string `json:"routing_stress_delta"`
-	CoverageContribution string `json:"coverage_contribution_note"`
-	RelayValue           string `json:"relay_value_note"`
-	OperatorValue        string `json:"operator_value_note"`
+	Resilience              string `json:"resilience_delta"`
+	RoutingStress           string `json:"routing_stress_delta"`
+	CoverageContribution    string `json:"coverage_contribution_note"`
+	RelayValue              string `json:"relay_value_note"`
+	OperatorValue           string `json:"operator_value_note"`
 }
 
 // ImpactKind identifies an impact-estimation request.
@@ -335,13 +335,13 @@ type NodeImpactAssessment struct {
 type PlaybookClass string
 
 const (
-	PlaybookLoneWolf           PlaybookClass = "lone_wolf_bootstrap"
-	PlaybookNeighborhoodSeed   PlaybookClass = "neighborhood_seed"
-	PlaybookFragileStabilize   PlaybookClass = "fragile_cluster_stabilization"
-	PlaybookEventMesh          PlaybookClass = "event_mesh"
-	PlaybookCorridor           PlaybookClass = "corridor_expansion"
-	PlaybookResilienceUpgrade  PlaybookClass = "resilience_upgrade"
-	PlaybookDependencyReduce   PlaybookClass = "dependency_reduction"
+	PlaybookLoneWolf          PlaybookClass = "lone_wolf_bootstrap"
+	PlaybookNeighborhoodSeed  PlaybookClass = "neighborhood_seed"
+	PlaybookFragileStabilize  PlaybookClass = "fragile_cluster_stabilization"
+	PlaybookEventMesh         PlaybookClass = "event_mesh"
+	PlaybookCorridor          PlaybookClass = "corridor_expansion"
+	PlaybookResilienceUpgrade PlaybookClass = "resilience_upgrade"
+	PlaybookDependencyReduce  PlaybookClass = "dependency_reduction"
 )
 
 // PlaybookStep is one ordered step in a community seeding playbook.
@@ -350,126 +350,126 @@ type PlaybookStep struct {
 	Title               string   `json:"title"`
 	Rationale           string   `json:"rationale"`
 	ObserveHours        int      `json:"observe_hours"`
-	SuccessIndicators     []string `json:"success_indicators"`
-	FailureIndicators     []string `json:"failure_indicators"`
-	DoNotProceedIf        []string `json:"do_not_proceed_if,omitempty"`
-	RollbackOrPauseNote   string   `json:"rollback_or_pause_note,omitempty"`
+	SuccessIndicators   []string `json:"success_indicators"`
+	FailureIndicators   []string `json:"failure_indicators"`
+	DoNotProceedIf      []string `json:"do_not_proceed_if,omitempty"`
+	RollbackOrPauseNote string   `json:"rollback_or_pause_note,omitempty"`
 }
 
 // Playbook is a field-guide style sequence derived from observed state.
 type Playbook struct {
-	Class           PlaybookClass  `json:"class"`
-	Title           string         `json:"title"`
-	Summary         string         `json:"summary"`
-	MinimumMilestone string        `json:"minimum_viable_milestone"`
-	Steps           []PlaybookStep `json:"steps"`
-	Limits          []string       `json:"limits"`
-	EvidenceAnchors []string       `json:"evidence_anchors"`
+	Class            PlaybookClass  `json:"class"`
+	Title            string         `json:"title"`
+	Summary          string         `json:"summary"`
+	MinimumMilestone string         `json:"minimum_viable_milestone"`
+	Steps            []PlaybookStep `json:"steps"`
+	Limits           []string       `json:"limits"`
+	EvidenceAnchors  []string       `json:"evidence_anchors"`
 }
 
 // SinglePointOfFailureClass coarse SPOF labeling.
 type SinglePointOfFailureClass string
 
 const (
-	SPOFNone      SinglePointOfFailureClass = "none_indicated"
-	SPOFProbable  SinglePointOfFailureClass = "probable_bridge_spof"
-	SPOFPossible  SinglePointOfFailureClass = "possible_dependency"
-	SPOFUnknown   SinglePointOfFailureClass = "unknown_insufficient_graph"
+	SPOFNone     SinglePointOfFailureClass = "none_indicated"
+	SPOFProbable SinglePointOfFailureClass = "probable_bridge_spof"
+	SPOFPossible SinglePointOfFailureClass = "possible_dependency"
+	SPOFUnknown  SinglePointOfFailureClass = "unknown_insufficient_graph"
 )
 
 // NodeResilienceProfile is per-node criticality and redundancy signals.
 type NodeResilienceProfile struct {
-	NodeNum                   int64                     `json:"node_num"`
-	ShortName                 string                    `json:"short_name,omitempty"`
-	CriticalNodeScore         float64                   `json:"critical_node_score"`         // 0–1 higher = more critical
-	RedundancyScore           float64                   `json:"redundancy_score"`             // 0–1 higher = more alternate paths
-	PartitionRiskScore        float64                   `json:"partition_risk_score"`         // loss would fragment
-	ResilienceScore           float64                   `json:"resilience_score"`             // composite "good to keep up"
-	RedundancyOpportunityScore float64                  `json:"redundancy_opportunity_score"` // benefit of adding alt path here
-	SPOFClass                 SinglePointOfFailureClass `json:"spof_class"`
-	RecoveryPriority          int                       `json:"recovery_priority"` // 1 = highest
-	Explanation               []string                  `json:"explanation"`
+	NodeNum                    int64                     `json:"node_num"`
+	ShortName                  string                    `json:"short_name,omitempty"`
+	CriticalNodeScore          float64                   `json:"critical_node_score"`          // 0–1 higher = more critical
+	RedundancyScore            float64                   `json:"redundancy_score"`             // 0–1 higher = more alternate paths
+	PartitionRiskScore         float64                   `json:"partition_risk_score"`         // loss would fragment
+	ResilienceScore            float64                   `json:"resilience_score"`             // composite "good to keep up"
+	RedundancyOpportunityScore float64                   `json:"redundancy_opportunity_score"` // benefit of adding alt path here
+	SPOFClass                  SinglePointOfFailureClass `json:"spof_class"`
+	RecoveryPriority           int                       `json:"recovery_priority"` // 1 = highest
+	Explanation                []string                  `json:"explanation"`
 }
 
 // MeshResilienceSummary aggregates cluster-level resilience.
 type MeshResilienceSummary struct {
-	ResilienceScore       float64 `json:"resilience_score"`        // 0–1
-	RedundancyScore       float64 `json:"redundancy_score"`
-	PartitionRiskScore    float64 `json:"partition_risk_score"`
-	FragilityExplanation  []string `json:"fragility_explanation"`
-	NextBestMoveSummary   string  `json:"next_best_move_summary"`
-	Confidence            ConfidenceAssessment `json:"confidence"`
+	ResilienceScore      float64              `json:"resilience_score"` // 0–1
+	RedundancyScore      float64              `json:"redundancy_score"`
+	PartitionRiskScore   float64              `json:"partition_risk_score"`
+	FragilityExplanation []string             `json:"fragility_explanation"`
+	NextBestMoveSummary  string               `json:"next_best_move_summary"`
+	Confidence           ConfidenceAssessment `json:"confidence"`
 }
 
 // PlanComparison compares two or more plans or scenarios.
 type PlanComparison struct {
-	ComparedIDs      []string                `json:"compared_ids"`
-	RankedByUpside   []ComparisonRankEntry `json:"ranked_by_upside"`
-	RankedBySafety   []ComparisonRankEntry `json:"ranked_by_safety"`
-	RankedByLowRegret []ComparisonRankEntry `json:"ranked_by_low_regret,omitempty"`
-	LowRegretPick    string                  `json:"low_regret_pick_id,omitempty"`
-	BestUpsidePick   string                  `json:"best_upside_pick_id,omitempty"`
-	BestResiliencePick string                `json:"best_resilience_pick_id,omitempty"`
-	BestDiagnosticPick string                `json:"best_diagnostic_pick_id,omitempty"`
-	CheapestPlausible string                 `json:"cheapest_plausible_pick_id,omitempty"`
-	WaitObserveOption string                 `json:"wait_observe_option_id,omitempty"`
-	RankingCouldChangeIf []string           `json:"ranking_could_change_if,omitempty"`
-	SummaryLines      []string                `json:"summary_lines"`
-	Confidence        ConfidenceAssessment  `json:"confidence"`
+	ComparedIDs            []string                    `json:"compared_ids"`
+	RankedByUpside         []ComparisonRankEntry       `json:"ranked_by_upside"`
+	RankedBySafety         []ComparisonRankEntry       `json:"ranked_by_safety"`
+	RankedByLowRegret      []ComparisonRankEntry       `json:"ranked_by_low_regret,omitempty"`
+	LowRegretPick          string                      `json:"low_regret_pick_id,omitempty"`
+	BestUpsidePick         string                      `json:"best_upside_pick_id,omitempty"`
+	BestResiliencePick     string                      `json:"best_resilience_pick_id,omitempty"`
+	BestDiagnosticPick     string                      `json:"best_diagnostic_pick_id,omitempty"`
+	CheapestPlausible      string                      `json:"cheapest_plausible_pick_id,omitempty"`
+	WaitObserveOption      string                      `json:"wait_observe_option_id,omitempty"`
+	RankingCouldChangeIf   []string                    `json:"ranking_could_change_if,omitempty"`
+	SummaryLines           []string                    `json:"summary_lines"`
+	Confidence             ConfidenceAssessment        `json:"confidence"`
 	EvidenceClassification EvidenceModelClassification `json:"evidence_classification"`
 }
 
 // DecisionDimensionScores are explicit 0–1 scores for ranking narratives (not dollar costs).
 type DecisionDimensionScores struct {
-	ReversibilityScore        float64 `json:"reversibility_score"`
-	ObservationBurdenScore    float64 `json:"observation_burden_score"`
-	DiagnosticValueScore      float64 `json:"diagnostic_value_score"`
-	LearningValueScore        float64 `json:"learning_value_score"`
-	CostComplexityProxy       float64 `json:"cost_complexity_proxy"`
-	LowRegretScore            float64 `json:"low_regret_score"`
-	ExpansionReadinessScore   float64 `json:"expansion_readiness_score"`
-	AssumptionFragilityScore  float64 `json:"assumption_fragility_score"`
+	ReversibilityScore         float64 `json:"reversibility_score"`
+	ObservationBurdenScore     float64 `json:"observation_burden_score"`
+	DiagnosticValueScore       float64 `json:"diagnostic_value_score"`
+	LearningValueScore         float64 `json:"learning_value_score"`
+	CostComplexityProxy        float64 `json:"cost_complexity_proxy"`
+	LowRegretScore             float64 `json:"low_regret_score"`
+	ExpansionReadinessScore    float64 `json:"expansion_readiness_score"`
+	AssumptionFragilityScore   float64 `json:"assumption_fragility_score"`
 	OperationalDisruptionScore float64 `json:"operational_disruption_score"`
-	UpsideScore               float64 `json:"upside_score"`
-	UncertaintyPenalty        float64 `json:"uncertainty_penalty"`
+	UpsideScore                float64 `json:"upside_score"`
+	UncertaintyPenalty         float64 `json:"uncertainty_penalty"`
 }
 
 // ComparisonRankEntry ranks one candidate with tradeoff notes.
 type ComparisonRankEntry struct {
-	ID              string   `json:"id"`
-	Label           string   `json:"label"`
-	Upside          string   `json:"upside"`
-	DownsideIfWrong string   `json:"downside_if_wrong"`
-	ConfidenceNote  string   `json:"confidence_note"`
-	Reversibility   string   `json:"reversibility"` // high, medium, low
-	ObservationBurden string `json:"observation_burden"`
-	Dimensions      DecisionDimensionScores `json:"dimensions"`
-	NarrativeLines  []string `json:"narrative_lines,omitempty"`
+	ID                string                  `json:"id"`
+	Label             string                  `json:"label"`
+	Upside            string                  `json:"upside"`
+	DownsideIfWrong   string                  `json:"downside_if_wrong"`
+	ConfidenceNote    string                  `json:"confidence_note"`
+	Reversibility     string                  `json:"reversibility"` // high, medium, low
+	ObservationBurden string                  `json:"observation_burden"`
+	Dimensions        DecisionDimensionScores `json:"dimensions"`
+	NarrativeLines    []string                `json:"narrative_lines,omitempty"`
 }
 
 // OutcomeVerdict closes the loop on plan predictions.
 type OutcomeVerdict string
 
 const (
-	OutcomeVerdictSupported     OutcomeVerdict = "prediction_direction_supported"
-	OutcomeVerdictContradicted  OutcomeVerdict = "prediction_contradicted"
-	OutcomeVerdictInconclusive  OutcomeVerdict = "inconclusive"
+	OutcomeVerdictSupported               OutcomeVerdict = "prediction_direction_supported"
+	OutcomeVerdictContradicted            OutcomeVerdict = "prediction_contradicted"
+	OutcomeVerdictInconclusive            OutcomeVerdict = "inconclusive"
 	OutcomeVerdictInsufficientObservation OutcomeVerdict = "insufficient_observation_period"
-	OutcomeVerdictConfounded    OutcomeVerdict = "confounded_concurrent_changes"
+	OutcomeVerdictConfounded              OutcomeVerdict = "confounded_concurrent_changes"
 )
 
 // PlanExecutionRecord captures operator attempt and observation window.
 type PlanExecutionRecord struct {
-	ExecutionID      string `json:"execution_id"`
-	PlanID           string `json:"plan_id"`
-	PlanGraphHash    string `json:"plan_graph_hash"`
-	MeshAssessmentID string `json:"mesh_assessment_id"`
-	BaselineMetrics  PostChangeMetricsSnapshot `json:"baseline_metrics,omitempty"`
-	Status           string `json:"status"` // attempted, in_observation, completed
-	StartedAt        string `json:"started_at"`
-	UpdatedAt        string `json:"updated_at"`
-	ObservationHorizonHours int `json:"observation_horizon_hours"`
-	Notes            string `json:"notes,omitempty"`
+	ExecutionID             string                    `json:"execution_id"`
+	PlanID                  string                    `json:"plan_id"`
+	PlanGraphHash           string                    `json:"plan_graph_hash"`
+	MeshAssessmentID        string                    `json:"mesh_assessment_id"`
+	BaselineMetrics         PostChangeMetricsSnapshot `json:"baseline_metrics,omitempty"`
+	Status                  string                    `json:"status"` // attempted, in_observation, completed
+	StartedAt               string                    `json:"started_at"`
+	UpdatedAt               string                    `json:"updated_at"`
+	ObservationHorizonHours int                       `json:"observation_horizon_hours"`
+	Notes                   string                    `json:"notes,omitempty"`
 }
 
 // StepExecutionRecord is one step marked executed.
@@ -484,15 +484,16 @@ type StepExecutionRecord struct {
 
 // ValidationResult compares post-change mesh to expectations.
 type ValidationResult struct {
-	ValidationID         string         `json:"validation_id"`
-	ExecutionID          string         `json:"execution_id"`
-	ValidatedAt          string         `json:"validated_at"`
-	GraphHashAfter       string         `json:"graph_hash_after"`
-	MeshAssessmentIDAfter string        `json:"mesh_assessment_id_after"`
-	Verdict              OutcomeVerdict `json:"verdict"`
-	Caveat               string         `json:"caveat,omitempty"`
-	Lines                []string       `json:"lines"`
-	Metrics              PostChangeMetricsSnapshot `json:"metrics"`
+	ValidationID          string                    `json:"validation_id"`
+	ExecutionID           string                    `json:"execution_id"`
+	ValidatedAt           string                    `json:"validated_at"`
+	GraphHashAfter        string                    `json:"graph_hash_after"`
+	MeshAssessmentIDAfter string                    `json:"mesh_assessment_id_after"`
+	Verdict               OutcomeVerdict            `json:"verdict"`
+	EvidenceFlags         PlanningEvidenceFlags     `json:"evidence_flags,omitempty"`
+	Caveat                string                    `json:"caveat,omitempty"`
+	Lines                 []string                  `json:"lines"`
+	Metrics               PostChangeMetricsSnapshot `json:"metrics"`
 }
 
 // PostChangeMetricsSnapshot is compact before/after style signals.
@@ -515,19 +516,20 @@ type RecommendationRetrospective struct {
 
 // PlanningBundle is the full advisory snapshot for API responses.
 type PlanningBundle struct {
-	EvidenceModel       string                  `json:"evidence_model"`
-	GraphHash           string                  `json:"graph_hash"`
-	MeshAssessmentID    string                  `json:"mesh_assessment_id,omitempty"`
-	TransportConnected  bool                    `json:"transport_connected"`
-	TopologyEnabled     bool                    `json:"topology_enabled"`
-	Resilience          MeshResilienceSummary   `json:"resilience"`
-	NodeProfiles        []NodeResilienceProfile `json:"node_profiles"`
-	RankedNextPlans     []RankedPlanHint        `json:"ranked_next_plans"`
-	BestNextMove        BestNextMove            `json:"best_next_move"`
-	WaitVersusExpand    string                  `json:"wait_versus_expand_hint"`
-	Playbooks           []Playbook              `json:"playbooks"`
-	Limits              []string                `json:"limits"`
-	ComputedAt          string                  `json:"computed_at"`
+	EvidenceModel      string                  `json:"evidence_model"`
+	GraphHash          string                  `json:"graph_hash"`
+	MeshAssessmentID   string                  `json:"mesh_assessment_id,omitempty"`
+	TransportConnected bool                    `json:"transport_connected"`
+	TopologyEnabled    bool                    `json:"topology_enabled"`
+	EvidenceFlags      PlanningEvidenceFlags   `json:"evidence_flags,omitempty"`
+	Resilience         MeshResilienceSummary   `json:"resilience"`
+	NodeProfiles       []NodeResilienceProfile `json:"node_profiles"`
+	RankedNextPlans    []RankedPlanHint        `json:"ranked_next_plans"`
+	BestNextMove       BestNextMove            `json:"best_next_move"`
+	WaitVersusExpand   string                  `json:"wait_versus_expand_hint"`
+	Playbooks          []Playbook              `json:"playbooks"`
+	Limits             []string                `json:"limits"`
+	ComputedAt         string                  `json:"computed_at"`
 }
 
 // RankedPlanHint is a concise next-step option with tradeoffs.

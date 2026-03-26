@@ -18,8 +18,11 @@ func ValidateExecution(exec PlanExecutionRecord, beforeMI meshintel.Assessment, 
 		GraphHashAfter:        strings.TrimSpace(afterMI.GraphHash),
 		MeshAssessmentIDAfter: strings.TrimSpace(afterMI.AssessmentID),
 		Verdict:               OutcomeVerdictInconclusive,
-		Caveat:                "",
-		Lines:                 []string{},
+		EvidenceFlags: PlanningEvidenceFlags{
+			DirectionalOnly: true,
+		},
+		Caveat: "",
+		Lines:  []string{},
 		Metrics: PostChangeMetricsSnapshot{
 			FragmentationBefore: beforeMI.Topology.FragmentationScore,
 			FragmentationAfter:  afterMI.Topology.FragmentationScore,
@@ -42,10 +45,15 @@ func ValidateExecution(exec PlanExecutionRecord, beforeMI meshintel.Assessment, 
 	sameAssessment := baselineID != "" && afterID != "" && baselineID == afterID
 
 	if !exec.BaselineMetrics.Captured && baselineID == "" {
+		v.EvidenceFlags.BaselineMissing = true
+		v.EvidenceFlags.LimitedConfidence = true
 		v.Lines = append(v.Lines, "No baseline mesh assessment id was recorded for this execution — before/after metrics may both reflect the same live compute; treat deltas as non-causal.")
 	}
 	if sameAssessment {
 		v.Verdict = OutcomeVerdictConfounded
+		v.EvidenceFlags.ConfoundedSameAssessmentContext = true
+		v.EvidenceFlags.Inconclusive = true
+		v.EvidenceFlags.LimitedConfidence = true
 		v.Caveat = "Before and after reference the same mesh assessment id — not an independent before/after snapshot."
 		v.Lines = append(v.Lines, v.Caveat)
 		v.Lines = append(v.Lines, "If the baseline snapshot was pruned or never stored, validation is directional at best.")
@@ -56,6 +64,8 @@ func ValidateExecution(exec PlanExecutionRecord, beforeMI meshintel.Assessment, 
 		started, err := time.Parse(time.RFC3339, exec.StartedAt)
 		if err == nil && now.Sub(started) < time.Duration(exec.ObservationHorizonHours)*time.Hour {
 			v.Verdict = OutcomeVerdictInsufficientObservation
+			v.EvidenceFlags.Inconclusive = true
+			v.EvidenceFlags.LimitedConfidence = true
 			v.Caveat = "Observation window not elapsed — treat as preliminary."
 			v.Lines = append(v.Lines, v.Caveat)
 			return v
@@ -64,6 +74,8 @@ func ValidateExecution(exec PlanExecutionRecord, beforeMI meshintel.Assessment, 
 
 	// Confounding: graph hash changed but we cannot prove causality
 	if exec.PlanGraphHash != "" && afterMI.GraphHash != "" && exec.PlanGraphHash != afterMI.GraphHash {
+		v.EvidenceFlags.TopologyOrGraphDriftDetected = true
+		v.EvidenceFlags.LimitedConfidence = true
 		v.Lines = append(v.Lines, "Graph hash changed since plan baseline — compare trends cautiously if other changes may have occurred.")
 		v.Lines = append(v.Lines, "Concurrent operational changes can confound directional validation — this verdict is not proof of causality.")
 	}
@@ -79,6 +91,8 @@ func ValidateExecution(exec PlanExecutionRecord, beforeMI meshintel.Assessment, 
 		v.Lines = append(v.Lines, fmt.Sprintf("Fragmentation increased (delta %.3f) and resilience decreased (delta %.3f) — outcome not matching typical improvement expectation.", fragDelta, resDelta))
 	} else {
 		v.Verdict = OutcomeVerdictInconclusive
+		v.EvidenceFlags.Inconclusive = true
+		v.EvidenceFlags.LimitedConfidence = true
 		v.Lines = append(v.Lines, fmt.Sprintf("No strong directional signal: frag delta %.3f, resilience delta %.3f — may need longer observation or clearer baseline.", fragDelta, resDelta))
 		v.Lines = append(v.Lines, "Validation here is directional (topology-derived metrics); it is not RF coverage or propagation proof.")
 	}

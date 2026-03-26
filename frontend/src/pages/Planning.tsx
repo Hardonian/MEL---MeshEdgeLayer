@@ -16,12 +16,24 @@ interface BestNextMove {
   evidence_classification: string
 }
 
+interface PlanningEvidenceFlags {
+  baseline_missing?: boolean
+  confounded_same_assessment_context?: boolean
+  directional_only?: boolean
+  inconclusive?: boolean
+  topology_or_graph_drift_detected?: boolean
+  limited_confidence?: boolean
+  no_advisories?: boolean
+  recommendation_present_with_uncertain_evidence?: boolean
+}
+
 interface PlanningBundle {
   evidence_model: string
   graph_hash?: string
   mesh_assessment_id?: string
   transport_connected: boolean
   topology_enabled: boolean
+  evidence_flags?: PlanningEvidenceFlags
   best_next_move?: BestNextMove
   wait_versus_expand_hint?: string
   resilience: {
@@ -70,6 +82,10 @@ interface AdvisoryAlertRow {
   contributing_reasons?: string[]
   trigger_condition?: string
 }
+interface AdvisoryAlertsResponse {
+  alerts?: AdvisoryAlertRow[]
+  evidence_flags?: PlanningEvidenceFlags
+}
 
 interface PlanComparison {
   compared_ids: string[]
@@ -108,7 +124,7 @@ function includesAny(text: string, patterns: string[]): boolean {
   return patterns.some((p) => text.includes(p))
 }
 
-function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlertRow[]): EvidenceSignal[] {
+function deriveEvidenceSignalsFromLegacyText(bundle: PlanningBundle, advisories: AdvisoryAlertRow[]): EvidenceSignal[] {
   const bn = bundle.best_next_move
   const source = [bundle.evidence_model, ...(bundle.limits ?? []), ...(bn?.uncertainty_notes ?? [])]
     .join(' ')
@@ -173,11 +189,57 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
   return signals
 }
 
+function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlertRow[], advisoryFlags?: PlanningEvidenceFlags): EvidenceSignal[] {
+  const flags = {
+    ...bundle.evidence_flags,
+    ...advisoryFlags,
+  }
+  const signals: EvidenceSignal[] = []
+  if (flags.baseline_missing) {
+    signals.push({ id: 'baseline-missing', message: 'Baseline evidence is missing or unavailable; before/after deltas are directional only.' })
+  }
+  if (flags.confounded_same_assessment_context) {
+    signals.push({
+      id: 'confounded',
+      message: 'Current and baseline references are potentially confounded (same or concurrent assessment context), so causality is not established.',
+    })
+  }
+  if (flags.directional_only || flags.inconclusive) {
+    signals.push({
+      id: 'directional',
+      message: 'Validation remains directional/inconclusive and does not prove propagation or RF behavior.',
+    })
+  }
+  if (flags.topology_or_graph_drift_detected) {
+    signals.push({
+      id: 'topology-drift',
+      message: 'Graph/topology drift is present, so trend comparison can be confounded by concurrent changes.',
+    })
+  }
+  if (flags.no_advisories) {
+    signals.push({
+      id: 'empty-advisories-not-clear',
+      message: 'No advisory rows here is not an all-clear; evidence uncertainty still applies.',
+    })
+  }
+  if (flags.limited_confidence || flags.recommendation_present_with_uncertain_evidence) {
+    signals.push({
+      id: 'limited-confidence',
+      message: 'Recommendations exist, but confidence is limited by missing or non-independent evidence.',
+    })
+  }
+  if (signals.length > 0) {
+    return signals
+  }
+  return deriveEvidenceSignalsFromLegacyText(bundle, advisories)
+}
+
 export function Planning() {
   const [bundle, setBundle] = useState<PlanningBundle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [advisories, setAdvisories] = useState<AdvisoryAlertRow[]>([])
+  const [advisoryFlags, setAdvisoryFlags] = useState<PlanningEvidenceFlags | undefined>(undefined)
   const [compareIds, setCompareIds] = useState('')
   const [comparison, setComparison] = useState<PlanComparison | null>(null)
   const [compareErr, setCompareErr] = useState<string | null>(null)
@@ -201,8 +263,11 @@ export function Planning() {
           setError(null)
         }
         if (aRes.ok) {
-          const adv = (await aRes.json()) as { alerts?: AdvisoryAlertRow[] }
-          if (!cancelled) setAdvisories(adv.alerts ?? [])
+          const adv = (await aRes.json()) as AdvisoryAlertsResponse
+          if (!cancelled) {
+            setAdvisories(adv.alerts ?? [])
+            setAdvisoryFlags(adv.evidence_flags)
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -286,7 +351,7 @@ export function Planning() {
   }
 
   const bn = bundle.best_next_move
-  const evidenceSignals = deriveEvidenceSignals(bundle, advisories)
+  const evidenceSignals = deriveEvidenceSignals(bundle, advisories, advisoryFlags)
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
