@@ -1102,7 +1102,7 @@ func controlCmd(args []string) {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		if err := app.ApproveActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
+		if _, err := app.ApproveActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
 			panic(err)
 		}
 		did := app.ProcessNextQueuedControlAction(context.Background())
@@ -1138,7 +1138,7 @@ func controlCmd(args []string) {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		if err := app.RejectActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
+		if _, err := app.RejectActionWithOpts(actionID, *actor, *note, service.ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
 			panic(err)
 		}
 		fmt.Fprintln(os.Stderr, "WARNING: break-glass legacy entrypoint used (mel control reject). Canonical operator path: mel action reject.")
@@ -1301,11 +1301,34 @@ func actionCmd(args []string) {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		if err := app.ApproveAction(actionID, *actor, *note, *breakGlassSod, *breakGlassReason); err != nil {
+		resp, err := app.ApproveAction(actionID, *actor, *note, *breakGlassSod, *breakGlassReason)
+		if err != nil {
 			panic(err)
 		}
-		did := app.ProcessNextQueuedControlAction(context.Background())
-		mustPrint(map[string]any{"status": "approved", "action_id": actionID, "actor": *actor, "processed_queue": did})
+		didExec := app.ProcessNextQueuedControlAction(context.Background())
+		line := "APPROVED"
+		if didExec {
+			line = "APPROVED; ONE QUEUED ACTION EXECUTED (OR ATTEMPTED); BACKLOG MAY REMAIN — use mel serve for continuous draining"
+		} else if resp != nil && resp.QueuedForExecution {
+			line = "APPROVED; QUEUED FOR EXECUTOR (mel serve or CLI one-shot dequeue)"
+		} else {
+			line = "APPROVED; QUEUE SATURATED — APPROVAL RECORDED; EXECUTION NOT QUEUED (FREE A SLOT OR RESTART)"
+		}
+		fmt.Fprintln(os.Stderr, line)
+		fmt.Fprintln(os.Stderr, "Note: MEL uses single-approver approval (required_approvals=1). HTTP approve does not drain the full backlog.")
+		out := map[string]any{
+			"status":                         "approved",
+			"action_id":                      actionID,
+			"actor":                          *actor,
+			"one_shot_executor_dequeue_ran": didExec,
+			"approval_does_not_imply_execution": true,
+			"continuous_backlog_requires_mel_serve": true,
+		}
+		if resp != nil {
+			out["queued_for_execution"] = resp.QueuedForExecution
+			out["policy"] = resp.Policy
+		}
+		mustPrint(out)
 	case "reject":
 		if len(args) < 2 {
 			panic("usage: mel action reject <action-id> --config <path> [--note '...'] [--actor id]")

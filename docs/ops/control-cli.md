@@ -4,6 +4,19 @@ The `mel` CLI provides operators with a direct, high-fidelity interface to the M
 
 ---
 
+## Approvals (`mel action approve` / `mel action reject`)
+
+Use **`mel action approve`** and **`mel action reject`** as the canonical paths: they run
+the service-layer workflow (audit + timeline) and match HTTP semantics.
+
+- MEL is **single-approver** today (`required_approvals: 1`); there is no quorum.
+- After approve, stderr summarizes whether **one** queue slot was dequeued in this CLI
+  process; that is **not** a backlog worker. Run **`mel serve`** for continuous execution.
+- **`mel control approve|reject`** are **break-glass** legacy entrypoints and require
+  `--i-understand-break-glass-sod`.
+
+---
+
 ## Direct Action (`mel control exec`)
 
 Operators can manually execute any action that MEL's Reality Matrix supports. These actions bypass the "Guarded Automation" confidence check but still record a full audit trail.

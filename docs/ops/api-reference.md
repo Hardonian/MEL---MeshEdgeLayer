@@ -1117,6 +1117,34 @@ Control history (same data as `/api/v1/control/actions` but without the structur
 
 ---
 
+### GET /api/v1/control/operational-state
+
+Snapshot of freezes, maintenance windows, pending approvals, **queue metrics**, and
+**executor presence** (heartbeat from `mel serve` when available). Executor activity may
+be `active`, `inactive`, or `unknown` if no heartbeat has been recorded.
+
+### POST /api/v1/control/actions/{id}/approve
+
+Approves a `pending_approval` action. Response includes explicit fields such as
+`approval_does_not_imply_execution`, `http_approve_does_not_drain_queue`,
+`queued_for_execution`, and a structured `policy` object (single approver, approval basis,
+blast-radius flags). **Does not** execute unrelated queued work.
+
+**Body (optional):** `note`, `break_glass_sod_ack`, `break_glass_sod_reason` (reason
+required when ack is true for same-submitter SoD override).
+
+### POST /api/v1/control/actions/{id}/reject
+
+Rejects a `pending_approval` action. Same break-glass JSON fields as approve when the
+submitter must reject their own proposal.
+
+### GET /api/v1/control/actions/{id}/inspect
+
+Returns `action`, `decision`, `evidence_bundle`, and `approval_policy` (structured policy
+view derived from persisted rows and config).
+
+---
+
 ## Common Data Structures
 
 ### Transport Health
