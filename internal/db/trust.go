@@ -147,6 +147,7 @@ FROM control_actions WHERE lifecycle_state='pending_approval' ORDER BY created_a
 
 // ApproveControlAction moves a pending_approval action to pending (ready for execution).
 // Returns an error if the action does not exist or was not in pending_approval (no silent no-op).
+// sodBypass, when true, persists durable SoD override fields (auditable break-glass path).
 func (d *DB) ApproveControlAction(id, approvedBy, note string, sodBypass bool, sodBypassActor, sodBypassReason string) error {
 	safeID, err := ValidateSQLInput(id)
 	if err != nil {
@@ -172,7 +173,7 @@ func (d *DB) ApproveControlAction(id, approvedBy, note string, sodBypass bool, s
 	if sodBypass {
 		bypassInt = 1
 	}
-	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='pending', result='approved', approved_by='%s', approved_at='%s', approval_note='%s', sod_bypass=%d, sod_bypass_actor='%s', sod_bypass_reason='%s' WHERE id='%s' AND lifecycle_state='pending_approval';`,
+	sql := fmt.Sprintf(`UPDATE control_actions SET lifecycle_state='pending', result='approved', approved_by='%s', approved_at='%s', approval_note='%s', sod_bypass=%d, sod_bypass_actor='%s', sod_bypass_reason='%s', collected_approvals=1 WHERE id='%s' AND lifecycle_state='pending_approval';`,
 		safeBy, now, safeNote, bypassInt, safeBypassActor, safeBypassReason, safeID)
 	if err := d.Exec(sql); err != nil {
 		return err
@@ -717,6 +718,14 @@ func (d *DB) ControlPlaneStateSnapshot(now time.Time) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	queueMetrics, err := d.ControlActionQueueMetrics()
+	if err != nil {
+		return nil, err
+	}
+	executorPresence, err := d.ExecutorPresence(now)
+	if err != nil {
+		return nil, err
+	}
 
 	automationMode := "normal"
 	if len(freezes) > 0 {
@@ -734,6 +743,8 @@ func (d *DB) ControlPlaneStateSnapshot(now time.Time) (map[string]any, error) {
 		"active_maintenance":  maintenanceWindows,
 		"approval_backlog":    len(pendingApproval),
 		"pending_approvals":   pendingApproval,
+		"queue_metrics":       queueMetrics,
+		"executor":            executorPresence,
 		"snapshot_at":         now.UTC().Format(time.RFC3339),
 	}, nil
 }
