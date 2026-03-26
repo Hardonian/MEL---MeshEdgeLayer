@@ -114,6 +114,21 @@ pending approvals, config modes.
 mel control operational-state --config <path>
 ```
 
+### Mesh deployment intelligence (bootstrap, topology advisory, routing proxies)
+
+These commands read the same SQLite evidence as the server (`nodes`, `topology_links`, recent `messages`). They do **not** prove RF coverage or change Meshtastic routing.
+
+```
+mel mesh bootstrap --config <path>     # lone-wolf / viability summary
+mel mesh topology --config <path>      # cluster shape + per-node contribution proxies
+mel mesh diagnose --config <path>      # routing-pressure + protocol-fit advisory
+mel mesh recommend --config <path>     # ranked next steps
+mel mesh inspect --config <path>      # full JSON assessment
+mel mesh history --config <path>       # persisted snapshots (same DB as daemon)
+```
+
+`mel inspect topology` includes a compact `mesh_intelligence_summary` for paste-friendly field reports.
+
 ---
 
 ## Freeze Commands
@@ -284,6 +299,15 @@ For operator mutations (approve, reject, freeze, notes): include
 |--------|------|-------------|
 | `GET` | `/operator/notes?ref_type=<t>&ref_id=<id>` | List notes for resource. |
 | `POST` | `/operator/notes` | Add note. Body: `{"ref_type":"action","ref_id":"...","content":"..."}` |
+
+### Mesh deployment intelligence
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/mesh/intelligence` | Current assessment: bootstrap, topology metrics, routing-pressure diagnostics, protocol-fit advisory, ranked recommendations. |
+| `GET` | `/api/v1/mesh/intelligence/history?limit=<n>` | Recent persisted assessments (bounded retention). |
+| `GET` | `/api/v1/topology` | Topology intelligence bundle; includes `mesh_intelligence` when the topology worker has computed a snapshot. |
+| `GET` | `/api/v1/topology/nodes/<num>` | Node drilldown; includes `mesh_intel` for that node when available. |
 
 ---
 

@@ -34,6 +34,8 @@ type ApprovalOpts struct {
 	// It records durable metadata and allows separation-of-duties override when the human
 	// proposer would otherwise match the approver identity.
 	BreakGlassLegacyCLI bool
+	// BreakGlassSodReason is persisted on the control_actions row when SoD bypass applies.
+	BreakGlassSodReason string
 }
 
 func approvalSodWouldBlock(rec db.ControlActionRecord, actorID string) bool {
@@ -225,8 +227,12 @@ func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
 
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.
-func (a *App) ApproveAction(actionID, actorID, note string) error {
-	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{})
+// breakGlassSodAck/breakGlassSodReason are used by API and CLI when separation-of-duties would block same-actor approval.
+func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error {
+	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{
+		BreakGlassLegacyCLI:  breakGlassSodAck,
+		BreakGlassSodReason: breakGlassSodReason,
+	})
 }
 
 // ApproveActionWithOpts approves a pending_approval action with optional break-glass behavior.
@@ -273,7 +279,13 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 		return fmt.Errorf("separation of duties: proposer and approver cannot be the same operator (%s); use a different operator identity or mel control approve with --i-understand-break-glass-sod (emergency only)", strings.TrimSpace(rec.ProposedBy))
 	}
 
-	if err := a.DB.ApproveControlAction(actionID, actorID, note); err != nil {
+	sodBypass := opts.BreakGlassLegacyCLI && approvalSodWouldBlock(rec, actorID)
+	sodReason := strings.TrimSpace(opts.BreakGlassSodReason)
+	if sodBypass && sodReason == "" {
+		sodReason = strings.TrimSpace(note)
+	}
+
+	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, actorID, sodReason); err != nil {
 		return fmt.Errorf("could not approve action: %w", err)
 	}
 

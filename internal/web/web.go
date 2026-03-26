@@ -22,6 +22,7 @@ import (
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
@@ -72,6 +73,8 @@ type Server struct {
 
 	// Topology: optional callback — true when at least one enabled transport is live or idle (ingest-capable).
 	topologyTransportLive func() bool
+	// meshIntelLatest returns the last mesh deployment intelligence assessment from the service (if any).
+	meshIntelLatest func() (meshintel.Assessment, bool)
 }
 
 // SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
@@ -129,6 +132,11 @@ func (s *Server) SetOperatorControlQueue(f func(string, string, string, string, 
 // SetTopologyTransportLive sets a callback used by GET /api/v1/topology for explicit transport connectivity in the intelligence bundle.
 func (s *Server) SetTopologyTransportLive(f func() bool) {
 	s.topologyTransportLive = f
+}
+
+// SetMeshIntelProvider wires the latest persisted in-memory mesh intelligence snapshot (from topology worker).
+func (s *Server) SetMeshIntelProvider(f func() (meshintel.Assessment, bool)) {
+	s.meshIntelLatest = f
 }
 
 func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
@@ -262,6 +270,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/topology/sources", s.requireMethod(s.sourceTrustHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/topology/bookmarks", s.bookmarksHandler)
 	mux.HandleFunc("/api/v1/topology/export", s.requireMethod(s.topologyExportHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/mesh/intelligence/history", s.requireMethod(s.meshIntelligenceHistoryHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/mesh/intelligence", s.requireMethod(s.meshIntelligenceHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/recovery/state", s.requireMethod(s.recoveryStateHandler, http.MethodGet, http.MethodHead))
 
 	if cfg.Features.WebUI {

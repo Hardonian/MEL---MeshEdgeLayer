@@ -18,6 +18,8 @@ type NodeDrilldown struct {
 	NextActions          []string          `json:"next_actions"`
 	EvidenceNotes        []string          `json:"evidence_notes"`
 	LinkCount            int               `json:"link_count"`
+	// MeshIntel is optional deployment-intelligence for this node (set by API layer).
+	MeshIntel any `json:"mesh_intel,omitempty"`
 }
 
 // BuildNodeDrilldown computes explainable drilldown from stored row + live scoring.

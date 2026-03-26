@@ -16,6 +16,7 @@ import (
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/intelligence"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/meshtastic"
 	"github.com/mel-project/mel/internal/models"
@@ -54,6 +55,9 @@ type App struct {
 	lastTransportHealth map[string]transport.Health
 	healthMu            sync.Mutex
 	topo                *topology.Store
+	meshIntelMu         sync.RWMutex
+	meshIntelLatest     meshintel.Assessment
+	meshIntelHas        bool
 }
 
 type ingestRequest struct {
@@ -87,6 +91,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
 	app.Web.SetTopologyStore(app.topo)
 	app.Web.SetTopologyTransportLive(app.transportIngestLikely)
+	app.Web.SetMeshIntelProvider(app.meshIntelSnapshot)
 	if strings.TrimSpace(app.ConfigPath) != "" {
 		app.Web.SetConfigPath(app.ConfigPath)
 	}
@@ -125,6 +130,22 @@ func New(cfg config.Config, debug bool) (*App, error) {
 }
 
 func (a *App) recommendations() []policy.Recommendation { return policy.Explain(a.Cfg) }
+func (a *App) meshIntelSnapshot() (meshintel.Assessment, bool) {
+	a.meshIntelMu.RLock()
+	defer a.meshIntelMu.RUnlock()
+	if !a.meshIntelHas {
+		return meshintel.Assessment{}, false
+	}
+	return a.meshIntelLatest, true
+}
+
+func (a *App) setMeshIntel(m meshintel.Assessment) {
+	a.meshIntelMu.Lock()
+	defer a.meshIntelMu.Unlock()
+	a.meshIntelLatest = m
+	a.meshIntelHas = true
+}
+
 func (a *App) transportIngestLikely() bool {
 	for _, t := range a.Transports {
 		tc := findTransport(a.Cfg, t.Name())

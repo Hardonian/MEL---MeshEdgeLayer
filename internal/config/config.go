@@ -63,6 +63,8 @@ type TopologyConfig struct {
 	DefaultTrustClass string `json:"default_trust_class"`
 	// ScoreHistoryDays: how many days of node score history to retain.
 	ScoreHistoryDays int `json:"score_history_days"`
+	// MaxMeshIntelHistory: retained rows in mesh_intelligence_snapshots (newest wins).
+	MaxMeshIntelHistory int `json:"max_mesh_intel_history"`
 }
 
 type BindConfig struct {
@@ -296,6 +298,7 @@ func Default() Config {
 			MaxObservationsPerNode:  500,
 			DefaultTrustClass:       "unknown",
 			ScoreHistoryDays:        14,
+			MaxMeshIntelHistory:     120,
 		},
 		StrictMode: false,
 	}
