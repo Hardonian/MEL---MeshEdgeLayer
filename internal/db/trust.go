@@ -685,6 +685,24 @@ ON CONFLICT(key) DO UPDATE SET value_text=excluded.value_text,updated_by=exclude
 	return d.Exec(sql)
 }
 
+// UpsertControlPlaneState sets control_plane_state with an explicit updated_at (RFC3339).
+func (d *DB) UpsertControlPlaneState(key, value, updatedBy, updatedAt string) error {
+	safeKey, err := ValidateSQLInput(key)
+	if err != nil {
+		logSuspiciousSQL(key, err.Error())
+		return fmt.Errorf("invalid state key: %w", err)
+	}
+	ts := strings.TrimSpace(updatedAt)
+	if ts == "" {
+		ts = time.Now().UTC().Format(time.RFC3339)
+	}
+	sql := fmt.Sprintf(`INSERT INTO control_plane_state(key,value_text,updated_by,updated_at)
+VALUES('%s','%s','%s','%s')
+ON CONFLICT(key) DO UPDATE SET value_text=excluded.value_text,updated_by=excluded.updated_by,updated_at=excluded.updated_at;`,
+		safeKey, esc(value), esc(updatedBy), esc(ts))
+	return d.Exec(sql)
+}
+
 // GetControlPlaneState retrieves a text value from the control_plane_state table.
 func (d *DB) GetControlPlaneState(key string) (string, error) {
 	safeKey, err := ValidateSQLInput(key)

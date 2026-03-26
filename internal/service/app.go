@@ -54,6 +54,8 @@ type App struct {
 	kb                  *kernelBridge
 	lastTransportHealth map[string]transport.Health
 	healthMu            sync.Mutex
+	lastExecutorHeartbeatMu sync.Mutex
+	lastExecutorHeartbeat   time.Time
 	topo                *topology.Store
 	meshIntelMu         sync.RWMutex
 	meshIntelLatest     meshintel.Assessment
