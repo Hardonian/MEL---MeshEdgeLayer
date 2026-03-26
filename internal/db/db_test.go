@@ -23,6 +23,28 @@ func TestOpenAppliesMigration(t *testing.T) {
 	}
 }
 
+// TestRepairMigration0022BackfillsMissingRow simulates legacy DBs where 0022 ALTERs ran
+// without a schema_migrations row; ApplyMigrations must not fail with duplicate columns.
+func TestRepairMigration0022BackfillsMissingRow(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Exec(`DELETE FROM schema_migrations WHERE version='0022_control_action_policy_truth';`); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.ApplyMigrations(migrationDir()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.Scalar(`SELECT COUNT(*) FROM schema_migrations WHERE version='0022_control_action_policy_truth';`)
+	if err != nil || got != "1" {
+		t.Fatalf("expected backfilled migration row, got %q err=%v", got, err)
+	}
+}
+
 func TestInsertMessageReportsDedupedWrite(t *testing.T) {
 	cfg := config.Default()
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
