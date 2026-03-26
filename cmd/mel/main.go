@@ -160,6 +160,10 @@ func main() {
 		topologyCmd(rest)
 	case "mesh":
 		meshCmd(rest)
+	case "plan":
+		planCmd(rest)
+	case "playbook":
+		playbookCmd(rest)
 	default:
 		usage()
 		os.Exit(1)
@@ -182,12 +186,14 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   status --config <path>
   panel [--format text|json] --config <path>
   nodes --config <path>
-  node inspect <node-id> --config <path>
+  node inspect <node-id> --config <path>  (see also: node whatif)
   transports list --config <path>
   inspect transport <name> --config <path>
   inspect mesh --config <path>
   inspect topology [--refresh] --config <path>
-  mesh bootstrap|topology|diagnose|recommend|inspect|history --config <path>
+  mesh bootstrap|topology|diagnose|recommend|inspect|history|simulate|resilience|critical --config <path>
+  plan create|list|show|compare --config <path>
+  playbook suggest --config <path>
   alerts --config <path> [--active=false] [--since RFC3339] [--filter s] [--limit n]
   actions list|pending|history --config <path>
   explain policy --config <path>
@@ -668,8 +674,15 @@ func nodesCmd(args []string) {
 }
 
 func nodeCmd(args []string) {
+	if len(args) < 1 {
+		panic("usage: mel node inspect <node-id> | mel node whatif --kind <kind> ... --config <path>")
+	}
+	if args[0] == "whatif" {
+		nodeWhatifCmd(args[1:])
+		return
+	}
 	if len(args) < 2 || args[0] != "inspect" {
-		panic("usage: mel node inspect <node-id> --config <path>")
+		panic("usage: mel node inspect <node-id> --config <path> | mel node whatif --kind <kind> [--node n] --config <path>")
 	}
 	target := args[1]
 	cfg, _ := loadCfg(args[2:])

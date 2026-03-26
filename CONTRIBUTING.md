@@ -27,6 +27,12 @@ make test
 
 Use `make verify` when you want the full repo pass, including cross-builds.
 
+## Deployment planning (what-if / resilience)
+
+- Planning APIs and CLI output are **advisory**: they combine packet-derived topology, mesh intelligence, and optional operator hints.
+- MEL does **not** simulate RF coverage, terrain, or exact propagation; responses label topology-only limits and missing inputs.
+- UI: **Planning** page (`/planning`) reads `GET /api/v1/planning/bundle`. Persisted plans use `deployment_plans` (migration `0024_deployment_planning`).
+
 ## Safe extension areas
 
 - policy and privacy logic

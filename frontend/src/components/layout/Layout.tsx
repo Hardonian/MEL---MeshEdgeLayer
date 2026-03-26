@@ -14,6 +14,7 @@ import {
   HelpCircle,
   Activity,
   GitBranch,
+  Compass,
   AlertTriangle,
   Zap,
 } from 'lucide-react'
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { label: 'Status', href: '/status', icon: Activity },
   { label: 'Nodes', href: '/nodes', icon: Radio },
   { label: 'Topology', href: '/topology', icon: GitBranch },
+  { label: 'Planning', href: '/planning', icon: Compass },
   { label: 'Messages', href: '/messages', icon: MessageSquare },
   { label: 'Dead Letters', href: '/dead-letters', icon: Inbox },
   { label: 'Incidents', href: '/incidents', icon: AlertTriangle },

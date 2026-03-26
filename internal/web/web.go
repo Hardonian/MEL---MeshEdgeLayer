@@ -272,6 +272,14 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/topology/export", s.requireMethod(s.topologyExportHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/mesh/intelligence/history", s.requireMethod(s.meshIntelligenceHistoryHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/mesh/intelligence", s.requireMethod(s.meshIntelligenceHandler, http.MethodGet, http.MethodHead))
+	// Deployment planning (bounded what-if; topology evidence — not RF simulation)
+	mux.HandleFunc("/api/v1/planning/bundle", s.requireMethod(s.planningBundleHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/planning/plans", s.requireMethod(s.planningPlansHandler, http.MethodGet, http.MethodHead, http.MethodPost))
+	mux.HandleFunc("/api/v1/planning/plans/", s.requireMethod(s.planningPlanItemHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/planning/scenario", s.requireMethod(s.planningScenarioHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/planning/compare", s.requireMethod(s.planningCompareHandler, http.MethodPost))
+	mux.HandleFunc("/api/v1/planning/impact", s.requireMethod(s.planningImpactHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/planning/playbooks", s.requireMethod(s.planningPlaybooksHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/recovery/state", s.requireMethod(s.recoveryStateHandler, http.MethodGet, http.MethodHead))
 
 	if cfg.Features.WebUI {

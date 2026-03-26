@@ -151,7 +151,7 @@ func TestServiceApproveAction_SameActorBlockedBySoD(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	err := a.ApproveAction("act-sod-1", "operator-a", "self-approve", false, "")
+	_, err := a.ApproveAction("act-sod-1", "operator-a", "self-approve", false, "")
 	if err == nil {
 		t.Fatal("expected SoD error")
 	}
