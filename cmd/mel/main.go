@@ -158,6 +158,8 @@ func main() {
 		regionCmd(rest)
 	case "topology":
 		topologyCmd(rest)
+	case "mesh":
+		meshCmd(rest)
 	default:
 		usage()
 		os.Exit(1)
@@ -185,6 +187,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   inspect transport <name> --config <path>
   inspect mesh --config <path>
   inspect topology [--refresh] --config <path>
+  mesh bootstrap|topology|diagnose|recommend|inspect|history --config <path>
   alerts --config <path> [--active=false] [--since RFC3339] [--filter s] [--limit n]
   actions list|pending|history --config <path>
   explain policy --config <path>

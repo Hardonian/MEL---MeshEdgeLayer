@@ -35,14 +35,8 @@ type ApprovalOpts struct {
 	// It records durable metadata and allows separation-of-duties override when the human
 	// proposer would otherwise match the approver identity.
 	BreakGlassLegacyCLI bool
-	// BreakGlassHTTP is set from the JSON API when the client acknowledges SoD override.
-	BreakGlassHTTP bool
-	// BreakGlassSodReason is required context for HTTP break-glass (stored in sod_bypass_reason when used).
+	// BreakGlassSodReason is persisted on the control_actions row when SoD bypass applies.
 	BreakGlassSodReason string
-}
-
-func breakGlassEffective(opts ApprovalOpts) bool {
-	return opts.BreakGlassLegacyCLI || opts.BreakGlassHTTP
 }
 
 func approvalSodWouldBlock(rec db.ControlActionRecord, actorID string) bool {
@@ -237,10 +231,10 @@ func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
 
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.
-// breakGlassSodAck / breakGlassSodReason are used by the HTTP API body (not legacy CLI).
-func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error) {
+// breakGlassSodAck/breakGlassSodReason are used by API and CLI when separation-of-duties would block same-actor approval.
+func (a *App) ApproveAction(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error {
 	return a.ApproveActionWithOpts(actionID, actorID, note, ApprovalOpts{
-		BreakGlassHTTP:      breakGlassSodAck,
+		BreakGlassLegacyCLI:  breakGlassSodAck,
 		BreakGlassSodReason: breakGlassSodReason,
 	})
 }
@@ -289,43 +283,14 @@ func (a *App) ApproveActionWithOpts(actionID, actorID, note string, opts Approva
 		return nil, fmt.Errorf("break_glass_sod_reason is required when break_glass_sod_ack is true for same-submitter approval")
 	}
 
-	if approvalSodWouldBlock(rec, actorID) && !breakGlassEffective(opts) {
-		pol := a.EvaluateApprovalPolicyForRecord(rec, actorID)
-		_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
-			ID:           newTrustID("aud"),
-			ActorID:      auth.OperatorID(actorID),
-			ActionClass:  auth.ActionControl,
-			ActionDetail: "approve_action_denied",
-			ResourceType: "control_action",
-			ResourceID:   actionID,
-			Reason:       pol.ApproverDenialReason,
-			Result:       auth.AuditResultDenied,
-			Timestamp:    time.Now().UTC(),
-		})
-		return nil, fmt.Errorf("separation of duties: submitter and approver cannot be the same operator (%s); use a different operator identity, HTTP break_glass_sod_ack with reason, or mel control approve with --i-understand-break-glass-sod (emergency only)", submitter)
+	sodBypass := opts.BreakGlassLegacyCLI && approvalSodWouldBlock(rec, actorID)
+	sodReason := strings.TrimSpace(opts.BreakGlassSodReason)
+	if sodBypass && sodReason == "" {
+		sodReason = strings.TrimSpace(note)
 	}
 
-	sodBypass := false
-	sodBypassActor := ""
-	sodBypassReason := ""
-	if approvalSodWouldBlock(rec, actorID) && breakGlassEffective(opts) {
-		sodBypass = true
-		sodBypassActor = actorID
-		if opts.BreakGlassLegacyCLI {
-			sodBypassReason = strings.TrimSpace(note)
-			if sodBypassReason == "" {
-				sodBypassReason = "legacy_cli_break_glass_sod"
-			}
-		} else {
-			sodBypassReason = strings.TrimSpace(opts.BreakGlassSodReason)
-			if sodBypassReason == "" {
-				sodBypassReason = "http_break_glass_sod_ack_missing_reason"
-			}
-		}
-	}
-
-	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, sodBypassActor, sodBypassReason); err != nil {
-		return nil, fmt.Errorf("could not approve action: %w", err)
+	if err := a.DB.ApproveControlAction(actionID, actorID, note, sodBypass, actorID, sodReason); err != nil {
+		return fmt.Errorf("could not approve action: %w", err)
 	}
 
 	if opts.BreakGlassLegacyCLI {

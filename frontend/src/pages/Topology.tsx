@@ -26,6 +26,51 @@ type TopoLink = {
   transport_path?: string
 }
 
+type MeshIntelBootstrap = {
+  viability: string
+  lone_wolf_score: number
+  bootstrap_readiness_score: number
+  confidence: string
+  explanation?: { top_next_action?: string; weakens_viability?: string[] }
+}
+
+type MeshIntelProtocol = {
+  fit_class: string
+  architecture_class: string
+  confidence: string
+  primary_limiting_factor?: string
+}
+
+type MeshIntelRec = {
+  rank: number
+  class: string
+  title: string
+  severity: string
+  confidence: number
+  evidence_summary?: string[]
+  expected_benefit?: string
+  downside_risk?: string
+}
+
+type MeshIntelligence = {
+  assessment_id?: string
+  computed_at?: string
+  evidence_model?: string
+  message_signals?: {
+    total_messages?: number
+    hop_buckets?: Array<{ key: string; count: number }>
+    portnum_buckets?: Array<{ key: string; count: number }>
+    rebroadcast_path_proxy?: number
+    relay_max_share?: number
+    distinct_relay_nodes?: number
+  }
+  bootstrap?: MeshIntelBootstrap
+  topology?: { cluster_shape?: string; fragmentation_score?: number; infrastructure_leverage_score?: number }
+  protocol_fit?: MeshIntelProtocol
+  routing_pressure?: { summary_lines?: string[] }
+  recommendations?: MeshIntelRec[]
+}
+
 type Intelligence = {
   generated_at?: string
   topology_enabled?: boolean
@@ -33,10 +78,19 @@ type Intelligence = {
   map_eligible_node_count?: number
   transport_connected?: boolean
   evidence_model?: string
+  mesh_intelligence?: MeshIntelligence
   analysis?: {
     recommendations?: Array<{ id: string; summary: string; confidence: number; evidence?: string[] }>
     snapshot?: { explanation?: string[]; confidence_summary?: Record<string, number> }
   }
+}
+
+type NodeMeshIntel = {
+  coverage_contribution_score: number
+  relay_value_score: number
+  placement_quality_score: number
+  is_bridge_critical?: boolean
+  notes?: string[]
 }
 
 type NodeDrill = {
@@ -48,6 +102,7 @@ type NodeDrill = {
   evidence_notes?: string[]
   links?: TopoLink[]
   freshness_age_seconds?: number
+  mesh_intel?: NodeMeshIntel
 }
 
 const API = '/api/v1/topology'
@@ -183,6 +238,89 @@ export function Topology() {
         <p className="text-xs text-muted-foreground border-l-2 border-muted pl-3">{intel.evidence_model}</p>
       )}
 
+      {intel?.mesh_intelligence && intel.topology_enabled !== false && (
+        <div className="rounded-xl border bg-card p-4 space-y-4">
+          <div>
+            <h2 className="text-sm font-medium">Mesh deployment intelligence</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Derived assessments from observed packets and graph — not RF proof. Advisory only; MEL does not change routing.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryCard
+              label="Bootstrap viability"
+              value={(intel.mesh_intelligence.bootstrap?.viability || '—').replace(/_/g, ' ')}
+              hint={`lone wolf ${(intel.mesh_intelligence.bootstrap?.lone_wolf_score ?? 0).toFixed(2)} · readiness ${(intel.mesh_intelligence.bootstrap?.bootstrap_readiness_score ?? 0).toFixed(2)}`}
+            />
+            <SummaryCard
+              label="Confidence"
+              value={intel.mesh_intelligence.bootstrap?.confidence || '—'}
+              hint="raises with more nodes + message history"
+            />
+            <SummaryCard
+              label="Topology shape"
+              value={(intel.mesh_intelligence.topology?.cluster_shape || '—').replace(/_/g, ' ')}
+              hint={`fragmentation ${(intel.mesh_intelligence.topology?.fragmentation_score ?? 0).toFixed(2)}`}
+            />
+            <SummaryCard
+              label="Protocol fit (managed flood)"
+              value={(intel.mesh_intelligence.protocol_fit?.fit_class || '—').replace(/_/g, ' ')}
+              hint={(intel.mesh_intelligence.protocol_fit?.architecture_class || '').replace(/_/g, ' ')}
+            />
+          </div>
+          {intel.mesh_intelligence.bootstrap?.explanation?.top_next_action && (
+            <div className="text-sm border-l-2 border-primary/40 pl-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Highest-leverage next step</span>
+              <p className="mt-1">{intel.mesh_intelligence.bootstrap.explanation.top_next_action}</p>
+            </div>
+          )}
+          {intel.mesh_intelligence.message_signals?.total_messages != null &&
+            intel.mesh_intelligence.message_signals.total_messages > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Message rollup: {intel.mesh_intelligence.message_signals.total_messages} in window
+                {intel.mesh_intelligence.message_signals.rebroadcast_path_proxy != null && (
+                  <> · rebroadcast path proxy {intel.mesh_intelligence.message_signals.rebroadcast_path_proxy.toFixed(2)}</>
+                )}
+              </div>
+            )}
+          {intel.mesh_intelligence.routing_pressure?.summary_lines &&
+            intel.mesh_intelligence.routing_pressure.summary_lines.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Routing / flood pressure (suspected)</div>
+                <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                  {intel.mesh_intelligence.routing_pressure.summary_lines.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          {intel.mesh_intelligence.recommendations && intel.mesh_intelligence.recommendations.length > 0 && (
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Ranked recommendations</div>
+              <ul className="text-sm space-y-2">
+                {intel.mesh_intelligence.recommendations.slice(0, 8).map((r) => (
+                  <li key={r.rank} className="border-b border-border/50 pb-2 last:border-0">
+                    <div>
+                      <span className="text-xs text-muted-foreground mr-2">#{r.rank}</span>
+                      {r.title}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {r.class.replace(/_/g, ' ')} · sev {r.severity} · conf {r.confidence.toFixed(2)}
+                    </div>
+                    {r.evidence_summary && r.evidence_summary.length > 0 && (
+                      <div className="text-xs mt-1 font-mono text-muted-foreground">{r.evidence_summary.join(' · ')}</div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {intel.mesh_intelligence.evidence_model && (
+            <p className="text-[11px] text-muted-foreground border-t pt-3">{intel.mesh_intelligence.evidence_model}</p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <div className="rounded-xl border bg-card p-4">
@@ -300,6 +438,28 @@ export function Topology() {
                     <li key={i}>{n}</li>
                   ))}
                 </ul>
+              )}
+              {selected.mesh_intel && (
+                <div className="border-t pt-3 mt-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">Deployment intelligence (this node)</div>
+                  <div className="text-xs space-y-1">
+                    <div>
+                      Coverage contribution: {selected.mesh_intel.coverage_contribution_score.toFixed(2)} · relay value:{' '}
+                      {selected.mesh_intel.relay_value_score.toFixed(2)} · placement proxy:{' '}
+                      {selected.mesh_intel.placement_quality_score.toFixed(2)}
+                    </div>
+                    {selected.mesh_intel.is_bridge_critical && (
+                      <div className="text-amber-600 dark:text-amber-400">Bridge-critical in observed graph</div>
+                    )}
+                    {selected.mesh_intel.notes && selected.mesh_intel.notes.length > 0 && (
+                      <ul className="list-disc pl-4 text-muted-foreground">
+                        {selected.mesh_intel.notes.map((n, i) => (
+                          <li key={i}>{n.replace(/_/g, ' ')}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}

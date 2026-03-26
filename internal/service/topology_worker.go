@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/topology"
 )
 
@@ -53,4 +54,15 @@ func (a *App) runTopologyRefresh(th topology.StaleThresholds) {
 	}
 	_ = a.topo.PruneSnapshots(maxHist)
 	_ = a.topo.PruneObservations(a.Cfg.Topology.MaxObservationsPerNode)
+
+	transportOK := a.transportIngestLikely()
+	sig, _ := meshintel.RollupRecentMessages(a.DB, 24*time.Hour, transportOK)
+	assess := meshintel.Compute(a.Cfg, ar, sig, transportOK, now)
+	a.setMeshIntel(assess)
+	keepMI := a.Cfg.Topology.MaxMeshIntelHistory
+	if keepMI <= 0 {
+		keepMI = 120
+	}
+	_ = meshintel.SaveSnapshot(a.DB, assess, keepMI)
+	_ = meshintel.EvaluateViabilityRegression(a.DB, assess, sig, transportOK)
 }

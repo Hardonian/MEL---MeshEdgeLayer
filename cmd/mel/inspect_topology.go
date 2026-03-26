@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/topology"
 )
 
@@ -42,10 +43,23 @@ func inspectTopologyCmd(args []string) {
 		panic(err)
 	}
 	ar := topology.Analyze(nodes, links, th, now)
+	transportOK := meshintel.TransportLikelyConnectedFromRuntime(d)
+	sig, _ := meshintel.RollupRecentMessages(d, 24*time.Hour, transportOK)
+	mi := meshintel.Compute(cfg, ar, sig, transportOK, now)
 	out := map[string]any{
 		"topology_enabled": cfg.Topology.Enabled,
 		"refreshed":        refresh,
 		"analysis":         ar,
+		"mesh_intelligence_summary": map[string]any{
+			"viability":            mi.Bootstrap.Viability,
+			"lone_wolf_score":      mi.Bootstrap.LoneWolfScore,
+			"readiness_score":      mi.Bootstrap.BootstrapReadinessScore,
+			"cluster_shape":        mi.Topology.ClusterShape,
+			"protocol_fit":         mi.ProtocolFit.FitClass,
+			"recommendations":      mi.Recommendations,
+			"evidence_model":       mi.EvidenceModel,
+			"transport_connected":  transportOK,
+		},
 		"staleness": map[string]any{
 			"node_stale_minutes": cfg.Topology.NodeStaleMinutes,
 			"link_stale_minutes": cfg.Topology.LinkStaleMinutes,

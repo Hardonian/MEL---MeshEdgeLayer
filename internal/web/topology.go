@@ -60,7 +60,12 @@ func (s *Server) topologyIntelligenceHandler(w http.ResponseWriter, r *http.Requ
 	}
 	th := s.topologyThresholds()
 	ar := topology.Analyze(nodes, links, th, time.Now().UTC())
-	view := topology.BuildIntelligenceView(s.cfg, ar, s.topologyTransportConnected(), time.Now().UTC())
+	now := time.Now().UTC()
+	view := topology.BuildIntelligenceView(s.cfg, ar, s.topologyTransportConnected(), now)
+	mi := s.meshIntelBundle(now)
+	if mi.AssessmentID != "" {
+		view["mesh_intelligence"] = mi
+	}
 	writeJSON(w, http.StatusOK, view)
 }
 
@@ -121,7 +126,11 @@ func (s *Server) topologyNodeDetailHandler(w http.ResponseWriter, r *http.Reques
 	bookmarks, _ := topologyStoreGlobal.BookmarksForNode(nodeNum)
 
 	th := s.topologyThresholds()
-	drill := topology.BuildNodeDrilldown(node, links, bookmarks, observations, th, time.Now().UTC())
+	now := time.Now().UTC()
+	drill := topology.BuildNodeDrilldown(node, links, bookmarks, observations, th, now)
+	if ni := findNodeIntel(s.meshIntelBundle(now), nodeNum); ni != nil {
+		drill.MeshIntel = ni
+	}
 	writeJSON(w, http.StatusOK, drill)
 }
 
