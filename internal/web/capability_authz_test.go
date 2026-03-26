@@ -93,10 +93,25 @@ func newAuthedTrustServer(t *testing.T) (*Server, string) {
 		nil, nil, nil, nil, nil)
 	// Direct DB approve/reject is enough to prove HTTP authz; avoids import cycle with service → web.
 	srv.SetTrustFuncs(
-		func(id, actor, note string, _ bool, _ string) error {
-			return database.ApproveControlAction(id, actor, note, false, "", "")
+		func(id, actor, note string, _ bool, _ string) (*models.ApproveActionResponse, error) {
+			if err := database.ApproveControlAction(id, actor, note, false, "", ""); err != nil {
+				return nil, err
+			}
+			return &models.ApproveActionResponse{
+				Status:                         "approved",
+				ActionID:                       id,
+				ActorID:                        actor,
+				FullyApprovedSingleStep:        true,
+				ApprovalDoesNotImplyExecution: true,
+				HTTPApproveDoesNotDrainQueue:   true,
+			}, nil
 		},
-		func(id, actor, note string) error { return database.RejectControlAction(id, actor, note) },
+		func(id, actor, note string, _ bool, _ string) (*models.RejectActionResponse, error) {
+			if err := database.RejectControlAction(id, actor, note); err != nil {
+				return nil, err
+			}
+			return &models.RejectActionResponse{Status: "rejected", ActionID: id, ActorID: actor}, nil
+		},
 		nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	safe := strings.ReplaceAll(t.Name(), "/", "_")

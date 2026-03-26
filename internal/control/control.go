@@ -171,6 +171,16 @@ type ControlAction struct {
 	SodBypass                bool   `json:"sod_bypass,omitempty"`
 	SodBypassActor           string `json:"sod_bypass_actor,omitempty"`
 	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
+
+	// Persisted policy / execution provenance (service ↔ DB)
+	ApprovalMode                     string   `json:"approval_mode,omitempty"`
+	RequiredApprovals                int      `json:"required_approvals,omitempty"`
+	CollectedApprovals               int      `json:"collected_approvals,omitempty"`
+	ApprovalBasis                    []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource             string   `json:"approval_policy_source,omitempty"`
+	HighBlastRadius                  bool     `json:"high_blast_radius,omitempty"`
+	ApprovalEscalatedDueToBlastRadius bool    `json:"approval_escalated_due_to_blast_radius,omitempty"`
+	ExecutionSource                  string   `json:"execution_source,omitempty"`
 }
 
 type ControlPolicy struct {

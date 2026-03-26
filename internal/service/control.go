@@ -139,9 +139,29 @@ func (a *App) controlExecutor(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case action := <-a.controlQueue:
+			a.bumpExecutorHeartbeat("serve_loop")
+			if action.ExecutionSource == "" {
+				action.ExecutionSource = "serve_loop"
+			}
 			a.executeControlAction(ctx, action)
 		}
 	}
+}
+
+// bumpExecutorHeartbeat rate-limits durable heartbeat writes (avoid SQLite hot spots).
+func (a *App) bumpExecutorHeartbeat(kind string) {
+	if a == nil || a.DB == nil {
+		return
+	}
+	now := time.Now().UTC()
+	a.lastExecutorHeartbeatMu.Lock()
+	if !a.lastExecutorHeartbeat.IsZero() && now.Sub(a.lastExecutorHeartbeat) < 10*time.Second {
+		a.lastExecutorHeartbeatMu.Unlock()
+		return
+	}
+	a.lastExecutorHeartbeat = now
+	a.lastExecutorHeartbeatMu.Unlock()
+	_ = a.DB.TouchControlExecutorHeartbeat(kind, now)
 }
 
 func (a *App) evaluateControl(now time.Time) {
@@ -236,6 +256,9 @@ func (a *App) evaluateControl(now time.Time) {
 			action.ApprovalExpiresAt = approvalExpiry
 			action.LifecycleState = control.LifecyclePendingApproval
 			action.Result = control.ResultPendingApproval
+			recPending := controlActionRecord(action)
+			applyApprovalGateMetadata(a.Cfg.Control, &recPending)
+			action = db_ControlActionRecordToControlAction(recPending)
 
 			// Capture evidence bundle immediately so operator can review it
 			thHealth := a.transportHealthJSON(action.TargetTransport)
@@ -430,12 +453,15 @@ func (a *App) seenControlAction(id string) (db.ControlActionRecord, bool) {
 
 // ProcessNextQueuedControlAction runs one action from the control queue if one is waiting.
 // Used by headless CLI after ApproveAction so approvals take effect without a long-running serve process.
+// This is a single dequeue — not a continuous backlog worker; use mel serve for sustained draining.
 func (a *App) ProcessNextQueuedControlAction(ctx context.Context) bool {
 	if a == nil {
 		return false
 	}
 	select {
 	case action := <-a.controlQueue:
+		a.bumpExecutorHeartbeat("cli_one_shot")
+		action.ExecutionSource = "cli_one_shot"
 		a.executeControlAction(ctx, action)
 		return true
 	default:
@@ -698,6 +724,14 @@ func controlActionRecord(action control.ControlAction) db.ControlActionRecord {
 		SodBypass:                action.SodBypass,
 		SodBypassActor:           action.SodBypassActor,
 		SodBypassReason:          action.SodBypassReason,
+		ApprovalMode:                     action.ApprovalMode,
+		RequiredApprovals:                action.RequiredApprovals,
+		CollectedApprovals:               action.CollectedApprovals,
+		ApprovalBasis:                    append([]string(nil), action.ApprovalBasis...),
+		ApprovalPolicySource:             action.ApprovalPolicySource,
+		HighBlastRadius:                  action.HighBlastRadius,
+		ApprovalEscalatedDueToBlastRadius: action.ApprovalEscalatedDueToBlastRadius,
+		ExecutionSource:                  action.ExecutionSource,
 	}
 }
 

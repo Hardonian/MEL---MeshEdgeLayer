@@ -68,7 +68,7 @@ func TestServiceApproveAction_Succeeds(t *testing.T) {
 	a := newTrustTestApp(t)
 	insertPendingApprovalAction(t, a.DB, "act-approve-1", "mqtt-test")
 
-	if err := a.ApproveAction("act-approve-1", "operator@test", "looks fine", false, ""); err != nil {
+	if _, err := a.ApproveAction("act-approve-1", "operator@test", "looks fine", false, ""); err != nil {
 		t.Fatalf("ApproveAction: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestServiceApproveAction_Succeeds(t *testing.T) {
 
 func TestServiceApproveAction_NotFound(t *testing.T) {
 	a := newTrustTestApp(t)
-	err := a.ApproveAction("nonexistent-action", "op", "", false, "")
+	_, err := a.ApproveAction("nonexistent-action", "op", "", false, "")
 	if err == nil {
 		t.Fatal("expected error for nonexistent action, got nil")
 	}
@@ -108,7 +108,7 @@ func TestServiceApproveAction_NotPendingApproval(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	err := a.ApproveAction("act-completed", "op", "", false, "")
+	_, err := a.ApproveAction("act-completed", "op", "", false, "")
 	if err == nil {
 		t.Fatal("expected error when approving non-pending action")
 	}
@@ -129,7 +129,7 @@ func TestServiceApproveAction_ExpiredApprovalWindow(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	err := a.ApproveAction("act-expired", "op", "", false, "")
+	_, err := a.ApproveAction("act-expired", "op", "", false, "")
 	if err == nil {
 		t.Fatal("expected error when approving expired action")
 	}
@@ -151,7 +151,7 @@ func TestServiceApproveAction_SameActorBlockedBySoD(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	err := a.ApproveAction("act-sod-1", "operator-a", "self-approve")
+	_, err := a.ApproveAction("act-sod-1", "operator-a", "self-approve", false, "")
 	if err == nil {
 		t.Fatal("expected SoD error")
 	}
@@ -176,7 +176,7 @@ func TestServiceApproveActionWithOpts_BreakGlassAllowsSameActorSoD(t *testing.T)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.ApproveActionWithOpts("act-sod-bg", "operator-a", "emergency", ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
+	if _, err := a.ApproveActionWithOpts("act-sod-bg", "operator-a", "emergency", ApprovalOpts{BreakGlassLegacyCLI: true}); err != nil {
 		t.Fatalf("break-glass approve: %v", err)
 	}
 	rec, ok, err := a.DB.ControlActionByID("act-sod-bg")
@@ -468,7 +468,7 @@ func TestServiceTimelineEvents_ApproveEmitsEvent(t *testing.T) {
 	insertPendingApprovalAction(t, a.DB, "act-tl-approve", "mqtt-test")
 
 	before := time.Now().UTC()
-	_ = a.ApproveAction("act-tl-approve", "op@test", "approved in test", false, "")
+	_, _ = a.ApproveAction("act-tl-approve", "op@test", "approved in test", false, "")
 	after := time.Now().UTC()
 
 	events, err := a.Timeline(
