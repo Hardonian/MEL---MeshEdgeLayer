@@ -309,6 +309,10 @@ For operator mutations (approve, reject, freeze, notes): include
 | `GET` | `/api/v1/topology` | Topology intelligence bundle; includes `mesh_intelligence` when the topology worker has computed a snapshot. |
 | `GET` | `/api/v1/topology/nodes/<num>` | Node drilldown; includes `mesh_intel` for that node when available. |
 
+Mesh intelligence responses include `message_signals` (hop/portnum histograms from recent `messages`, relay fan-in proxies). These strengthen diagnostics but are still **not** spectrum or RF proof.
+
+**Conservative incident:** when topology is enabled, the daemon may open or refresh incident `meshintel-viability-regression` if viability stays in a bad class for **3** consecutive refreshes **and** readiness drops materially vs a prior **healthy** baseline **and** at least **40** messages exist in the rollup window **and** transport is ingest-capable. First-time lone-wolf deployments do not trigger this (no prior healthy baseline).
+
 ---
 
 ## Common Response Fields

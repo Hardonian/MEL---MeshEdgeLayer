@@ -53,6 +53,7 @@ func Compute(cfg config.Config, ar topology.AnalysisResult, sig MessageSignals, 
 		ComputedAt:      now.UTC().Format(time.RFC3339),
 		GraphHash:       ar.Snapshot.GraphHash,
 		TopologyEnabled: true,
+		MessageSignals:  sig,
 		Bootstrap:       bootstrap,
 		Topology:        topoMetrics,
 		NodeIntel:       nodeIntel,
@@ -69,6 +70,7 @@ func emptyAssessment(now time.Time, graphHash string, enabled bool, th topology.
 		ComputedAt:      now.UTC().Format(time.RFC3339),
 		GraphHash:       graphHash,
 		TopologyEnabled: enabled,
+		MessageSignals:  MessageSignals{},
 		Bootstrap: BootstrapAssessment{
 			LoneWolfScore:           1,
 			BootstrapReadinessScore: 0,
@@ -563,18 +565,26 @@ func computeRoutingPressure(nodes []topology.Node, links []topology.Link, sig Me
 		Confidence: ConfidenceLow, IsSuspected: true, Uncertainty: "Use spectrum tools for real collision data.",
 	}
 	if sig.TotalMessages > 30 {
-		collision.Score = clamp01(0.2 + sig.DuplicateRelayHotspot*0.5)
+		collision.Score = clamp01(0.15 + sig.DuplicateRelayHotspot*0.35 + sig.RebroadcastPathProxy*0.25 + sig.RelayMaxShare*0.15)
 		collision.Evidence = []string{
 			fmt.Sprintf("messages_in_window=%d", sig.TotalMessages),
 			fmt.Sprintf("duplicate_relay_hotspot_ratio=%.3f", sig.DuplicateRelayHotspot),
+			fmt.Sprintf("rebroadcast_path_proxy=%.3f", sig.RebroadcastPathProxy),
+			fmt.Sprintf("relay_max_share=%.3f distinct_relays=%d", sig.RelayMaxShare, sig.DistinctRelayNodes),
+		}
+		if len(sig.HopBuckets) > 0 {
+			collision.Evidence = append(collision.Evidence, "hop_buckets="+topHistogramSummary(sig.HopBuckets, 4))
 		}
 		collision.Confidence = ConfidenceMedium
 	}
 
 	dup := ScoredMetric{
-		Name: "duplicate_forward_pressure", Score: clamp01(sig.DuplicateRelayHotspot),
+		Name: "duplicate_forward_pressure", Score: clamp01(sig.DuplicateRelayHotspot*0.5 + sig.RelayMaxShare*0.5),
 		Scale: "0_1", Basis: "observed_relay_field_repeat_rate",
-		Evidence: []string{fmt.Sprintf("relay_repeat_proxy=%.3f", sig.DuplicateRelayHotspot)},
+		Evidence: []string{
+			fmt.Sprintf("relay_repeat_proxy=%.3f", sig.DuplicateRelayHotspot),
+			fmt.Sprintf("relay_max_share=%.3f distinct_relays=%d", sig.RelayMaxShare, sig.DistinctRelayNodes),
+		},
 		Confidence: ConfidenceMedium, IsSuspected: sig.TotalMessages < 15,
 	}
 	if sig.TotalMessages < 10 {
@@ -592,6 +602,9 @@ func computeRoutingPressure(nodes []topology.Node, links []topology.Link, sig Me
 		hopStress.Evidence = []string{
 			fmt.Sprintf("avg_hop_limit=%.2f max=%d", sig.AvgHopLimit, sig.MaxHopLimit),
 			fmt.Sprintf("messages_with_hop=%d", sig.MessagesWithHop),
+		}
+		if len(sig.HopBuckets) > 0 {
+			hopStress.Evidence = append(hopStress.Evidence, "hop_distribution="+topHistogramSummary(sig.HopBuckets, 6))
 		}
 		hopStress.Confidence = ConfidenceMedium
 		if sig.MaxHopLimit >= 6 {
@@ -689,6 +702,12 @@ func computeRoutingPressure(nodes []topology.Node, links []topology.Link, sig Me
 	}
 	if dup.Score > 0.5 {
 		summary = append(summary, "Repeated relay fields suggest possible duplicate-forwarding hotspots (suspected).")
+	}
+	if sig.RebroadcastPathProxy > 0.55 && sig.TotalMessages > 40 {
+		summary = append(summary, "High share of packets carry relay_node — rebroadcast path activity is visible in ingest (not spectrum proof).")
+	}
+	if len(sig.PortnumBuckets) > 0 && sig.TotalMessages > 20 {
+		summary = append(summary, "Top portnums by volume: "+topHistogramSummary(sig.PortnumBuckets, 5)+".")
 	}
 
 	return RoutingPressureBundle{
@@ -975,6 +994,21 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func topHistogramSummary(buckets []HistogramBucket, maxN int) string {
+	if len(buckets) == 0 || maxN <= 0 {
+		return ""
+	}
+	n := len(buckets)
+	if n > maxN {
+		n = maxN
+	}
+	var parts []string
+	for i := 0; i < n; i++ {
+		parts = append(parts, fmt.Sprintf("%s=%d", buckets[i].Key, buckets[i].Count))
+	}
+	return strings.Join(parts, ",")
 }
 
 // ComputeLive loads nodes and links from the topology store, rolls up recent messages,

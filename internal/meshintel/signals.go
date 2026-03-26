@@ -82,6 +82,52 @@ LIMIT 1;
 	if len(rows2) > 0 && sig.MessagesWithRelay > 0 {
 		top := dbAsInt64(rows2[0]["c"])
 		sig.DuplicateRelayHotspot = float64(top) / float64(sig.MessagesWithRelay)
+		sig.RelayMaxShare = sig.DuplicateRelayHotspot
+	}
+
+	rowsRelayN, err := d.QueryRows(fmt.Sprintf(`
+SELECT COUNT(DISTINCT relay_node) AS n FROM messages
+WHERE rx_time >= '%s' AND relay_node IS NOT NULL AND relay_node != 0;
+`, cutoff))
+	if err != nil {
+		return sig, err
+	}
+	if len(rowsRelayN) > 0 {
+		sig.DistinctRelayNodes = int(dbAsInt64(rowsRelayN[0]["n"]))
+	}
+
+	if sig.TotalMessages > 0 {
+		sig.RebroadcastPathProxy = float64(sig.MessagesWithRelay) / float64(sig.TotalMessages)
+	}
+
+	rowsHop, err := d.QueryRows(fmt.Sprintf(`
+SELECT hop_limit, COUNT(*) AS c FROM messages
+WHERE rx_time >= '%s' AND hop_limit IS NOT NULL
+GROUP BY hop_limit ORDER BY c DESC LIMIT 12;
+`, cutoff))
+	if err != nil {
+		return sig, err
+	}
+	for _, row := range rowsHop {
+		sig.HopBuckets = append(sig.HopBuckets, HistogramBucket{
+			Key:   fmt.Sprintf("hop_%d", int(dbAsInt64(row["hop_limit"]))),
+			Count: dbAsInt64(row["c"]),
+		})
+	}
+
+	rowsPort, err := d.QueryRows(fmt.Sprintf(`
+SELECT portnum, COUNT(*) AS c FROM messages
+WHERE rx_time >= '%s' AND portnum IS NOT NULL
+GROUP BY portnum ORDER BY c DESC LIMIT 10;
+`, cutoff))
+	if err != nil {
+		return sig, err
+	}
+	for _, row := range rowsPort {
+		sig.PortnumBuckets = append(sig.PortnumBuckets, HistogramBucket{
+			Key:   fmt.Sprintf("port_%d", int(dbAsInt64(row["portnum"]))),
+			Count: dbAsInt64(row["c"]),
+		})
 	}
 
 	return sig, nil

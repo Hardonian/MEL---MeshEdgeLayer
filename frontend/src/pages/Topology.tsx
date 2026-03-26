@@ -56,6 +56,14 @@ type MeshIntelligence = {
   assessment_id?: string
   computed_at?: string
   evidence_model?: string
+  message_signals?: {
+    total_messages?: number
+    hop_buckets?: Array<{ key: string; count: number }>
+    portnum_buckets?: Array<{ key: string; count: number }>
+    rebroadcast_path_proxy?: number
+    relay_max_share?: number
+    distinct_relay_nodes?: number
+  }
   bootstrap?: MeshIntelBootstrap
   topology?: { cluster_shape?: string; fragmentation_score?: number; infrastructure_leverage_score?: number }
   protocol_fit?: MeshIntelProtocol
@@ -266,6 +274,15 @@ export function Topology() {
               <p className="mt-1">{intel.mesh_intelligence.bootstrap.explanation.top_next_action}</p>
             </div>
           )}
+          {intel.mesh_intelligence.message_signals?.total_messages != null &&
+            intel.mesh_intelligence.message_signals.total_messages > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Message rollup: {intel.mesh_intelligence.message_signals.total_messages} in window
+                {intel.mesh_intelligence.message_signals.rebroadcast_path_proxy != null && (
+                  <> · rebroadcast path proxy {intel.mesh_intelligence.message_signals.rebroadcast_path_proxy.toFixed(2)}</>
+                )}
+              </div>
+            )}
           {intel.mesh_intelligence.routing_pressure?.summary_lines &&
             intel.mesh_intelligence.routing_pressure.summary_lines.length > 0 && (
               <div>

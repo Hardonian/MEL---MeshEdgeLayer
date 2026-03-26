@@ -208,6 +208,12 @@ type MeshRecommendation struct {
 	DeploymentHints  []DeploymentClassHint `json:"deployment_hints,omitempty"`
 }
 
+// HistogramBucket is a small key/count pair for message-derived distributions.
+type HistogramBucket struct {
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
 // MessageSignals is rollup statistics from recent messages table rows.
 type MessageSignals struct {
 	WindowDescription     string  `json:"window_description"`
@@ -219,6 +225,14 @@ type MessageSignals struct {
 	DistinctFromNodes     int     `json:"distinct_from_nodes"`
 	DuplicateRelayHotspot float64 `json:"duplicate_relay_hotspot_ratio"`
 	TransportConnected    bool    `json:"transport_connected"`
+	// HopBuckets: hop_limit distribution (coarse bins for operator legibility).
+	HopBuckets []HistogramBucket `json:"hop_buckets,omitempty"`
+	// PortnumBuckets: top portnums by volume (Meshtastic portnums when ingested).
+	PortnumBuckets []HistogramBucket `json:"portnum_buckets,omitempty"`
+	// Relay fan-in: how many distinct relay_node values observed; max share of traffic via one relay.
+	DistinctRelayNodes   int     `json:"distinct_relay_nodes"`
+	RelayMaxShare        float64 `json:"relay_max_share"`
+	RebroadcastPathProxy float64 `json:"rebroadcast_path_proxy"`
 }
 
 // Assessment is the full mesh intelligence payload for API / persistence / UI.
@@ -227,6 +241,7 @@ type Assessment struct {
 	ComputedAt         string               `json:"computed_at"`
 	GraphHash          string               `json:"graph_hash"`
 	TopologyEnabled    bool                 `json:"topology_enabled"`
+	MessageSignals     MessageSignals       `json:"message_signals"`
 	Bootstrap          BootstrapAssessment  `json:"bootstrap"`
 	Topology           MeshTopologyMetrics  `json:"topology"`
 	NodeIntel          []NodeTopologyIntel  `json:"node_intel"`

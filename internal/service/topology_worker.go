@@ -64,4 +64,5 @@ func (a *App) runTopologyRefresh(th topology.StaleThresholds) {
 		keepMI = 120
 	}
 	_ = meshintel.SaveSnapshot(a.DB, assess, keepMI)
+	_ = meshintel.EvaluateViabilityRegression(a.DB, assess, sig, transportOK)
 }
