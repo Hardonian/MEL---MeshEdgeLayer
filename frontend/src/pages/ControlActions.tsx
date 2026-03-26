@@ -176,6 +176,34 @@ function ActionCard({ action: a }: { action: ControlActionRecord }) {
             <dd>{a.requires_separate_approver ? 'Yes' : 'No'}</dd>
           </div>
           <div>
+            <dt className="text-xs uppercase text-muted-foreground">Approval model</dt>
+            <dd className="text-xs">
+              {(a.approval_mode || 'single_approver').replace(/_/g, ' ')}
+              {a.required_approvals != null ? ` · required ${a.required_approvals}` : ''}
+              {a.collected_approvals != null ? ` · collected ${a.collected_approvals}` : ''}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase text-muted-foreground">Blast radius / policy</dt>
+            <dd className="text-xs">
+              {a.blast_radius_class || '—'}
+              {a.high_blast_radius ? ' · high (mesh/global class)' : ''}
+              {a.approval_escalated_due_to_blast_radius ? ' · gated by high-blast config' : ''}
+            </dd>
+          </div>
+          {a.approval_basis && a.approval_basis.length > 0 && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              <dt className="text-xs uppercase text-muted-foreground">Approval basis (config)</dt>
+              <dd className="font-mono text-xs">{a.approval_basis.join(', ')}</dd>
+            </div>
+          )}
+          {a.execution_source && (
+            <div>
+              <dt className="text-xs uppercase text-muted-foreground">Last execution source</dt>
+              <dd className="font-mono text-xs">{a.execution_source}</dd>
+            </div>
+          )}
+          <div>
             <dt className="text-xs uppercase text-muted-foreground">Approved</dt>
             <dd className="text-xs">
               {a.approved_by ? (

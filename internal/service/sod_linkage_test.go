@@ -55,7 +55,7 @@ func TestApproveAction_SoDBlocksSameSubmitter(t *testing.T) {
 	a := newSoDTestApp(t)
 	insertSODPending(t, a.DB, "act-sod-1", "alice")
 
-	err := a.ApproveAction("act-sod-1", "alice", "self-approve", false, "")
+	_, err := a.ApproveAction("act-sod-1", "alice", "self-approve", false, "")
 	if err == nil {
 		t.Fatal("expected SoD rejection for same submitter/approver")
 	}
@@ -65,7 +65,7 @@ func TestApproveAction_SoDDifferentApproverSucceeds(t *testing.T) {
 	a := newSoDTestApp(t)
 	insertSODPending(t, a.DB, "act-sod-2", "alice")
 
-	if err := a.ApproveAction("act-sod-2", "bob", "ok", false, ""); err != nil {
+	if _, err := a.ApproveAction("act-sod-2", "bob", "ok", false, ""); err != nil {
 		t.Fatalf("ApproveAction: %v", err)
 	}
 	rec, ok, err := a.DB.ControlActionByID("act-sod-2")
@@ -84,7 +84,7 @@ func TestApproveAction_SoDBreakGlassSameActor(t *testing.T) {
 	a := newSoDTestApp(t)
 	insertSODPending(t, a.DB, "act-sod-3", "alice")
 
-	if err := a.ApproveAction("act-sod-3", "alice", "note", true, "emergency single operator on call"); err != nil {
+	if _, err := a.ApproveAction("act-sod-3", "alice", "note", true, "emergency single operator on call"); err != nil {
 		t.Fatalf("ApproveAction: %v", err)
 	}
 	rec, ok, err := a.DB.ControlActionByID("act-sod-3")
@@ -118,7 +118,7 @@ func TestApproveAction_NonSoDActionSameActorAllowed(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.ApproveAction("act-nosod", "alice", "ok", false, ""); err != nil {
+	if _, err := a.ApproveAction("act-nosod", "alice", "ok", false, ""); err != nil {
 		t.Fatalf("ApproveAction: %v", err)
 	}
 }

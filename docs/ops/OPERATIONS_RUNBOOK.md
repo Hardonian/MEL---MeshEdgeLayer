@@ -116,17 +116,23 @@ When `control.require_approval_for_action_types` or
    Review `evidence_bundle.explanation`, `blast_radius_class`, and
    `transport_health`.
 
-3. **Approve if safe:**
+3. **Approve if safe (canonical path):**
    ```bash
-   mel control approve <action-id> \
+   mel action approve <action-id> \
      --note "Reviewed evidence bundle; transport health OK" \
      --actor "ops-alice" \
      --config mel.json
    ```
+   This runs the full service approve path and may perform **at most one** dequeue of
+   the in-memory control queue in this CLI process (not a continuous worker). For
+   sustained backlog draining, run **`mel serve`** so the control executor loop stays up.
+
+   `mel control approve` remains as **break-glass** only (requires
+   `--i-understand-break-glass-sod`) and records durable metadata marking the legacy entrypoint.
 
 4. **Reject if risky:**
    ```bash
-   mel control reject <action-id> \
+   mel action reject <action-id> \
      --note "Blast radius too wide during peak traffic" \
      --actor "ops-alice" \
      --config mel.json

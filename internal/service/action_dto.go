@@ -40,5 +40,13 @@ func ActionRecordFromDB(r db.ControlActionRecord) models.ActionRecord {
 		SodBypassReason:          r.SodBypassReason,
 		TargetSegment:            r.TargetSegment,
 		TargetNode:               r.TargetNode,
+		ApprovalMode:                     r.ApprovalMode,
+		RequiredApprovals:                r.RequiredApprovals,
+		CollectedApprovals:               r.CollectedApprovals,
+		ApprovalBasis:                    append([]string(nil), r.ApprovalBasis...),
+		ApprovalPolicySource:             r.ApprovalPolicySource,
+		HighBlastRadius:                  r.HighBlastRadius,
+		ApprovalEscalatedDueToBlastRadius: r.ApprovalEscalatedDueToBlastRadius,
+		ExecutionSource:                  r.ExecutionSource,
 	}
 }

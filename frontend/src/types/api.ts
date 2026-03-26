@@ -133,6 +133,14 @@ export interface ControlActionRecord {
   sod_bypass_reason?: string
   target_segment?: string
   target_node?: string
+  approval_mode?: string
+  required_approvals?: number
+  collected_approvals?: number
+  approval_basis?: string[]
+  approval_policy_source?: string
+  high_blast_radius?: boolean
+  approval_escalated_due_to_blast_radius?: boolean
+  execution_source?: string
 }
 
 export interface TrustUIHints {

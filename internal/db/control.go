@@ -53,10 +53,20 @@ type ControlActionRecord struct {
 	SodBypass                bool   `json:"sod_bypass,omitempty"`
 	SodBypassActor           string `json:"sod_bypass_actor,omitempty"`
 	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
+
+	// Policy / approval truth (migration 0022)
+	ApprovalMode                     string   `json:"approval_mode,omitempty"`
+	RequiredApprovals                int      `json:"required_approvals,omitempty"`
+	CollectedApprovals               int      `json:"collected_approvals,omitempty"`
+	ApprovalBasis                    []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource             string   `json:"approval_policy_source,omitempty"`
+	HighBlastRadius                  bool     `json:"high_blast_radius,omitempty"`
+	ApprovalEscalatedDueToBlastRadius bool    `json:"approval_escalated_due_to_blast_radius,omitempty"`
+	ExecutionSource                  string   `json:"execution_source,omitempty"`
 }
 
 // sqlControlActionSelectList is the canonical column projection for control_actions rows.
-const sqlControlActionSelectList = `id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id,COALESCE(submitted_by,'system') AS submitted_by,COALESCE(requires_separate_approver,0) AS requires_separate_approver,COALESCE(incident_id,'') AS incident_id,COALESCE(execution_started_at,'') AS execution_started_at,COALESCE(sod_bypass,0) AS sod_bypass,COALESCE(sod_bypass_actor,'') AS sod_bypass_actor,COALESCE(sod_bypass_reason,'') AS sod_bypass_reason`
+const sqlControlActionSelectList = `id,COALESCE(decision_id,'') AS decision_id,action_type,COALESCE(target_transport,'') AS target_transport,COALESCE(target_segment,'') AS target_segment,COALESCE(target_node,'') AS target_node,reason,confidence,COALESCE(trigger_evidence_json,'[]') AS trigger_evidence_json,COALESCE(episode_id,'') AS episode_id,created_at,COALESCE(executed_at,'') AS executed_at,COALESCE(completed_at,'') AS completed_at,COALESCE(result,'') AS result,reversible,COALESCE(expires_at,'') AS expires_at,COALESCE(outcome_detail,'') AS outcome_detail,mode,COALESCE(policy_rule,'') AS policy_rule,COALESCE(lifecycle_state,'') AS lifecycle_state,COALESCE(advisory_only,0) AS advisory_only,COALESCE(denial_code,'') AS denial_code,COALESCE(closure_state,'') AS closure_state,COALESCE(metadata_json,'{}') AS metadata_json,COALESCE(execution_mode,'auto') AS execution_mode,COALESCE(proposed_by,'system') AS proposed_by,COALESCE(approved_by,'') AS approved_by,COALESCE(approved_at,'') AS approved_at,COALESCE(rejected_by,'') AS rejected_by,COALESCE(rejected_at,'') AS rejected_at,COALESCE(approval_note,'') AS approval_note,COALESCE(approval_expires_at,'') AS approval_expires_at,COALESCE(blast_radius_class,'unknown') AS blast_radius_class,COALESCE(evidence_bundle_id,'') AS evidence_bundle_id,COALESCE(submitted_by,'system') AS submitted_by,COALESCE(requires_separate_approver,0) AS requires_separate_approver,COALESCE(incident_id,'') AS incident_id,COALESCE(execution_started_at,'') AS execution_started_at,COALESCE(sod_bypass,0) AS sod_bypass,COALESCE(sod_bypass_actor,'') AS sod_bypass_actor,COALESCE(sod_bypass_reason,'') AS sod_bypass_reason,COALESCE(approval_mode,'single_approver') AS approval_mode,COALESCE(required_approvals,1) AS required_approvals,COALESCE(collected_approvals,0) AS collected_approvals,COALESCE(approval_basis_json,'[]') AS approval_basis_json,COALESCE(approval_policy_source,'mel_config.control') AS approval_policy_source,COALESCE(high_blast_radius,0) AS high_blast_radius,COALESCE(approval_escalated_due_to_blast_radius,0) AS approval_escalated_due_to_blast_radius,COALESCE(execution_source,'') AS execution_source`
 
 type ControlDecisionRecord struct {
 	ID                string         `json:"id"`
@@ -99,6 +109,7 @@ func (d *DB) UpsertControlAction(action ControlActionRecord) error {
 	}
 	triggerJSON, _ := json.Marshal(action.TriggerEvidence)
 	metadataJSON, _ := json.Marshal(action.Metadata)
+	basisJSON, _ := json.Marshal(action.ApprovalBasis)
 	if action.ExecutionMode == "" {
 		action.ExecutionMode = "auto"
 	}
@@ -111,12 +122,22 @@ func (d *DB) UpsertControlAction(action ControlActionRecord) error {
 	if action.BlastRadiusClass == "" {
 		action.BlastRadiusClass = "unknown"
 	}
-	sql := fmt.Sprintf(`INSERT INTO control_actions(id,decision_id,action_type,target_transport,target_segment,target_node,reason,confidence,trigger_evidence_json,episode_id,created_at,executed_at,completed_at,result,reversible,expires_at,outcome_detail,mode,policy_rule,lifecycle_state,advisory_only,denial_code,closure_state,metadata_json,execution_mode,proposed_by,approved_by,approved_at,rejected_by,rejected_at,approval_note,approval_expires_at,blast_radius_class,evidence_bundle_id,submitted_by,requires_separate_approver,incident_id,execution_started_at,sod_bypass,sod_bypass_actor,sod_bypass_reason)
-VALUES('%s',%s,'%s',%s,%s,%s,'%s',%f,'%s',%s,'%s',%s,%s,%s,%d,%s,%s,'%s','%s','%s',%d,%s,%s,'%s','%s','%s',%s,%s,%s,%s,%s,%s,'%s',%s,'%s',%d,%s,%s,%d,%s,%s)
-ON CONFLICT(id) DO UPDATE SET decision_id=excluded.decision_id,action_type=excluded.action_type,target_transport=excluded.target_transport,target_segment=excluded.target_segment,target_node=excluded.target_node,reason=excluded.reason,confidence=excluded.confidence,trigger_evidence_json=excluded.trigger_evidence_json,episode_id=excluded.episode_id,created_at=excluded.created_at,executed_at=excluded.executed_at,completed_at=excluded.completed_at,result=excluded.result,reversible=excluded.reversible,expires_at=excluded.expires_at,outcome_detail=excluded.outcome_detail,mode=excluded.mode,policy_rule=excluded.policy_rule,lifecycle_state=excluded.lifecycle_state,advisory_only=excluded.advisory_only,denial_code=excluded.denial_code,closure_state=excluded.closure_state,metadata_json=excluded.metadata_json,execution_mode=excluded.execution_mode,proposed_by=excluded.proposed_by,approved_by=excluded.approved_by,approved_at=excluded.approved_at,rejected_by=excluded.rejected_by,rejected_at=excluded.rejected_at,approval_note=excluded.approval_note,approval_expires_at=excluded.approval_expires_at,blast_radius_class=excluded.blast_radius_class,evidence_bundle_id=excluded.evidence_bundle_id,submitted_by=excluded.submitted_by,requires_separate_approver=excluded.requires_separate_approver,incident_id=excluded.incident_id,execution_started_at=excluded.execution_started_at,sod_bypass=excluded.sod_bypass,sod_bypass_actor=excluded.sod_bypass_actor,sod_bypass_reason=excluded.sod_bypass_reason;`,
+	if action.ApprovalMode == "" {
+		action.ApprovalMode = "single_approver"
+	}
+	if action.RequiredApprovals <= 0 {
+		action.RequiredApprovals = 1
+	}
+	if action.ApprovalPolicySource == "" {
+		action.ApprovalPolicySource = "mel_config.control"
+	}
+	sql := fmt.Sprintf(`INSERT INTO control_actions(id,decision_id,action_type,target_transport,target_segment,target_node,reason,confidence,trigger_evidence_json,episode_id,created_at,executed_at,completed_at,result,reversible,expires_at,outcome_detail,mode,policy_rule,lifecycle_state,advisory_only,denial_code,closure_state,metadata_json,execution_mode,proposed_by,approved_by,approved_at,rejected_by,rejected_at,approval_note,approval_expires_at,blast_radius_class,evidence_bundle_id,submitted_by,requires_separate_approver,incident_id,execution_started_at,sod_bypass,sod_bypass_actor,sod_bypass_reason,approval_mode,required_approvals,collected_approvals,approval_basis_json,approval_policy_source,high_blast_radius,approval_escalated_due_to_blast_radius,execution_source)
+VALUES('%s',%s,'%s',%s,%s,%s,'%s',%f,'%s',%s,'%s',%s,%s,%s,%d,%s,%s,'%s','%s','%s',%d,%s,%s,'%s','%s','%s',%s,%s,%s,%s,%s,%s,'%s',%s,'%s',%d,%s,%s,%d,%s,%s,'%s',%d,%d,'%s','%s',%d,%d,%s)
+ON CONFLICT(id) DO UPDATE SET decision_id=excluded.decision_id,action_type=excluded.action_type,target_transport=excluded.target_transport,target_segment=excluded.target_segment,target_node=excluded.target_node,reason=excluded.reason,confidence=excluded.confidence,trigger_evidence_json=excluded.trigger_evidence_json,episode_id=excluded.episode_id,created_at=excluded.created_at,executed_at=excluded.executed_at,completed_at=excluded.completed_at,result=excluded.result,reversible=excluded.reversible,expires_at=excluded.expires_at,outcome_detail=excluded.outcome_detail,mode=excluded.mode,policy_rule=excluded.policy_rule,lifecycle_state=excluded.lifecycle_state,advisory_only=excluded.advisory_only,denial_code=excluded.denial_code,closure_state=excluded.closure_state,metadata_json=excluded.metadata_json,execution_mode=excluded.execution_mode,proposed_by=excluded.proposed_by,approved_by=excluded.approved_by,approved_at=excluded.approved_at,rejected_by=excluded.rejected_by,rejected_at=excluded.rejected_at,approval_note=excluded.approval_note,approval_expires_at=excluded.approval_expires_at,blast_radius_class=excluded.blast_radius_class,evidence_bundle_id=excluded.evidence_bundle_id,submitted_by=excluded.submitted_by,requires_separate_approver=excluded.requires_separate_approver,incident_id=excluded.incident_id,execution_started_at=excluded.execution_started_at,sod_bypass=excluded.sod_bypass,sod_bypass_actor=excluded.sod_bypass_actor,sod_bypass_reason=excluded.sod_bypass_reason,approval_mode=excluded.approval_mode,required_approvals=excluded.required_approvals,collected_approvals=excluded.collected_approvals,approval_basis_json=excluded.approval_basis_json,approval_policy_source=excluded.approval_policy_source,high_blast_radius=excluded.high_blast_radius,approval_escalated_due_to_blast_radius=excluded.approval_escalated_due_to_blast_radius,execution_source=excluded.execution_source;`,
 		esc(action.ID), sqlString(action.DecisionID), esc(action.ActionType), sqlString(action.TargetTransport), sqlString(action.TargetSegment), sqlString(action.TargetNode), esc(action.Reason), action.Confidence, esc(string(triggerJSON)), sqlString(action.EpisodeID), esc(action.CreatedAt), sqlString(action.ExecutedAt), sqlString(action.CompletedAt), sqlString(action.Result), boolInt(action.Reversible), sqlString(action.ExpiresAt), sqlString(action.OutcomeDetail), esc(action.Mode), esc(action.PolicyRule), esc(action.LifecycleState), boolInt(action.AdvisoryOnly), sqlString(action.DenialCode), sqlString(action.ClosureState), esc(string(metadataJSON)),
 		esc(action.ExecutionMode), esc(action.ProposedBy), sqlString(action.ApprovedBy), sqlString(action.ApprovedAt), sqlString(action.RejectedBy), sqlString(action.RejectedAt), sqlString(action.ApprovalNote), sqlString(action.ApprovalExpiresAt), esc(action.BlastRadiusClass), sqlString(action.EvidenceBundleID),
-		esc(action.SubmittedBy), boolInt(action.RequiresSeparateApprover), sqlString(action.IncidentID), sqlString(action.ExecutionStartedAt), boolInt(action.SodBypass), sqlString(action.SodBypassActor), sqlString(action.SodBypassReason))
+		esc(action.SubmittedBy), boolInt(action.RequiresSeparateApprover), sqlString(action.IncidentID), sqlString(action.ExecutionStartedAt), boolInt(action.SodBypass), sqlString(action.SodBypassActor), sqlString(action.SodBypassReason),
+		esc(action.ApprovalMode), action.RequiredApprovals, action.CollectedApprovals, esc(string(basisJSON)), esc(action.ApprovalPolicySource), boolInt(action.HighBlastRadius), boolInt(action.ApprovalEscalatedDueToBlastRadius), sqlString(action.ExecutionSource))
 	return d.Exec(sql)
 }
 
@@ -412,6 +433,14 @@ func controlActionFromRow(row map[string]any) ControlActionRecord {
 	record.SodBypass = asInt(row["sod_bypass"]) == 1
 	record.SodBypassActor = asString(row["sod_bypass_actor"])
 	record.SodBypassReason = asString(row["sod_bypass_reason"])
+	record.ApprovalMode = asString(row["approval_mode"])
+	record.RequiredApprovals = int(asInt(row["required_approvals"]))
+	record.CollectedApprovals = int(asInt(row["collected_approvals"]))
+	_ = json.Unmarshal([]byte(asString(row["approval_basis_json"])), &record.ApprovalBasis)
+	record.ApprovalPolicySource = asString(row["approval_policy_source"])
+	record.HighBlastRadius = asInt(row["high_blast_radius"]) == 1
+	record.ApprovalEscalatedDueToBlastRadius = asInt(row["approval_escalated_due_to_blast_radius"]) == 1
+	record.ExecutionSource = asString(row["execution_source"])
 	if record.ExecutionMode == "" {
 		record.ExecutionMode = "auto"
 	}
@@ -420,6 +449,15 @@ func controlActionFromRow(row map[string]any) ControlActionRecord {
 	}
 	if record.SubmittedBy == "" {
 		record.SubmittedBy = "system"
+	}
+	if record.ApprovalMode == "" {
+		record.ApprovalMode = "single_approver"
+	}
+	if record.RequiredApprovals <= 0 {
+		record.RequiredApprovals = 1
+	}
+	if record.ApprovalPolicySource == "" {
+		record.ApprovalPolicySource = "mel_config.control"
 	}
 	return record
 }

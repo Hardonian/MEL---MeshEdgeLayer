@@ -89,6 +89,9 @@ func (a *App) QueueOperatorControlAction(actorID string, actionType, targetTrans
 		candidate.ApprovalExpiresAt = approvalExpiry
 		candidate.LifecycleState = control.LifecyclePendingApproval
 		candidate.Result = control.ResultPendingApproval
+		rec := controlActionRecord(candidate)
+		applyApprovalGateMetadata(a.Cfg.Control, &rec)
+		candidate = db_ControlActionRecordToControlAction(rec)
 		thHealth := a.transportHealthJSON(candidate.TargetTransport)
 		candidate.EvidenceBundleID = a.captureEvidenceBundle(candidate, thHealth)
 		if err := a.DB.UpsertControlAction(controlActionRecord(candidate)); err != nil {

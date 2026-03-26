@@ -56,8 +56,8 @@ type Server struct {
 	federationHandlers *FederationHandlers
 
 	// Trust / operability hooks (wired from service layer)
-	approveAction           func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) error
-	rejectAction            func(actionID, actorID, note string) error
+	approveAction           func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error)
+	rejectAction            func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error)
 	createFreeze            func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
 	clearFreeze             func(freezeID, clearedBy string) error
 	createMaintenanceWindow func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
@@ -87,8 +87,8 @@ func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
 }
 
 func (s *Server) SetTrustFuncs(
-	approve func(string, string, string, bool, string) error,
-	reject func(string, string, string) error,
+	approve func(string, string, string, bool, string) (*models.ApproveActionResponse, error),
+	reject func(string, string, string, bool, string) (*models.RejectActionResponse, error),
 	createFreeze func(string, string, string, string, string) (string, error),
 	clearFreeze func(string, string) error,
 	createMW func(string, string, string, string, string, string, string) (string, error),

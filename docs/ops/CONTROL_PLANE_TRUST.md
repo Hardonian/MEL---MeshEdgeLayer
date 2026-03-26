@@ -89,10 +89,27 @@ via `mel control inspect <action-id>` or `GET /api/v1/control/actions/<id>/inspe
 | `transport` | Affects one transport connection. |
 | `mesh` | May affect mesh topology. |
 | `global` | Affects all transports and mesh state. |
-| `unknown` | Not yet classified; treated as high-blast for approval purposes. |
+| `unknown` | Not yet classified; informative only unless another policy rule applies. |
 
 When `control.require_approval_for_high_blast_radius = true`, actions with
-blast radius `mesh`, `global`, or `unknown` require operator approval.
+blast radius `mesh` or `global` require operator approval. This is **config-driven**:
+dynamic classification does not silently add new approval rules beyond these flags.
+
+## Approval vs execution (single approver)
+
+MEL enforces **one explicit approval step** per action that is in `approval_required`
+mode. There is **no quorum** and no multi-stage approval in this version.
+
+- **Approved** means the row left `pending_approval` and is authorized to run; it does
+  **not** mean the actuator has finished.
+- **`pending` + `result=approved`** means approved and **waiting for the in-process
+  control executor** (`mel serve`) or a **CLI one-shot dequeue** after `mel action approve`.
+- **HTTP `POST .../approve`** records approval and may enqueue **this** action only; it
+  does **not** drain unrelated backlog. Use `mel serve` for continuous draining.
+
+Separation of duties: the **submitter** (`submitted_by`) cannot approve or reject the
+same row unless **break-glass** is used (`mel control ...` legacy path with explicit ack,
+or HTTP `break_glass_sod_ack` with `break_glass_sod_reason`).
 
 ## Actor Attribution
 
