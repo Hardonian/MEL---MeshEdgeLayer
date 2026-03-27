@@ -16,7 +16,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   critical: 'border-critical/20 bg-critical/10 text-critical',
   secondary: 'border-transparent bg-secondary text-secondary-foreground',
   outline: 'border-border text-foreground',
-  info: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  info: 'border-info/25 bg-info/10 text-info',
 }
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {

@@ -32,8 +32,8 @@ const variantStyles = {
     trend: 'text-critical',
   },
   info: {
-    icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
-    trend: 'text-blue-600 dark:text-blue-400',
+    icon: 'bg-info/10 text-info',
+    trend: 'text-info',
   },
 }
 
@@ -51,7 +51,7 @@ export function StatCard({
   return (
     <div
       className={clsx(
-        'rounded-xl border bg-card p-5 transition-all duration-200 hover:shadow-md',
+        'rounded-xl border border-border/80 bg-card p-4 transition-shadow duration-200 hover:shadow-sm sm:p-5',
         className
       )}
     >

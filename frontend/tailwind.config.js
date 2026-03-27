@@ -52,6 +52,10 @@ export default {
           DEFAULT: "hsl(0, 84%, 40%)",
           foreground: "hsl(0, 84%, 98%)",
         },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

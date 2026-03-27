@@ -64,11 +64,15 @@ interface LoadingProps {
 
 export function Loading({ message = 'Loading...', className }: LoadingProps) {
   return (
-    <div className={clsx('flex flex-col items-center justify-center gap-4 p-12 text-center', className)}>
-      <div className="relative">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <div className="absolute inset-0 h-10 w-10 animate-ping rounded-full bg-primary/20 opacity-75" />
-      </div>
+    <div
+      className={clsx(
+        'flex min-h-[12rem] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/80 bg-muted/20 p-10 text-center',
+        className
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   )
@@ -195,10 +199,10 @@ export function StaleBanner({ timestamp, message = "Data may be stale" }: { time
   }
   
   return (
-    <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:border-amber-900/50 dark:text-amber-400">
-      <AlertCircle className="h-4 w-4 shrink-0" />
-      <span className="font-medium">{message}</span>
-      <span className="text-amber-600 dark:text-amber-500 text-xs ml-auto">Last updated: {timeStr}</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-foreground">
+      <AlertCircle className="h-4 w-4 shrink-0 text-warning" aria-hidden />
+      <span className="font-medium text-warning">{message}</span>
+      <span className="ml-auto text-xs text-muted-foreground">Last updated: {timeStr}</span>
     </div>
   )
 }

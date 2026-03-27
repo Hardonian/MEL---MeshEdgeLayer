@@ -50,7 +50,7 @@ export function EmptyState({
   return (
     <div
       className={clsx(
-        'flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center',
+        'flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/80 bg-muted/10 p-8 text-center',
         className
       )}
     >
@@ -127,13 +127,13 @@ export function NoMessagesYet() {
 
 export function SystemHealthy({ message = "All systems operational" }: { message?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-success/20 bg-success/5 p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
-        <Info className="h-5 w-5 text-success" />
+    <div className="flex items-start gap-3 rounded-lg border border-success/25 bg-success/5 p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success/10">
+        <Info className="h-5 w-5 text-success" aria-hidden />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="font-medium text-success">{message}</p>
-        <p className="text-sm text-muted-foreground">No action required at this time.</p>
+        <p className="text-sm text-muted-foreground">Nothing to act on in this panel right now.</p>
       </div>
     </div>
   )

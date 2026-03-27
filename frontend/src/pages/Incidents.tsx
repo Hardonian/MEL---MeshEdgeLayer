@@ -8,6 +8,7 @@ import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatTimestamp, type Incident } from '@/types/api'
 import { ClipboardCopy, RefreshCw } from 'lucide-react'
+import { clsx } from 'clsx'
 
 function isOpenIncident(inc: Incident): boolean {
   const s = (inc.state || '').toLowerCase()
@@ -52,7 +53,7 @@ export function Incidents() {
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
@@ -125,7 +126,12 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
   const owner = inc.owner_actor_id?.trim()
 
   return (
-    <Card className={muted ? 'opacity-80' : ''}>
+    <Card
+      className={clsx(
+        muted && 'border-dashed opacity-90',
+        'transition-shadow hover:shadow-sm'
+      )}
+    >
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>

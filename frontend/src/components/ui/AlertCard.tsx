@@ -16,29 +16,29 @@ interface AlertCardProps {
 
 const variantStyles: Record<AlertVariant, { container: string; icon: string; border: string }> = {
   info: {
-    container: 'bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800',
-    icon: 'text-blue-600 dark:text-blue-400',
-    border: 'border-l-blue-500',
+    container: 'bg-info/5 border-info/20',
+    icon: 'text-info',
+    border: 'border-l-info',
   },
   warning: {
-    container: 'bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800',
-    icon: 'text-amber-600 dark:text-amber-400',
-    border: 'border-l-amber-500',
+    container: 'bg-warning/10 border-warning/25',
+    icon: 'text-warning',
+    border: 'border-l-warning',
   },
   success: {
-    container: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800',
-    icon: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-l-emerald-500',
+    container: 'bg-success/10 border-success/25',
+    icon: 'text-success',
+    border: 'border-l-success',
   },
   error: {
-    container: 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800',
-    icon: 'text-red-600 dark:text-red-400',
-    border: 'border-l-red-500',
+    container: 'bg-critical/10 border-critical/25',
+    icon: 'text-critical',
+    border: 'border-l-critical',
   },
   critical: {
-    container: 'bg-red-50 border-red-300 dark:bg-red-950/50 dark:border-red-900',
-    icon: 'text-red-700 dark:text-red-400',
-    border: 'border-l-red-600',
+    container: 'bg-critical/10 border-critical/30',
+    icon: 'text-critical',
+    border: 'border-l-critical',
   },
 }
 

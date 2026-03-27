@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
+import { useStatus } from '@/hooks/useApi'
 import {
   LayoutDashboard,
   Radio,
@@ -44,8 +45,13 @@ const navItems: NavItem[] = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
+  const status = useStatus()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+
+  const transports = status.data?.transports ?? []
+  const hasTransports = transports.length > 0
+  const hasConnectedTransport = transports.some((t) => t.effective_state === 'connected')
 
   useEffect(() => {
     const checkMobile = () => {
@@ -64,8 +70,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Top navigation */}
-      <header className="sticky top-0 z-50 glass dark:glass-dark">
-        <div className="flex h-16 items-center justify-between px-6">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -74,21 +80,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/" className="flex items-center gap-2 group">
-              <div className="bg-primary text-primary-foreground p-1.5 rounded-lg shadow-inner group-hover:scale-110 transition-transform">
+            <Link
+              to="/"
+              className="flex items-center gap-2 rounded-md outline-none ring-offset-background transition-transform focus-visible:ring-2 focus-visible:ring-ring group hover:opacity-90"
+            >
+              <div className="rounded-lg bg-primary p-1.5 text-primary-foreground shadow-inner transition-transform group-hover:scale-[1.02]">
                 <Radio className="h-5 w-5" />
               </div>
-              <span className="font-outfit font-bold text-xl tracking-tight hidden sm:inline">MEL</span>
+              <span className="hidden font-outfit text-xl font-bold tracking-tight sm:inline">MEL</span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-widest bg-muted/50 px-3 py-1.5 rounded-full border">
-              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-              MeshEdgeLayer Active
+          <div className="flex items-center gap-3">
+            <div
+              className={clsx(
+                'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider md:flex',
+                !status.loading && !hasTransports && 'border-border bg-muted/40 text-muted-foreground',
+                !status.loading && hasTransports && hasConnectedTransport && 'border-success/25 bg-success/5 text-foreground',
+                !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/30 bg-warning/10 text-foreground',
+                status.loading && 'border-border bg-muted/30 text-muted-foreground'
+              )}
+            >
+              <span
+                className={clsx(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  status.loading && 'bg-muted-foreground',
+                  !status.loading && !hasTransports && 'bg-muted-foreground',
+                  !status.loading && hasTransports && hasConnectedTransport && 'bg-success animate-pulse',
+                  !status.loading && hasTransports && !hasConnectedTransport && 'bg-warning'
+                )}
+                aria-hidden
+              />
+              {status.loading
+                ? 'Loading transport state…'
+                : !hasTransports
+                  ? 'No transport configured'
+                  : hasConnectedTransport
+                    ? 'Transport connected'
+                    : 'No active transport'}
             </div>
             <button 
-              className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Help and Support"
               title="Help and Support"
             >
@@ -101,10 +133,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex">
         {/* Sidebar navigation - desktop */}
         <aside className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-64 transform border-r bg-background transition-transform duration-200 ease-in-out md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-border/80 bg-background transition-transform duration-200 ease-in-out md:translate-x-0",
           isMobile && isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}>
-          <nav className="flex flex-col gap-1 p-4 pt-16">
+          <nav className="flex flex-col gap-0.5 p-3 pt-14" aria-label="Primary">
             {navItems.map((item) => {
               const isActive = location.pathname === item.href || 
                 (item.href !== '/' && location.pathname.startsWith(item.href))
@@ -113,7 +145,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   to={item.href}
                   className={clsx(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -127,10 +159,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Bottom section */}
-          <div className="absolute bottom-0 left-0 right-0 border-t p-4">
+          <div className="absolute bottom-0 left-0 right-0 border-t border-border/80 p-3">
             <Link
               to="/settings"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               <HelpCircle className="h-4 w-4" />
               Help & Support
@@ -147,7 +179,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Main content */}
-        <main className="flex-1 p-4 md:p-6 md:ml-64">
+        <main className="flex-1 px-4 py-5 md:ml-64 md:max-w-[min(100%,88rem)] md:px-8 md:py-6">
           {children}
         </main>
       </div>
