@@ -191,8 +191,10 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   status --config <path>
   fleet truth --config <path>
   fleet evidence import --file <path.json> --config <path> [--strict-origin] [--actor id]
-  fleet evidence list --config <path> [--limit n]
+  fleet evidence list --config <path> [--limit n] [--batch <batch-id>]
   fleet evidence show <import-id> --config <path>
+  fleet evidence batches --config <path> [--limit n]
+  fleet evidence batch-show <batch-id> --config <path>
   panel [--format text|json] --config <path>
   nodes --config <path>
   node inspect <node-id> --config <path>  (see also: node whatif)
@@ -614,7 +616,7 @@ func statusCmd(args []string) {
 
 func fleetCmd(args []string) {
 	if len(args) == 0 {
-		panic("usage: mel fleet truth|evidence ... --config <path>")
+		panic("usage: mel fleet truth|evidence import|list|show|batches|batch-show --config <path>")
 	}
 	switch args[0] {
 	case "truth":
@@ -629,13 +631,13 @@ func fleetCmd(args []string) {
 	case "evidence":
 		fleetEvidenceCmd(args[1:])
 	default:
-		panic("usage: mel fleet truth|evidence import|list|show --config <path>")
+		panic("usage: mel fleet truth|evidence import|list|show|batches|batch-show --config <path>")
 	}
 }
 
 func fleetEvidenceCmd(args []string) {
 	if len(args) == 0 {
-		panic("usage: mel fleet evidence import|list|show --config <path>")
+		panic("usage: mel fleet evidence import|list|show|batches|batch-show --config <path>")
 	}
 	switch args[0] {
 	case "import":
@@ -657,7 +659,7 @@ func fleetEvidenceCmd(args []string) {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		out, err := app.ImportRemoteEvidenceBundle(raw, *strict, *actor)
+		out, err := app.ImportRemoteEvidenceFile(raw, *strict, *actor, *file)
 		if err != nil {
 			panic(err)
 		}
@@ -666,13 +668,19 @@ func fleetEvidenceCmd(args []string) {
 		f := fs("fleet-evidence-list")
 		path := f.String("config", configFlagDefault(), "config")
 		limit := f.Int("limit", 50, "max rows")
+		batchID := f.String("batch", "", "limit evidence list to one import batch id")
 		_ = f.Parse(args[1:])
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
 			panic(err)
 		}
 		app := openServiceApp(cfg)
-		rows, err := app.ListImportedRemoteEvidence(*limit)
+		var rows []db.ImportedRemoteEvidenceRecord
+		if strings.TrimSpace(*batchID) != "" {
+			rows, err = app.ImportedRemoteEvidenceByBatch(strings.TrimSpace(*batchID))
+		} else {
+			rows, err = app.ListImportedRemoteEvidence(*limit)
+		}
 		if err != nil {
 			panic(err)
 		}
@@ -688,8 +696,38 @@ func fleetEvidenceCmd(args []string) {
 			"imports":         summaries,
 			"raw_import_rows": rows,
 			"count":           len(rows),
+			"batch_id":        strings.TrimSpace(*batchID),
 			"fleet_truth":     truth,
 			"inspection_note": "Imported remote evidence remains distinct from local evidence. Related evidence analysis is explanatory only; no silent merge is applied.",
+		})
+	case "batches":
+		f := fs("fleet-evidence-batches")
+		path := f.String("config", configFlagDefault(), "config")
+		limit := f.Int("limit", 50, "max rows")
+		_ = f.Parse(args[1:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		rows, err := app.ListRemoteImportBatches(*limit)
+		if err != nil {
+			panic(err)
+		}
+		summaries, err := fleet.SummarizeRemoteImportBatches(rows)
+		if err != nil {
+			panic(err)
+		}
+		truth, err := fleet.BuildTruthSummary(cfg, app.DB)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{
+			"batches":         summaries,
+			"raw_batch_rows":  rows,
+			"count":           len(rows),
+			"fleet_truth":     truth,
+			"inspection_note": "Batches are offline audit containers. They preserve payload/source/validation posture and do not imply live federation.",
 		})
 	case "show":
 		if len(args) < 2 {
@@ -728,8 +766,50 @@ func fleetEvidenceCmd(args []string) {
 			"inspection":  inspection,
 			"fleet_truth": truth,
 		})
+	case "batch-show":
+		if len(args) < 2 {
+			panic("usage: mel fleet evidence batch-show <batch-id> --config <path>")
+		}
+		id := args[1]
+		f := fs("fleet-evidence-batch-show")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args[2:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		batch, ok, err := app.GetRemoteImportBatch(id)
+		if err != nil {
+			panic(err)
+		}
+		if !ok {
+			panic("import batch not found: " + id)
+		}
+		batchItems, err := app.ImportedRemoteEvidenceByBatch(id)
+		if err != nil {
+			panic(err)
+		}
+		allItems, err := app.ListImportedRemoteEvidence(1000)
+		if err != nil {
+			panic(err)
+		}
+		truth, err := fleet.BuildTruthSummary(cfg, app.DB)
+		if err != nil {
+			panic(err)
+		}
+		inspection, err := fleet.InspectRemoteImportBatchRecord(truth, batch, batchItems, allItems)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{
+			"batch":       batch,
+			"items":       batchItems,
+			"inspection":  inspection,
+			"fleet_truth": truth,
+		})
 	default:
-		panic("usage: mel fleet evidence import|list|show --config <path>")
+		panic("usage: mel fleet evidence import|list|show|batches|batch-show --config <path>")
 	}
 }
 
@@ -1140,13 +1220,18 @@ func importCmd(args []string) {
 	if err := json.Unmarshal(b, &payload); err != nil {
 		panic(err)
 	}
-	if kind, _ := payload["kind"].(string); kind == fleet.RemoteEvidenceBundleKind {
-		_, validation, err := fleet.ValidateRemoteEvidenceBundle(b, "", "", fleet.IngestValidateOptions{})
+	if kind, _ := payload["kind"].(string); kind == fleet.RemoteEvidenceBundleKind || kind == fleet.RemoteEvidenceBatchKind {
+		normalized, err := fleet.ValidateRemoteEvidenceImportPayload(b, "", "", fleet.IngestValidateOptions{})
+		validation := normalized.Validation
 		out := map[string]any{
-			"format":                           fleet.RemoteEvidenceBundleKind,
+			"format":                           kind,
+			"input_kind":                       normalized.InputKind,
 			"valid":                            err == nil && validation.Outcome != fleet.ValidationRejected,
-			"remote_evidence_import_supported": err == nil && validation.Outcome != fleet.ValidationRejected,
+			"remote_evidence_import_supported": err == nil,
 			"validation":                       validation,
+			"item_count":                       validation.ItemCount,
+			"accepted_count":                   validation.AcceptedCount + validation.AcceptedWithCaveatsCount,
+			"rejected_count":                   validation.RejectedCount,
 		}
 		mustPrint(out)
 		if err != nil || validation.Outcome == fleet.ValidationRejected {
