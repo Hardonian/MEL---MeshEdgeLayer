@@ -28,7 +28,9 @@ type Bundle struct {
 	ImportedRemoteEvidence            []db.ImportedRemoteEvidenceRecord  `json:"imported_remote_evidence,omitempty"`
 	ImportedRemoteEvidenceInspections []fleet.ImportedEvidenceInspection `json:"imported_remote_evidence_inspections,omitempty"`
 	RemoteEvidenceTimeline            []db.TimelineEvent                 `json:"remote_evidence_timeline,omitempty"`
-	Diagnostics                       []diagnostics.Finding              `json:"diagnostics"`
+	// FullTimeline contains ALL timeline events (not just remote imports) for full operator investigation.
+	FullTimeline []db.TimelineEvent    `json:"full_timeline,omitempty"`
+	Diagnostics  []diagnostics.Finding `json:"diagnostics"`
 	// Operator evidence (offline-safe): status, control plane, incidents, upgrade posture.
 	StatusSnapshot         *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
 	StatusCollectError     string                          `json:"status_collect_error,omitempty"`
@@ -114,7 +116,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 
 	imports, _ := d.ListImportedRemoteEvidence(100)
 	importInspections, _ := fleet.InspectImportedRemoteEvidenceRecords(fleetTruth, imports)
-	timeline, _ := d.TimelineEvents("", "", 200)
+	timeline, _ := d.TimelineEvents("", "", 500)
 	remoteTimeline := make([]db.TimelineEvent, 0, len(timeline))
 	for _, event := range timeline {
 		if event.EventType == "remote_evidence_import" {
@@ -139,6 +141,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		ImportedRemoteEvidence:            imports,
 		ImportedRemoteEvidenceInspections: importInspections,
 		RemoteEvidenceTimeline:            remoteTimeline,
+		FullTimeline:                      timeline,
 		Diagnostics:                       diagnosticsRun.Diagnostics,
 		StatusSnapshot:                    snapPtr,
 		StatusCollectError:                statusErrStr,
@@ -170,11 +173,50 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
+	// Write the manifest/README first for operator navigation.
+	if f, err := zipWriter.Create("MANIFEST.md"); err == nil {
+		_, _ = f.Write([]byte(bundleManifest(b)))
+	}
+
+	// Core bundle (monolith — kept for backward-compat with ingestion tooling).
 	files := map[string]any{
 		"bundle.json": b,
 	}
 	if b.DoctorJSON != nil {
 		files["doctor.json"] = b.DoctorJSON
+	}
+
+	// Structured per-section exports so second-line operators can inspect
+	// individual investigation surfaces without parsing the monolith.
+	if len(b.FullTimeline) > 0 {
+		files["timeline.json"] = map[string]any{
+			"events": b.FullTimeline,
+			"count":  len(b.FullTimeline),
+			"note":   "Full unified operator timeline. Order is instance-local; remote_imported events include provenance in details. No global total order is implied.",
+		}
+	}
+	if len(b.RecentControlActions) > 0 {
+		files["control_actions.json"] = map[string]any{
+			"actions": b.RecentControlActions,
+			"count":   len(b.RecentControlActions),
+		}
+	}
+	if len(b.RecentIncidents) > 0 {
+		files["incidents.json"] = map[string]any{
+			"incidents": b.RecentIncidents,
+			"count":     len(b.RecentIncidents),
+		}
+	}
+	if len(b.ImportedRemoteEvidence) > 0 {
+		files["imported_evidence.json"] = map[string]any{
+			"imports":     b.ImportedRemoteEvidence,
+			"inspections": b.ImportedRemoteEvidenceInspections,
+			"count":       len(b.ImportedRemoteEvidence),
+			"note":        "Offline bundle imports only (not live federation). Validation and provenance are per-row. Authenticity is not cryptographically verified unless external verification is added by operator.",
+		}
+	}
+	if len(b.Diagnostics) > 0 {
+		files["diagnostics.json"] = b.Diagnostics
 	}
 
 	for name, content := range files {
@@ -198,6 +240,60 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// bundleManifest generates an operator-readable README for the support bundle zip.
+func bundleManifest(b *Bundle) string {
+	var sb strings.Builder
+	sb.WriteString("# MEL Support Bundle\n\n")
+	sb.WriteString(fmt.Sprintf("Generated: %s\n", b.GeneratedAt.Format(time.RFC3339)))
+	sb.WriteString(fmt.Sprintf("Version:   %s\n\n", b.Version))
+	sb.WriteString("## Files in this bundle\n\n")
+	sb.WriteString("| File | Purpose | How to use |\n")
+	sb.WriteString("|------|---------|------------|\n")
+	sb.WriteString("| MANIFEST.md | This file — index and interpretation guide | Read first |\n")
+	sb.WriteString("| bundle.json | Full monolith bundle (all sections) | Machine-readable ingestion |\n")
+	sb.WriteString("| doctor.json | `mel doctor` output (redacted) | Check host/config health findings |\n")
+	sb.WriteString("| timeline.json | Full unified event timeline | Investigate what happened and in what order |\n")
+	sb.WriteString("| control_actions.json | Recent control actions and decisions | Audit who did what and why |\n")
+	sb.WriteString("| incidents.json | Recent incidents | Correlation and handoff context |\n")
+	sb.WriteString("| imported_evidence.json | Offline remote evidence imports | Inspect provenance, validation, and merge posture |\n")
+	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n\n")
+	sb.WriteString("## Interpretation notes\n\n")
+	sb.WriteString("- **Timeline order is instance-local.** Events from imported remote evidence include timing and scope posture.\n")
+	sb.WriteString("  `scope_posture=remote_imported` means the event came from another truth domain (offline).\n")
+	sb.WriteString("  `timing_posture=local_ordered` means strict local order; other values indicate best-effort correlation.\n")
+	sb.WriteString("- **Imported evidence is not live federation.** It is file-scoped, instance-local storage.\n")
+	sb.WriteString("  Authenticity is not cryptographically verified unless operator adds external verification.\n")
+	sb.WriteString("- **Absence of evidence ≠ evidence of absence.** Missing data may indicate a transport is disconnected, not that the mesh is healthy.\n")
+	sb.WriteString("- **Repeated observations ≠ flooding proof.** Multiple gateways seeing the same packet is a symptom; it does not prove congestion.\n")
+	sb.WriteString("- **Config is redacted for export.** Secrets, keys, and sensitive operator data are stripped.\n\n")
+	sb.WriteString("## Quick investigation commands\n\n")
+	sb.WriteString("```bash\n")
+	sb.WriteString("# What happened (chronological investigation):\n")
+	sb.WriteString("mel timeline list --config <path>\n")
+	sb.WriteString("mel timeline inspect <event-id> --config <path>\n\n")
+	sb.WriteString("# Control action drilldown:\n")
+	sb.WriteString("mel action inspect <action-id> --config <path>\n")
+	sb.WriteString("mel trace <action-id> --config <path>\n\n")
+	sb.WriteString("# Incident investigation:\n")
+	sb.WriteString("mel incident list --config <path>\n")
+	sb.WriteString("mel incident inspect <id> --config <path>\n\n")
+	sb.WriteString("# Import audit:\n")
+	sb.WriteString("mel fleet evidence list --config <path>\n")
+	sb.WriteString("mel fleet evidence show <import-id> --config <path>\n\n")
+	sb.WriteString("# System health:\n")
+	sb.WriteString("mel doctor --config <path>\n")
+	sb.WriteString("mel diagnostics --config <path>\n")
+	sb.WriteString("mel health trust --config <path>\n")
+	sb.WriteString("```\n")
+	if b.StatusCollectError != "" {
+		sb.WriteString(fmt.Sprintf("\n## ⚠ Status snapshot error\n\n%s\n", b.StatusCollectError))
+	}
+	if b.ControlPlaneStateErr != "" {
+		sb.WriteString(fmt.Sprintf("\n## ⚠ Control plane state error\n\n%s\n", b.ControlPlaneStateErr))
+	}
+	return sb.String()
 }
 
 func redactMessages(rows []map[string]any) []map[string]any {
