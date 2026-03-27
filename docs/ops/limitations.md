@@ -6,13 +6,13 @@ This document outlines known issues, intentional design limitations, and operati
 
 ## By Design (Not Bugs)
 
-| Limitation | Description | Rationale |
-| :--- | :--- | :--- |
-| **No Radio Transmission or Administration** | MEL does not transmit mesh packets or administer radio parameters. It observes and records telemetry only. | Scope boundary: MEL is a monitoring and control plane, not a mesh stack. |
-| **BLE Transport Explicitly Unsupported** | Bluetooth Low Energy is not implemented as a transport option. | Architectural decision: BLE mesh implementations vary significantly; support would require per-vendor integration. |
-| **HTTP Transport Ingest Not Present** | MEL cannot receive telemetry via HTTP POST/PUT. | Design choice: MQTT and direct serial/TCP are the only supported ingest paths. |
-| **Restore is Validation-Only** | The `restore` command requires `--dry-run` and performs validation without applying changes. | Safety mechanism: Prevents accidental bulk restoration of stale or incompatible configurations. |
-| **Advisory-Only Control Actions** | Some control plane actions have no actuator backing and serve as recommendations only. | Implementation gap: Hardware actuators may not exist on all target nodes. |
+| Limitation                             | Description                                                                                                   | Rationale                                                                                  |
+| :------------------------------------- | :------------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------- |
+| **No Radio Transmission or Administration** | MEL does not transmit mesh packets or administer radio parameters. It observes and records telemetry only.     | Scope boundary: MEL is a monitoring and control plane, not a mesh stack.                   |
+| **BLE Transport Explicitly Unsupported** | Bluetooth Low Energy is not implemented as a transport option.                                               | Architectural decision: BLE mesh implementations vary significantly; support would require per-vendor integration. |
+| **HTTP Transport Ingest Not Present**   | MEL cannot receive telemetry via HTTP POST/PUT.                                                               | Design choice: MQTT and direct serial/TCP are the only supported ingest paths.             |
+| **Restore is Validation-Only**         | The `restore` command requires `--dry-run` and performs validation without applying changes.                  | Safety mechanism: Prevents accidental bulk restoration of stale or incompatible configurations. |
+| **Advisory-Only Control Actions**      | Some control plane actions have no actuator backing and serve as recommendations only.                        | Implementation gap: Hardware actuators may not exist on all target nodes.                  |
 
 ---
 

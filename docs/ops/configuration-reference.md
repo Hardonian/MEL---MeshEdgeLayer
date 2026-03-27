@@ -33,23 +33,23 @@ Generate a starter config with: `mel init --config mel.json`
 
 ### `bind` (Network Settings)
 
-| Field          | Type   | Default            | Description                               |
-| :------------- | :----- | :----------------- | :---------------------------------------- |
+| Field          | Type   | Default            | Description                                 |
+| :------------- | :----- | :----------------- | :------------------------------------------ |
 | `api`          | string | `"127.0.0.1:8080"` | Listen address for the HTTP API and Web UI. |
-| `allow_remote` | bool   | `false`            | Allow non-loopback connections.           |
+| `allow_remote` | bool   | `false`            | Allow non-loopback connections.             |
 
 ### `storage` (Persistence)
 
-| Field           | Type   | Default         | Description                               |
-| :-------------- | :----- | :-------------- | :---------------------------------------- |
-| `database_path` | string | `"data/mel.db"` | Path to the SQLite database file.         |
-| `data_dir`      | string | `"data"`        | Directory for auxiliary data files.        |
+| Field           | Type   | Default         | Description                       |
+| :-------------- | :----- | :-------------- | :-------------------------------- |
+| `database_path` | string | `"data/mel.db"` | Path to the SQLite database file. |
+| `data_dir`      | string | `"data"`        | Directory for auxiliary data files. |
 
 ### `auth` (Access Control)
 
-| Field        | Type   | Default | Description                            |
-| :----------- | :----- | :------ | :------------------------------------- |
-| `token`      | string | `""`    | Static bearer token for API access.    |
+| Field        | Type   | Default | Description                               |
+| :----------- | :----- | :------ | :---------------------------------------- |
+| `token`      | string | `""`    | Static bearer token for API access.       |
 | `basic_auth` | object | `null`  | Basic Auth credentials for UI/API access. |
 
 ### `transports` (Ingest Sources)
@@ -78,22 +78,22 @@ Each entry in the `transports` array defines an ingest source.
 
 ### `control` (Autonomous Control Plane)
 
-| Field                                   | Type     | Default        | Description                          |
-| :-------------------------------------- | :------- | :------------- | :----------------------------------- |
-| `enabled`                               | bool     | `false`        | Enable the control plane worker.     |
-| `mode`                                  | string   | `"guarded_auto"` | `observe_only`, `guarded_auto`, etc. |
-| `require_approval_for_action_types`     | []string | `[]`           | Action types requiring manual approval. |
-| `require_approval_for_high_blast_radius` | bool     | `false`        | Gate actions with large impact.      |
+| Field                                    | Type     | Default        | Description                            |
+| :--------------------------------------- | :------- | :------------- | :------------------------------------- |
+| `enabled`                                | bool     | `false`        | Enable the control plane worker.       |
+| `mode`                                   | string   | `"guarded_auto"` | `observe_only`, `guarded_auto`, etc.   |
+| `require_approval_for_action_types`      | []string | `[]`           | Action types requiring manual approval. |
+| `require_approval_for_high_blast_radius` | bool     | `false`        | Gate actions with large impact.        |
 
 ---
 
 ### `intelligence` (Health & Alerts)
 
-| Field                                | Type | Default | Description                        |
-| :----------------------------------- | :--- | :------ | :--------------------------------- |
-| `enabled`                            | bool | `false` | Enable health scoring.             |
-| `retention.health_snapshot_days`     | int  | `7`     | Retention for history snapshots.   |
-| `alerts.minimum_state_duration`      | int  | `30`    | Seconds before triggering alert.   |
+| Field                          | Type | Default | Description                      |
+| :----------------------------- | :--- | :------ | :------------------------------- |
+| `enabled`                      | bool | `false` | Enable health scoring.           |
+| `retention.health_snapshot_days` | int  | `7`     | Retention for history snapshots. |
+| `alerts.minimum_state_duration` | int  | `30`    | Seconds before triggering alert. |
 
 ---
 

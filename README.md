@@ -61,6 +61,7 @@ go build -o mel ./cmd/mel
 # Start the ingest engine and web dashboard
 ./mel serve --config configs/mel.json
 ```
+
 Visit **[http://localhost:8080](http://localhost:8080)** to see your mesh come alive.
 
 ---
