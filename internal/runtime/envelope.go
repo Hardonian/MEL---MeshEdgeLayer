@@ -3,6 +3,7 @@ package runtime
 
 import (
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/fleet"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	DeploymentModeLocalProcess = "local_process"
 
 	// NotesHonestBoundary is a fixed operator-facing boundary statement (keep synchronized with docs/architecture where cited).
-	NotesHonestBoundary = "MEL is a single-instance gateway: one process, one local database. There is no built-in cross-site or fleet aggregation; each runtime is authoritative only for evidence it ingests and stores locally."
+	NotesHonestBoundary = "MEL is instance-first: one process, one local SQLite per deployment. Core does not ship federated evidence ingest or cross-instance action execution. Optional scope.* config labels site/fleet boundaries for operator truth and partial-fleet semantics; it does not create fleet-wide authority or global ordering."
 )
 
 // TransportKind describes an ingest path kind implemented in this binary (honest capability, not per-deployment config).
@@ -37,6 +38,8 @@ type ProductEnvelope struct {
 	Notes                   string          `json:"notes"`
 	TransportKinds          []TransportKind `json:"transport_kinds"`
 	IntegrationEnabled      bool            `json:"integration_enabled"`
+	// CapabilityPosture states federation and cross-instance boundaries honestly (typed).
+	CapabilityPosture fleet.CapabilityPosture `json:"capability_posture"`
 }
 
 // BuildProductEnvelope returns the fixed envelope for the running binary plus config-derived integration flag.
@@ -49,6 +52,7 @@ func BuildProductEnvelope(cfg config.Config) ProductEnvelope {
 		MultiSiteFleetSupported: false,
 		Notes:                   NotesHonestBoundary,
 		IntegrationEnabled:      integration,
+		CapabilityPosture:       fleet.DefaultCapabilityPosture(),
 		TransportKinds: []TransportKind{
 			{
 				Kind:                 "serial",

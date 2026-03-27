@@ -86,6 +86,46 @@ func TestReadyzReadyWhenIngesting(t *testing.T) {
 	}
 }
 
+func TestFleetTruthEndpoint(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/fleet/truth", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["instance_id"] == nil || payload["instance_id"] == "" {
+		t.Fatalf("expected instance_id, got %#v", payload["instance_id"])
+	}
+	if payload["truth_posture"] == nil {
+		t.Fatalf("expected truth_posture")
+	}
+}
+
+func TestGlobalTopologyStubNotFakeHealth(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/global", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["global_health"] != nil {
+		t.Fatalf("expected no fake global_health, got %#v", payload["global_health"])
+	}
+	if payload["global_topology_posture"] != "unsupported_without_federation_handlers" {
+		t.Fatalf("unexpected stub: %#v", payload)
+	}
+}
+
 func TestSupportBundleZipIncludesDoctorJSON(t *testing.T) {
 	cfg := config.Default()
 	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")

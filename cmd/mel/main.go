@@ -23,6 +23,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/doctor"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
 	"github.com/mel-project/mel/internal/policy"
@@ -69,6 +70,8 @@ func main() {
 		auditCmd(rest)
 	case "status":
 		statusCmd(rest)
+	case "fleet":
+		fleetCmd(rest)
 	case "panel":
 		panelCmd(rest)
 	case "nodes":
@@ -186,6 +189,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   config validate|show|inspect|diff|risk|keys --config <path>
   serve [--debug] --config <path>
   status --config <path>
+  fleet truth --config <path>
   panel [--format text|json] --config <path>
   nodes --config <path>
   node inspect <node-id> --config <path>  (see also: node whatif)
@@ -603,6 +607,20 @@ func statusCmd(args []string) {
 		panic(err)
 	}
 	mustPrint(snap)
+}
+
+func fleetCmd(args []string) {
+	if len(args) == 0 || args[0] != "truth" {
+		panic("usage: mel fleet truth --config <path>")
+	}
+	cfg, _ := loadCfg(args[1:])
+	d := openDB(cfg)
+	_ = fleet.SyncScopeMetadata(cfg, d)
+	summary, err := fleet.BuildTruthSummary(cfg, d)
+	if err != nil {
+		panic(err)
+	}
+	mustPrint(summary)
 }
 
 func panelCmd(args []string) {

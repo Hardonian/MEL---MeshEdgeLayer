@@ -12,16 +12,19 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/doctor"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/privacy"
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/upgrade"
 )
 
 type Bundle struct {
-	GeneratedAt time.Time             `json:"generated_at"`
-	Version     string                `json:"version"`
-	Config      config.Config         `json:"config"`
-	Diagnostics []diagnostics.Finding `json:"diagnostics"`
+	GeneratedAt time.Time     `json:"generated_at"`
+	Version     string        `json:"version"`
+	Config      config.Config `json:"config"`
+	// FleetTruth duplicates status fleet boundary for offline triage (canonical with status.fleet_truth when present).
+	FleetTruth  fleet.FleetTruthSummary `json:"fleet_truth,omitempty"`
+	Diagnostics []diagnostics.Finding   `json:"diagnostics"`
 	// Operator evidence (offline-safe): status, control plane, incidents, upgrade posture.
 	StatusSnapshot         *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
 	StatusCollectError     string                          `json:"status_collect_error,omitempty"`
@@ -81,6 +84,10 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		p := statuspkg.BuildPanel(snap)
 		panel = &p
 	}
+	var fleetTruth fleet.FleetTruthSummary
+	if ft, err := fleet.BuildTruthSummary(cfg, d); err == nil {
+		fleetTruth = ft
+	}
 
 	trustState, terr := d.ControlPlaneStateSnapshot(time.Now().UTC())
 	controlPlaneErr := ""
@@ -114,6 +121,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		GeneratedAt:            time.Now().UTC(),
 		Version:                version,
 		Config:                 privacy.RedactConfig(cfg),
+		FleetTruth:             fleetTruth,
 		Diagnostics:            diagnosticsRun.Diagnostics,
 		StatusSnapshot:         snapPtr,
 		StatusCollectError:     statusErrStr,

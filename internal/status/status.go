@@ -8,6 +8,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/runtime"
 	"github.com/mel-project/mel/internal/transport"
@@ -30,6 +31,8 @@ type Snapshot struct {
 	Product runtime.ProductEnvelope `json:"product"`
 	// Instance is durable SQLite identity plus optional live process fields when status is assembled inside mel serve.
 	Instance runtime.InstanceTruth `json:"instance"`
+	// FleetTruth is operator-scoped truth boundaries (partial fleet, ordering, capability posture).
+	FleetTruth fleet.FleetTruthSummary `json:"fleet_truth"`
 }
 
 type TransportReport struct {
@@ -81,6 +84,14 @@ func Collect(cfg config.Config, database *db.DB, transportHealth []transport.Hea
 		ConfiguredTransportModes: enabledModes(cfg),
 		Transports:               make([]TransportReport, 0, len(cfg.Transports)),
 		Product:                  runtime.BuildProductEnvelope(cfg),
+	}
+	ft, err := fleet.BuildTruthSummary(cfg, database)
+	if err != nil {
+		snap.FleetTruth, _ = fleet.BuildTruthSummary(cfg, nil)
+		snap.FleetTruth.PartialVisibilityReasons = append(snap.FleetTruth.PartialVisibilityReasons,
+			"fleet_truth_summary_error:"+err.Error())
+	} else {
+		snap.FleetTruth = ft
 	}
 	snap.Instance.BindAPI = cfg.Bind.API
 	if strings.TrimSpace(configPath) != "" {

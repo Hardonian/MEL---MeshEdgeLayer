@@ -18,6 +18,12 @@ func TestBuildProductEnvelopeHonestScope(t *testing.T) {
 	if e.MultiSiteFleetSupported {
 		t.Fatal("multi_site_fleet_supported must be false for honest single-gateway posture")
 	}
+	if e.CapabilityPosture.FederationMode == "" {
+		t.Fatal("expected capability_posture.federation_mode")
+	}
+	if e.CapabilityPosture.FleetAggregationSupported {
+		t.Fatal("fleet_aggregation_supported must be false in core")
+	}
 	if len(e.TransportKinds) < 3 {
 		t.Fatalf("expected transport kinds list, got %d", len(e.TransportKinds))
 	}
