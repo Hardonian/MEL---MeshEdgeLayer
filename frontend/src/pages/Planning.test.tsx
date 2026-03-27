@@ -176,4 +176,15 @@ describe('Planning', () => {
     })
     expect(screen.getByTestId('planning-evidence-signals').textContent).toContain('Baseline evidence is missing or unavailable')
   })
+
+  it('does not use legacy phrase parsing when typed evidence flags are explicitly present and false', async () => {
+    setupPlanningFetch({
+      evidenceFlags: { baseline_missing: false, directional_only: false, inconclusive: false },
+      evidenceModel: 'No baseline mesh assessment id was recorded and validation is directional.',
+    })
+    render(<Planning />)
+    await waitFor(() => {
+      expect(screen.queryByTestId('planning-evidence-signals')).toBeNull()
+    })
+  })
 })

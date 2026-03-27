@@ -179,6 +179,38 @@ func TestComparePlans_prefersReversible(t *testing.T) {
 	}
 }
 
+func TestBuildBundle_setsRecommendationWithUncertainEvidenceFlag(t *testing.T) {
+	cfg := configMinimal()
+	ar := topology.AnalysisResult{
+		Snapshot: topology.TopologySnapshot{GraphHash: "graph-1"},
+	}
+	mi := meshintel.Assessment{
+		AssessmentID: "assessment-1",
+		Bootstrap: meshintel.BootstrapAssessment{
+			Confidence: meshintel.ConfidenceMedium,
+		},
+		Recommendations: []meshintel.MeshRecommendation{
+			{
+				Rank:            1,
+				Title:           "Observe before moving nodes",
+				ExpectedBenefit: "Reduce uncertainty",
+				DownsideRisk:    "Delay",
+			},
+		},
+	}
+
+	b := BuildBundle(cfg, ar, mi, true, time.Now().UTC(), RecommendationRetrospective{})
+	if !b.EvidenceFlags.DirectionalOnly {
+		t.Fatalf("expected directional_only true")
+	}
+	if !b.EvidenceFlags.LimitedConfidence {
+		t.Fatalf("expected limited_confidence true")
+	}
+	if !b.EvidenceFlags.RecommendationPresentWithUncertainEvidence {
+		t.Fatalf("expected recommendation_present_with_uncertain_evidence true")
+	}
+}
+
 func TestRunScenario_addNodeHandheld(t *testing.T) {
 	nodes := []topology.Node{{NodeNum: 1, ShortName: "solo", HealthState: topology.HealthHealthy}}
 	links := []topology.Link{}

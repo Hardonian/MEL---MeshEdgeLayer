@@ -194,6 +194,7 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
     ...bundle.evidence_flags,
     ...advisoryFlags,
   }
+  const hasTypedFlags = Object.values(flags).some((v) => v === true || v === false)
   const signals: EvidenceSignal[] = []
   if (flags.baseline_missing) {
     signals.push({ id: 'baseline-missing', message: 'Baseline evidence is missing or unavailable; before/after deltas are directional only.' })
@@ -228,7 +229,7 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
       message: 'Recommendations exist, but confidence is limited by missing or non-independent evidence.',
     })
   }
-  if (signals.length > 0) {
+  if (signals.length > 0 || hasTypedFlags) {
     return signals
   }
   return deriveEvidenceSignalsFromLegacyText(bundle, advisories)
