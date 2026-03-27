@@ -65,7 +65,11 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_BASE}/v1/status`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const raw = await res.json()
+      const data =
+        raw && typeof raw === 'object' && 'status' in raw && raw.status && typeof raw.status === 'object'
+          ? { ...(raw.status as StatusResponse), _apiEnvelope: raw }
+          : (raw as StatusResponse)
       setStatus({ data, loading: false, error: null, lastUpdated: new Date() })
     } catch (e) {
       setStatus(s => ({ ...s, loading: false, error: e instanceof Error ? e.message : 'Failed to fetch status' }))

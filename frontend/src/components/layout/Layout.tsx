@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { HelpMenu } from '@/components/ui/HelpMenu'
+import { truncateMiddle } from '@/utils/presentation'
 import {
   LayoutDashboard,
   Radio,
@@ -55,6 +56,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const transports = status.data?.transports ?? []
   const hasTransports = transports.length > 0
   const hasConnectedTransport = transports.some((t) => t.effective_state === 'connected')
+  const instanceId = status.data?.instance?.instance_id
+  const productScope = status.data?.product?.product_scope
 
   useEffect(() => {
     const checkMobile = () => {
@@ -218,6 +221,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {!status.loading && (instanceId || productScope) && (
+        <footer className="border-t border-border/50 px-4 py-2 text-[11px] text-muted-foreground md:px-8">
+          <div className="mx-auto flex max-w-[min(100%,88rem)] flex-wrap items-center gap-x-4 gap-y-1">
+            {productScope && (
+              <span title={status.data?.product?.notes}>
+                Scope: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{productScope}</code>
+              </span>
+            )}
+            {instanceId && (
+              <span>
+                Instance:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]" title={instanceId}>
+                  {truncateMiddle(instanceId, 36)}
+                </code>
+              </span>
+            )}
+          </div>
+        </footer>
+      )}
     </div>
   )
 }

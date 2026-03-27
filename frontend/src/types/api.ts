@@ -13,6 +13,39 @@ export interface VersionResponse {
   compatibility_level?: string
   config_canonical_fingerprint?: string
   boot_metadata?: Record<string, unknown>
+  /** Canonical product boundary (single-gateway operator scope). */
+  product?: ProductEnvelope
+  instance_id?: string
+  process?: { pid: number; started_at: string }
+  uptime_seconds?: number
+}
+
+/** Honest capability envelope for this build (backend internal/runtime). */
+export interface ProductEnvelope {
+  product_name: string
+  product_scope: string
+  deployment_mode: string
+  multi_site_fleet_supported: boolean
+  notes: string
+  transport_kinds: Array<{
+    kind: string
+    ingest_implemented: boolean
+    send_implemented: boolean
+    implementation_status: string
+    notes?: string
+  }>
+  integration_enabled: boolean
+}
+
+/** Durable SQLite identity + optional live process fields (mel serve). */
+export interface InstanceTruth {
+  instance_id?: string
+  process?: { pid: number; started_at: string }
+  uptime_seconds?: number
+  data_dir?: string
+  database_path?: string
+  config_path?: string
+  bind_api?: string
 }
 
 export interface StatusResponse {
@@ -20,6 +53,10 @@ export interface StatusResponse {
   messages: number
   nodes: NodeInfo[]
   transports: TransportHealth[]
+  product?: ProductEnvelope
+  instance?: InstanceTruth
+  /** When present, full GET /api/v1/status JSON envelope (panel, privacy, etc.). */
+  _apiEnvelope?: Record<string, unknown>
 }
 
 export interface NodeInfo {

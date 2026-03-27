@@ -43,7 +43,8 @@ type Bundle struct {
 }
 
 // Create builds a support bundle. cfgPath is the operator config path on disk (used for doctor.json parity with mel doctor); pass empty if unknown.
-func Create(cfg config.Config, d *db.DB, version string, cfgPath string) (*Bundle, error) {
+// processStartedAt is optional: when non-zero (e.g. bundle from running mel serve), the status snapshot includes process PID and uptime.
+func Create(cfg config.Config, d *db.DB, version string, cfgPath string, processStartedAt time.Time) (*Bundle, error) {
 	diagnosticsRun := diagnostics.RunAllChecks(cfg, d, nil, nil, time.Now().UTC())
 
 	nodes, err := d.QueryRows("SELECT node_num,node_id,long_name,short_name,last_seen,lat_redacted,lon_redacted,altitude FROM nodes ORDER BY node_num;")
@@ -63,7 +64,12 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string) (*Bundl
 		return nil, fmt.Errorf("failed to get audit logs: %w", err)
 	}
 
-	snap, serr := statuspkg.Collect(cfg, d, nil)
+	var pt *time.Time
+	if !processStartedAt.IsZero() {
+		t := processStartedAt.UTC()
+		pt = &t
+	}
+	snap, serr := statuspkg.Collect(cfg, d, nil, pt, cfgPath)
 	var panel *statuspkg.Panel
 	var snapPtr *statuspkg.Snapshot
 	statusErrStr := ""

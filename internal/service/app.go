@@ -33,33 +33,34 @@ import (
 type App struct {
 	Cfg config.Config
 	// ConfigPath is the on-disk path used to load Cfg (set by cmd/mel for boot metadata).
-	ConfigPath          string
-	Log                 *logging.Logger
-	DB                  *db.DB
-	Bus                 *events.Bus
-	State               *meshstate.State
-	Web                 *web.Server
-	Transports          []transport.Transport
-	Plugins             []plugins.Plugin
-	dlMu                sync.Mutex
-	dlEpisodes          map[string]deadLetterEpisode
-	observationEpisodes map[string]deadLetterEpisode
-	ingestCh            chan ingestRequest
-	observationCh       chan transport.Observation
-	wg                  sync.WaitGroup
-	incidentLogLimit    int
-	intelligenceEvery   time.Duration
-	controlQueue        chan control.ControlAction
-	transportControls   map[string]*transportControlState
-	kb                  *kernelBridge
-	lastTransportHealth map[string]transport.Health
-	healthMu            sync.Mutex
+	ConfigPath              string
+	processStartedAt        time.Time
+	Log                     *logging.Logger
+	DB                      *db.DB
+	Bus                     *events.Bus
+	State                   *meshstate.State
+	Web                     *web.Server
+	Transports              []transport.Transport
+	Plugins                 []plugins.Plugin
+	dlMu                    sync.Mutex
+	dlEpisodes              map[string]deadLetterEpisode
+	observationEpisodes     map[string]deadLetterEpisode
+	ingestCh                chan ingestRequest
+	observationCh           chan transport.Observation
+	wg                      sync.WaitGroup
+	incidentLogLimit        int
+	intelligenceEvery       time.Duration
+	controlQueue            chan control.ControlAction
+	transportControls       map[string]*transportControlState
+	kb                      *kernelBridge
+	lastTransportHealth     map[string]transport.Health
+	healthMu                sync.Mutex
 	lastExecutorHeartbeatMu sync.Mutex
 	lastExecutorHeartbeat   time.Time
-	topo                *topology.Store
-	meshIntelMu         sync.RWMutex
-	meshIntelLatest     meshintel.Assessment
-	meshIntelHas        bool
+	topo                    *topology.Store
+	meshIntelMu             sync.RWMutex
+	meshIntelLatest         meshintel.Assessment
+	meshIntelHas            bool
 }
 
 type ingestRequest struct {
@@ -89,7 +90,8 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	}
 	bus := events.New()
 	state := meshstate.New()
-	app := &App{Cfg: cfg, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}, topo: topology.NewStore(database)}
+	startedAt := time.Now().UTC()
+	app := &App{Cfg: cfg, processStartedAt: startedAt, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}, topo: topology.NewStore(database)}
 	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
 	app.Web.SetTopologyStore(app.topo)
 	app.Web.SetTopologyTransportLive(app.transportIngestLikely)
@@ -97,6 +99,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	if strings.TrimSpace(app.ConfigPath) != "" {
 		app.Web.SetConfigPath(app.ConfigPath)
 	}
+	app.Web.SetProcessStartedAt(startedAt)
 	app.Web.SetQueueDepthsFunc(app.getQueueDepths)
 	app.Web.SetTrustFuncs(
 		app.ApproveAction,
@@ -171,7 +174,8 @@ func (a *App) TransportHealth() []transport.Health {
 }
 
 func (a *App) statusSnapshot() (statuspkg.Snapshot, error) {
-	return statuspkg.Collect(a.Cfg, a.DB, a.TransportHealth())
+	pt := a.processStartedAt
+	return statuspkg.Collect(a.Cfg, a.DB, a.TransportHealth(), &pt, a.ConfigPath)
 }
 
 func (a *App) getQueueDepths() map[string]int {
@@ -220,6 +224,7 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 	if a.DB != nil {
+		_, _ = a.DB.EnsureInstanceID()
 		canonFP, err := config.CanonicalFingerprintSHA256(a.Cfg)
 		if err == nil {
 			prev, ok, _ := a.DB.GetInstanceMetadata(db.MetaBootConfigFingerprint)

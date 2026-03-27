@@ -51,6 +51,8 @@ type Server struct {
 	diagnosticsRun   func(config.Config, *db.DB) []diagnostics.Finding
 	operatorBriefing func() models.OperatorBriefingDTO
 	queueDepths      func() map[string]int
+	// processStartedAt is set by SetProcessStartedAt when running under mel serve; zero means status was assembled outside a long-lived server (e.g. CLI-only).
+	processStartedAt time.Time
 
 	// Federation hooks
 	federationHandlers *FederationHandlers
@@ -80,6 +82,15 @@ type Server struct {
 // SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
 func (s *Server) SetConfigPath(path string) {
 	s.configPath = strings.TrimSpace(path)
+}
+
+// SetProcessStartedAt records when the API process started so status snapshots include PID, uptime, and process-scoped truth.
+func (s *Server) SetProcessStartedAt(t time.Time) {
+	if t.IsZero() {
+		s.processStartedAt = time.Time{}
+		return
+	}
+	s.processStartedAt = t.UTC()
 }
 
 func (s *Server) SetQueueDepthsFunc(f func() map[string]int) {
@@ -140,10 +151,6 @@ func (s *Server) SetMeshIntelProvider(f func() (meshintel.Assessment, bool)) {
 }
 
 func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
-	snapFn := statusSnapshot
-	if snapFn == nil {
-		snapFn = func() (statuspkg.Snapshot, error) { return statuspkg.Collect(cfg, d, th()) }
-	}
 	controlStatusFn := controlStatus
 	if controlStatusFn == nil {
 		controlStatusFn = func() (map[string]any, error) {
@@ -168,7 +175,17 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 			return models.OperatorBriefingDTO{OverallStatus: "unknown", GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
 		}
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: snapFn, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn}
+	if s.statusSnapshot == nil {
+		s.statusSnapshot = func() (statuspkg.Snapshot, error) {
+			var pt *time.Time
+			if !s.processStartedAt.IsZero() {
+				t := s.processStartedAt
+				pt = &t
+			}
+			return statuspkg.Collect(cfg, d, s.transportHealth(), pt, s.configPath)
+		}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.requireMethod(s.healthz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/readyz", s.requireMethod(s.readyz, http.MethodGet, http.MethodHead))
@@ -414,6 +431,8 @@ func (s *Server) writeReadinessResponse(w http.ResponseWriter, r *http.Request) 
 		"components":            eval.Components,
 		"transports":            snap.Transports,
 		"operator_next_steps":   next,
+		"product_scope":         snap.Product.ProductScope,
+		"instance_id":           snap.Instance.InstanceID,
 	}
 	code := http.StatusOK
 	if !eval.Ready {
@@ -811,7 +830,7 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) supportBundleHandler(w http.ResponseWriter, r *http.Request) {
-	bundle, err := support.Create(s.cfg, s.db, version.GetFullVersionString(), s.configPath)
+	bundle, err := support.Create(s.cfg, s.db, version.GetFullVersionString(), s.configPath, s.processStartedAt)
 	if err != nil {
 		s.log.Error("support_bundle_failed", "support bundle generation failed", map[string]any{
 			"error": err.Error(),

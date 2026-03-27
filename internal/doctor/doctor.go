@@ -71,7 +71,7 @@ func Run(cfg config.Config, path string) (map[string]any, []map[string]string) {
 			}
 		}
 	}
-	statusSnap, statusErr := statuspkg.Collect(cfg, database, nil)
+	statusSnap, statusErr := statuspkg.Collect(cfg, database, nil, nil, path)
 	if statusErr != nil {
 		findings = append(findings, map[string]string{"component": "status", "severity": "high", "message": statusErr.Error(), "guidance": "Fix transport or database reporting before relying on doctor output."})
 	}

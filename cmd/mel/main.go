@@ -596,9 +596,9 @@ func preflightNextSteps(cfg config.Config, path string, findings []map[string]st
 }
 
 func statusCmd(args []string) {
-	cfg, _ := loadCfg(args)
+	cfg, path := loadCfg(args)
 	d := openDB(cfg)
-	snap, err := statuspkg.Collect(cfg, d, nil)
+	snap, err := statuspkg.Collect(cfg, d, nil, nil, path)
 	if err != nil {
 		panic(err)
 	}
@@ -614,7 +614,7 @@ func panelCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
-	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil)
+	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil, nil, *path)
 	if err != nil {
 		panic(err)
 	}
@@ -704,8 +704,8 @@ func transportsCmd(args []string) {
 	if len(args) == 0 || args[0] != "list" {
 		panic("usage: mel transports list --config <path>")
 	}
-	cfg, _ := loadCfg(args[1:])
-	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil)
+	cfg, path := loadCfg(args[1:])
+	snap, err := statuspkg.Collect(cfg, openDB(cfg), nil, nil, path)
 	if err != nil {
 		panic(err)
 	}
@@ -1336,11 +1336,11 @@ func actionCmd(args []string) {
 		fmt.Fprintln(os.Stderr, line)
 		fmt.Fprintln(os.Stderr, "Note: MEL uses single-approver approval (required_approvals=1). HTTP approve does not drain the full backlog.")
 		out := map[string]any{
-			"status":                         "approved",
-			"action_id":                      actionID,
-			"actor":                          *actor,
-			"one_shot_executor_dequeue_ran": didExec,
-			"approval_does_not_imply_execution": true,
+			"status":                                "approved",
+			"action_id":                             actionID,
+			"actor":                                 *actor,
+			"one_shot_executor_dequeue_ran":         didExec,
+			"approval_does_not_imply_execution":     true,
 			"continuous_backlog_requires_mel_serve": true,
 		}
 		if resp != nil {
