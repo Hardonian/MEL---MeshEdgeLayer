@@ -136,7 +136,7 @@ func (m *Model) vacuum() tea.Cmd {
 
 func (m *Model) refresh() tea.Cmd {
 	return func() tea.Msg {
-		snap, err := status.Collect(m.cfg, m.db, nil)
+		snap, err := status.Collect(m.cfg, m.db, nil, nil, "")
 		if err != nil {
 			return errMsg(err)
 		}

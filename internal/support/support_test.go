@@ -3,6 +3,7 @@ package support
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
@@ -16,7 +17,7 @@ func TestCreateOmitsDoctorWhenNoConfigPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := Create(cfg, d, "v-test", "")
+	b, err := Create(cfg, d, "v-test", "", time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

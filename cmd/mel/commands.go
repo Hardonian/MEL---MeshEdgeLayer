@@ -127,7 +127,7 @@ func supportCmd(args []string) {
 		panic(err)
 	}
 	d := openDB(cfg)
-	b, err := support.Create(cfg, d, version.GetFullVersionString(), *path)
+	b, err := support.Create(cfg, d, version.GetFullVersionString(), *path, time.Time{})
 	if err != nil {
 		panic(err)
 	}

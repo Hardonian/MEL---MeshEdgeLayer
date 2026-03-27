@@ -2,10 +2,12 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/runtime"
 	"github.com/mel-project/mel/internal/upgrade"
 	"github.com/mel-project/mel/internal/version"
 )
@@ -40,7 +42,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"version":                      v.Version,
 		"git_commit":                   v.GitCommit,
 		"build_time":                   v.BuildTime,
@@ -52,7 +54,19 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 		"compatibility_level":          v.CompatibilityLevel,
 		"config_canonical_fingerprint": eff.CanonicalFingerprint,
 		"boot_metadata":                bootMeta,
-	})
+		"product":                      runtime.BuildProductEnvelope(s.cfg),
+	}
+	if s.db != nil {
+		if id, err := s.db.EnsureInstanceID(); err == nil {
+			out["instance_id"] = id
+		}
+	}
+	if !s.processStartedAt.IsZero() {
+		p := runtime.NewProcessIdentity(s.processStartedAt)
+		out["process"] = p
+		out["uptime_seconds"] = int64(time.Since(s.processStartedAt).Seconds())
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // upgradeHealthHandler returns upgrade readiness status

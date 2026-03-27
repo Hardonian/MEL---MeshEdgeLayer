@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
@@ -98,7 +99,7 @@ func TestSupportBundleZipIncludesDoctorJSON(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	b, err := support.Create(cfg, database, "test-version", cfgPath)
+	b, err := support.Create(cfg, database, "test-version", cfgPath, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

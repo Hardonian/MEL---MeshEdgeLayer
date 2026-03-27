@@ -9,6 +9,7 @@ import (
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/models"
+	"github.com/mel-project/mel/internal/runtime"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -25,6 +26,10 @@ type Snapshot struct {
 	RecentIncidents          []models.Incident `json:"recent_incidents,omitempty"`
 	ActiveTransportAlerts    []TransportAlert  `json:"active_transport_alerts,omitempty"`
 	Mesh                     MeshDrilldown     `json:"mesh"`
+	// Product is build-time capability and honest deployment scope (single gateway).
+	Product runtime.ProductEnvelope `json:"product"`
+	// Instance is durable SQLite identity plus optional live process fields when status is assembled inside mel serve.
+	Instance runtime.InstanceTruth `json:"instance"`
 }
 
 type TransportReport struct {
@@ -66,20 +71,37 @@ type persistEvidence struct {
 	LastIngest string
 }
 
-func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Snapshot, error) {
+// Collect assembles operator-facing status. When processStartedAt is non-nil (mel serve), Instance includes PID, start time, and uptime.
+// configPath is non-empty when the caller knows the effective config file path (e.g. mel serve); pass empty for CLI-only snapshots.
+func Collect(cfg config.Config, database *db.DB, transportHealth []transport.Health, processStartedAt *time.Time, configPath string) (Snapshot, error) {
 	snap := Snapshot{
 		GeneratedAt:              time.Now().UTC().Format(time.RFC3339),
 		Bind:                     cfg.Bind.API,
 		BindLocalOnly:            !cfg.Bind.AllowRemote,
 		ConfiguredTransportModes: enabledModes(cfg),
 		Transports:               make([]TransportReport, 0, len(cfg.Transports)),
+		Product:                  runtime.BuildProductEnvelope(cfg),
+	}
+	snap.Instance.BindAPI = cfg.Bind.API
+	if strings.TrimSpace(configPath) != "" {
+		snap.Instance.ConfigPath = strings.TrimSpace(configPath)
 	}
 	if database != nil {
+		if id, err := database.EnsureInstanceID(); err == nil {
+			snap.Instance.InstanceID = id
+		}
+		snap.Instance.DataDir = cfg.Storage.DataDir
+		snap.Instance.DatabasePath = cfg.Storage.DatabasePath
 		schemaVersion, _ := database.SchemaVersion()
 		snap.SchemaVersion = schemaVersion
 		snap.LastSuccessfulIngest, _ = database.Scalar("SELECT COALESCE(MAX(rx_time), '') FROM messages;")
 		snap.Messages = scalarInt(database, "SELECT COUNT(*) FROM messages;")
 		snap.Nodes = scalarInt(database, "SELECT COUNT(*) FROM nodes;")
+	}
+	if processStartedAt != nil {
+		p := runtime.NewProcessIdentity(*processStartedAt)
+		snap.Instance.Process = &p
+		snap.Instance.UptimeSeconds = int64(time.Since(*processStartedAt).Seconds())
 	}
 	persisted, err := persistedEvidenceByTransport(database)
 	if err != nil {
@@ -122,7 +144,7 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 	if database != nil {
 		snap.RecentIncidents, _ = database.RecentIncidents(20)
 	}
-	intelligence, err := EvaluateTransportIntelligence(cfg, database, runtime, time.Now().UTC())
+	intelligence, err := EvaluateTransportIntelligence(cfg, database, transportHealth, time.Now().UTC())
 	if err != nil {
 		return snap, err
 	}
@@ -157,7 +179,7 @@ func Collect(cfg config.Config, database *db.DB, runtime []transport.Health) (Sn
 		}
 	}
 	runtimeMap := map[string]transport.Health{}
-	for _, h := range runtime {
+	for _, h := range transportHealth {
 		runtimeMap[h.Name] = h
 	}
 	snap.Mesh = buildMeshDrilldown(cfg, database, intelligence, snap.ActiveTransportAlerts, time.Now().UTC())

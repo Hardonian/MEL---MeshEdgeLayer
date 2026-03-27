@@ -53,7 +53,7 @@ func TestDoctorTransportObservationsHistoricalIngest(t *testing.T) {
 	if !inserted {
 		t.Fatal("expected insert")
 	}
-	snap, err := status.Collect(cfg, database, nil)
+	snap, err := status.Collect(cfg, database, nil, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestStatusCollectsCapabilitySummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := status.Collect(cfg, database, nil)
+	snap, err := status.Collect(cfg, database, nil, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
