@@ -78,3 +78,46 @@ func TestPlanningAdvisoryAlertsEndpointIncludesNoAdvisoriesFlag(t *testing.T) {
 		t.Fatalf("expected no_advisories true, got %#v", flags["no_advisories"])
 	}
 }
+
+func TestPlanningAdvisoryAlertsEndpointClearsNoAdvisoriesWhenAlertsExist(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	cfg.Topology.Enabled = true
+	d, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.UpsertPlanningAdvisoryAlert(
+		"planning|bridge_fragility|1|graph",
+		"warning",
+		"bridge_node_fragility",
+		"Advisory",
+		"node:1",
+		[]string{"observed_bridge_node"},
+		"bridge_node_detected",
+	); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(cfg, logging.New("info", false), d, meshstate.New(), events.New(), func() []transport.Health { return nil }, nil, nil, nil, nil, nil, nil)
+	srv.SetTopologyStore(topology.NewStore(d))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/planning/advisory-alerts", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	flags, ok := payload["evidence_flags"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing evidence_flags object")
+	}
+	if flags["no_advisories"] != nil {
+		t.Fatalf("expected no_advisories omitted when alerts exist, got %#v", flags["no_advisories"])
+	}
+}
