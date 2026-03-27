@@ -61,5 +61,10 @@ var ConfigKeyHelp = map[string]string{
 	"integration.slack_webhook_url":                  "Slack incoming webhook URL.",
 	"integration.telegram_bot_token_env":             "Env var name holding Telegram bot token (never put token in JSON).",
 	"integration.telegram_chat_id":                   "Telegram chat id for sendMessage.",
+	"scope.site_id":                                  "Optional stable site identifier for this MEL deployment (operator-chosen).",
+	"scope.fleet_id":                                 "Optional fleet grouping id for related sites (does not enable federation).",
+	"scope.fleet_label":                              "Optional human-readable fleet label for panels and exports.",
+	"scope.gateway_label":                            "Optional label for this gateway among co-located observers.",
+	"scope.expected_fleet_reporter_count":            "Expected MEL instances in a fleet view; values >1 surface partial-fleet visibility.",
 	"strict_mode":                                    "When true, reject configs that violate safe-default posture.",
 }

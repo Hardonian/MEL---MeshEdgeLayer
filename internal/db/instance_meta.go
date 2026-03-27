@@ -13,6 +13,14 @@ const (
 	MetaBootAt                = "boot_at"
 	// MetaInstanceID is a durable random id for this SQLite database; stable across process restarts.
 	MetaInstanceID = "instance_id"
+	// MetaSiteID is operator-declared site scope (optional; persisted for export/support parity).
+	MetaSiteID = "site_id"
+	// MetaFleetID is optional fleet grouping id (operator-chosen).
+	MetaFleetID = "fleet_id"
+	// MetaFleetLabel is optional human-readable fleet label.
+	MetaFleetLabel = "fleet_label"
+	// MetaExpectedFleetReporters is optional positive integer string for declared fleet size.
+	MetaExpectedFleetReporters = "expected_fleet_reporters"
 )
 
 func (d *DB) SetInstanceMetadata(key, value string) error {

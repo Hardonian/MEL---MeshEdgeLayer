@@ -32,6 +32,7 @@ type Config struct {
 	Federation   FederationConfig   `json:"federation"`
 	Integration  IntegrationConfig  `json:"integration"`
 	Topology     TopologyConfig     `json:"topology"`
+	Scope        ScopeConfig        `json:"scope"`
 	StrictMode   bool               `json:"strict_mode"`
 	// OperatorAPIKeys loaded from env (Auth.APIKeysEnv); never persisted in JSON.
 	OperatorAPIKeys []string `json:"-"`
@@ -46,6 +47,22 @@ type OperatorAPIKeyEntry struct {
 }
 
 // TopologyConfig controls the canonical topology model behavior.
+// ScopeConfig declares operator site/fleet boundaries for truthful partial-fleet semantics.
+// This does not enable cross-instance sync; it makes missing coverage explicit in APIs and exports.
+type ScopeConfig struct {
+	// SiteID is a stable identifier for this deployment site (operator-chosen). Empty means site scope unknown.
+	SiteID string `json:"site_id"`
+	// FleetID is an optional grouping identifier for related sites (operator-chosen).
+	FleetID string `json:"fleet_id"`
+	// FleetLabel is a human-readable fleet name for operator panels (optional).
+	FleetLabel string `json:"fleet_label"`
+	// GatewayLabel distinguishes this MEL gateway among co-located observers (optional).
+	GatewayLabel string `json:"gateway_label"`
+	// ExpectedFleetReporterCount is how many MEL instances are expected to contribute to a fleet view (>=1).
+	// When >1, APIs surface partial-fleet visibility because this database only stores this instance.
+	ExpectedFleetReporterCount int `json:"expected_fleet_reporter_count"`
+}
+
 type TopologyConfig struct {
 	// Enabled activates topology model scoring and analysis.
 	Enabled bool `json:"enabled"`
@@ -300,6 +317,7 @@ func Default() Config {
 			ScoreHistoryDays:        14,
 			MaxMeshIntelHistory:     120,
 		},
+		Scope:      ScopeConfig{},
 		StrictMode: false,
 	}
 }
@@ -400,6 +418,7 @@ func normalize(cfg *Config) error {
 	normalizeControl(cfg)
 	normalizeFederation(cfg)
 	normalizeIntegration(cfg)
+	normalizeScope(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
 		if err == nil && host == "" {
@@ -519,6 +538,7 @@ func Validate(cfg Config) error {
 	errs = append(errs, validateIntelligence(cfg)...)
 	errs = append(errs, validateControl(cfg)...)
 	errs = append(errs, validateIntegration(cfg)...)
+	errs = append(errs, validateScope(cfg)...)
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}
