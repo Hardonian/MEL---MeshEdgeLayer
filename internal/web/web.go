@@ -33,6 +33,7 @@ import (
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/support"
 	"github.com/mel-project/mel/internal/transport"
+	"github.com/mel-project/mel/internal/investigation"
 )
 
 type Server struct {
@@ -50,6 +51,7 @@ type Server struct {
 	controlHistory   func(string, string, string, string, int, int) (map[string]any, error)
 	diagnosticsRun   func(config.Config, *db.DB) []diagnostics.Finding
 	operatorBriefing func() models.OperatorBriefingDTO
+	investigationSummary func() investigation.Summary
 	queueDepths      func() map[string]int
 	// processStartedAt is set by SetProcessStartedAt when running under mel serve; zero means status was assembled outside a long-lived server (e.g. CLI-only).
 	processStartedAt time.Time
@@ -155,7 +157,7 @@ func (s *Server) SetMeshIntelProvider(f func() (meshintel.Assessment, bool)) {
 	s.meshIntelLatest = f
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO) *Server {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO, investigationSummary func() investigation.Summary) *Server {
 	controlStatusFn := controlStatus
 	if controlStatusFn == nil {
 		controlStatusFn = func() (map[string]any, error) {
@@ -180,7 +182,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 			return models.OperatorBriefingDTO{OverallStatus: "unknown", GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
 		}
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn, investigationSummary: investigationSummary}
 	if s.statusSnapshot == nil {
 		s.statusSnapshot = func() (statuspkg.Snapshot, error) {
 			var pt *time.Time
@@ -240,6 +242,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapSuppressAlerts}, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/", s.requireMethod(s.incidentsPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/investigations", s.requireMethod(s.investigationsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support-bundle", s.requireMethod(security.Require(security.CapExportBundle, s.supportBundleHandler), http.MethodGet, http.MethodHead))

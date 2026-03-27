@@ -18,9 +18,11 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/demo"
 	integ "github.com/mel-project/mel/internal/integration"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/semantics"
 	"github.com/mel-project/mel/internal/support"
+	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/version"
 )
 
@@ -416,4 +418,102 @@ func traceCmd(args []string) {
 		out["evidence_bundle"] = bundle
 	}
 	mustPrint(out)
+}
+func investigateCmd(args []string) {
+	f := fs("investigate")
+	path := f.String("config", configFlagDefault(), "config")
+	_ = f.Parse(args)
+	cfg, _, err := loadConfigFile(*path)
+	if err != nil {
+		panic(err)
+	}
+	d := openDB(cfg)
+
+	// In CLI mode, we often don't have the live transport handles,
+	// but we can read their persisted runtime status.
+	runtimeStates, _ := d.TransportRuntimeStatuses()
+	// Convert runtimeStates to minimal transport.Health for diagnostics/derivation parity
+	var mockHealth []transport.Health
+	for _, rs := range runtimeStates {
+		mockHealth = append(mockHealth, transport.Health{
+			Name:            rs.Name,
+			Type:            rs.Type,
+			Source:          rs.Source,
+			State:           rs.State,
+			LastAttemptAt:   rs.LastAttemptAt,
+			LastError:       rs.LastError,
+			LastConnectedAt: rs.LastConnectedAt,
+			LastSuccessAt:   rs.LastSuccessAt,
+			LastIngestAt:    rs.LastMessageAt,
+			LastHeartbeatAt: rs.LastHeartbeatAt,
+			LastFailureAt:   rs.LastFailureAt,
+			TotalMessages:   rs.TotalMessages,
+			PacketsDropped:  rs.PacketsDropped,
+			FailureCount:    rs.FailureCount,
+		})
+	}
+
+	summary := investigation.Derive(cfg, d, mockHealth, runtimeStates, time.Now().UTC())
+
+	if cliGlobal.JSON {
+		mustPrint(summary)
+		return
+	}
+
+	fmt.Printf("\nMEL CANONICAL INVESTIGATION [truthful; bounded; evidence-backed]\n")
+	fmt.Printf("Generated: %s | Attention: %s | Certainty: %.2f\n\n",
+		summary.GeneratedAt,
+		semantics.FormatSeverityForTTY(string(summary.OverallAttention), cliGlobal.Color),
+		summary.OverallCertainty)
+
+	fmt.Printf("HEADLINE: %s\n", summary.Headline)
+	fmt.Printf("CONTEXT:  %s\n\n", summary.AttentionSummary)
+
+	if len(summary.Findings) > 0 {
+		fmt.Printf("--- FINDINGS (%d) ---\n", len(summary.Findings))
+		for i, f := range summary.Findings {
+			sev := semantics.FormatSeverityForTTY(string(f.Attention), cliGlobal.Color)
+			cert := fmt.Sprintf("%.2f cert", f.Certainty)
+			fmt.Printf("[%d] %s | %s | %s\n", i+1, sev, cert, f.Title)
+			fmt.Printf("    ID:           %s\n", f.ID)
+			fmt.Printf("    WHY IT MATTERS: %s\n", f.WhyItMatters)
+			fmt.Printf("    EXPLANATION:  %s\n", f.Explanation)
+			if f.ResourceID != "" {
+				fmt.Printf("    RESOURCE:     %s\n", f.ResourceID)
+			}
+			if len(f.EvidenceGapIDs) > 0 {
+				fmt.Printf("    CAVEATS:      Limited by %d evidence gap(s)\n", len(f.EvidenceGapIDs))
+			}
+			fmt.Println()
+		}
+	}
+
+	if len(summary.EvidenceGaps) > 0 {
+		fmt.Printf("--- EVIDENCE GAPS (%d) [Missing truth; absence of evidence] ---\n", len(summary.EvidenceGaps))
+		for i, g := range summary.EvidenceGaps {
+			fmt.Printf("[%d] %s: %s\n", i+1, g.Reason, g.Title)
+			fmt.Printf("    EXPLANATION: %s\n", g.Explanation)
+			fmt.Printf("    IMPACT:      %s\n", g.Impact)
+			fmt.Println()
+		}
+	}
+
+	if len(summary.Recommendations) > 0 {
+		fmt.Printf("--- RECOMMENDATIONS (%d) [Evidence-grounded next steps] ---\n", len(summary.Recommendations))
+		for i, r := range summary.Recommendations {
+			fmt.Printf("[%d] %s\n", i+1, r.Action)
+			fmt.Printf("    RATIONALE: %s\n", r.Rationale)
+			if len(r.UncertaintyLimits) > 0 {
+				fmt.Printf("    CAVEATS:   %s\n", strings.Join(r.UncertaintyLimits, " | "))
+			}
+			fmt.Printf("    AUTHORITY: %s\n", r.ActionAuthority)
+			fmt.Println()
+		}
+	}
+
+	fmt.Printf("--- PHYSICS BOUNDARY ---\n")
+	for _, s := range summary.PhysicsBoundary.Statements {
+		fmt.Printf("• %s\n", s)
+	}
+	fmt.Println()
 }

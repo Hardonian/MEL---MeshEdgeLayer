@@ -20,7 +20,13 @@ import (
 // This function is deterministic for a given input state. It does not cache,
 // does not persist, and does not mutate state. Each invocation produces a
 // fresh view.
-func Derive(cfg config.Config, d *db.DB, transports []transport.StatusView, now time.Time) Summary {
+func Derive(
+	cfg config.Config,
+	d *db.DB,
+	runtimeTransports []transport.Health,
+	transportStates []db.TransportRuntime,
+	now time.Time,
+) Summary {
 	nowStr := now.UTC().Format(time.RFC3339)
 
 	var findings []Finding
@@ -28,14 +34,14 @@ func Derive(cfg config.Config, d *db.DB, transports []transport.StatusView, now 
 	var recs []Recommendation
 
 	// ─── Source 1: Diagnostics ───
-	diagRun := diagnostics.RunAllChecks(cfg, d, nil, nil, now)
+	diagRun := diagnostics.RunAllChecks(cfg, d, runtimeTransports, transportStates, now)
 	diagFindings, diagGaps, diagRecs := deriveDiagnostics(diagRun.Diagnostics, nowStr)
 	findings = append(findings, diagFindings...)
 	gaps = append(gaps, diagGaps...)
 	recs = append(recs, diagRecs...)
 
 	// ─── Source 2: Transport state ───
-	tFindings, tGaps, tRecs := deriveTransportState(cfg, transports, d, nowStr)
+	tFindings, tGaps, tRecs := deriveTransportState(cfg, runtimeTransports, transportStates, d, nowStr)
 	findings = append(findings, tFindings...)
 	gaps = append(gaps, tGaps...)
 	recs = append(recs, tRecs...)
@@ -106,13 +112,13 @@ func deriveDiagnostics(diags []diagnostics.Finding, nowStr string) ([]Finding, [
 			mapDiagCategory(diag.Component),
 			attention,
 			certainty,
-			diag.Summary,
-			diag.Detail,
+			diag.Title,
+			diag.Explanation,
 			mustParseTime(nowStr),
 		)
 		f.Source = "diagnostics"
 		f.ObservedAt = nowStr
-		f.ResourceID = diag.Resource
+		f.ResourceID = diag.AffectedTransport
 
 		if diag.Severity == "critical" || diag.Severity == "warning" {
 			f.OperatorActionRequired = true
@@ -120,8 +126,8 @@ func deriveDiagnostics(diags []diagnostics.Finding, nowStr string) ([]Finding, [
 
 		// Evidence snapshot from diagnostic data
 		snapshot := make(map[string]any)
-		if diag.Resource != "" {
-			snapshot["resource"] = diag.Resource
+		if diag.AffectedTransport != "" {
+			snapshot["resource"] = diag.AffectedTransport
 		}
 		if diag.Component != "" {
 			snapshot["component"] = diag.Component
@@ -137,9 +143,9 @@ func deriveDiagnostics(diags []diagnostics.Finding, nowStr string) ([]Finding, [
 		if diag.Severity == "critical" || diag.Severity == "warning" {
 			rec := NewRecommendation(
 				RecRunDiagnostics,
-				fmt.Sprintf("Investigate diagnostic finding: %s", diag.Summary),
+				fmt.Sprintf("Investigate diagnostic finding: %s", diag.Title),
 				fmt.Sprintf("Diagnostic check '%s' reported %s severity for %s: %s",
-					diag.Code, diag.Severity, diag.Component, diag.Detail),
+					diag.Code, diag.Severity, diag.Component, diag.Explanation),
 				"operator_only",
 				ScopeLocal,
 				nowStr,
@@ -157,7 +163,7 @@ func deriveDiagnostics(diags []diagnostics.Finding, nowStr string) ([]Finding, [
 }
 
 // deriveTransportState produces findings for transport health.
-func deriveTransportState(cfg config.Config, transports []transport.StatusView, d *db.DB, nowStr string) ([]Finding, []EvidenceGap, []Recommendation) {
+func deriveTransportState(cfg config.Config, runtimeTransports []transport.Health, transportStates []db.TransportRuntime, d *db.DB, nowStr string) ([]Finding, []EvidenceGap, []Recommendation) {
 	var findings []Finding
 	var gaps []EvidenceGap
 	var recs []Recommendation
@@ -188,10 +194,10 @@ func deriveTransportState(cfg config.Config, transports []transport.StatusView, 
 
 	ingestingCount := 0
 	failedTransports := []string{}
-	for _, tr := range transports {
-		if tr.EffectiveState == transport.StateIngesting {
+	for _, tr := range runtimeTransports {
+		if tr.State == transport.StateIngesting {
 			ingestingCount++
-		} else if tr.EffectiveState == transport.StateFailed || tr.EffectiveState == transport.StateError {
+		} else if tr.State == transport.StateFailed || tr.State == transport.StateError {
 			failedTransports = append(failedTransports, tr.Name)
 		}
 	}
@@ -323,7 +329,7 @@ func deriveIncidents(d *db.DB, nowStr string) ([]Finding, []EvidenceGap, []Recom
 			f.ID = "incident:" + inc.ID
 			f.ResourceID = inc.ID
 			f.Source = "incidents"
-			f.ObservedAt = inc.DetectedAt
+			f.ObservedAt = inc.OccurredAt
 			f.OperatorActionRequired = true
 			f.EvidenceSnapshot = map[string]any{
 				"incident_id": inc.ID,

@@ -70,6 +70,8 @@ func main() {
 		auditCmd(rest)
 	case "status":
 		statusCmd(rest)
+	case "investigate":
+		investigateCmd(rest)
 	case "fleet":
 		fleetCmd(rest)
 	case "panel":

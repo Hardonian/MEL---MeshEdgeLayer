@@ -16,6 +16,7 @@ import (
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/intelligence"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/meshstate"
@@ -93,7 +94,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	state := meshstate.New()
 	startedAt := time.Now().UTC()
 	app := &App{Cfg: cfg, processStartedAt: startedAt, Log: log, DB: database, Bus: bus, State: state, Plugins: []plugins.Plugin{plugins.UnsafeMQTTPlugin{}}, dlEpisodes: map[string]deadLetterEpisode{}, observationEpisodes: map[string]deadLetterEpisode{}, ingestCh: make(chan ingestRequest, defaultIngestQueueSize), observationCh: make(chan transport.Observation, defaultObservationQueueSize), incidentLogLimit: 100, controlQueue: make(chan control.ControlAction, cfg.Control.MaxQueue), transportControls: map[string]*transportControlState{}, lastTransportHealth: map[string]transport.Health{}, topo: topology.NewStore(database)}
-	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing)
+	app.Web = web.New(cfg, log, database, state, bus, app.TransportHealth, app.recommendations, app.statusSnapshot, app.controlExplanation, app.controlHistory, diagnostics.Run, app.GenerateBriefing, app.Investigate)
 	app.Web.SetTopologyStore(app.topo)
 	app.Web.SetTopologyTransportLive(app.transportIngestLikely)
 	app.Web.SetMeshIntelProvider(app.meshIntelSnapshot)
@@ -220,6 +221,20 @@ func (a *App) GenerateBriefing() models.OperatorBriefingDTO {
 
 	briefing := intelligence.GenerateBriefing(priorities, recommendations, sequence, blastMessage, now)
 	return briefing
+}
+
+// Investigate assembles a fresh canonical investigation summary.
+func (a *App) Investigate() investigation.Summary {
+	return investigation.Derive(a.Cfg, a.DB, a.TransportHealth(), a.TransportRuntimeStates(), time.Now().UTC())
+}
+
+// TransportRuntimeStates returns the persisted runtime states of all transports.
+func (a *App) TransportRuntimeStates() []db.TransportRuntime {
+	if a.DB == nil {
+		return nil
+	}
+	states, _ := a.DB.TransportRuntimeStatuses()
+	return states
 }
 
 func (a *App) Start(ctx context.Context) error {
