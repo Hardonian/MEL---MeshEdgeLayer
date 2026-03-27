@@ -315,8 +315,8 @@ mel alerts list --active
 # Check for correlations
 mel alerts correlations --since 1h
 
-# Review alert episode IDs
-mel api GET /api/v1/alerts/episodes
+# Review alert history
+curl -s http://localhost:8080/api/v1/incidents | jq '.incidents[] | select(.state == "open")'
 ```
 
 Check these patterns:
@@ -447,8 +447,8 @@ Control actions not executing despite healthy state. Automated decisions appear 
 # Check transport override flags
 mel inspect transport <name> --show-control-config
 
-# Review active overrides
-mel api GET /api/v1/control/overrides
+# Review control plane state
+curl -s http://localhost:8080/api/v1/control/status | jq '.mode'
 
 # Check suppress_auto_actions flag
 mel config get suppress_auto_actions
