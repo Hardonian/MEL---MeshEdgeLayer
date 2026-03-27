@@ -17,6 +17,7 @@ import (
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/transport"

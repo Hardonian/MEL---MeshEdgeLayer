@@ -13,8 +13,10 @@ import (
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/doctor"
 	"github.com/mel-project/mel/internal/fleet"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/privacy"
 	statuspkg "github.com/mel-project/mel/internal/status"
+	"github.com/mel-project/mel/internal/transport"
 	"github.com/mel-project/mel/internal/upgrade"
 )
 
@@ -55,6 +57,7 @@ type Bundle struct {
 	Messages               []map[string]any                `json:"messages"`
 	DeadLetters            []map[string]any                `json:"dead_letters"`
 	AuditLogs              []map[string]any                `json:"audit_logs"`
+	Investigation          *investigation.Summary          `json:"investigation,omitempty"`
 }
 
 // Create builds a support bundle. cfgPath is the operator config path on disk (used for doctor.json parity with mel doctor); pass empty if unknown.
@@ -185,6 +188,29 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		AuditLogs:                         auditLogs,
 	}
 
+	runtimeStates, _ := d.TransportRuntimeStatuses()
+	var mockHealth []transport.Health
+	for _, rs := range runtimeStates {
+		mockHealth = append(mockHealth, transport.Health{
+			Name:            rs.Name,
+			Type:            rs.Type,
+			Source:          rs.Source,
+			State:           rs.State,
+			LastAttemptAt:   rs.LastAttemptAt,
+			LastError:       rs.LastError,
+			LastConnectedAt: rs.LastConnectedAt,
+			LastSuccessAt:   rs.LastSuccessAt,
+			LastIngestAt:    rs.LastMessageAt,
+			LastHeartbeatAt: rs.LastHeartbeatAt,
+			LastFailureAt:   rs.LastFailureAt,
+			TotalMessages:   rs.TotalMessages,
+			PacketsDropped:  rs.PacketsDropped,
+			FailureCount:    rs.FailureCount,
+		})
+	}
+	summary := investigation.Derive(cfg, d, mockHealth, runtimeStates, time.Now().UTC())
+	bundle.Investigation = &summary
+
 	if cfg.Privacy.RedactExports {
 		bundle.Messages = redactMessages(messages)
 	}
@@ -245,6 +271,9 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	}
 	if len(b.Diagnostics) > 0 {
 		files["diagnostics.json"] = b.Diagnostics
+	}
+	if b.Investigation != nil {
+		files["investigation.json"] = b.Investigation
 	}
 
 	for name, content := range files {
@@ -312,7 +341,8 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("| incidents.json | Recent incidents | Correlation and handoff context |\n")
 	sb.WriteString("| imported_evidence.json | Offline remote evidence imports | Inspect batch/source provenance, validation, and merge posture |\n")
 	sb.WriteString("| remote_evidence_export.json | Canonical offline export of imported evidence | Re-importable batch payload; still offline-only and authenticity-unverified by default |\n")
-	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n\n")
+	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n")
+	sb.WriteString("| investigation.json | Canonical investigation summary | High-level decision support, findings, evidence gaps, and physics boundaries |\n\n")
 	sb.WriteString("## Interpretation notes\n\n")
 	sb.WriteString("- **Timeline order is instance-local.** Events from imported remote evidence include timing and scope posture.\n")
 	sb.WriteString("  `scope_posture=remote_imported` means the event came from another truth domain (offline).\n")
@@ -339,6 +369,7 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("# System health:\n")
 	sb.WriteString("mel doctor --config <path>\n")
 	sb.WriteString("mel diagnostics --config <path>\n")
+	sb.WriteString("mel investigate --config <path>\n")
 	sb.WriteString("mel health trust --config <path>\n")
 	sb.WriteString("```\n")
 	if b.StatusCollectError != "" {
