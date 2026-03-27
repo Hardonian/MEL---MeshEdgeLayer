@@ -317,14 +317,18 @@ function ConfigItem({
   description: string
 }) {
   return (
-    <div className="rounded-lg border border-border p-3 transition-colors hover:bg-muted/30">
+    <div
+      role="group"
+      aria-label={`Config key ${name}, read-only reference`}
+      className="rounded-lg border border-border p-3"
+    >
       <div className="mb-1 flex items-center justify-between gap-2">
         <code className="break-all text-sm font-mono">{name}</code>
         <Badge variant="outline" className="shrink-0 text-xs">
           {type}
         </Badge>
       </div>
-      <p className="mb-2 text-xs text-muted-foreground">default: {defaultValue}</p>
+      <p className="mb-2 text-xs text-muted-foreground">Documented default: {defaultValue}</p>
       <p className="text-sm">{description}</p>
     </div>
   )

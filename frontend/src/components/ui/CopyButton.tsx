@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -16,6 +16,7 @@ export function CopyButton({
   successDuration = 2000 
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
+  const statusId = useId()
 
   const handleCopy = async () => {
     try {
@@ -42,30 +43,36 @@ export function CopyButton({
   }
 
   return (
-    <button
-      onClick={handleCopy}
-      className={clsx(
-        'inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
-        'text-muted-foreground hover:bg-muted hover:text-foreground',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-        copied && 'bg-success/10 text-success',
-        className
-      )}
-      aria-label={copied ? 'Copied!' : label}
-      title={label}
-    >
-      {copied ? (
-        <>
-          <Check className="h-3.5 w-3.5" />
-          <span>Copied</span>
-        </>
-      ) : (
-        <>
-          <Copy className="h-3.5 w-3.5" />
-          <span>Copy</span>
-        </>
-      )}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={clsx(
+          'inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
+          'text-muted-foreground hover:bg-muted hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          copied && 'bg-success/10 text-success',
+          className
+        )}
+        aria-label={copied ? 'Copied to clipboard' : label}
+        title={label}
+      >
+        {copied ? (
+          <>
+            <Check className="h-3.5 w-3.5" aria-hidden />
+            <span>Copied</span>
+          </>
+        ) : (
+          <>
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+            <span>Copy</span>
+          </>
+        )}
+      </button>
+      <span id={statusId} className="sr-only" aria-live="polite" aria-atomic="true">
+        {copied ? 'Copied to clipboard' : ''}
+      </span>
+    </>
   )
 }
 

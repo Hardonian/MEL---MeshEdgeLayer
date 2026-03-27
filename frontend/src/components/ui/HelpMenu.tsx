@@ -96,6 +96,34 @@ export function HelpMenu() {
         e.preventDefault()
         closeMenu()
         buttonRef.current?.focus()
+        return
+      }
+      const menu = menuRef.current
+      if (!menu) return
+      const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).filter(
+        (el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true'
+      )
+      if (items.length === 0) return
+      const active = document.activeElement
+      const idx = items.indexOf(active as HTMLElement)
+
+      const focusAt = (next: number) => {
+        const i = ((next % items.length) + items.length) % items.length
+        items[i]?.focus()
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        focusAt(idx < 0 ? 0 : idx + 1)
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        focusAt(idx < 0 ? items.length - 1 : idx - 1)
+      } else if (e.key === 'Home') {
+        e.preventDefault()
+        items[0]?.focus()
+      } else if (e.key === 'End') {
+        e.preventDefault()
+        items[items.length - 1]?.focus()
       }
     }
     document.addEventListener('keydown', onKeyDown)
@@ -113,6 +141,8 @@ export function HelpMenu() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const shortcutsDialogRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!shortcutsOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -126,6 +156,34 @@ export function HelpMenu() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [shortcutsOpen])
 
+  useEffect(() => {
+    if (!shortcutsOpen) return
+    const root = shortcutsDialogRef.current
+    if (!root) return
+    const focusables = root.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const list = Array.from(focusables).filter((el) => !el.hasAttribute('disabled'))
+    window.setTimeout(() => list[0]?.focus(), 0)
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || list.length === 0) return
+      const first = list[0]
+      const last = list[list.length - 1]
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    root.addEventListener('keydown', onKeyDown)
+    return () => root.removeEventListener('keydown', onKeyDown)
+  }, [shortcutsOpen])
+
   return (
     <div className="relative">
       <button
@@ -133,6 +191,7 @@ export function HelpMenu() {
         id="mel-help-menu-trigger"
         type="button"
         onClick={() => setIsOpen((o) => !o)}
+        aria-label="Help menu"
         className={clsx(
           'flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors sm:px-3',
           'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -140,11 +199,13 @@ export function HelpMenu() {
           isOpen && 'bg-muted text-foreground'
         )}
         aria-expanded={isOpen}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-controls={isOpen ? menuId : undefined}
       >
         <HelpCircle className="h-5 w-5 shrink-0" aria-hidden />
-        <span className="hidden sm:inline">Help</span>
+        <span className="hidden sm:inline" aria-hidden>
+          Help
+        </span>
         <ChevronDown
           className={clsx('hidden h-4 w-4 shrink-0 transition-transform sm:block', isOpen && 'rotate-180')}
           aria-hidden
@@ -233,6 +294,7 @@ export function HelpMenu() {
               onClick={() => setShortcutsOpen(false)}
             />
             <div
+              ref={shortcutsDialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={shortcutsTitleId}
@@ -317,11 +379,11 @@ export function KeyboardShortcuts() {
 
   return (
     <div className="text-xs">
-      <ul className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3">
+      <ul className="space-y-3">
         {shortcuts.map((shortcut) => (
-          <li key={shortcut.keys} className="contents">
-            <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{shortcut.keys}</kbd>
-            <span className="text-muted-foreground">{shortcut.description}</span>
+          <li key={shortcut.keys} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{shortcut.keys}</kbd>
+            <span className="min-w-0 text-muted-foreground">{shortcut.description}</span>
           </li>
         ))}
       </ul>

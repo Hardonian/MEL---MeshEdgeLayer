@@ -69,7 +69,7 @@ export function Tooltip({
         <div
           id={tooltipId}
           className={clsx(
-            'absolute z-50 px-3 py-1.5 text-sm rounded-md bg-foreground text-background shadow-md whitespace-nowrap animate-fade-in',
+            'absolute z-50 px-3 py-1.5 text-sm rounded-md bg-foreground text-background shadow-md whitespace-nowrap animate-fade-in motion-reduce:animate-none',
             positions[side],
             align === 'center' ? alignments[align] : (side === 'top' || side === 'bottom' ? alignments[align] : 'translate-y-0')
           )}
