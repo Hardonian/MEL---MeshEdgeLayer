@@ -17,7 +17,7 @@ const (
 	DeploymentModeLocalProcess = "local_process"
 
 	// NotesHonestBoundary is a fixed operator-facing boundary statement (keep synchronized with docs/architecture where cited).
-	NotesHonestBoundary = "MEL is instance-first: one process, one local SQLite per deployment. Core does not ship federated evidence ingest or cross-instance action execution. Optional scope.* config labels site/fleet boundaries for operator truth and partial-fleet semantics; it does not create fleet-wide authority or global ordering."
+	NotesHonestBoundary = "MEL is instance-first: one process, one local SQLite per deployment. Core does not ship live federated evidence sync or cross-instance action execution. Operators may import offline remote evidence bundles into the local database for audit (explicit validation posture; not cryptographic proof of origin). Optional scope.* config labels site/fleet boundaries for operator truth and partial-fleet semantics; it does not create fleet-wide authority or global ordering."
 )
 
 // TransportKind describes an ingest path kind implemented in this binary (honest capability, not per-deployment config).

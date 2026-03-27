@@ -66,6 +66,21 @@ export interface FleetTruthSummary {
   physics_network_note: string
 }
 
+/** Offline remote evidence bundle import audit row (local DB; not live federation). */
+export interface ImportedRemoteEvidenceRecord {
+  id: string
+  imported_at: string
+  local_instance_id: string
+  validation: Record<string, unknown>
+  bundle: Record<string, unknown>
+  evidence: Record<string, unknown>
+  origin_instance_id: string
+  origin_site_id?: string
+  evidence_class: string
+  observation_origin_class: string
+  rejected: boolean
+}
+
 /** Durable SQLite identity + optional live process fields (mel serve). */
 export interface InstanceTruth {
   instance_id?: string

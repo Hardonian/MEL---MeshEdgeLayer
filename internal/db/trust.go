@@ -563,53 +563,54 @@ func (d *DB) TimelineEvents(start, end string, limit int) ([]TimelineEvent, erro
 
 	// Union of relevant tables projected to a common shape, sorted by time.
 	// We use COALESCE and literal strings to keep this simple and safe.
+	// timeline_events carries details_json for drilldown (e.g. remote_evidence_import provenance).
 	sql := fmt.Sprintf(`
-SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id
+SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id, details_json
 FROM (
   SELECT created_at AS event_time, 'control_action' AS event_type, id AS event_id,
     action_type||': '||COALESCE(target_transport,'global')||' ('||COALESCE(lifecycle_state,'')||')' AS summary,
     '' AS severity, COALESCE(proposed_by,'system') AS actor_id,
-    COALESCE(target_transport,'') AS resource_id
+    COALESCE(target_transport,'') AS resource_id, '{}' AS details_json
   FROM control_actions
 
   UNION ALL
 
   SELECT occurred_at AS event_time, 'incident' AS event_type, id AS event_id,
-    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id
+    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id, '{}' AS details_json
   FROM incidents
 
   UNION ALL
 
   SELECT created_at AS event_time, 'freeze_created' AS event_type, id AS event_id,
     'freeze created: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
-    'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id
+    'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
   FROM control_freezes
 
   UNION ALL
 
   SELECT cleared_at AS event_time, 'freeze_cleared' AS event_type, id AS event_id,
     'freeze cleared: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
-    'info' AS severity, COALESCE(cleared_by,'system') AS actor_id, '' AS resource_id
+    'info' AS severity, COALESCE(cleared_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
   FROM control_freezes WHERE cleared_at IS NOT NULL AND cleared_at != ''
 
   UNION ALL
 
   SELECT created_at AS event_time, 'maintenance' AS event_type, id AS event_id,
     'maintenance window: '||COALESCE(title,'') AS summary, 'info' AS severity,
-    COALESCE(created_by,'system') AS actor_id, '' AS resource_id
+    COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
   FROM maintenance_windows
 
   UNION ALL
 
   SELECT created_at AS event_time, 'operator_note' AS event_type, id AS event_id,
     'note on '||ref_type||': '||SUBSTR(content,1,80) AS summary, 'info' AS severity,
-    actor_id, ref_id AS resource_id
+    actor_id, ref_id AS resource_id, '{}' AS details_json
   FROM operator_notes
 
   UNION ALL
 
   SELECT event_time, event_type, id AS event_id,
-    summary, severity, actor_id, resource_id
+    summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json
   FROM timeline_events
 ) AS tl
 %s
@@ -621,6 +622,13 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 	}
 	out := make([]TimelineEvent, 0, len(rows))
 	for _, row := range rows {
+		details := map[string]any{}
+		if dj := strings.TrimSpace(asString(row["details_json"])); dj != "" && dj != "{}" {
+			_ = json.Unmarshal([]byte(dj), &details)
+			if details == nil {
+				details = map[string]any{}
+			}
+		}
 		out = append(out, TimelineEvent{
 			EventTime:  asString(row["event_time"]),
 			EventType:  asString(row["event_type"]),
@@ -629,7 +637,7 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 			Severity:   asString(row["severity"]),
 			ActorID:    asString(row["actor_id"]),
 			ResourceID: asString(row["resource_id"]),
-			Details:    map[string]any{},
+			Details:    details,
 		})
 	}
 	return out, nil

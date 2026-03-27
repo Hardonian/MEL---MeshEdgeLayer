@@ -445,10 +445,11 @@ func (s *Server) timelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"events": events,
-		"count":  len(events),
-		"start":  start,
-		"end":    end,
+		"events":                events,
+		"count":                 len(events),
+		"start":                 start,
+		"end":                   end,
+		"ordering_posture_note": "Timeline order is instance-local (this database). remote_evidence_import rows include validation and provenance in details; no global total order.",
 	})
 }
 

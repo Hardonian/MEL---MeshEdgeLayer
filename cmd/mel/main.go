@@ -190,6 +190,9 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   serve [--debug] --config <path>
   status --config <path>
   fleet truth --config <path>
+  fleet evidence import --file <path.json> --config <path> [--strict-origin] [--actor id]
+  fleet evidence list --config <path> [--limit n]
+  fleet evidence show <import-id> --config <path>
   panel [--format text|json] --config <path>
   nodes --config <path>
   node inspect <node-id> --config <path>  (see also: node whatif)
@@ -610,17 +613,94 @@ func statusCmd(args []string) {
 }
 
 func fleetCmd(args []string) {
-	if len(args) == 0 || args[0] != "truth" {
-		panic("usage: mel fleet truth --config <path>")
+	if len(args) == 0 {
+		panic("usage: mel fleet truth|evidence ... --config <path>")
 	}
-	cfg, _ := loadCfg(args[1:])
-	d := openDB(cfg)
-	_ = fleet.SyncScopeMetadata(cfg, d)
-	summary, err := fleet.BuildTruthSummary(cfg, d)
-	if err != nil {
-		panic(err)
+	switch args[0] {
+	case "truth":
+		cfg, _ := loadCfg(args[1:])
+		d := openDB(cfg)
+		_ = fleet.SyncScopeMetadata(cfg, d)
+		summary, err := fleet.BuildTruthSummary(cfg, d)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(summary)
+	case "evidence":
+		fleetEvidenceCmd(args[1:])
+	default:
+		panic("usage: mel fleet truth|evidence import|list|show --config <path>")
 	}
-	mustPrint(summary)
+}
+
+func fleetEvidenceCmd(args []string) {
+	if len(args) == 0 {
+		panic("usage: mel fleet evidence import|list|show --config <path>")
+	}
+	switch args[0] {
+	case "import":
+		f := fs("fleet-evidence-import")
+		path := f.String("config", configFlagDefault(), "config")
+		file := f.String("file", "", "path to mel_remote_evidence_bundle JSON (required)")
+		strict := f.Bool("strict-origin", false, "reject when claimed_origin_instance_id mismatches evidence.origin_instance_id")
+		actor := f.String("actor", "cli-operator", "actor id for audit")
+		_ = f.Parse(args[1:])
+		if strings.TrimSpace(*file) == "" {
+			panic("--file is required")
+		}
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		raw, err := os.ReadFile(*file)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		out, err := app.ImportRemoteEvidenceBundle(raw, *strict, *actor)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(out)
+	case "list":
+		f := fs("fleet-evidence-list")
+		path := f.String("config", configFlagDefault(), "config")
+		limit := f.Int("limit", 50, "max rows")
+		_ = f.Parse(args[1:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		rows, err := app.ListImportedRemoteEvidence(*limit)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"imports": rows, "count": len(rows)})
+	case "show":
+		if len(args) < 2 {
+			panic("usage: mel fleet evidence show <import-id> --config <path>")
+		}
+		id := args[1]
+		f := fs("fleet-evidence-show")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args[2:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		app := openServiceApp(cfg)
+		rec, ok, err := app.GetImportedRemoteEvidence(id)
+		if err != nil {
+			panic(err)
+		}
+		if !ok {
+			panic("import not found: " + id)
+		}
+		mustPrint(rec)
+	default:
+		panic("usage: mel fleet evidence import|list|show --config <path>")
+	}
 }
 
 func panelCmd(args []string) {
