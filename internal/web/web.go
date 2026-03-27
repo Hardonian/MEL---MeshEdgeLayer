@@ -200,6 +200,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/fleet/truth", s.requireMethod(s.fleetTruthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/fleet/remote-evidence", s.requireMethod(s.fleetRemoteEvidenceHandler, http.MethodGet, http.MethodHead, http.MethodPost))
 	mux.HandleFunc("/api/v1/fleet/remote-evidence/", s.requireMethod(s.fleetRemoteEvidenceItemHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/fleet/imports", s.requireMethod(s.fleetImportBatchHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/fleet/imports/", s.requireMethod(s.fleetImportBatchItemHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/fleet/merge-explain", s.requireMethod(s.fleetMergeExplainHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/upgrade", s.requireMethod(s.upgradeHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/audit/verify", s.requireMethod(s.auditVerifyHandler, http.MethodGet, http.MethodHead))
@@ -264,6 +266,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/control/maintenance", s.requireMethod(s.maintenanceHandler, http.MethodGet, http.MethodPost))
 	mux.HandleFunc("/api/v1/control/maintenance/", s.requireMethod(security.Require(security.CapExecuteAction, s.maintenanceItemHandler), http.MethodDelete))
 	mux.HandleFunc("/api/v1/timeline", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, s.timelineHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/timeline/", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, s.timelineItemHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/operator/notes", s.requireMethod(s.operatorNotesHandler, http.MethodGet, http.MethodPost))
 
 	// Federation / distributed kernel endpoints

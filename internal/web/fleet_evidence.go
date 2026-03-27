@@ -39,6 +39,18 @@ func (s *Server) fleetRemoteEvidenceItemHandler(w http.ResponseWriter, r *http.R
 	})(w, r)
 }
 
+func (s *Server) fleetImportBatchHandler(w http.ResponseWriter, r *http.Request) {
+	security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, func(w http.ResponseWriter, r *http.Request) {
+		s.fleetImportBatchListHandler(w, r)
+	})(w, r)
+}
+
+func (s *Server) fleetImportBatchItemHandler(w http.ResponseWriter, r *http.Request) {
+	security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, func(w http.ResponseWriter, r *http.Request) {
+		s.fleetImportBatchGetHandler(w, r)
+	})(w, r)
+}
+
 func (s *Server) fleetRemoteEvidenceImportHandler(w http.ResponseWriter, r *http.Request) {
 	if s.importRemoteEvidence == nil {
 		writeError(w, http.StatusServiceUnavailable, "remote evidence import not wired", "")
@@ -81,7 +93,18 @@ func (s *Server) fleetRemoteEvidenceListHandler(w http.ResponseWriter, r *http.R
 	if limit > 500 {
 		limit = 500
 	}
-	rows, err := s.listImportedRemoteEvidence(limit)
+	batchID := strings.TrimSpace(r.URL.Query().Get("batch_id"))
+	var rows []db.ImportedRemoteEvidenceRecord
+	var err error
+	if batchID != "" {
+		if s.db == nil {
+			writeError(w, http.StatusServiceUnavailable, "database unavailable", "")
+			return
+		}
+		rows, err = s.db.ImportedRemoteEvidenceByBatch(batchID)
+	} else {
+		rows, err = s.listImportedRemoteEvidence(limit)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list imports", err.Error())
 		return
@@ -100,6 +123,7 @@ func (s *Server) fleetRemoteEvidenceListHandler(w http.ResponseWriter, r *http.R
 		"imports":          rows,
 		"summaries":        summaries,
 		"count":            len(rows),
+		"batch_id":         batchID,
 		"truth_posture":    truth,
 		"inspection_notes": []string{"Imported remote evidence remains distinct from local observations. Related evidence analysis is explanatory only; rows are not silently merged."},
 	})
@@ -143,6 +167,87 @@ func (s *Server) fleetRemoteEvidenceGetHandler(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{
 		"import":        rec,
 		"inspection":    inspection,
+		"truth_posture": truth,
+	})
+}
+
+func (s *Server) fleetImportBatchListHandler(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"batches": []any{}, "note": "database unavailable"})
+		return
+	}
+	limit := parseIntOr(r.URL.Query().Get("limit"), 50)
+	if limit > 500 {
+		limit = 500
+	}
+	rows, err := s.db.ListRemoteImportBatches(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list import batches", err.Error())
+		return
+	}
+	summaries, err := fleet.SummarizeRemoteImportBatches(rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not summarize import batches", err.Error())
+		return
+	}
+	truth, err := fleet.BuildTruthSummary(s.cfg, s.db)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not build fleet truth", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"batches":      rows,
+		"summaries":    summaries,
+		"count":        len(rows),
+		"truth_posture": truth,
+		"note":         "Import batches are offline audit containers. They preserve source payloads and validation posture, not live federation state.",
+	})
+}
+
+func (s *Server) fleetImportBatchGetHandler(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		writeError(w, http.StatusServiceUnavailable, "database unavailable", "")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/fleet/imports/")
+	id = strings.TrimSpace(id)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "batch id required", "")
+		return
+	}
+	batch, ok, err := s.db.GetRemoteImportBatch(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load import batch", err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "import batch not found", "")
+		return
+	}
+	batchItems, err := s.db.ImportedRemoteEvidenceByBatch(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load batch items", err.Error())
+		return
+	}
+	allItems, err := s.db.ListImportedRemoteEvidence(1000)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load related import items", err.Error())
+		return
+	}
+	truth, err := fleet.BuildTruthSummary(s.cfg, s.db)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not build fleet truth", err.Error())
+		return
+	}
+	inspection, err := fleet.InspectRemoteImportBatchRecord(truth, batch, batchItems, allItems)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not inspect import batch", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"batch":        batch,
+		"items":        batchItems,
+		"inspection":   inspection,
 		"truth_posture": truth,
 	})
 }

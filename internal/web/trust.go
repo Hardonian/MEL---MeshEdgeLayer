@@ -478,6 +478,32 @@ func (s *Server) timelineHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) timelineItemHandler(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		writeError(w, http.StatusServiceUnavailable, "timeline database unavailable", "")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/timeline/")
+	id = strings.TrimSpace(id)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "event id required", "")
+		return
+	}
+	event, ok, err := s.db.TimelineEventByID(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load timeline event", err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "timeline event not found", "")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"event":                event,
+		"ordering_posture_note": "Timeline detail remains instance-local or import-local only. Imported remote events preserve timing/provenance posture but do not imply global total order.",
+	})
+}
+
 // ─── Operator notes ───────────────────────────────────────────────────────────
 
 func (s *Server) operatorNotesHandler(w http.ResponseWriter, r *http.Request) {
