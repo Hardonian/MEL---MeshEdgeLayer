@@ -32,6 +32,8 @@ Interpret investigation output this way:
 - `finding` = what MEL observes.
 - `evidence gap` = what MEL still does not know.
 - `recommendation` = the next safe inspection step MEL can justify from the evidence.
+- `linked event` = a raw canonical event that contributed context to the case. It is related evidence, not automatic proof of cause.
+- `case evolution` = MEL's typed reconstruction of how the current case posture was shaped by retained evidence, gaps, validation outcomes, merges, and recommendations.
 
 ## Step 2: Timeline investigation
 
@@ -72,6 +74,9 @@ mel investigate cases --config <path>
 # Show one investigation case with linked findings, gaps, recommendations, and raw records
 mel investigate show <case-id> --config <path>
 
+# Show the case's temporal spine: linked raw events, timing posture, and evolution entries
+mel investigate timeline <case-id> --config <path>
+
 # List all incidents
 mel incident list --config <path>
 
@@ -88,10 +93,28 @@ mel incident handoff <id> --from operator-a --to operator-b --summary "..." --co
 GET /api/v1/investigations
 GET /api/v1/investigations/cases
 GET /api/v1/investigations/cases/<id>
+GET /api/v1/investigations/cases/<id>/timeline
 GET /api/v1/incidents
 GET /api/v1/incidents/<id>
 POST /api/v1/incidents/<id>/handoff
 ```
+
+### Reading case timing posture
+
+Case detail and case timeline output now surface a normalized timing posture:
+
+- `locally_ordered` = linked raw events were recorded locally in this MEL instance; sequence is exact only within this database.
+- `historical_import_not_live` = imported evidence is shaping the case as historical context; it is not live local proof.
+- `source_order_known_global_order_unknown` = some source-local ordering may be known, but the case spans more than one evidence domain and no global total order is implied.
+- `ordering_uncertain_clock_skew` / `ordering_uncertain_missing_timestamps` = sequence is still useful, but exact ordering remains bounded by missing or skewed timestamps.
+- `merged_best_effort_order` = merge/dedupe classification affected the visible order or grouping.
+- `mixed_freshness_window` = the case spans stale and fresher evidence windows; sequence is not the same as freshness certainty.
+
+Read `linked events` and `case evolution` together:
+
+- linked events are the exact raw timeline rows MEL could connect to the case,
+- case evolution explains how the current case posture was shaped,
+- neither section grants MEL permission to invent a clean incident narrative.
 
 ## Step 4: Control action audit
 
@@ -153,6 +176,7 @@ The support bundle includes:
 - `MANIFEST.md` — read this first; it explains every file
 - `bundle.json` — full monolith for machine ingestion
 - `timeline.json` — full event history
+- `investigation_cases.json` — case list plus expanded case detail, linked raw events, timing posture, and case evolution
 - `control_actions.json` — action audit trail
 - `incidents.json` — incident context
 - `imported_evidence.json` — remote evidence imports and validation

@@ -25,7 +25,7 @@ This document is for second-line support engineers, incident responders, and any
 |`remote_evidence_export.json`|Canonical offline re-export of imported evidence|Hand off the same imported evidence as a truthful offline batch|
 |`diagnostics.json`|Active diagnostic findings|Issues and recommended next steps|
 |`investigation.json`|Canonical investigation summary|Operator attention posture, cases, findings, evidence gaps, recommendations, and physics boundaries|
-|`investigation_cases.json`|Expanded investigation cases|Case list plus expanded case detail for second-line reconstruction|
+|`investigation_cases.json`|Expanded investigation cases|Case list plus expanded case detail, linked raw events, timing posture, and case evolution for second-line reconstruction|
 
 ## Reading investigation output
 
@@ -37,6 +37,18 @@ Use these meanings consistently:
 - `recommendation` = the next safe inspection step MEL can justify.
 
 Every case should reduce back to inspectable raw records such as transport runtime, alerts, incidents, timeline events, or imported evidence rows.
+
+Case detail now includes three distinct layers:
+
+- `case` — the current bounded operator posture.
+- `linked_events` — exact raw canonical timeline rows that contributed context to the case.
+- `evolution` — typed case-evolution entries explaining how the current posture was shaped. These entries may be exact-event-backed, exact-record-backed, or inferred from ordered retained evidence. They are not a hidden incident story log.
+
+When reading `linked_events` versus `evolution`, keep this boundary explicit:
+
+- a linked raw event is a retained fact,
+- an evolution entry is MEL's bounded reconstruction of how current case posture was shaped,
+- neither one automatically proves causality or root cause.
 
 ## Reading the timeline
 
@@ -56,6 +68,26 @@ The timeline is a UNION of disparate event types into a single chronological str
 |---|---|
 |`local_ordered`|Strict deterministic order within this instance|
 |`receive_time_differs_from_observed_time`|Observed and received timestamps differ; clock skew possible|
+
+## Reading case timing posture
+
+Case detail uses a normalized timing posture so second-line support can tell whether a case sequence is exact or best-effort without reading every raw event first.
+
+|Value|Meaning|
+|---|---|
+|`locally_ordered`|Linked raw events are local to this MEL instance; sequence is exact only within this database|
+|`historical_import_not_live`|Imported evidence is shaping the case as historical context, not live local proof|
+|`source_order_known_global_order_unknown`|The case spans more than one evidence domain; some source-local order may be known, but no global total order is implied|
+|`ordering_uncertain_clock_skew`|Reported timestamps may reflect skew or observed-vs-received drift|
+|`ordering_uncertain_missing_timestamps`|Some records lack the timestamps needed for a clean sequence|
+|`merged_best_effort_order`|Merge/dedupe classification affected the case chronology or grouping|
+|`mixed_freshness_window`|The case spans stale and fresher evidence windows; freshness and sequence should not be collapsed|
+
+When reviewing a case timeline:
+
+- start with `case.timing.primary_posture`,
+- inspect `linked_events` for the exact raw facts,
+- then read `evolution` to see how imports, merges, freshness gaps, and recommendations shaped the current case.
 
 ### `merge_disposition`
 

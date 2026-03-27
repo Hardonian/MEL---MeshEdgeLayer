@@ -325,6 +325,40 @@ For imported remote evidence events, inspect `details_json` for:
 
 ---
 
+### GET /api/v1/investigations/cases
+Returns bounded investigation cases. Each case now includes a normalized timing posture so operators can see whether case chronology is exact or best-effort before opening detail.
+
+---
+
+### GET /api/v1/investigations/cases/{id}
+Returns full investigation case detail:
+
+- current case posture,
+- linked findings, evidence gaps, and recommendations,
+- `linked_events` for exact raw canonical event linkage,
+- `evolution` entries explaining how the current case posture was shaped,
+- normalized case timing posture.
+
+Related events contribute context to the case. They do not automatically prove causality or root cause.
+
+---
+
+### GET /api/v1/investigations/cases/{id}/timeline
+Returns the case's temporal reconstruction only:
+
+- `timing`
+- `linked_events`
+- `evolution`
+
+Use this when the operator question is:
+
+- what changed for this case,
+- which raw events are exact versus case-level reconstruction,
+- which timing caveats bound the sequence,
+- how imports, validation, merge, or freshness posture shaped the current case.
+
+---
+
 ### GET /api/v1/status
 Full system status with persisted summary.
 
