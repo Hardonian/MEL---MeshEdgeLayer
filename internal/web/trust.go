@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/security"
 )
@@ -434,6 +435,8 @@ func (s *Server) timelineHandler(w http.ResponseWriter, r *http.Request) {
 	if limit > 500 {
 		limit = 500
 	}
+	eventType := strings.TrimSpace(q.Get("event_type"))
+	scopePosture := strings.TrimSpace(q.Get("scope_posture"))
 
 	if s.timeline == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"events": []any{}, "note": "trust hooks not wired"})
@@ -444,13 +447,35 @@ func (s *Server) timelineHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load timeline", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	// Post-query filters for event_type and scope_posture (parity with CLI --type/--scope).
+	// Post-query because the timeline is a UNION ALL across disparate tables.
+	if eventType != "" || scopePosture != "" {
+		filtered := make([]db.TimelineEvent, 0, len(events))
+		for _, ev := range events {
+			if eventType != "" && ev.EventType != eventType {
+				continue
+			}
+			if scopePosture != "" && ev.ScopePosture != scopePosture {
+				continue
+			}
+			filtered = append(filtered, ev)
+		}
+		events = filtered
+	}
+	result := map[string]any{
 		"events":                events,
 		"count":                 len(events),
 		"start":                 start,
 		"end":                   end,
 		"ordering_posture_note": "Timeline order is instance-local (this database). remote_evidence_import rows include validation and provenance in details; no global total order.",
-	})
+	}
+	if eventType != "" {
+		result["filter_event_type"] = eventType
+	}
+	if scopePosture != "" {
+		result["filter_scope_posture"] = scopePosture
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // ─── Operator notes ───────────────────────────────────────────────────────────

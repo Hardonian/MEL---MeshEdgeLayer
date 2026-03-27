@@ -1528,9 +1528,24 @@ func actionCmd(args []string) {
 
 func incidentCmd(args []string) {
 	if len(args) == 0 {
-		panic("usage: mel incident inspect <id>|handoff <id> --config <path> ...")
+		panic("usage: mel incident list|inspect <id>|handoff <id> --config <path> ...")
 	}
 	switch args[0] {
+	case "list":
+		f := fs("incident-list")
+		path := f.String("config", configFlagDefault(), "config")
+		limit := f.Int("limit", 25, "max incidents")
+		_ = f.Parse(args[1:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		incidents, err := d.RecentIncidents(*limit)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"incidents": incidents, "count": len(incidents)})
 	case "inspect":
 		if len(args) < 2 {
 			panic("usage: mel incident inspect <id> --config <path>")
@@ -1601,7 +1616,7 @@ func incidentCmd(args []string) {
 		}
 		mustPrint(map[string]any{"status": "handed_off", "incident_id": id, "to": *to, "from": *from})
 	default:
-		panic("usage: mel incident inspect <id>|handoff <id> --config <path> ...")
+		panic("usage: mel incident list|inspect <id>|handoff <id> --config <path> ...")
 	}
 }
 
@@ -1616,6 +1631,8 @@ func timelineCmd(args []string) {
 		start := f.String("start", "", "start time RFC3339")
 		end := f.String("end", "", "end time RFC3339")
 		limit := f.Int("limit", 100, "max events")
+		typeFilter := f.String("type", "", "filter by event_type (e.g. control_action, remote_evidence_import, incident)")
+		scopeFilter := f.String("scope", "", "filter by scope_posture (e.g. local, remote_imported, best_effort_fleet)")
 		_ = f.Parse(args[1:])
 		cfg, _, err := loadConfigFile(*path)
 		if err != nil {
@@ -1626,7 +1643,30 @@ func timelineCmd(args []string) {
 		if err != nil {
 			panic(err)
 		}
-		mustPrint(map[string]any{"events": events, "count": len(events), "start": *start, "end": *end})
+		// Apply local filters (type, scope) — these are post-query because the
+		// timeline is a UNION ALL across disparate event types and filtering at
+		// the SQL level would require per-branch WHERE clauses.
+		if *typeFilter != "" || *scopeFilter != "" {
+			filtered := make([]db.TimelineEvent, 0, len(events))
+			for _, ev := range events {
+				if *typeFilter != "" && ev.EventType != *typeFilter {
+					continue
+				}
+				if *scopeFilter != "" && ev.ScopePosture != *scopeFilter {
+					continue
+				}
+				filtered = append(filtered, ev)
+			}
+			events = filtered
+		}
+		result := map[string]any{"events": events, "count": len(events), "start": *start, "end": *end}
+		if *typeFilter != "" {
+			result["filter_type"] = *typeFilter
+		}
+		if *scopeFilter != "" {
+			result["filter_scope"] = *scopeFilter
+		}
+		mustPrint(result)
 	case "inspect":
 		if len(args) < 2 {
 			panic("usage: mel timeline inspect <event-id> --config <path>")
