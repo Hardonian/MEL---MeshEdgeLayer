@@ -98,7 +98,7 @@ func (s *Server) fleetRemoteEvidenceListHandler(w http.ResponseWriter, r *http.R
 	var err error
 	if batchID != "" {
 		if s.db == nil {
-			writeError(w, http.StatusServiceUnavailable, "database unavailable", "")
+			writeError(w, http.StatusServiceUnavailable, db.ErrDatabaseUnavailable, "")
 			return
 		}
 		rows, err = s.db.ImportedRemoteEvidenceByBatch(batchID)
@@ -173,7 +173,7 @@ func (s *Server) fleetRemoteEvidenceGetHandler(w http.ResponseWriter, r *http.Re
 
 func (s *Server) fleetImportBatchListHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"batches": []any{}, "note": "database unavailable"})
+		writeJSON(w, http.StatusOK, map[string]any{"batches": []any{}, "note": db.ErrDatabaseUnavailable})
 		return
 	}
 	limit := parseIntOr(r.URL.Query().Get("limit"), 50)
@@ -206,7 +206,7 @@ func (s *Server) fleetImportBatchListHandler(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) fleetImportBatchGetHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeError(w, http.StatusServiceUnavailable, "database unavailable", "")
+		writeError(w, http.StatusServiceUnavailable, db.ErrDatabaseUnavailable, "")
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/fleet/imports/")

@@ -35,10 +35,10 @@ func (d *DB) ControlActionQueueMetrics() (map[string]any, error) {
 	}
 	out := map[string]any{
 		"queued_lifecycle_pending_count":              0,
-		"awaiting_approval_count":                       0,
-		"approved_waiting_executor_count":               0,
-		"oldest_queued_pending_created_at":              "",
-		"oldest_approved_waiting_executor_created_at":   "",
+		"awaiting_approval_count":                     0,
+		"approved_waiting_executor_count":             0,
+		"oldest_queued_pending_created_at":            "",
+		"oldest_approved_waiting_executor_created_at": "",
 	}
 	type rowAgg struct {
 		key   string
@@ -80,7 +80,7 @@ func (d *DB) ExecutorPresence(now time.Time) (map[string]any, error) {
 	if d == nil {
 		return map[string]any{
 			"executor_activity": "unknown",
-			"note":                "database unavailable",
+			"note":              ErrDatabaseUnavailable,
 		}, nil
 	}
 	hb, err := d.GetControlPlaneState(ControlPlaneKeyExecutorHeartbeat)
@@ -103,11 +103,11 @@ func (d *DB) ExecutorPresence(now time.Time) (map[string]any, error) {
 		note = "no executor heartbeat recorded; run mel serve for continuous queue draining or use CLI one-shot processing"
 	}
 	return map[string]any{
-		"executor_activity":              activity,
-		"executor_last_heartbeat_at":     hb,
-		"executor_last_reported_kind":    kind,
-		"executor_heartbeat_basis":       "control_plane_state",
-		"executor_presence_note":         note,
+		"executor_activity":                activity,
+		"executor_last_heartbeat_at":       hb,
+		"executor_last_reported_kind":      kind,
+		"executor_heartbeat_basis":         "control_plane_state",
+		"executor_presence_note":           note,
 		"backlog_requires_active_executor": true,
 	}, nil
 }

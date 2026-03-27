@@ -83,7 +83,7 @@ func (s *Server) upgradeHealthHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) auditVerifyHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "error": db.ErrDatabaseUnavailable})
 		return
 	}
 	rep, err := s.db.VerifyAuditLogChain()

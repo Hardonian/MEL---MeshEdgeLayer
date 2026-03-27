@@ -16,6 +16,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/transport"
@@ -287,7 +288,11 @@ func TestPrivacyLeakRawHex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("unauthorized_no_raw_hex", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/messages", nil)
@@ -369,7 +374,11 @@ func TestControlAbusePrevention(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("history_endpoint_respects_limit", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/control/history?limit=%d", cfg.Control.MaxActionsPerWindow+10), nil)
@@ -488,7 +497,11 @@ func TestNodeIDRedaction(t *testing.T) {
 	}
 
 	logger := logging.New("info", false)
-	srv := New(cfg, logger, database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+	srv := New(cfg, logger, database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/nodes", nil)
 	rec := httptest.NewRecorder()
@@ -599,7 +612,11 @@ func TestDuplicateActionDetection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/control/status", nil)
 	rec := httptest.NewRecorder()
@@ -625,7 +642,11 @@ func TestAuthBruteForceProtection(t *testing.T) {
 	}
 
 	logger := logging.New("info", false)
-	srv := New(cfg, logger, database, meshstate.New(), events.New(), func() []transport.Health { return nil }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+	srv := New(cfg, logger, database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("invalid_credentials_rejected", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)

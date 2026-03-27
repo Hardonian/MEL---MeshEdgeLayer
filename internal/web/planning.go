@@ -62,7 +62,7 @@ func (s *Server) planningBundleHandler(w http.ResponseWriter, r *http.Request) {
 // planningPlansHandler GET/POST /api/v1/planning/plans
 func (s *Server) planningPlansHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	switch r.Method {
@@ -94,7 +94,7 @@ func (s *Server) planningPlansHandler(w http.ResponseWriter, r *http.Request) {
 // planningPlanItemHandler GET/PUT /api/v1/planning/plans/{id}
 func (s *Server) planningPlanItemHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/planning/plans/")
@@ -147,7 +147,7 @@ type inputVersionRequest struct {
 // planningInputsHandler GET/POST /api/v1/planning/inputs
 func (s *Server) planningInputsHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	switch r.Method {
@@ -184,7 +184,7 @@ func (s *Server) planningInputVersionHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	now := time.Now().UTC()
@@ -220,7 +220,7 @@ func (s *Server) planningInputVersionGetHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/planning/input-versions/")
@@ -265,7 +265,7 @@ func (s *Server) planningExecutionStartHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	now := time.Now().UTC()
@@ -300,7 +300,7 @@ func (s *Server) planningExecStepHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	var req stepMarkReq
@@ -324,7 +324,7 @@ func (s *Server) planningExecValidateHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	now := time.Now().UTC()
@@ -378,7 +378,7 @@ func (s *Server) planningPlanExecutionsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	planID := strings.TrimSpace(r.URL.Query().Get("plan_id"))
@@ -402,7 +402,7 @@ func (s *Server) planningExecutionValidationsHandler(w http.ResponseWriter, r *h
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	eid := strings.TrimSpace(r.URL.Query().Get("execution_id"))
@@ -426,7 +426,7 @@ func (s *Server) planningAdvisoryAlertsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	alerts, err := s.db.ListPlanningAdvisoryAlerts(true)
@@ -501,7 +501,7 @@ func (s *Server) planningOutcomeRecordHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	now := time.Now().UTC()
@@ -530,7 +530,7 @@ func (s *Server) planningRetrospectiveHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	key := strings.TrimSpace(r.URL.Query().Get("key"))

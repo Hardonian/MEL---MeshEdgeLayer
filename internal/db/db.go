@@ -29,6 +29,12 @@ const (
 	MaxIdentifierLen = 128
 )
 
+// ErrDatabaseUnavailable is the canonical error string returned when a handler
+// or service function discovers that the database is nil (not yet initialised
+// or explicitly disabled). All packages should use this constant instead of
+// inline "database unavailable" strings to prevent wording drift.
+const ErrDatabaseUnavailable = "database unavailable"
+
 type DB struct {
 	Path    string
 	auditMu sync.Mutex

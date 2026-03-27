@@ -15,6 +15,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/planning"
@@ -33,7 +34,10 @@ func setupPlanningServer(t *testing.T) (*Server, *db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := New(cfg, logging.New("info", false), d, meshstate.New(), events.New(), func() []transport.Health { return nil }, nil, nil, nil, nil, nil, nil)
+	srv := New(cfg, logging.New("info", false), d, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		nil, nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
 	srv.SetTopologyStore(topology.NewStore(d))
 	return srv, d
 }

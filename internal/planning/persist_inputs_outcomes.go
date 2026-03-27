@@ -13,7 +13,7 @@ import (
 
 func SaveInputSet(d *db.DB, id, title string) (string, error) {
 	if d == nil {
-		return "", fmt.Errorf("database unavailable")
+		return "", fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	if strings.TrimSpace(id) == "" {
 		id = "pis-" + randomID()
@@ -49,7 +49,7 @@ func nextInputVersionNum(d *db.DB, inputSetID string) (int, error) {
 // SaveInputVersion creates a new version row; returns version_id.
 func SaveInputVersion(d *db.DB, inputSetID string, payload PlanningInputVersionPayload) (string, error) {
 	if d == nil {
-		return "", fmt.Errorf("database unavailable")
+		return "", fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	inputSetID = strings.TrimSpace(inputSetID)
 	if inputSetID == "" {
@@ -79,7 +79,7 @@ func SaveInputVersion(d *db.DB, inputSetID string, payload PlanningInputVersionP
 
 func GetInputVersion(d *db.DB, versionID string) (PlanningInputVersionPayload, bool, error) {
 	if d == nil {
-		return PlanningInputVersionPayload{}, false, fmt.Errorf("database unavailable")
+		return PlanningInputVersionPayload{}, false, fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	versionID = strings.TrimSpace(versionID)
 	if versionID == "" {
@@ -144,7 +144,7 @@ func nowRFC3339() string {
 
 func StartPlanExecution(d *db.DB, planID, graphHash, assessmentID string, baseline PostChangeMetricsSnapshot, observeHours int, notes string) (string, error) {
 	if d == nil {
-		return "", fmt.Errorf("database unavailable")
+		return "", fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	planID = strings.TrimSpace(planID)
 	if planID == "" {
@@ -167,7 +167,7 @@ func StartPlanExecution(d *db.DB, planID, graphHash, assessmentID string, baseli
 
 func MarkStepExecuted(d *db.DB, executionID, stepID, note string) (string, error) {
 	if d == nil {
-		return "", fmt.Errorf("database unavailable")
+		return "", fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	sid := "pst-" + randomID()
 	now := nowRFC3339()
@@ -184,7 +184,7 @@ func MarkStepExecuted(d *db.DB, executionID, stepID, note string) (string, error
 
 func SaveValidation(d *db.DB, executionID string, vr ValidationResult) (string, error) {
 	if d == nil {
-		return "", fmt.Errorf("database unavailable")
+		return "", fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	vr.ValidationID = "val-" + randomID()
 	vr.ValidatedAt = nowRFC3339()
@@ -227,7 +227,7 @@ func ListValidationsForExecution(d *db.DB, executionID string) ([]ValidationResu
 
 func GetPlanExecution(d *db.DB, executionID string) (PlanExecutionRecord, bool, error) {
 	if d == nil {
-		return PlanExecutionRecord{}, false, fmt.Errorf("database unavailable")
+		return PlanExecutionRecord{}, false, fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	rows, err := d.QueryRows(fmt.Sprintf(
 		`SELECT execution_id, plan_id, plan_graph_hash, mesh_assessment_id, COALESCE(baseline_metrics_json,'{}') AS baseline_metrics_json, status, started_at, updated_at, observation_horizon_hours, notes FROM plan_executions WHERE execution_id='%s' LIMIT 1;`,
@@ -249,7 +249,7 @@ func GetPlanExecution(d *db.DB, executionID string) (PlanExecutionRecord, bool, 
 		BaselineMetrics:         base,
 		Status:                  fmt.Sprint(row["status"]),
 		StartedAt:               fmt.Sprint(row["started_at"]),
-		UpdatedAt:                 fmt.Sprint(row["updated_at"]),
+		UpdatedAt:               fmt.Sprint(row["updated_at"]),
 		ObservationHorizonHours: int(asInt64(row["observation_horizon_hours"])),
 		Notes:                   fmt.Sprint(row["notes"]),
 	}, true, nil
@@ -280,7 +280,7 @@ func ListPlanExecutions(d *db.DB, planID string, limit int) ([]PlanExecutionReco
 			BaselineMetrics:         base,
 			Status:                  fmt.Sprint(row["status"]),
 			StartedAt:               fmt.Sprint(row["started_at"]),
-			UpdatedAt:                 fmt.Sprint(row["updated_at"]),
+			UpdatedAt:               fmt.Sprint(row["updated_at"]),
 			ObservationHorizonHours: int(asInt64(row["observation_horizon_hours"])),
 			Notes:                   fmt.Sprint(row["notes"]),
 		})
@@ -291,7 +291,7 @@ func ListPlanExecutions(d *db.DB, planID string, limit int) ([]PlanExecutionReco
 // RecordRecommendationOutcome stores a compact outcome row for retrospectives.
 func RecordRecommendationOutcome(d *db.DB, key, graphHash, assessmentID string, verdict OutcomeVerdict, payload any) error {
 	if d == nil {
-		return fmt.Errorf("database unavailable")
+		return fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {

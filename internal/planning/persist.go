@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	defaultPlanRetention  = 200
+	defaultPlanRetention     = 200
 	defaultArtifactRetention = 300
 )
 
 // SavePlan upserts a deployment plan. If PlanID is empty, one is generated and written back into p.
 func SavePlan(d *db.DB, p *DeploymentPlan) error {
 	if d == nil {
-		return fmt.Errorf("database unavailable")
+		return fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	if strings.TrimSpace(p.PlanID) == "" {
 		p.PlanID = "plan-" + randomID()
@@ -74,7 +74,7 @@ func ListPlans(d *db.DB, limit int) ([]DeploymentPlan, error) {
 // GetPlan loads one plan by id.
 func GetPlan(d *db.DB, planID string) (DeploymentPlan, bool, error) {
 	if d == nil {
-		return DeploymentPlan{}, false, fmt.Errorf("database unavailable")
+		return DeploymentPlan{}, false, fmt.Errorf("%s", db.ErrDatabaseUnavailable)
 	}
 	planID = strings.TrimSpace(planID)
 	if planID == "" {

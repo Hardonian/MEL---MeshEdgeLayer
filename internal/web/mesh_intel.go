@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/meshintel"
 )
 
@@ -36,7 +37,7 @@ func (s *Server) meshIntelligenceHandler(w http.ResponseWriter, r *http.Request)
 // meshIntelligenceHistoryHandler GET /api/v1/mesh/intelligence/history
 func (s *Server) meshIntelligenceHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "database unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": db.ErrDatabaseUnavailable})
 		return
 	}
 	limit := intParam(r, "limit", 20)

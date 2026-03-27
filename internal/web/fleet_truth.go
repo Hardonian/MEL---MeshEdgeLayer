@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/logging"
 )
@@ -11,7 +12,7 @@ import (
 func (s *Server) fleetTruthHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
 		writeJSON(w, http.StatusServiceUnavailable, logging.APIErrorResponse(
-			logging.NewSafeError("database unavailable", nil, "database", false),
+			logging.NewSafeError(db.ErrDatabaseUnavailable, nil, "database", false),
 		))
 		return
 	}
