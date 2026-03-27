@@ -40,11 +40,13 @@ Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it on
 MEL is designed to be operational before your next packet arrives.
 
 ### 1. Build & Install
+
 ```bash
 go build -o mel ./cmd/mel
 ```
 
 ### 2. Initialize & Validate
+
 ```bash
 # Generate a fresh operator config
 ./mel init --config configs/mel.json
@@ -54,6 +56,7 @@ go build -o mel ./cmd/mel
 ```
 
 ### 3. Launch the Control Plane
+
 ```bash
 # Start the ingest engine and web dashboard
 ./mel serve --config configs/mel.json

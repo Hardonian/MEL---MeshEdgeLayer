@@ -28,6 +28,7 @@ Review the [Known Limitations](docs/ops/limitations.md) for more details.
 ## 🛠️ Local Development & Build
 
 ### 1. Build and Verify
+
 MEL uses a straightforward `Makefile` to maintain consistency:
 
 ```bash
@@ -45,7 +46,9 @@ make test
 ```
 
 ### 2. Frontend Development
+
 The control plane dashboard lives in `frontend/`.
+
 ```bash
 cd frontend
 npm install
@@ -55,6 +58,7 @@ npm test         # Run vitest suite
 ```
 
 ### 3. Verification Standards
+
 Every Pull Request must:
 - Pass `make lint`.
 - Pass `make test`.
@@ -75,6 +79,7 @@ Every Pull Request must:
 ## ⚓ Pull Request Checklist
 
 When submitting a PR, include:
+
 - **Design Intent**: Why is this change necessary?
 - **Operator Impact**: What does a user see or experience differently?
 - **Verification Evidence**: Logs, test results, or manual proof.

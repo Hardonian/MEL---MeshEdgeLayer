@@ -16,6 +16,7 @@ Regardless of your platform, ensure the following are available:
 ## 1. Install MEL
 
 ### Option A: From Source (Recommended for Dev/Testing)
+
 ```bash
 git clone https://github.com/mel-project/mel.git
 cd mel
@@ -24,7 +25,9 @@ sudo install -m 755 bin/mel /usr/local/bin/mel
 ```
 
 ### Option B: From Binary
+
 Download the latest release for your architecture from the [Releases](https://github.com/mel-project/mel/releases) page.
+
 ```bash
 tar -xzf mel-linux-amd64-v*.tar.gz
 sudo install -m 755 mel /usr/local/bin/mel
@@ -51,16 +54,21 @@ sudo chmod 750 /var/lib/mel
 ## 3. Platform-Specific Guides
 
 ### Raspberry Pi
+
 Raspberry Pi is a first-class target for MEL.
+
 1. Follow the **Linux** steps above.
 2. Use `/dev/serial/by-id/...` for serial devices to ensure persistence across reboots.
 3. Add the `mel` user to the `dialout` group: `sudo usermod -aG dialout mel`.
 
 ### Termux (Android)
+
 Termux support is intended for foreground/manual operation only.
+
 1. Install dependencies: `pkg install golang sqlite`
 2. Build from source.
 3. Run using `./scripts/termux-run.sh`.
+
 *Note: MEL does not guarantee background persistence on Android.*
 
 ---

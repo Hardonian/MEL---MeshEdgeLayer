@@ -7,7 +7,7 @@ This document outlines known issues, intentional design limitations, and operati
 ## By Design (Not Bugs)
 
 | Limitation | Description | Rationale |
-|------------|-------------|-----------|
+| :--- | :--- | :--- |
 | **No Radio Transmission or Administration** | MEL does not transmit mesh packets or administer radio parameters. It observes and records telemetry only. | Scope boundary: MEL is a monitoring and control plane, not a mesh stack. |
 | **BLE Transport Explicitly Unsupported** | Bluetooth Low Energy is not implemented as a transport option. | Architectural decision: BLE mesh implementations vary significantly; support would require per-vendor integration. |
 | **HTTP Transport Ingest Not Present** | MEL cannot receive telemetry via HTTP POST/PUT. | Design choice: MQTT and direct serial/TCP are the only supported ingest paths. |
@@ -62,6 +62,7 @@ This document outlines known issues, intentional design limitations, and operati
 ## Reporting New Issues
 
 If you encounter behavior not documented here that appears to be a defect:
+
 1. Search existing issues in the repository.
 2. Document reproduction steps with hardware/firmware versions.
 3. Include logs and configuration (sanitized).
