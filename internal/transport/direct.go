@@ -283,17 +283,17 @@ func (d *Direct) Subscribe(ctx context.Context, handler PacketHandler) error {
 }
 
 func (d *Direct) SendPacket(context.Context, []byte) error {
-	err := errors.New("direct-node send is disabled in this milestone")
+	err := errors.New("direct-node send is not supported")
 	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonRejectedSend, nil, true, err.Error(), map[string]any{"source": d.cfg.SourceLabel()}))
 	return err
 }
 func (d *Direct) FetchMetadata(context.Context) (map[string]any, error) {
-	err := errors.New("metadata fetch is not implemented for direct-node transport")
+	err := errors.New("metadata fetch not supported for direct-node transport")
 	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_metadata", "source": d.cfg.SourceLabel()}))
 	return nil, err
 }
 func (d *Direct) FetchNodes(context.Context) ([]map[string]any, error) {
-	err := errors.New("node fetch is not implemented for direct-node transport")
+	err := errors.New("node fetch not supported for direct-node transport")
 	d.publishObservation(NewObservation(d.cfg.Name, d.cfg.Type, "", ReasonUnsupportedControlPath, nil, false, err.Error(), map[string]any{"operation": "fetch_nodes", "source": d.cfg.SourceLabel()}))
 	return nil, err
 }

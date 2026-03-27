@@ -268,7 +268,7 @@ export function Dashboard() {
             ) : (
               <div className="space-y-2">
                 {nodes.data?.slice(0, 5).map((node) => (
-                  <NodeListItem key={node.id} node={node} />
+                  <NodeListItem key={node.node_id} node={node} />
                 ))}
               </div>
             )}
@@ -397,7 +397,7 @@ function NodeListItem({ node }: { node: { id: string; long_name?: string; short_
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{node.long_name || 'Unknown Node'}</p>
-          <p className="truncate text-xs font-mono text-muted-foreground">{node.id}</p>
+           <p className="truncate text-xs font-mono text-muted-foreground">{node.node_id}</p>
         </div>
       </div>
       <div className="ml-3 text-xs text-muted-foreground shrink-0">

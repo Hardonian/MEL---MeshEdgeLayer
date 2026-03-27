@@ -42,7 +42,7 @@ mel init [--config <path>] [--force]
 {
   "status": "initialized",
   "config": "configs/mel.generated.json",
-  "bind": ":8080",
+  "bind": "127.0.0.1:8080",
   "database": "data/mel.db"
 }
 ```

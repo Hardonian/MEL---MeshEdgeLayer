@@ -81,7 +81,7 @@ mel config validate --config /etc/mel/config.json
 # Common issues and fixes:
 # - Missing data_dir: mkdir -p /var/lib/mel/data
 # - Invalid JSON: Use jq to validate: jq . /etc/mel/config.json
-# - Missing bind address: Add "bind": ":8080" to config
+# - Missing bind address: Add "bind": {"api": "127.0.0.1:8080"} to config
 ```
 
 ### Invalid Transport Types

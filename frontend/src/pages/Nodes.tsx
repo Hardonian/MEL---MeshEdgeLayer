@@ -30,11 +30,11 @@ export function Nodes() {
               data={[]}
               columns={[
                 { key: 'name', header: 'Node' },
-                { key: 'id', header: 'ID' },
+                { key: 'node_id', header: 'ID' },
                 { key: 'last_seen', header: 'Last Seen' },
-                { key: 'gateway_id', header: 'Gateway' },
+                { key: 'last_gateway_id', header: 'Gateway' },
               ]}
-              keyField="id"
+              keyField="node_id"
               isLoading={true}
             />
           </CardContent>
@@ -104,7 +104,7 @@ export function Nodes() {
         />
         <StatCard
           title="Known Gateways"
-          value={new Set(nodes.filter(n => n.gateway_id).map(n => n.gateway_id)).size}
+           value={new Set(nodes.filter(n => n.last_gateway_id).map(n => n.last_gateway_id)).size}
           description="Unique gateway nodes"
           icon={<MapPin className="h-5 w-5" />}
           variant="info"
@@ -151,7 +151,7 @@ export function Nodes() {
                   header: 'ID',
                   render: (node) => (
                     <code className="rounded bg-muted px-2 py-1 text-xs font-mono">
-                      {node.id}
+                      {node.node_id}
                     </code>
                   ),
                 },
@@ -170,10 +170,10 @@ export function Nodes() {
                   header: 'Gateway',
                   render: (node) => (
                     <div className="flex items-center gap-2">
-                      {node.gateway_id ? (
+                      {node.last_gateway_id ? (
                         <>
                           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                          <code className="font-mono text-xs">{node.gateway_id}</code>
+                          <code className="font-mono text-xs">{node.last_gateway_id}</code>
                         </>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -195,7 +195,7 @@ export function Nodes() {
                   ),
                 },
               ]}
-              keyField="id"
+              keyField="node_id"
               emptyMessage="No nodes observed"
               emptyDescription="Nodes will appear here once mesh traffic is observed."
             />

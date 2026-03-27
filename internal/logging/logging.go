@@ -439,6 +439,8 @@ func minInt(a, b int) int {
 	return b
 }
 
+// WithCorrelationID adds a correlation ID string to a context.
+// Prefer selfobs.ContextWithCorrelationID for new code; this function has no in-tree callers.
 func WithCorrelationID(ctx context.Context, cid string) context.Context {
 	if cid == "" {
 		cid = generateCorrelationID()

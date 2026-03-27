@@ -62,7 +62,7 @@ Key fields to verify:
 |-------|---------|---------|
 | `node.id` | Unique identifier for this node | Auto-generated |
 | `storage.data_dir` | Where packets and state live | `./mel-data/` |
-| `api.bind_addr` | Health and control interface | `:8080` |
+| `bind.api` | Health and control interface | `127.0.0.1:8080` |
 | `logging.level` | Verbosity of logs | `info` |
 
 ### Set proper permissions
@@ -296,7 +296,7 @@ mel serve --config /etc/mel/mel.json
 # Find the process
 lsof -i :8080
 # Or change port in config
-# Edit mel.json: "bind_addr": ":8081"
+# Edit mel.json: "bind": {"api": "127.0.0.1:8081"}
 ```
 
 **`Storage directory not writable: ./mel-data/`**

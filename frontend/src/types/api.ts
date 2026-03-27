@@ -6,7 +6,7 @@ export interface VersionResponse {
   git_commit?: string
   build_time?: string
   go_version?: string
-  db_schema_version?: string
+  db_schema_version?: number
   db_actual_version?: string
   db_migration_numeric?: number
   schema_matches_binary?: boolean
@@ -105,12 +105,12 @@ export interface StatusResponse {
 }
 
 export interface NodeInfo {
-  num: number
-  id: string
+  node_num: number
+  node_id: string
   long_name: string
   short_name: string
   last_seen: string
-  gateway_id: string
+  last_gateway_id: string
   // Additional fields from mesh endpoint
   user?: {
     id: string
@@ -391,10 +391,9 @@ export interface FreshnessMarker {
   component: string
   last_update: string
   age_seconds: number
-  is_fresh: boolean
-  is_stale: boolean
-  expected_interval: number
-  stale_threshold: number
+  status: string
+  expected_interval_seconds: number
+  stale_threshold_seconds: number
 }
 
 export interface FreshnessResponse {
