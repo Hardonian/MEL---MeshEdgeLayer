@@ -54,7 +54,7 @@ Control settings are nested under the `control` key in MEL configuration:
     "cooldown_per_target_seconds": 300,
     "require_min_confidence": 0.75,
     "allow_mesh_level_actions": false,
-    "allow_transport_restart": true,
+    "allow_transport_restart": false,
     "allow_source_suppression": false,
     "action_window_seconds": 900,
     "restart_cap_per_window": 2
@@ -73,7 +73,7 @@ Control settings are nested under the `control` key in MEL configuration:
 | `cooldown_per_target_seconds` | int | `300` | Minimum seconds between actions on the same target |
 | `require_min_confidence` | float | `0.75` | Minimum confidence threshold (0.5-1.0) |
 | `allow_mesh_level_actions` | bool | `false` | Allow actions affecting mesh routing |
-| `allow_transport_restart` | bool | `true` | Allow transport restart actions |
+| `allow_transport_restart` | bool | `false` | Allow transport restart actions |
 | `allow_source_suppression` | bool | `false` | Allow source suppression actions |
 | `action_window_seconds` | int | `900` | Duration of action budget window |
 | `restart_cap_per_window` | int | `2` | Maximum transport restarts per window |

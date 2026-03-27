@@ -186,7 +186,7 @@ func (s *Server) snapshotListHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // snapshotCreateHandler handles POST /api/v1/kernel/snapshots
-func (s *Server) snapshotCreateHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) snapshotCreateHandler(w http.ResponseWriter, _ *http.Request) {
 	if s.federationHandlers == nil || s.federationHandlers.SnapshotCreate == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "kernel not available"})
 		return

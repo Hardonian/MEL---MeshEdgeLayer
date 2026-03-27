@@ -104,7 +104,7 @@ const (
 	DenialFreeze           = "freeze"
 	DenialMaintenance      = "maintenance_window"
 	DenialApprovalRequired = "approval_required"
-	DenialApprovalExpired  = "approval_expired"
+	DenialApprovalExpired  = ResultApprovalExpired // canonical: same string
 	DenialManualOnly       = "manual_only"
 	DenialDryRun           = "dry_run"
 
@@ -117,7 +117,7 @@ const (
 
 	// ─── Additional closure states ────────────────────────────────────────────
 	ClosureRejectedByOperator   = "rejected_by_operator"
-	ClosureApprovalExpired      = "approval_expired"
+	ClosureApprovalExpired      = ResultApprovalExpired // canonical: same string
 	ClosureBlockedByFreeze      = "blocked_by_freeze"
 	ClosureBlockedByMaintenance = "blocked_by_maintenance"
 	ClosureDryRun               = "dry_run_completed"
@@ -173,14 +173,14 @@ type ControlAction struct {
 	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
 
 	// Persisted policy / execution provenance (service ↔ DB)
-	ApprovalMode                     string   `json:"approval_mode,omitempty"`
-	RequiredApprovals                int      `json:"required_approvals,omitempty"`
-	CollectedApprovals               int      `json:"collected_approvals,omitempty"`
-	ApprovalBasis                    []string `json:"approval_basis,omitempty"`
-	ApprovalPolicySource             string   `json:"approval_policy_source,omitempty"`
-	HighBlastRadius                  bool     `json:"high_blast_radius,omitempty"`
-	ApprovalEscalatedDueToBlastRadius bool    `json:"approval_escalated_due_to_blast_radius,omitempty"`
-	ExecutionSource                  string   `json:"execution_source,omitempty"`
+	ApprovalMode                      string   `json:"approval_mode,omitempty"`
+	RequiredApprovals                 int      `json:"required_approvals,omitempty"`
+	CollectedApprovals                int      `json:"collected_approvals,omitempty"`
+	ApprovalBasis                     []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource              string   `json:"approval_policy_source,omitempty"`
+	HighBlastRadius                   bool     `json:"high_blast_radius,omitempty"`
+	ApprovalEscalatedDueToBlastRadius bool     `json:"approval_escalated_due_to_blast_radius,omitempty"`
+	ExecutionSource                   string   `json:"execution_source,omitempty"`
 }
 
 type ControlPolicy struct {
@@ -1104,6 +1104,7 @@ func asFloatValue(v any) float64 {
 	}
 }
 
+// MarshalJSONMap marshals v to a JSON string. Exported for cross-package use.
 func MarshalJSONMap(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)

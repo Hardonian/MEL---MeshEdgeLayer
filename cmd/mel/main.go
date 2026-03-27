@@ -2189,5 +2189,5 @@ func uiCmd(args []string) {
 func guiCmd(_ []string) {
 	fmt.Println("Minimal Local GUI mode is not yet implemented in this release candidate.")
 	fmt.Println("To help justify its existence, provide a field use-case not satisfied by the TUI.")
-	os.Exit(0)
+	os.Exit(1)
 }

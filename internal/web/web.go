@@ -21,6 +21,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/events"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshintel"
 	"github.com/mel-project/mel/internal/meshstate"
@@ -33,26 +34,25 @@ import (
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/support"
 	"github.com/mel-project/mel/internal/transport"
-	"github.com/mel-project/mel/internal/investigation"
 )
 
 type Server struct {
-	cfg              config.Config
-	configPath       string
-	log              *logging.Logger
-	db               *db.DB
-	state            *meshstate.State
-	bus              *events.Bus
-	http             *http.Server
-	transportHealth  func() []transport.Health
-	recommendations  func() []policy.Recommendation
-	statusSnapshot   func() (statuspkg.Snapshot, error)
-	controlStatus    func() (map[string]any, error)
-	controlHistory   func(string, string, string, string, int, int) (map[string]any, error)
-	diagnosticsRun   func(config.Config, *db.DB) []diagnostics.Finding
-	operatorBriefing func() models.OperatorBriefingDTO
+	cfg                  config.Config
+	configPath           string
+	log                  *logging.Logger
+	db                   *db.DB
+	state                *meshstate.State
+	bus                  *events.Bus
+	http                 *http.Server
+	transportHealth      func() []transport.Health
+	recommendations      func() []policy.Recommendation
+	statusSnapshot       func() (statuspkg.Snapshot, error)
+	controlStatus        func() (map[string]any, error)
+	controlHistory       func(string, string, string, string, int, int) (map[string]any, error)
+	diagnosticsRun       func(config.Config, *db.DB) []diagnostics.Finding
+	operatorBriefing     func() models.OperatorBriefingDTO
 	investigationSummary func() investigation.Summary
-	queueDepths      func() map[string]int
+	queueDepths          func() map[string]int
 	// processStartedAt is set by SetProcessStartedAt when running under mel serve; zero means status was assembled outside a long-lived server (e.g. CLI-only).
 	processStartedAt time.Time
 
@@ -418,7 +418,7 @@ func (s *Server) writeReadinessResponse(w http.ResponseWriter, r *http.Request) 
 			"process_ready": true,
 			"ingest_ready":  false,
 			"error_class":   "snapshot_unavailable",
-			"message":       "Readiness evidence could not be assembled; the HTTP process is up but subsystem status is unavailable.",
+			"message":       "Run `mel doctor --config <path>` to diagnose why subsystem status is unavailable.",
 			"operator_next_steps": []string{
 				"Inspect logs for database or migration errors.",
 				"Verify storage.database_path and permissions.",
@@ -1742,10 +1742,6 @@ func totalDeadLetters(transports []statuspkg.TransportReport) uint64 {
 func escape(v string) string { return db.EscString(v) }
 
 func isSafeIdentifier(v string) bool { return db.IsSafeIdentifier(v) }
-
-func containsPathTraversal(v string) bool {
-	return strings.Contains(v, "..") || strings.Contains(v, "%2e%2e") || strings.Contains(v, "%2E%2E")
-}
 
 func remoteClient(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

@@ -228,12 +228,7 @@ func (a *App) captureEvidenceBundle(action control.ControlAction, transportHealt
 
 // ─── Approval workflow ────────────────────────────────────────────────────────
 
-func requiresSeparateApproverForRecord(rec db.ControlActionRecord) bool {
-	if rec.RequiresSeparateApprover {
-		return true
-	}
-	return rec.ExecutionMode == control.ExecutionModeApprovalRequired
-}
+
 
 // ApproveAction approves a pending_approval action and queues it for execution.
 // actorID is the operator performing the approval.

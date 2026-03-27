@@ -9,6 +9,8 @@ import (
 	"io"
 )
 
+// EncryptString encrypts plaintext using AES-256-GCM and returns base64-encoded ciphertext.
+// The key must be exactly 32 bytes.
 func EncryptString(key []byte, plaintext string) (string, error) {
 	if len(key) != 32 {
 		return "", errors.New("storage key must be 32 bytes")

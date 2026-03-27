@@ -371,13 +371,7 @@ func importStatusFromValidation(validation fleet.RemoteEvidenceBatchValidation, 
 	return "imported"
 }
 
-func reasonCodes(codes []fleet.ValidationReasonCode) []string {
-	out := make([]string, 0, len(codes))
-	for _, c := range codes {
-		out = append(out, string(c))
-	}
-	return out
-}
+
 
 func ternary[T any](cond bool, a, b T) T {
 	if cond {

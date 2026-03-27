@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -1048,7 +1047,7 @@ func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) 
 	return messageType, payloadJSON, telemetryType, telemetryValue
 }
 
-var errDuplicateMessage = errors.New("duplicate message ignored")
+
 
 func enabledTransportConfigs(cfg config.Config) []config.TransportConfig {
 	out := make([]config.TransportConfig, 0, len(cfg.Transports))

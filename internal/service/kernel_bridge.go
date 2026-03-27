@@ -424,7 +424,7 @@ func (kb *kernelBridge) translateBusEvent(a *App, busType string, data any) {
 }
 
 // regionHealthWorker periodically recomputes region health from kernel state.
-func (kb *kernelBridge) regionHealthWorker(ctx context.Context, a *App) {
+func (kb *kernelBridge) regionHealthWorker(ctx context.Context, _ *App) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -503,7 +503,7 @@ func (kb *kernelBridge) telemetryWorker(ctx context.Context, a *App) {
 }
 
 // latencyProber measures cross-region latency by timing heartbeat round-trips.
-func (kb *kernelBridge) latencyProber(ctx context.Context, a *App) {
+func (kb *kernelBridge) latencyProber(ctx context.Context, _ *App) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {

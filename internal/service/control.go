@@ -55,23 +55,7 @@ func (s *transportControlState) clearBackoff() {
 	s.backoffUntil = time.Time{}
 }
 
-func (s *transportControlState) markDeprioritized(until time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.deprioritizedUntil = until
-}
 
-func (s *transportControlState) markSuppressed(until time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.suppressedUntil = until
-}
-
-func (s *transportControlState) clearSuppression() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.suppressedUntil = time.Time{}
-}
 
 func (s *transportControlState) interrupt() {
 	select {

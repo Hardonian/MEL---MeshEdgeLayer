@@ -196,7 +196,7 @@ mel backup restore --bundle mel-backup.zip --dry-run
 
 ### Current Schema Version
 
-Current schema version: **15**
+Current schema version: **28**
 
 ### Checking Schema Version
 
@@ -238,7 +238,7 @@ curl http://localhost:8080/api/v1/version
   "git_commit": "abc1234",
   "build_time": "2026-03-21T00:00:00Z",
   "go_version": "go1.21",
-  "db_schema_version": 15,
+  "db_schema_version": 28,
   "compatibility_level": "stable"
 }
 ```

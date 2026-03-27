@@ -620,6 +620,7 @@ func IsTerminal(err error) bool {
 	return !IsTransient(err)
 }
 
+// WrapError wraps an error with a public message, category, and transient flag.
 func WrapError(err error, public string, category string, transient bool) error {
 	if err == nil {
 		return nil
@@ -627,6 +628,7 @@ func WrapError(err error, public string, category string, transient bool) error 
 	return NewSafeError(public, err, category, transient)
 }
 
+// SanitizeForDebug redacts sensitive keys from a field map for safe debug logging.
 func SanitizeForDebug(fields map[string]any) map[string]any {
 	if fields == nil {
 		return map[string]any{}

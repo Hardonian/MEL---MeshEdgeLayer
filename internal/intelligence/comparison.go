@@ -34,7 +34,6 @@ func CompareStatusAgainstSnapshot(currentTime time.Time, lastHealthyTime time.Ti
 	}
 
 	if len(regressions) > 0 {
-		// summary = "System regressed since " + lastHealthyTime.Format(time.Kitchen)
 	}
 
 	return StateComparison{
