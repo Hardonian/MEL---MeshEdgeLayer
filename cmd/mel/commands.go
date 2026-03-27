@@ -420,19 +420,68 @@ func traceCmd(args []string) {
 	mustPrint(out)
 }
 func investigateCmd(args []string) {
-	f := fs("investigate")
-	path := f.String("config", configFlagDefault(), "config")
-	_ = f.Parse(args)
-	cfg, _, err := loadConfigFile(*path)
+	mode := "summary"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		mode = args[0]
+		args = args[1:]
+	}
+
+	switch mode {
+	case "summary", "list":
+		f := fs("investigate")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args)
+		summary := deriveInvestigationSummary(*path)
+		if cliGlobal.JSON {
+			mustPrint(summary)
+			return
+		}
+		printInvestigationSummaryText(summary)
+	case "cases":
+		f := fs("investigate-cases")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args)
+		summary := deriveInvestigationSummary(*path)
+		if cliGlobal.JSON {
+			mustPrint(map[string]any{
+				"generated_at": summary.GeneratedAt,
+				"case_counts":  summary.CaseCounts,
+				"count":        len(summary.Cases),
+				"cases":        summary.Cases,
+			})
+			return
+		}
+		printInvestigationCasesText(summary)
+	case "show":
+		if len(args) == 0 {
+			panic("usage: mel investigate show <case-id> --config <path>")
+		}
+		caseID := strings.TrimSpace(args[0])
+		f := fs("investigate-show")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args[1:])
+		summary := deriveInvestigationSummary(*path)
+		detail, ok := summary.CaseDetail(caseID)
+		if !ok {
+			panic("investigation case not found: " + caseID)
+		}
+		if cliGlobal.JSON {
+			mustPrint(detail)
+			return
+		}
+		printInvestigationCaseDetailText(detail)
+	default:
+		panic("usage: mel investigate [--config <path>] | mel investigate cases --config <path> | mel investigate show <case-id> --config <path>")
+	}
+}
+
+func deriveInvestigationSummary(path string) investigation.Summary {
+	cfg, _, err := loadConfigFile(path)
 	if err != nil {
 		panic(err)
 	}
 	d := openDB(cfg)
-
-	// In CLI mode, we often don't have the live transport handles,
-	// but we can read their persisted runtime status.
 	runtimeStates, _ := d.TransportRuntimeStatuses()
-	// Convert runtimeStates to minimal transport.Health for diagnostics/derivation parity
 	var mockHealth []transport.Health
 	for _, rs := range runtimeStates {
 		mockHealth = append(mockHealth, transport.Health{
@@ -452,14 +501,10 @@ func investigateCmd(args []string) {
 			FailureCount:    rs.FailureCount,
 		})
 	}
+	return investigation.Derive(cfg, d, mockHealth, runtimeStates, time.Now().UTC())
+}
 
-	summary := investigation.Derive(cfg, d, mockHealth, runtimeStates, time.Now().UTC())
-
-	if cliGlobal.JSON {
-		mustPrint(summary)
-		return
-	}
-
+func printInvestigationSummaryText(summary investigation.Summary) {
 	fmt.Printf("\nMEL CANONICAL INVESTIGATION [truthful; bounded; evidence-backed]\n")
 	fmt.Printf("Generated: %s | Attention: %s | Certainty: %.2f\n\n",
 		summary.GeneratedAt,
@@ -469,51 +514,141 @@ func investigateCmd(args []string) {
 	fmt.Printf("HEADLINE: %s\n", summary.Headline)
 	fmt.Printf("CONTEXT:  %s\n\n", summary.AttentionSummary)
 
+	if len(summary.Cases) > 0 {
+		fmt.Printf("--- CASES (%d) [bounded operator attention objects] ---\n", len(summary.Cases))
+		for i, c := range summary.Cases {
+			sev := semantics.FormatSeverityForTTY(string(c.Attention), cliGlobal.Color)
+			fmt.Printf("[%d] %s | %s | %.2f cert | %s\n", i+1, sev, c.Status, c.Certainty, c.Title)
+			fmt.Printf("    ID:             %s\n", c.ID)
+			fmt.Printf("    SUMMARY:        %s\n", c.Summary)
+			fmt.Printf("    WHY IT MATTERS: %s\n", c.WhyItMatters)
+			if c.MissingEvidence != "" {
+				fmt.Printf("    MISSING:        %s\n", c.MissingEvidence)
+			}
+			fmt.Printf("    SAFE TO CONSIDER: %s\n", c.SafeToConsider)
+			fmt.Printf("    OUT OF SCOPE:   %s\n", c.OutOfScope)
+			fmt.Println()
+		}
+	}
+
 	if len(summary.Findings) > 0 {
 		fmt.Printf("--- FINDINGS (%d) ---\n", len(summary.Findings))
-		for i, f := range summary.Findings {
-			sev := semantics.FormatSeverityForTTY(string(f.Attention), cliGlobal.Color)
-			cert := fmt.Sprintf("%.2f cert", f.Certainty)
-			fmt.Printf("[%d] %s | %s | %s\n", i+1, sev, cert, f.Title)
-			fmt.Printf("    ID:           %s\n", f.ID)
-			fmt.Printf("    WHY IT MATTERS: %s\n", f.WhyItMatters)
-			fmt.Printf("    EXPLANATION:  %s\n", f.Explanation)
-			if f.ResourceID != "" {
-				fmt.Printf("    RESOURCE:     %s\n", f.ResourceID)
+		for i, finding := range summary.Findings {
+			sev := semantics.FormatSeverityForTTY(string(finding.Attention), cliGlobal.Color)
+			cert := fmt.Sprintf("%.2f cert", finding.Certainty)
+			fmt.Printf("[%d] %s | %s | %s\n", i+1, sev, cert, finding.Title)
+			fmt.Printf("    ID:             %s\n", finding.ID)
+			fmt.Printf("    WHY IT MATTERS: %s\n", finding.WhyItMatters)
+			fmt.Printf("    EXPLANATION:    %s\n", finding.Explanation)
+			if finding.ResourceID != "" {
+				fmt.Printf("    RESOURCE:       %s\n", finding.ResourceID)
 			}
-			if len(f.EvidenceGapIDs) > 0 {
-				fmt.Printf("    CAVEATS:      Limited by %d evidence gap(s)\n", len(f.EvidenceGapIDs))
+			if len(finding.EvidenceGapIDs) > 0 {
+				fmt.Printf("    CAVEATS:        Limited by %d evidence gap(s)\n", len(finding.EvidenceGapIDs))
 			}
 			fmt.Println()
 		}
 	}
 
 	if len(summary.EvidenceGaps) > 0 {
-		fmt.Printf("--- EVIDENCE GAPS (%d) [Missing truth; absence of evidence] ---\n", len(summary.EvidenceGaps))
-		for i, g := range summary.EvidenceGaps {
-			fmt.Printf("[%d] %s: %s\n", i+1, g.Reason, g.Title)
-			fmt.Printf("    EXPLANATION: %s\n", g.Explanation)
-			fmt.Printf("    IMPACT:      %s\n", g.Impact)
+		fmt.Printf("--- EVIDENCE GAPS (%d) [missing truth; absence of evidence] ---\n", len(summary.EvidenceGaps))
+		for i, gap := range summary.EvidenceGaps {
+			fmt.Printf("[%d] %s: %s\n", i+1, gap.Reason, gap.Title)
+			fmt.Printf("    EXPLANATION: %s\n", gap.Explanation)
+			fmt.Printf("    IMPACT:      %s\n", gap.Impact)
 			fmt.Println()
 		}
 	}
 
 	if len(summary.Recommendations) > 0 {
-		fmt.Printf("--- RECOMMENDATIONS (%d) [Evidence-grounded next steps] ---\n", len(summary.Recommendations))
-		for i, r := range summary.Recommendations {
-			fmt.Printf("[%d] %s\n", i+1, r.Action)
-			fmt.Printf("    RATIONALE: %s\n", r.Rationale)
-			if len(r.UncertaintyLimits) > 0 {
-				fmt.Printf("    CAVEATS:   %s\n", strings.Join(r.UncertaintyLimits, " | "))
+		fmt.Printf("--- RECOMMENDATIONS (%d) [evidence-grounded next steps] ---\n", len(summary.Recommendations))
+		for i, rec := range summary.Recommendations {
+			fmt.Printf("[%d] %s\n", i+1, rec.Action)
+			fmt.Printf("    RATIONALE: %s\n", rec.Rationale)
+			if len(rec.UncertaintyLimits) > 0 {
+				fmt.Printf("    CAVEATS:   %s\n", strings.Join(rec.UncertaintyLimits, " | "))
 			}
-			fmt.Printf("    AUTHORITY: %s\n", r.ActionAuthority)
+			fmt.Printf("    AUTHORITY: %s\n", rec.ActionAuthority)
 			fmt.Println()
 		}
 	}
 
 	fmt.Printf("--- PHYSICS BOUNDARY ---\n")
-	for _, s := range summary.PhysicsBoundary.Statements {
-		fmt.Printf("• %s\n", s)
+	for _, statement := range summary.PhysicsBoundary.Statements {
+		fmt.Printf("• %s\n", statement)
 	}
 	fmt.Println()
+}
+
+func printInvestigationCasesText(summary investigation.Summary) {
+	fmt.Printf("\nMEL INVESTIGATION CASES\n")
+	fmt.Printf("Generated: %s | Cases: %d\n\n", summary.GeneratedAt, len(summary.Cases))
+	for i, c := range summary.Cases {
+		sev := semantics.FormatSeverityForTTY(string(c.Attention), cliGlobal.Color)
+		fmt.Printf("[%d] %s | %s | %.2f cert | %s\n", i+1, sev, c.Status, c.Certainty, c.Title)
+		fmt.Printf("    ID:      %s\n", c.ID)
+		fmt.Printf("    SUMMARY: %s\n", c.Summary)
+		if c.MissingEvidence != "" {
+			fmt.Printf("    MISSING: %s\n", c.MissingEvidence)
+		}
+		fmt.Println()
+	}
+}
+
+func printInvestigationCaseDetailText(detail investigation.CaseDetail) {
+	c := detail.Case
+	fmt.Printf("\nMEL INVESTIGATION CASE DETAIL\n")
+	fmt.Printf("ID: %s\n", c.ID)
+	fmt.Printf("Title: %s\n", c.Title)
+	fmt.Printf("Attention: %s | Status: %s | Certainty: %.2f\n\n",
+		semantics.FormatSeverityForTTY(string(c.Attention), cliGlobal.Color), c.Status, c.Certainty)
+
+	fmt.Printf("SUMMARY: %s\n", c.Summary)
+	fmt.Printf("WHY IT MATTERS: %s\n", c.WhyItMatters)
+	if c.MissingEvidence != "" {
+		fmt.Printf("MISSING EVIDENCE: %s\n", c.MissingEvidence)
+	}
+	fmt.Printf("SAFE TO CONSIDER: %s\n", c.SafeToConsider)
+	fmt.Printf("OUT OF SCOPE: %s\n\n", c.OutOfScope)
+
+	if len(detail.Findings) > 0 {
+		fmt.Printf("--- FINDINGS ---\n")
+		for _, finding := range detail.Findings {
+			fmt.Printf("%s | %.2f cert | %s\n", semantics.FormatSeverityForTTY(string(finding.Attention), cliGlobal.Color), finding.Certainty, finding.Title)
+			fmt.Printf("  %s\n", finding.Explanation)
+		}
+		fmt.Println()
+	}
+
+	if len(detail.EvidenceGaps) > 0 {
+		fmt.Printf("--- EVIDENCE GAPS ---\n")
+		for _, gap := range detail.EvidenceGaps {
+			fmt.Printf("%s: %s\n", gap.Reason, gap.Title)
+			fmt.Printf("  %s\n", gap.Impact)
+		}
+		fmt.Println()
+	}
+
+	if len(detail.Recommendations) > 0 {
+		fmt.Printf("--- RECOMMENDATIONS ---\n")
+		for _, rec := range detail.Recommendations {
+			fmt.Printf("%s\n", rec.Action)
+			fmt.Printf("  %s\n", rec.Rationale)
+			if len(rec.UncertaintyLimits) > 0 {
+				fmt.Printf("  Caveats: %s\n", strings.Join(rec.UncertaintyLimits, " | "))
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(c.RelatedRecords) > 0 {
+		fmt.Printf("--- RELATED RECORDS ---\n")
+		for _, record := range c.RelatedRecords {
+			fmt.Printf("%s | %s | %s\n", record.Kind, record.ID, record.Summary)
+			if record.InspectCLI != "" {
+				fmt.Printf("  CLI: %s\n", record.InspectCLI)
+			}
+		}
+		fmt.Println()
+	}
 }

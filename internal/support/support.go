@@ -40,24 +40,25 @@ type Bundle struct {
 	FullTimeline []db.TimelineEvent    `json:"full_timeline,omitempty"`
 	Diagnostics  []diagnostics.Finding `json:"diagnostics"`
 	// Operator evidence (offline-safe): status, control plane, incidents, upgrade posture.
-	StatusSnapshot         *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
-	StatusCollectError     string                          `json:"status_collect_error,omitempty"`
-	Panel                  *statuspkg.Panel                `json:"operator_panel,omitempty"`
-	UpgradeReadiness       *upgrade.UpgradeReadinessReport `json:"upgrade_readiness,omitempty"`
-	ControlPlaneState      map[string]any                  `json:"control_plane_state,omitempty"`
-	ControlPlaneStateErr   string                          `json:"control_plane_state_error,omitempty"`
-	RecentControlActions   []db.ControlActionRecord        `json:"recent_control_actions,omitempty"`
-	RecentControlDecisions []db.ControlDecisionRecord      `json:"recent_control_decisions,omitempty"`
-	RecentIncidents        []map[string]any                `json:"recent_incidents,omitempty"`
-	ActiveTransportAlerts  []db.TransportAlertRecord       `json:"active_transport_alerts,omitempty"`
-	PrivacySummary         map[string]int                  `json:"privacy_summary,omitempty"`
-	DoctorJSON             map[string]any                  `json:"doctor_json,omitempty"`
-	DoctorJSONNote         string                          `json:"doctor_json_note,omitempty"`
-	Nodes                  []map[string]any                `json:"nodes"`
-	Messages               []map[string]any                `json:"messages"`
-	DeadLetters            []map[string]any                `json:"dead_letters"`
-	AuditLogs              []map[string]any                `json:"audit_logs"`
-	Investigation          *investigation.Summary          `json:"investigation,omitempty"`
+	StatusSnapshot           *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
+	StatusCollectError       string                          `json:"status_collect_error,omitempty"`
+	Panel                    *statuspkg.Panel                `json:"operator_panel,omitempty"`
+	UpgradeReadiness         *upgrade.UpgradeReadinessReport `json:"upgrade_readiness,omitempty"`
+	ControlPlaneState        map[string]any                  `json:"control_plane_state,omitempty"`
+	ControlPlaneStateErr     string                          `json:"control_plane_state_error,omitempty"`
+	RecentControlActions     []db.ControlActionRecord        `json:"recent_control_actions,omitempty"`
+	RecentControlDecisions   []db.ControlDecisionRecord      `json:"recent_control_decisions,omitempty"`
+	RecentIncidents          []map[string]any                `json:"recent_incidents,omitempty"`
+	ActiveTransportAlerts    []db.TransportAlertRecord       `json:"active_transport_alerts,omitempty"`
+	PrivacySummary           map[string]int                  `json:"privacy_summary,omitempty"`
+	DoctorJSON               map[string]any                  `json:"doctor_json,omitempty"`
+	DoctorJSONNote           string                          `json:"doctor_json_note,omitempty"`
+	Nodes                    []map[string]any                `json:"nodes"`
+	Messages                 []map[string]any                `json:"messages"`
+	DeadLetters              []map[string]any                `json:"dead_letters"`
+	AuditLogs                []map[string]any                `json:"audit_logs"`
+	Investigation            *investigation.Summary          `json:"investigation,omitempty"`
+	InvestigationCaseDetails []investigation.CaseDetail      `json:"investigation_case_details,omitempty"`
 }
 
 // Create builds a support bundle. cfgPath is the operator config path on disk (used for doctor.json parity with mel doctor); pass empty if unknown.
@@ -210,6 +211,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 	}
 	summary := investigation.Derive(cfg, d, mockHealth, runtimeStates, time.Now().UTC())
 	bundle.Investigation = &summary
+	bundle.InvestigationCaseDetails = summary.CaseDetails()
 
 	if cfg.Privacy.RedactExports {
 		bundle.Messages = redactMessages(messages)
@@ -274,6 +276,14 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	}
 	if b.Investigation != nil {
 		files["investigation.json"] = b.Investigation
+		files["investigation_cases.json"] = map[string]any{
+			"generated_at":  b.Investigation.GeneratedAt,
+			"case_counts":   b.Investigation.CaseCounts,
+			"count":         len(b.Investigation.Cases),
+			"cases":         b.Investigation.Cases,
+			"case_details":  b.InvestigationCaseDetails,
+			"scope_posture": b.Investigation.ScopePosture,
+		}
 	}
 
 	for name, content := range files {
@@ -342,7 +352,8 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("| imported_evidence.json | Offline remote evidence imports | Inspect batch/source provenance, validation, and merge posture |\n")
 	sb.WriteString("| remote_evidence_export.json | Canonical offline export of imported evidence | Re-importable batch payload; still offline-only and authenticity-unverified by default |\n")
 	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n")
-	sb.WriteString("| investigation.json | Canonical investigation summary | High-level decision support, findings, evidence gaps, and physics boundaries |\n\n")
+	sb.WriteString("| investigation.json | Canonical investigation summary | High-level decision support, cases, findings, evidence gaps, and physics boundaries |\n")
+	sb.WriteString("| investigation_cases.json | Expanded investigation cases | Case list plus expanded case-detail drilldown for support reconstruction |\n\n")
 	sb.WriteString("## Interpretation notes\n\n")
 	sb.WriteString("- **Timeline order is instance-local.** Events from imported remote evidence include timing and scope posture.\n")
 	sb.WriteString("  `scope_posture=remote_imported` means the event came from another truth domain (offline).\n")
@@ -370,6 +381,8 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("mel doctor --config <path>\n")
 	sb.WriteString("mel diagnostics --config <path>\n")
 	sb.WriteString("mel investigate --config <path>\n")
+	sb.WriteString("mel investigate cases --config <path>\n")
+	sb.WriteString("mel investigate show <case-id> --config <path>\n")
 	sb.WriteString("mel health trust --config <path>\n")
 	sb.WriteString("```\n")
 	if b.StatusCollectError != "" {

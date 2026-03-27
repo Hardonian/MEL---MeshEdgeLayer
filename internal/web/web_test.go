@@ -15,9 +15,9 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
 	"github.com/mel-project/mel/internal/fleet"
+	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
-	"github.com/mel-project/mel/internal/investigation"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/support"
@@ -167,6 +167,110 @@ func TestSupportBundleZipIncludesDoctorJSON(t *testing.T) {
 	}
 	if !sawDoctor {
 		t.Fatal("expected doctor.json in zip")
+	}
+}
+
+func TestInvestigationsCaseEndpoints(t *testing.T) {
+	summary := investigation.Summary{
+		GeneratedAt: "2026-03-27T00:00:00Z",
+		Cases: []investigation.Case{{
+			ID:                "case:evidence:freshness",
+			Kind:              investigation.CaseEvidenceFreshnessGap,
+			Status:            investigation.CaseStatusActiveAttention,
+			Attention:         investigation.AttentionHigh,
+			Certainty:         0.6,
+			Title:             "Current live evidence is not proven",
+			Summary:           "No enabled transport is proving live ingest.",
+			AttentionReason:   "No transport is actively ingesting",
+			WhyItMatters:      "Missing fresh evidence makes silence ambiguous.",
+			Scope:             investigation.ScopeLocal,
+			FindingIDs:        []string{"no_active_ingest:transport"},
+			EvidenceGapIDs:    []string{"missing_expected_reporters:local:transports"},
+			RecommendationIDs: []string{"rec_verify_transports"},
+			SafeToConsider:    "Treat current state as unconfirmed until ingest resumes.",
+			OutOfScope:        "Do not conclude the mesh is quiet from missing ingest.",
+			ObservedAt:        "2026-03-27T00:00:00Z",
+			UpdatedAt:         "2026-03-27T00:00:00Z",
+		}},
+		Findings: []investigation.Finding{{
+			ID:           "no_active_ingest:transport",
+			Code:         "no_active_ingest",
+			Category:     investigation.CategoryTransport,
+			Attention:    investigation.AttentionHigh,
+			Certainty:    0.6,
+			Title:        "No transport is actively ingesting",
+			Explanation:  "Enabled transports exist but none are proving live ingest.",
+			WhyItMatters: "Missing fresh evidence makes silence ambiguous.",
+			Scope:        investigation.ScopeLocal,
+			ObservedAt:   "2026-03-27T00:00:00Z",
+			GeneratedAt:  "2026-03-27T00:00:00Z",
+			Source:       "test",
+		}},
+		EvidenceGaps: []investigation.EvidenceGap{{
+			ID:          "missing_expected_reporters:local:transports",
+			Reason:      investigation.GapMissingExpectedReporters,
+			Title:       "No active transport reporters",
+			Explanation: "Enabled transports are not reporting live ingest.",
+			Impact:      "Current-state certainty is limited.",
+			Scope:       investigation.ScopeLocal,
+			GeneratedAt: "2026-03-27T00:00:00Z",
+		}},
+		Recommendations: []investigation.Recommendation{{
+			ID:              "rec_verify_transports",
+			Code:            investigation.RecInspectTransport,
+			Action:          "Verify transport connectivity",
+			Rationale:       "No transport is proving live ingest.",
+			ActionAuthority: "operator_only",
+			Scope:           investigation.ScopeLocal,
+			GeneratedAt:     "2026-03-27T00:00:00Z",
+		}},
+		CaseCounts: investigation.CaseCounts{
+			TotalCases:           1,
+			ActiveAttentionCases: 1,
+		},
+	}
+
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary { return summary })
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/investigations/cases", nil)
+	listRec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("unexpected list status: %d body=%s", listRec.Code, listRec.Body.String())
+	}
+	var listPayload map[string]any
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatal(err)
+	}
+	if int(listPayload["count"].(float64)) != 1 {
+		t.Fatalf("expected one case, got %#v", listPayload)
+	}
+
+	showReq := httptest.NewRequest(http.MethodGet, "/api/v1/investigations/cases/case:evidence:freshness", nil)
+	showRec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(showRec, showReq)
+	if showRec.Code != http.StatusOK {
+		t.Fatalf("unexpected detail status: %d body=%s", showRec.Code, showRec.Body.String())
+	}
+	var detailPayload map[string]any
+	if err := json.Unmarshal(showRec.Body.Bytes(), &detailPayload); err != nil {
+		t.Fatal(err)
+	}
+	casePayload, ok := detailPayload["case"].(map[string]any)
+	if !ok || casePayload["id"] != "case:evidence:freshness" {
+		t.Fatalf("unexpected case payload: %#v", detailPayload["case"])
 	}
 }
 

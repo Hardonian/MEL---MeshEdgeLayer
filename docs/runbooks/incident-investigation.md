@@ -14,6 +14,8 @@ If a transport is disconnected, its evidence is unavailable — not negative. Do
 mel status --config <path>
 mel health trust --config <path>
 mel diagnostics --config <path>
+mel investigate --config <path>
+mel investigate cases --config <path>
 ```
 
 Check:
@@ -22,6 +24,14 @@ Check:
 - Are there active freezes? (`mel freeze list`)
 - Are there active maintenance windows? (`mel maintenance list`)
 - What is the fleet visibility posture? (partial fleet: only this instance)
+- Which investigation cases exist? A case is a bounded operator problem, not a confirmed diagnosis.
+
+Interpret investigation output this way:
+
+- `case` = a bounded operator attention object tying together findings, gaps, recommendations, and raw-record links.
+- `finding` = what MEL observes.
+- `evidence gap` = what MEL still does not know.
+- `recommendation` = the next safe inspection step MEL can justify from the evidence.
 
 ## Step 2: Timeline investigation
 
@@ -56,6 +66,12 @@ When inspecting a timeline event, read the investigation guidance in the output:
 ## Step 3: Incident drilldown
 
 ```bash
+# List bounded investigation cases first
+mel investigate cases --config <path>
+
+# Show one investigation case with linked findings, gaps, recommendations, and raw records
+mel investigate show <case-id> --config <path>
+
 # List all incidents
 mel incident list --config <path>
 
@@ -69,6 +85,9 @@ mel incident handoff <id> --from operator-a --to operator-b --summary "..." --co
 **API parity:**
 
 ```http
+GET /api/v1/investigations
+GET /api/v1/investigations/cases
+GET /api/v1/investigations/cases/<id>
 GET /api/v1/incidents
 GET /api/v1/incidents/<id>
 POST /api/v1/incidents/<id>/handoff
@@ -145,3 +164,4 @@ The support bundle includes:
 2. **"We received 5 packets from 3 gateways, so the mesh is working"** — Repeated observations are symptoms, not coverage proof. You cannot conclude RF reach from packet counts.
 3. **"The import was accepted"** — Acceptance means structural validation passed. It does not mean the remote site's data is truthful or that the two sites share a common timeline.
 4. **"No incidents, so the system is healthy"** — No incidents means no incidents were *created*. Check diagnostics and transport alerts separately.
+5. **"High attention means MEL knows the cause"** — Attention is about operator urgency; certainty is still bounded by evidence gaps, stale reporters, and partial scope.

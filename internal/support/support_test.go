@@ -342,4 +342,42 @@ func TestBundleZipIncludesRemoteEvidenceExportWhenImportsPresent(t *testing.T) {
 	if !fileNames["remote_evidence_export.json"] {
 		t.Fatal("remote_evidence_export.json missing from support bundle zip")
 	}
+	if !fileNames["investigation_cases.json"] {
+		t.Fatal("investigation_cases.json missing from support bundle zip")
+	}
+}
+
+func TestCreateBuildsInvestigationCaseDetails(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Transports = []config.TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test", ClientID: "mel-test"}}
+	d, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.UpsertTransportRuntime(db.TransportRuntime{
+		Name:      "mqtt",
+		Type:      "mqtt",
+		Source:    "127.0.0.1:1883",
+		Enabled:   true,
+		State:     "failed",
+		Detail:    "connect failed",
+		LastError: "broker unreachable",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Create(cfg, d, "v-test", "", time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Investigation == nil {
+		t.Fatal("expected investigation summary")
+	}
+	if len(b.Investigation.Cases) == 0 {
+		t.Fatal("expected derived investigation cases")
+	}
+	if len(b.InvestigationCaseDetails) == 0 {
+		t.Fatal("expected investigation case details")
+	}
 }

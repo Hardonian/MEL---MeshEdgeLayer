@@ -6,9 +6,10 @@ This document is for second-line support engineers, incident responders, and any
 
 1. Unzip the support bundle.
 2. Read `MANIFEST.md` — it is the index and provides context for all other files.
-3. Start with `diagnostics.json` for active issues.
-4. Use `timeline.json` for chronological investigation.
-5. Use the specific section files (`control_actions.json`, `incidents.json`, `imported_evidence.json`) for targeted drilldown.
+3. Start with `investigation.json` for the canonical investigation summary.
+4. Use `investigation_cases.json` to inspect bounded case drilldown.
+5. Use `timeline.json` for chronological investigation.
+6. Use the specific section files (`control_actions.json`, `incidents.json`, `imported_evidence.json`) for targeted drilldown.
 
 ## File reference
 
@@ -23,6 +24,19 @@ This document is for second-line support engineers, incident responders, and any
 |`imported_evidence.json`|Remote evidence batches, imported rows, and inspections|Provenance, validation, timing, merge posture|
 |`remote_evidence_export.json`|Canonical offline re-export of imported evidence|Hand off the same imported evidence as a truthful offline batch|
 |`diagnostics.json`|Active diagnostic findings|Issues and recommended next steps|
+|`investigation.json`|Canonical investigation summary|Operator attention posture, cases, findings, evidence gaps, recommendations, and physics boundaries|
+|`investigation_cases.json`|Expanded investigation cases|Case list plus expanded case detail for second-line reconstruction|
+
+## Reading investigation output
+
+Use these meanings consistently:
+
+- `case` = a bounded operator attention object. It is not proof of root cause.
+- `finding` = what MEL is observing from available evidence.
+- `evidence_gap` = what MEL still does not know and why that matters.
+- `recommendation` = the next safe inspection step MEL can justify.
+
+Every case should reduce back to inspectable raw records such as transport runtime, alerts, incidents, timeline events, or imported evidence rows.
 
 ## Reading the timeline
 

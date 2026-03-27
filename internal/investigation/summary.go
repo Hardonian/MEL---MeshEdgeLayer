@@ -39,8 +39,15 @@ type Summary struct {
 	// the findings/gaps that motivated them.
 	Recommendations []Recommendation `json:"recommendations"`
 
+	// Cases groups findings, gaps, recommendations, and raw-record links into
+	// bounded operator attention objects.
+	Cases []Case `json:"cases,omitempty"`
+
 	// Counts provides aggregate counts for machine-readable consumers.
 	Counts SummaryCounts `json:"counts"`
+
+	// CaseCounts provides aggregate counts for case-oriented operator flows.
+	CaseCounts CaseCounts `json:"case_counts"`
 
 	// ScopePosture describes the overall evidence provenance.
 	ScopePosture string `json:"scope_posture"`

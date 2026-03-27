@@ -243,6 +243,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/", s.requireMethod(s.incidentsPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/investigations", s.requireMethod(s.investigationsHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/investigations/", s.requireMethod(s.investigationsPathHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support-bundle", s.requireMethod(security.Require(security.CapExportBundle, s.supportBundleHandler), http.MethodGet, http.MethodHead))
