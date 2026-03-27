@@ -536,13 +536,22 @@ FROM operator_notes WHERE ref_type='%s' AND ref_id='%s' ORDER BY created_at DESC
 // TimelineEvent is a single item in the unified operator event timeline.
 type TimelineEvent struct {
 	EventTime  string         `json:"event_time"`
-	EventType  string         `json:"event_type"` // action | decision | incident | note | freeze | maintenance
+	EventType  string         `json:"event_type"` // action | decision | incident | note | freeze | maintenance | remote_evidence_import
 	EventID    string         `json:"event_id"`
 	Summary    string         `json:"summary"`
 	Severity   string         `json:"severity,omitempty"`
 	ActorID    string         `json:"actor_id,omitempty"`
 	ResourceID string         `json:"resource_id,omitempty"`
-	Details    map[string]any `json:"details,omitempty"`
+
+	// Foundational provenance fields (OPTION B)
+	ScopePosture       string `json:"scope_posture,omitempty"`
+	OriginInstanceID   string `json:"origin_instance_id,omitempty"`
+	TimingPosture      string `json:"timing_posture,omitempty"`
+	MergeDisposition   string `json:"merge_disposition,omitempty"`
+	MergeCorrelationID string `json:"merge_correlation_id,omitempty"`
+	ImportID           string `json:"import_id,omitempty"`
+
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // TimelineEvents returns a unified chronological view of control actions,
@@ -565,52 +574,62 @@ func (d *DB) TimelineEvents(start, end string, limit int) ([]TimelineEvent, erro
 	// We use COALESCE and literal strings to keep this simple and safe.
 	// timeline_events carries details_json for drilldown (e.g. remote_evidence_import provenance).
 	sql := fmt.Sprintf(`
-SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id, details_json
+SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id, details_json,
+       COALESCE(scope_posture,'local') AS scope_posture, COALESCE(origin_instance_id,'') AS origin_instance_id,
+       COALESCE(timing_posture,'local_ordered') AS timing_posture, COALESCE(merge_disposition,'raw_only') AS merge_disposition,
+       COALESCE(merge_correlation_id,'') AS merge_correlation_id, COALESCE(import_id,'') AS import_id
 FROM (
   SELECT created_at AS event_time, 'control_action' AS event_type, id AS event_id,
     action_type||': '||COALESCE(target_transport,'global')||' ('||COALESCE(lifecycle_state,'')||')' AS summary,
     '' AS severity, COALESCE(proposed_by,'system') AS actor_id,
-    COALESCE(target_transport,'') AS resource_id, '{}' AS details_json
+    COALESCE(target_transport,'') AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM control_actions
 
   UNION ALL
 
   SELECT occurred_at AS event_time, 'incident' AS event_type, id AS event_id,
-    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id, '{}' AS details_json
+    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM incidents
 
   UNION ALL
 
   SELECT created_at AS event_time, 'freeze_created' AS event_type, id AS event_id,
     'freeze created: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
-    'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
+    'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM control_freezes
 
   UNION ALL
 
   SELECT cleared_at AS event_time, 'freeze_cleared' AS event_type, id AS event_id,
     'freeze cleared: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
-    'info' AS severity, COALESCE(cleared_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
+    'info' AS severity, COALESCE(cleared_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM control_freezes WHERE cleared_at IS NOT NULL AND cleared_at != ''
 
   UNION ALL
 
   SELECT created_at AS event_time, 'maintenance' AS event_type, id AS event_id,
     'maintenance window: '||COALESCE(title,'') AS summary, 'info' AS severity,
-    COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json
+    COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM maintenance_windows
 
   UNION ALL
 
   SELECT created_at AS event_time, 'operator_note' AS event_type, id AS event_id,
     'note on '||ref_type||': '||SUBSTR(content,1,80) AS summary, 'info' AS severity,
-    actor_id, ref_id AS resource_id, '{}' AS details_json
+    actor_id, ref_id AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
   FROM operator_notes
 
   UNION ALL
 
   SELECT event_time, event_type, id AS event_id,
-    summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json
+    summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json,
+    COALESCE(scope_posture,'local'), COALESCE(origin_instance_id,''), COALESCE(timing_posture,'local_ordered'), COALESCE(merge_disposition,'raw_only'), COALESCE(merge_correlation_id,''), COALESCE(import_id,'')
   FROM timeline_events
 ) AS tl
 %s
@@ -630,17 +649,117 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 			}
 		}
 		out = append(out, TimelineEvent{
-			EventTime:  asString(row["event_time"]),
-			EventType:  asString(row["event_type"]),
-			EventID:    asString(row["event_id"]),
-			Summary:    asString(row["summary"]),
-			Severity:   asString(row["severity"]),
-			ActorID:    asString(row["actor_id"]),
-			ResourceID: asString(row["resource_id"]),
-			Details:    details,
+			EventTime:          asString(row["event_time"]),
+			EventType:          asString(row["event_type"]),
+			EventID:            asString(row["event_id"]),
+			Summary:            asString(row["summary"]),
+			Severity:           asString(row["severity"]),
+			ActorID:            asString(row["actor_id"]),
+			ResourceID:         asString(row["resource_id"]),
+			ScopePosture:       asString(row["scope_posture"]),
+			OriginInstanceID:   asString(row["origin_instance_id"]),
+			TimingPosture:      asString(row["timing_posture"]),
+			MergeDisposition:   asString(row["merge_disposition"]),
+			MergeCorrelationID: asString(row["merge_correlation_id"]),
+			ImportID:           asString(row["import_id"]),
+			Details:            details,
 		})
 	}
 	return out, nil
+}
+
+// TimelineEventByID fetches a single event by ID across the unified logical views.
+func (d *DB) TimelineEventByID(id string) (TimelineEvent, bool, error) {
+	sql := fmt.Sprintf(`
+SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id, details_json,
+       COALESCE(scope_posture,'local') AS scope_posture, COALESCE(origin_instance_id,'') AS origin_instance_id,
+       COALESCE(timing_posture,'local_ordered') AS timing_posture, COALESCE(merge_disposition,'raw_only') AS merge_disposition,
+       COALESCE(merge_correlation_id,'') AS merge_correlation_id, COALESCE(import_id,'') AS import_id
+FROM (
+  SELECT created_at AS event_time, 'control_action' AS event_type, id AS event_id,
+    action_type||': '||COALESCE(target_transport,'global')||' ('||COALESCE(lifecycle_state,'')||')' AS summary,
+    '' AS severity, COALESCE(proposed_by,'system') AS actor_id,
+    COALESCE(target_transport,'') AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM control_actions WHERE id='%[1]s'
+
+  UNION ALL
+
+  SELECT occurred_at AS event_time, 'incident' AS event_type, id AS event_id,
+    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM incidents WHERE id='%[1]s'
+
+  UNION ALL
+
+  SELECT created_at AS event_time, 'freeze_created' AS event_type, id AS event_id,
+    'freeze created: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
+    'warning' AS severity, COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM control_freezes WHERE id='%[1]s'
+
+  UNION ALL
+
+  SELECT cleared_at AS event_time, 'freeze_cleared' AS event_type, id AS event_id,
+    'freeze cleared: '||COALESCE(scope_type,'global')||' '||COALESCE(scope_value,'') AS summary,
+    'info' AS severity, COALESCE(cleared_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM control_freezes WHERE id='%[1]s' AND cleared_at IS NOT NULL AND cleared_at != ''
+
+  UNION ALL
+
+  SELECT created_at AS event_time, 'maintenance' AS event_type, id AS event_id,
+    'maintenance window: '||COALESCE(title,'') AS summary, 'info' AS severity,
+    COALESCE(created_by,'system') AS actor_id, '' AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM maintenance_windows WHERE id='%[1]s'
+
+  UNION ALL
+
+  SELECT created_at AS event_time, 'operator_note' AS event_type, id AS event_id,
+    'note on '||ref_type||': '||SUBSTR(content,1,80) AS summary, 'info' AS severity,
+    actor_id, ref_id AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM operator_notes WHERE id='%[1]s'
+
+  UNION ALL
+
+  SELECT event_time, event_type, id AS event_id,
+    summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json,
+    COALESCE(scope_posture,'local'), COALESCE(origin_instance_id,''), COALESCE(timing_posture,'local_ordered'), COALESCE(merge_disposition,'raw_only'), COALESCE(merge_correlation_id,''), COALESCE(import_id,'')
+  FROM timeline_events WHERE id='%[1]s'
+) AS tl LIMIT 1;`, esc(id))
+	rows, err := d.QueryRows(sql)
+	if err != nil {
+		return TimelineEvent{}, false, err
+	}
+	if len(rows) == 0 {
+		return TimelineEvent{}, false, nil
+	}
+	row := rows[0]
+	details := map[string]any{}
+	if dj := strings.TrimSpace(asString(row["details_json"])); dj != "" && dj != "{}" {
+		_ = json.Unmarshal([]byte(dj), &details)
+		if details == nil {
+			details = map[string]any{}
+		}
+	}
+	return TimelineEvent{
+		EventTime:          asString(row["event_time"]),
+		EventType:          asString(row["event_type"]),
+		EventID:            asString(row["event_id"]),
+		Summary:            asString(row["summary"]),
+		Severity:           asString(row["severity"]),
+		ActorID:            asString(row["actor_id"]),
+		ResourceID:         asString(row["resource_id"]),
+		ScopePosture:       asString(row["scope_posture"]),
+		OriginInstanceID:   asString(row["origin_instance_id"]),
+		TimingPosture:      asString(row["timing_posture"]),
+		MergeDisposition:   asString(row["merge_disposition"]),
+		MergeCorrelationID: asString(row["merge_correlation_id"]),
+		ImportID:           asString(row["import_id"]),
+		Details:            details,
+	}, true, nil
 }
 
 // ─── Explicit Timeline Event Insertion ───────────────────────────────────────
@@ -664,11 +783,35 @@ func (d *DB) InsertTimelineEvent(ev TimelineEvent) error {
 		ev.ActorID = "system"
 	}
 	detailsJSON, _ := json.Marshal(ev.Details)
-	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json)
+	if ev.ScopePosture == "" {
+		ev.ScopePosture = "local"
+	}
+	if ev.TimingPosture == "" {
+		ev.TimingPosture = "local_ordered"
+	}
+	if ev.MergeDisposition == "" {
+		ev.MergeDisposition = "raw_only"
+	}
+	// Fallback/back-compat for older instances or if the columns haven't been migrated yet:
+	// Insert using parameterized or hardcoded string syntax safely.
+	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events
+(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json,scope_posture,origin_instance_id,timing_posture,merge_disposition,merge_correlation_id,import_id)
+VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
+		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
+		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)),
+		esc(ev.ScopePosture), esc(ev.OriginInstanceID), esc(ev.TimingPosture),
+		esc(ev.MergeDisposition), esc(ev.MergeCorrelationID), esc(ev.ImportID))
+	err := d.Exec(sql)
+	
+	// Pre-migration backwards compatibility fallback
+	if err != nil && strings.Contains(err.Error(), "table timeline_events has no column") {
+		fallbackSQL := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events
+(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json)
 VALUES('%s','%s','%s','%s','%s','%s','%s','%s');`,
 		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
 		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)))
-	err := d.Exec(sql)
+		err = d.Exec(fallbackSQL)
+	}
 	// Treat "no such table" as safe-fail during startup before migrations run.
 	if err != nil && strings.Contains(err.Error(), "no such table") {
 		return nil

@@ -74,3 +74,37 @@ func TestValidateRemoteEvidenceBundle_StrictOrigin(t *testing.T) {
 		t.Fatalf("expected strict reject, got %+v", val)
 	}
 }
+
+func TestValidateRemoteEvidenceBundle_RejectsMismatchedEventOrigin(t *testing.T) {
+	b := RemoteEvidenceBundle{
+		SchemaVersion: RemoteEvidenceBundleSchemaVersion,
+		Kind:          RemoteEvidenceBundleKind,
+		Evidence: EvidenceEnvelope{
+			EvidenceClass:       EvidenceClassPacketObservation,
+			OriginInstanceID:    "remote-inst-1",
+			OriginSiteID:        "site-a",
+			OriginClass:         OriginRemoteReported,
+			CorrelationID:       "corr-1",
+			PhysicalUncertainty: PhysicalUncertaintyDefault,
+		},
+		Event: &EventEnvelope{
+			EventID:          "evt-1",
+			EventType:        "packet_observation",
+			Summary:          "remote packet observed",
+			OriginInstanceID: "remote-inst-2",
+			OriginSiteID:     "site-a",
+			CorrelationID:    "corr-1",
+		},
+	}
+	raw, _ := json.Marshal(b)
+	_, val, err := ValidateRemoteEvidenceBundle(raw, "site-a", "", IngestValidateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val.Outcome != ValidationRejected {
+		t.Fatalf("expected rejected event mismatch, got %+v", val)
+	}
+	if len(val.Reasons) == 0 || val.Reasons[0] != ReasonEventOriginMismatch {
+		t.Fatalf("expected event origin mismatch reason, got %+v", val.Reasons)
+	}
+}

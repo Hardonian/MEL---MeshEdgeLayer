@@ -1,5 +1,7 @@
 # MEL Federation Model
 
+> Scope note: this document describes optional/aspirational federation mechanics that may exist in specific deployments or experimental wiring. Core MEL's truthful, shipped fleet posture remains instance-first with offline remote evidence import for audit and investigation. Do not read this document as proof of live fleet-wide authority, global ordering, or remote execution in the default product boundary.
+
 ## Overview
 
 MEL federation enables multiple MEL instances to operate as a coordinated distributed system without naive clustering. Each instance operates independently with its own event log and state, selectively sharing data with peers.

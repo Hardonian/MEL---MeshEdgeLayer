@@ -980,7 +980,7 @@ mel export --config /etc/mel/config.json | gzip > /backup/mel-export.json.gz
 
 ### `mel import validate`
 
-Validate an import bundle without importing.
+Validate a bundle and report whether it matches MEL's canonical remote-evidence import contract.
 
 **Usage:**
 ```
@@ -997,18 +997,42 @@ mel import validate --bundle <path>
 - `0` - Bundle is valid
 - `1` - Bundle is invalid or unreadable
 
-**Example Output:**
+**Example Output (canonical remote evidence bundle):**
+```json
+{
+  "format": "mel_remote_evidence_bundle",
+  "valid": true,
+  "remote_evidence_import_supported": true,
+  "validation": {
+    "outcome": "accepted_with_caveats",
+    "reasons": [
+      "authenticity_not_cryptographically_verified",
+      "partial_observation_only",
+      "receive_time_differs_from_observed_time"
+    ],
+    "ordering_posture": "receive_time_differs_from_observed_time"
+  }
+}
+```
+
+**Example Output (generic export bundle):**
 ```json
 {
   "valid": true,
-  "keys": ["audit_logs", "dead_letters", "exported_at", "messages", "nodes", "redacted"]
+  "format": "mel_export_bundle",
+  "remote_evidence_import_supported": false,
+  "keys": ["audit_logs", "dead_letters", "exported_at", "messages", "nodes", "redacted"],
+  "note": "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle JSON."
 }
 ```
 
 **Common Use Cases:**
 ```bash
-# Validate before import
-mel import validate --bundle /backup/mel-export.json && echo "Bundle OK"
+# Validate a canonical remote-evidence bundle before import
+mel import validate --bundle /evidence/remote-site.json
+
+# Confirm that a general MEL export is not a canonical remote-evidence import bundle
+mel import validate --bundle /backup/mel-export.json
 ```
 
 ---

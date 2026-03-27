@@ -53,6 +53,11 @@ const (
 	ReasonConflictingClaimedFleet      ValidationReasonCode = "conflicting_claimed_fleet"
 	ReasonOriginSiteAbsent             ValidationReasonCode = "origin_site_id_absent"
 	ReasonClaimedOriginMismatch        ValidationReasonCode = "claimed_origin_instance_mismatch"
+	ReasonMissingEventID               ValidationReasonCode = "missing_event_id"
+	ReasonMissingEventType             ValidationReasonCode = "missing_event_type"
+	ReasonMissingEventSummary          ValidationReasonCode = "missing_event_summary"
+	ReasonEventOriginMismatch          ValidationReasonCode = "event_origin_instance_mismatch"
+	ReasonEventCorrelationMismatch     ValidationReasonCode = "event_correlation_id_mismatch"
 	CaveatNotCryptographicallyVerified ValidationReasonCode = "authenticity_not_cryptographically_verified"
 	CaveatPartialObservationOnly       ValidationReasonCode = "partial_observation_only"
 	CaveatReceiveDiffersFromObserved   ValidationReasonCode = "receive_time_differs_from_observed_time"
@@ -71,6 +76,7 @@ type RemoteEvidenceBundle struct {
 		ImportReason string `json:"import_reason,omitempty"`
 	} `json:"import_context,omitempty"`
 	Evidence EvidenceEnvelope `json:"evidence"`
+	Event    *EventEnvelope   `json:"event,omitempty"`
 }
 
 // RemoteEvidenceValidation is the typed validation/trust result for an import attempt.
@@ -151,6 +157,59 @@ func ValidateRemoteEvidenceBundle(raw []byte, localSiteID, localFleetID string, 
 		v.Reasons = []ValidationReasonCode{ReasonInvalidOriginClass}
 		v.Summary = fmt.Sprintf("Invalid observation_origin_class %q.", b.Evidence.OriginClass)
 		return b, v, nil
+	}
+	if b.Event != nil {
+		if strings.TrimSpace(b.Event.EventID) == "" {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonMissingEventID}
+			v.Summary = "Missing event.event_id."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.EventType) == "" {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonMissingEventType}
+			v.Summary = "Missing event.event_type."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.Summary) == "" {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonMissingEventSummary}
+			v.Summary = "Missing event.summary."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.OriginInstanceID) == "" {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonMissingOriginInstance}
+			v.Summary = "Missing event.origin_instance_id."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.OriginInstanceID) != strings.TrimSpace(b.Evidence.OriginInstanceID) {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonEventOriginMismatch}
+			v.Summary = "event.origin_instance_id must match evidence.origin_instance_id."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.OriginSiteID) != "" && strings.TrimSpace(b.Evidence.OriginSiteID) != "" &&
+			strings.TrimSpace(b.Event.OriginSiteID) != strings.TrimSpace(b.Evidence.OriginSiteID) {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonConflictingOriginSite}
+			v.Summary = "event.origin_site_id must match evidence.origin_site_id when both are present."
+			return b, v, nil
+		}
+		if strings.TrimSpace(b.Event.CorrelationID) != "" && strings.TrimSpace(b.Evidence.CorrelationID) != "" &&
+			strings.TrimSpace(b.Event.CorrelationID) != strings.TrimSpace(b.Evidence.CorrelationID) {
+			v.Outcome = ValidationRejected
+			v.TrustPosture = TrustPostureRejected
+			v.Reasons = []ValidationReasonCode{ReasonEventCorrelationMismatch}
+			v.Summary = "event.correlation_id must match evidence.correlation_id when both are present."
+			return b, v, nil
+		}
 	}
 
 	claimedInst := strings.TrimSpace(b.ClaimedOriginInstanceID)
@@ -234,25 +293,6 @@ func isKnownOriginClass(o ObservationOriginClass) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-// BuildImportTimelineDetails returns JSON-friendly provenance for timeline event details.
-func BuildImportTimelineDetails(localInstanceID string, b RemoteEvidenceBundle, val RemoteEvidenceValidation, importID string) map[string]any {
-	ev := b.Evidence
-	key := fmt.Sprintf("%s|%s|%s", strings.TrimSpace(ev.OriginInstanceID), strings.TrimSpace(ev.CorrelationID), string(ev.EvidenceClass))
-	merge := ClassifyMerge(key, key, strings.TrimSpace(ev.OriginInstanceID) == strings.TrimSpace(localInstanceID))
-	return map[string]any{
-		"import_id":                importID,
-		"local_instance_id":        localInstanceID,
-		"validation":               val,
-		"claimed_origin_instance":  strings.TrimSpace(b.ClaimedOriginInstanceID),
-		"evidence_origin_instance": strings.TrimSpace(ev.OriginInstanceID),
-		"evidence_origin_site":     strings.TrimSpace(ev.OriginSiteID),
-		"observation_origin_class": string(ev.OriginClass),
-		"merge_inspection":         MergeInspectionFromClassification(merge),
-		"ordering_note":            string(val.OrderingPosture),
-		"federation_note":          "Offline import only; not live synchronization.",
 	}
 }
 

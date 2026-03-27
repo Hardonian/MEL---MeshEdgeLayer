@@ -61,8 +61,13 @@ func (s *Server) fleetRemoteEvidenceImportHandler(w http.ResponseWriter, r *http
 		return
 	}
 	status := http.StatusOK
-	if v, ok := out["status"].(string); ok && v == "error" {
-		status = http.StatusBadRequest
+	if v, ok := out["status"].(string); ok {
+		switch v {
+		case "error":
+			status = http.StatusBadRequest
+		case "rejected":
+			status = http.StatusUnprocessableEntity
+		}
 	}
 	writeJSON(w, status, out)
 }
@@ -81,7 +86,23 @@ func (s *Server) fleetRemoteEvidenceListHandler(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusInternalServerError, "could not list imports", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"imports": rows, "count": len(rows)})
+	truth, err := fleet.BuildTruthSummary(s.cfg, s.db)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not build fleet truth", err.Error())
+		return
+	}
+	summaries, err := fleet.SummarizeImportedRemoteEvidenceRecords(truth, rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not inspect imports", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"imports":          rows,
+		"summaries":        summaries,
+		"count":            len(rows),
+		"truth_posture":    truth,
+		"inspection_notes": []string{"Imported remote evidence remains distinct from local observations. Related evidence analysis is explanatory only; rows are not silently merged."},
+	})
 }
 
 func (s *Server) fleetRemoteEvidenceGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +125,26 @@ func (s *Server) fleetRemoteEvidenceGetHandler(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusNotFound, "import not found", "")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"import": rec})
+	rows, err := s.listImportedRemoteEvidence(500)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not inspect related imports", err.Error())
+		return
+	}
+	truth, err := fleet.BuildTruthSummary(s.cfg, s.db)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not build fleet truth", err.Error())
+		return
+	}
+	inspection, err := fleet.InspectImportedRemoteEvidenceRecord(truth, rec, rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not inspect import", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"import":        rec,
+		"inspection":    inspection,
+		"truth_posture": truth,
+	})
 }
 
 func (s *Server) fleetMergeExplainHandler(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,11 @@ func (a *App) ImportRemoteEvidenceBundle(raw []byte, strictOrigin bool, actor st
 		ObservationOriginClass: string(bundle.Evidence.OriginClass),
 		Rejected:               rejected,
 	}
+	existingRows, _ := a.DB.ListImportedRemoteEvidence(500)
+	inspection, err := fleet.InspectImportedRemoteEvidenceRecord(summary, rec, existingRows)
+	if err != nil {
+		return nil, err
+	}
 	if err := a.DB.InsertImportedRemoteEvidence(rec); err != nil {
 		return nil, err
 	}
@@ -78,25 +83,31 @@ func (a *App) ImportRemoteEvidenceBundle(raw []byte, strictOrigin bool, actor st
 	if rejected {
 		sum = fmt.Sprintf("remote evidence import rejected %s (%s)", id, strings.Join(reasonCodes(val.Reasons), ", "))
 	}
-	details := fleet.BuildImportTimelineDetails(localID, bundle, val, id)
-	details["actor"] = actorID
+	details := fleet.BuildImportTimelineDetails(inspection, actorID)
 	details["status"] = map[string]any{"import_id": id, "rejected": rejected}
 
 	_ = a.DB.InsertTimelineEvent(db.TimelineEvent{
-		EventID:    id,
-		EventTime:  now,
-		EventType:  "remote_evidence_import",
-		Summary:    sum,
-		Severity:   ternary(rejected, "warning", "info"),
-		ActorID:    actorID,
-		ResourceID: id,
-		Details:    details,
+		EventID:            id,
+		EventTime:          now,
+		EventType:          "remote_evidence_import",
+		Summary:            sum,
+		Severity:           ternary(rejected, "warning", "info"),
+		ActorID:            actorID,
+		ResourceID:         id,
+		ScopePosture:       "remote_imported",
+		OriginInstanceID:   rec.OriginInstanceID,
+		TimingPosture:      string(inspection.Timing.PrimaryPosture),
+		MergeDisposition:   string(inspection.MergeInspection.Classification.Disposition),
+		MergeCorrelationID: inspection.MergeInspection.Classification.MergeKey,
+		ImportID:           id,
+		Details:            details,
 	})
 
 	out := map[string]any{
 		"status":            ternary(rejected, "rejected", "imported"),
 		"import_id":         id,
 		"validation":        val,
+		"inspection":        inspection,
 		"rejected":          rejected,
 		"local_instance_id": localID,
 		"evidence_preview": map[string]any{

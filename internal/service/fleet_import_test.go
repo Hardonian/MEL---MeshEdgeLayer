@@ -38,6 +38,9 @@ func TestImportRemoteEvidenceBundle_AcceptedAndAudited(t *testing.T) {
 	if out["status"] != "imported" {
 		t.Fatalf("status %+v", out)
 	}
+	if _, ok := out["inspection"]; !ok {
+		t.Fatalf("expected inspection in import output, got %+v", out)
+	}
 	rows, err := app.ListImportedRemoteEvidence(5)
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("rows %v err %v", len(rows), err)
@@ -52,6 +55,12 @@ func TestImportRemoteEvidenceBundle_AcceptedAndAudited(t *testing.T) {
 			found = true
 			if len(e.Details) == 0 {
 				t.Fatal("expected timeline details for import")
+			}
+			if _, ok := e.Details["canonical_evidence_envelope"]; !ok {
+				t.Fatalf("expected canonical evidence envelope in timeline details, got %+v", e.Details)
+			}
+			if _, ok := e.Details["local_import_event_envelope"]; !ok {
+				t.Fatalf("expected local import event envelope in timeline details, got %+v", e.Details)
 			}
 			break
 		}

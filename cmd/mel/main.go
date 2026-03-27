@@ -229,7 +229,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   maintenance create --config <path> --starts-at <RFC3339> --ends-at <RFC3339> [--title "..."] [--reason "..."]
   maintenance list --config <path>
   maintenance cancel <window-id> --config <path>
-  timeline --config <path> [--start <RFC3339>] [--end <RFC3339>] [--limit <n>]
+  timeline list|inspect --config <path> [--start <RFC3339>] [--end <RFC3339>] [--limit <n>]
   notes add --config <path> --ref-type <type> --ref-id <id> --content "..."
   notes list --config <path> --ref-type <type> --ref-id <id>
   export --config <path> [--out path]
@@ -676,7 +676,21 @@ func fleetEvidenceCmd(args []string) {
 		if err != nil {
 			panic(err)
 		}
-		mustPrint(map[string]any{"imports": rows, "count": len(rows)})
+		truth, err := fleet.BuildTruthSummary(cfg, app.DB)
+		if err != nil {
+			panic(err)
+		}
+		summaries, err := fleet.SummarizeImportedRemoteEvidenceRecords(truth, rows)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{
+			"imports":         summaries,
+			"raw_import_rows": rows,
+			"count":           len(rows),
+			"fleet_truth":     truth,
+			"inspection_note": "Imported remote evidence remains distinct from local evidence. Related evidence analysis is explanatory only; no silent merge is applied.",
+		})
 	case "show":
 		if len(args) < 2 {
 			panic("usage: mel fleet evidence show <import-id> --config <path>")
@@ -697,7 +711,23 @@ func fleetEvidenceCmd(args []string) {
 		if !ok {
 			panic("import not found: " + id)
 		}
-		mustPrint(rec)
+		rows, err := app.ListImportedRemoteEvidence(500)
+		if err != nil {
+			panic(err)
+		}
+		truth, err := fleet.BuildTruthSummary(cfg, app.DB)
+		if err != nil {
+			panic(err)
+		}
+		inspection, err := fleet.InspectImportedRemoteEvidenceRecord(truth, rec, rows)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{
+			"import":      rec,
+			"inspection":  inspection,
+			"fleet_truth": truth,
+		})
 	default:
 		panic("usage: mel fleet evidence import|list|show --config <path>")
 	}
@@ -1110,8 +1140,34 @@ func importCmd(args []string) {
 	if err := json.Unmarshal(b, &payload); err != nil {
 		panic(err)
 	}
+	if kind, _ := payload["kind"].(string); kind == fleet.RemoteEvidenceBundleKind {
+		_, validation, err := fleet.ValidateRemoteEvidenceBundle(b, "", "", fleet.IngestValidateOptions{})
+		out := map[string]any{
+			"format":                           fleet.RemoteEvidenceBundleKind,
+			"valid":                            err == nil && validation.Outcome != fleet.ValidationRejected,
+			"remote_evidence_import_supported": err == nil && validation.Outcome != fleet.ValidationRejected,
+			"validation":                       validation,
+		}
+		mustPrint(out)
+		if err != nil || validation.Outcome == fleet.ValidationRejected {
+			os.Exit(1)
+		}
+		return
+	}
 	_, hasNodes := payload["nodes"]
-	mustPrint(map[string]any{"valid": hasNodes, "keys": sortedKeys(payload)})
+	format := "unknown"
+	note := "Unknown bundle format."
+	if hasNodes {
+		format = "mel_export_bundle"
+		note = "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle JSON."
+	}
+	mustPrint(map[string]any{
+		"valid":                            hasNodes,
+		"format":                           format,
+		"remote_evidence_import_supported": false,
+		"keys":                             sortedKeys(payload),
+		"note":                             note,
+	})
 	if !hasNodes {
 		os.Exit(1)
 	}
@@ -1550,22 +1606,58 @@ func incidentCmd(args []string) {
 }
 
 func timelineCmd(args []string) {
-	f := fs("timeline")
-	path := f.String("config", configFlagDefault(), "config")
-	start := f.String("start", "", "start time RFC3339")
-	end := f.String("end", "", "end time RFC3339")
-	limit := f.Int("limit", 100, "max events")
-	_ = f.Parse(args)
-	cfg, _, err := loadConfigFile(*path)
-	if err != nil {
-		panic(err)
+	if len(args) == 0 {
+		panic("usage: mel timeline list|inspect --config <path>")
 	}
-	d := openDB(cfg)
-	events, err := d.TimelineEvents(*start, *end, *limit)
-	if err != nil {
-		panic(err)
+	switch args[0] {
+	case "list":
+		f := fs("timeline-list")
+		path := f.String("config", configFlagDefault(), "config")
+		start := f.String("start", "", "start time RFC3339")
+		end := f.String("end", "", "end time RFC3339")
+		limit := f.Int("limit", 100, "max events")
+		_ = f.Parse(args[1:])
+		cfg, _, err := loadConfigFile(*path)
+		if err != nil {
+			panic(err)
+		}
+		d := openDB(cfg)
+		events, err := d.TimelineEvents(*start, *end, *limit)
+		if err != nil {
+			panic(err)
+		}
+		mustPrint(map[string]any{"events": events, "count": len(events), "start": *start, "end": *end})
+	case "inspect":
+		if len(args) < 2 {
+			panic("usage: mel timeline inspect <event-id> --config <path>")
+		}
+		id := args[1]
+		cfg, _ := loadCfg(args[2:])
+		d := openDB(cfg)
+		ev, ok, err := d.TimelineEventByID(id)
+		if err != nil {
+			panic(err)
+		}
+		if !ok {
+			panic("timeline event not found: " + id)
+		}
+
+		// Add helper explanation for merge/timing posture
+		out := map[string]any{
+			"event": ev,
+			"investigation": map[string]string{
+				"origin_explanation": "Event was recorded locally.",
+				"timing_explanation": "Order is strict and deterministic within this local instance.",
+			},
+		}
+		if ev.ScopePosture == "remote_imported" {
+			out["investigation"].(map[string]string)["origin_explanation"] = "Event was imported from another truth domain (offline). It is bounded to its origin."
+			out["investigation"].(map[string]string)["timing_explanation"] = "Order is best-effort correlation based on reported time. Clock skew relative to this gateway must be assumed."
+		}
+		mustPrint(out)
+	default:
+		panic("usage: mel timeline list|inspect --config <path>")
 	}
-	mustPrint(map[string]any{"events": events, "count": len(events), "start": *start, "end": *end})
 }
 
 func freezeCmd(args []string) {

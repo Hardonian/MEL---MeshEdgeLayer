@@ -25,8 +25,10 @@ type Bundle struct {
 	// FleetTruth duplicates status fleet boundary for offline triage (canonical with status.fleet_truth when present).
 	FleetTruth fleet.FleetTruthSummary `json:"fleet_truth,omitempty"`
 	// ImportedRemoteEvidence is offline bundle import audit (not live federation); empty when table absent or none.
-	ImportedRemoteEvidence []db.ImportedRemoteEvidenceRecord `json:"imported_remote_evidence,omitempty"`
-	Diagnostics            []diagnostics.Finding             `json:"diagnostics"`
+	ImportedRemoteEvidence            []db.ImportedRemoteEvidenceRecord  `json:"imported_remote_evidence,omitempty"`
+	ImportedRemoteEvidenceInspections []fleet.ImportedEvidenceInspection `json:"imported_remote_evidence_inspections,omitempty"`
+	RemoteEvidenceTimeline            []db.TimelineEvent                 `json:"remote_evidence_timeline,omitempty"`
+	Diagnostics                       []diagnostics.Finding              `json:"diagnostics"`
 	// Operator evidence (offline-safe): status, control plane, incidents, upgrade posture.
 	StatusSnapshot         *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
 	StatusCollectError     string                          `json:"status_collect_error,omitempty"`
@@ -111,6 +113,14 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 	alerts, _ := d.TransportAlerts(true)
 
 	imports, _ := d.ListImportedRemoteEvidence(100)
+	importInspections, _ := fleet.InspectImportedRemoteEvidenceRecords(fleetTruth, imports)
+	timeline, _ := d.TimelineEvents("", "", 200)
+	remoteTimeline := make([]db.TimelineEvent, 0, len(timeline))
+	for _, event := range timeline {
+		if event.EventType == "remote_evidence_import" {
+			remoteTimeline = append(remoteTimeline, event)
+		}
+	}
 
 	var doctorForBundle map[string]any
 	doctorNote := "Structured mel doctor payload (redacted for bundle export). Same checks as CLI; review before sharing externally."
@@ -122,29 +132,31 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 	}
 
 	bundle := &Bundle{
-		GeneratedAt:            time.Now().UTC(),
-		Version:                version,
-		Config:                 privacy.RedactConfig(cfg),
-		FleetTruth:             fleetTruth,
-		ImportedRemoteEvidence: imports,
-		Diagnostics:            diagnosticsRun.Diagnostics,
-		StatusSnapshot:         snapPtr,
-		StatusCollectError:     statusErrStr,
-		Panel:                  panel,
-		UpgradeReadiness:       upgrade.RunUpgradeChecks(cfg, d),
-		ControlPlaneState:      trustState,
-		ControlPlaneStateErr:   controlPlaneErr,
-		RecentControlActions:   actions,
-		RecentControlDecisions: decisions,
-		RecentIncidents:        incMaps,
-		ActiveTransportAlerts:  alerts,
-		PrivacySummary:         privacy.Summary(privacy.Audit(cfg)),
-		DoctorJSON:             doctorForBundle,
-		DoctorJSONNote:         doctorNote,
-		Nodes:                  nodes,
-		Messages:               messages,
-		DeadLetters:            deadLetters,
-		AuditLogs:              auditLogs,
+		GeneratedAt:                       time.Now().UTC(),
+		Version:                           version,
+		Config:                            privacy.RedactConfig(cfg),
+		FleetTruth:                        fleetTruth,
+		ImportedRemoteEvidence:            imports,
+		ImportedRemoteEvidenceInspections: importInspections,
+		RemoteEvidenceTimeline:            remoteTimeline,
+		Diagnostics:                       diagnosticsRun.Diagnostics,
+		StatusSnapshot:                    snapPtr,
+		StatusCollectError:                statusErrStr,
+		Panel:                             panel,
+		UpgradeReadiness:                  upgrade.RunUpgradeChecks(cfg, d),
+		ControlPlaneState:                 trustState,
+		ControlPlaneStateErr:              controlPlaneErr,
+		RecentControlActions:              actions,
+		RecentControlDecisions:            decisions,
+		RecentIncidents:                   incMaps,
+		ActiveTransportAlerts:             alerts,
+		PrivacySummary:                    privacy.Summary(privacy.Audit(cfg)),
+		DoctorJSON:                        doctorForBundle,
+		DoctorJSONNote:                    doctorNote,
+		Nodes:                             nodes,
+		Messages:                          messages,
+		DeadLetters:                       deadLetters,
+		AuditLogs:                         auditLogs,
 	}
 
 	if cfg.Privacy.RedactExports {
