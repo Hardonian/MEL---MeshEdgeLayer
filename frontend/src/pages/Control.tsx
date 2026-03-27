@@ -7,50 +7,17 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { OperatorEmptyState } from '@/components/states/OperatorEmptyState'
 import { safeDenialReason, formatOperatorTime } from '@/utils/apiResilience'
+import type { MeshNodeControlAction } from '@/types/api'
 import { ShieldAlert, CheckCircle2, XCircle, Clock, Send, ShieldCheck, Zap, Info, Lock } from 'lucide-react'
-
-interface ControlAction {
-  id: string;
-  command?: string;
-  action_type?: string;
-  target_node?: string;
-  target_segment?: string;
-  target_node_id?: string;
-  target_transport?: string;
-  transport_name?: string;
-  result: string;
-  denial_reason?: string;
-  created_at?: string;
-  executed_at?: string;
-  outcome_detail?: string;
-  advisory_only?: boolean;
-  lifecycle_state?: string;
-  execution_mode?: string;
-  proposed_by?: string;
-  approved_by?: string;
-  evidence_bundle_id?: string;
-  /** Derived operator-facing labels from backend (queue vs approval vs execution truth). */
-  operator_view?: Record<string, unknown>;
-  details?: Record<string, unknown>;
-}
-
-interface RealityMatrixItem {
-  action_type: string;
-  actuator_exists: boolean;
-  reversible: boolean;
-  blast_radius_class: string;
-  safe_for_guarded_auto: boolean;
-  advisory_only: boolean;
-  notes: string;
-}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
 
-function incidentFromAction(a: ControlAction): string {
+function incidentFromAction(a: MeshNodeControlAction): string {
   const ov = a.operator_view
-  if (ov && str(ov.linked_incident_id)) return str(ov.linked_incident_id)
+  const lid = ov?.linked_incident_id
+  if (typeof lid === 'string' && lid.trim()) return lid.trim()
   const d = a.details
   if (!d) return ''
   for (const k of ['incident_id', 'mel_incident_id', 'linked_incident_id']) {
@@ -83,9 +50,9 @@ export function Control() {
     )
   }
 
-  const actions: ControlAction[] = Array.isArray(history?.actions) ? history.actions : []
-  const realityMatrix: RealityMatrixItem[] = Array.isArray(status?.reality_matrix) ? status.reality_matrix : []
-  const pendingApprovals: ControlAction[] = Array.isArray(opState?.pending_approvals) ? opState.pending_approvals : []
+  const actions = history?.actions ?? []
+  const realityMatrix = status?.reality_matrix ?? []
+  const pendingApprovals = opState?.pending_approvals ?? []
 
   return (
     <div className="space-y-6 pb-12">
@@ -295,7 +262,7 @@ export function Control() {
                   !action.executed_at
                 
                 let icon = <Send className="h-4 w-4 text-muted-foreground" />
-                let badgeVariant: 'success' | 'critical' | 'warning' | 'default' = 'default'
+                let badgeVariant: 'success' | 'critical' | 'warning' | 'default' | 'secondary' = 'default'
                 let badgeText = execLabel || action.result?.replace(/_/g, ' ') || 'Unknown'
 
                 if (isExecuted) {
@@ -312,7 +279,7 @@ export function Control() {
                   badgeText = execLabel || 'Failed'
                 } else if (isPendingApproval) {
                   icon = <Clock className="h-4 w-4 text-muted-foreground" />
-                  badgeVariant = 'secondary' as any
+                  badgeVariant = 'secondary'
                   badgeText = str(ov?.approval_status) || 'Needs approver'
                 } else if (approvedWaiting) {
                   icon = <Clock className="h-4 w-4 text-warning" />
@@ -324,7 +291,7 @@ export function Control() {
                   action.lifecycle_state === 'pending'
                 ) {
                   icon = <Clock className="h-4 w-4 text-muted-foreground" />
-                  badgeVariant = 'secondary' as any
+                  badgeVariant = 'secondary'
                   badgeText = execLabel || 'Queued / running'
                 }
 

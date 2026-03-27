@@ -152,7 +152,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               disabled={refreshBusy}
               className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data from API'}
-              title="Re-fetch dashboard data (same 30s polling cadence still applies)"
+              title={refreshBusy ? 'Refreshing…' : 'Re-fetch dashboard data (same 30s polling cadence still applies)'}
             >
               <RefreshCw className={clsx('h-5 w-5', refreshBusy && 'animate-spin')} aria-hidden />
             </button>

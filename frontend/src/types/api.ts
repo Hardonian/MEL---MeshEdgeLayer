@@ -158,6 +158,78 @@ export interface ControlActionRecord {
   execution_source?: string
 }
 
+/** Labels derived server-side for operator clarity (queue / approval / execution). */
+export interface ControlActionOperatorView {
+  target_summary?: string
+  approval_status?: string
+  execution_status?: string
+  queue_status?: string
+  second_operator_note?: string
+  sod_blocks_self?: boolean
+  break_glass_in_history?: boolean
+  linked_incident_id?: string
+}
+
+/**
+ * Row shape for mesh/node control history and pending approvals
+ * (GET /api/v1/control/history, enriched pending_approvals on operational-state).
+ */
+export interface MeshNodeControlAction {
+  id: string
+  command?: string
+  action_type?: string
+  target_node?: string
+  target_segment?: string
+  target_node_id?: string
+  target_transport?: string
+  transport_name?: string
+  result: string
+  denial_reason?: string
+  created_at?: string
+  executed_at?: string
+  outcome_detail?: string
+  advisory_only?: boolean
+  lifecycle_state?: string
+  execution_mode?: string
+  proposed_by?: string
+  approved_by?: string
+  evidence_bundle_id?: string
+  operator_view?: ControlActionOperatorView
+  details?: Record<string, unknown>
+}
+
+/** Single row from control reality matrix (GET /api/v1/control/status). */
+export interface ControlRealityMatrixItem {
+  action_type: string
+  actuator_exists: boolean
+  reversible: boolean
+  blast_radius_class: string
+  safe_for_guarded_auto: boolean
+  advisory_only: boolean
+  notes: string
+}
+
+/** GET /api/v1/control/status — automation mode and executor snapshot. */
+export interface ControlStatusResponse {
+  mode?: string
+  reality_matrix?: ControlRealityMatrixItem[]
+  queue_depth?: number
+  queue_capacity?: number
+  active_actions?: number
+  policy_summary?: string
+  emergency_disable?: boolean
+}
+
+/** GET /api/v1/control/history */
+export interface ControlHistoryResponse {
+  actions?: MeshNodeControlAction[]
+}
+
+/** GET /api/v1/control/operational-state — fields used by the operator console. */
+export interface ControlOperationalStateResponse {
+  pending_approvals?: MeshNodeControlAction[]
+}
+
 export interface TrustUIHints {
   approve_control: boolean
   reject_control: boolean

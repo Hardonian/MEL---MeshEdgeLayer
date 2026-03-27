@@ -1,8 +1,131 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
-import type { StatusResponse, Message, DeadLetter, PrivacyFinding, Recommendation, AuditLog, NodeInfo, Finding } from '@/types/api'
+import type {
+  StatusResponse,
+  Message,
+  DeadLetter,
+  PrivacyFinding,
+  Recommendation,
+  AuditLog,
+  NodeInfo,
+  Finding,
+  ControlStatusResponse,
+  ControlHistoryResponse,
+  ControlOperationalStateResponse,
+  ControlRealityMatrixItem,
+  MeshNodeControlAction,
+} from '@/types/api'
 
 // API Base URL - uses relative path for proxy
 const API_BASE = '/api'
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v)
+}
+
+function parseRealityMatrixItem(raw: unknown): ControlRealityMatrixItem | null {
+  if (!isRecord(raw)) return null
+  const action_type = raw.action_type
+  if (typeof action_type !== 'string') return null
+  const blast_radius_class = raw.blast_radius_class
+  const notes = raw.notes
+  return {
+    action_type,
+    actuator_exists: raw.actuator_exists === true,
+    reversible: raw.reversible === true,
+    blast_radius_class: typeof blast_radius_class === 'string' ? blast_radius_class : 'unknown',
+    safe_for_guarded_auto: raw.safe_for_guarded_auto === true,
+    advisory_only: raw.advisory_only === true,
+    notes: typeof notes === 'string' ? notes : '',
+  }
+}
+
+function parseMeshNodeControlAction(raw: unknown): MeshNodeControlAction | null {
+  if (!isRecord(raw)) return null
+  const id = raw.id
+  const result = raw.result
+  if (typeof id !== 'string' || typeof result !== 'string') return null
+
+  let operator_view: MeshNodeControlAction['operator_view']
+  const ovRaw = raw.operator_view
+  if (isRecord(ovRaw)) {
+    operator_view = {
+      target_summary: typeof ovRaw.target_summary === 'string' ? ovRaw.target_summary : undefined,
+      approval_status: typeof ovRaw.approval_status === 'string' ? ovRaw.approval_status : undefined,
+      execution_status: typeof ovRaw.execution_status === 'string' ? ovRaw.execution_status : undefined,
+      queue_status: typeof ovRaw.queue_status === 'string' ? ovRaw.queue_status : undefined,
+      second_operator_note:
+        typeof ovRaw.second_operator_note === 'string' ? ovRaw.second_operator_note : undefined,
+      sod_blocks_self: ovRaw.sod_blocks_self === true,
+      break_glass_in_history: ovRaw.break_glass_in_history === true,
+      linked_incident_id: typeof ovRaw.linked_incident_id === 'string' ? ovRaw.linked_incident_id : undefined,
+    }
+  }
+
+  let details: Record<string, unknown> | undefined
+  const d = raw.details
+  if (isRecord(d)) {
+    details = d
+  }
+
+  return {
+    id,
+    result,
+    command: typeof raw.command === 'string' ? raw.command : undefined,
+    action_type: typeof raw.action_type === 'string' ? raw.action_type : undefined,
+    target_node: typeof raw.target_node === 'string' ? raw.target_node : undefined,
+    target_segment: typeof raw.target_segment === 'string' ? raw.target_segment : undefined,
+    target_node_id: typeof raw.target_node_id === 'string' ? raw.target_node_id : undefined,
+    target_transport: typeof raw.target_transport === 'string' ? raw.target_transport : undefined,
+    transport_name: typeof raw.transport_name === 'string' ? raw.transport_name : undefined,
+    denial_reason: typeof raw.denial_reason === 'string' ? raw.denial_reason : undefined,
+    created_at: typeof raw.created_at === 'string' ? raw.created_at : undefined,
+    executed_at: typeof raw.executed_at === 'string' ? raw.executed_at : undefined,
+    outcome_detail: typeof raw.outcome_detail === 'string' ? raw.outcome_detail : undefined,
+    advisory_only: raw.advisory_only === true,
+    lifecycle_state: typeof raw.lifecycle_state === 'string' ? raw.lifecycle_state : undefined,
+    execution_mode: typeof raw.execution_mode === 'string' ? raw.execution_mode : undefined,
+    proposed_by: typeof raw.proposed_by === 'string' ? raw.proposed_by : undefined,
+    approved_by: typeof raw.approved_by === 'string' ? raw.approved_by : undefined,
+    evidence_bundle_id: typeof raw.evidence_bundle_id === 'string' ? raw.evidence_bundle_id : undefined,
+    operator_view,
+    details,
+  }
+}
+
+function parseControlStatusJson(raw: unknown): ControlStatusResponse {
+  if (!isRecord(raw)) return {}
+  const matrixRaw = raw.reality_matrix
+  const reality_matrix = Array.isArray(matrixRaw)
+    ? matrixRaw.map(parseRealityMatrixItem).filter((x): x is ControlRealityMatrixItem => x !== null)
+    : undefined
+  return {
+    mode: typeof raw.mode === 'string' ? raw.mode : undefined,
+    reality_matrix,
+    queue_depth: typeof raw.queue_depth === 'number' ? raw.queue_depth : undefined,
+    queue_capacity: typeof raw.queue_capacity === 'number' ? raw.queue_capacity : undefined,
+    active_actions: typeof raw.active_actions === 'number' ? raw.active_actions : undefined,
+    policy_summary: typeof raw.policy_summary === 'string' ? raw.policy_summary : undefined,
+    emergency_disable: typeof raw.emergency_disable === 'boolean' ? raw.emergency_disable : undefined,
+  }
+}
+
+function parseControlHistoryJson(raw: unknown): ControlHistoryResponse {
+  if (!isRecord(raw)) return {}
+  const actionsRaw = raw.actions
+  const actions = Array.isArray(actionsRaw)
+    ? actionsRaw.map(parseMeshNodeControlAction).filter((x): x is MeshNodeControlAction => x !== null)
+    : undefined
+  return { actions }
+}
+
+function parseOperationalStateJson(raw: unknown): ControlOperationalStateResponse {
+  if (!isRecord(raw)) return {}
+  const pendingRaw = raw.pending_approvals
+  const pending_approvals = Array.isArray(pendingRaw)
+    ? pendingRaw.map(parseMeshNodeControlAction).filter((x): x is MeshNodeControlAction => x !== null)
+    : undefined
+  return { pending_approvals }
+}
 
 interface ApiState<T> {
   data: T | null
@@ -254,7 +377,7 @@ export function useDiagnostics() {
 }
 
 export function useControlStatus() {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<ControlStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -263,8 +386,8 @@ export function useControlStatus() {
     try {
       const res = await fetch('/api/v1/control/status')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
+      const json: unknown = await res.json()
+      setData(parseControlStatusJson(json))
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch control status')
@@ -281,7 +404,7 @@ export function useControlStatus() {
 }
 
 export function useControlHistory() {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<ControlHistoryResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -290,8 +413,8 @@ export function useControlHistory() {
     try {
       const res = await fetch('/api/v1/control/history')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
+      const json: unknown = await res.json()
+      setData(parseControlHistoryJson(json))
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch control history')
@@ -308,7 +431,7 @@ export function useControlHistory() {
 }
 
 export function useOperationalState() {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<ControlOperationalStateResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -317,8 +440,8 @@ export function useOperationalState() {
     try {
       const res = await fetch('/api/v1/control/operational-state')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
+      const json: unknown = await res.json()
+      setData(parseOperationalStateJson(json))
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch operational state')

@@ -14,8 +14,13 @@ interface TruncatedTextProps {
  */
 export function TruncatedText({ text, maxLen = 48, className, as: Tag = 'span' }: TruncatedTextProps) {
   const display = text.length > maxLen ? truncateMiddle(text, maxLen) : text
+  const truncated = text.length > maxLen
   return (
-    <Tag className={clsx('min-w-0 font-mono text-xs', className)} title={text}>
+    <Tag
+      className={clsx('min-w-0 font-mono text-xs', className)}
+      title={truncated ? text : undefined}
+      {...(truncated ? { 'aria-label': text } : {})}
+    >
       {display}
     </Tag>
   )
