@@ -139,8 +139,8 @@ export function Events() {
 function EventRow({ event }: { event: AuditLog }) {
   const levelColors = {
     info: 'border-l-primary bg-primary/5',
-    warning: 'border-l-amber-500 bg-amber-50 dark:bg-amber-950/20',
-    error: 'border-l-red-500 bg-red-50 dark:bg-red-950/20',
+    warning: 'border-l-warning bg-warning/10',
+    error: 'border-l-critical bg-critical/10',
     debug: 'border-l-muted bg-muted/30',
   }
 
@@ -164,7 +164,7 @@ function EventRow({ event }: { event: AuditLog }) {
             </Badge>
             <span className="text-xs text-muted-foreground">{event.category || 'system'}</span>
           </div>
-          <p className="text-sm">{event.message}</p>
+          <p className="text-sm break-words">{event.message}</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap shrink-0">
           <Clock className="h-3 w-3" />

@@ -45,9 +45,10 @@ export function CopyButton({
     <button
       onClick={handleCopy}
       className={clsx(
-        'inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors',
-        'text-muted-foreground hover:text-foreground hover:bg-muted',
-        copied && 'text-success bg-success/10',
+        'inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
+        'text-muted-foreground hover:bg-muted hover:text-foreground',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        copied && 'bg-success/10 text-success',
         className
       )}
       aria-label={copied ? 'Copied!' : label}

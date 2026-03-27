@@ -363,7 +363,7 @@ export function Planning() {
         description="Next-step moves, resilience, and playbooks from observed mesh evidence. Not RF coverage simulation."
       />
 
-      <Card className="p-4 border-amber-500/30 bg-amber-500/5">
+      <Card className="border-warning/25 bg-warning/5 p-4">
         <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
           {bundle.evidence_model}
         </p>
@@ -379,7 +379,7 @@ export function Planning() {
           )}
         </div>
         {evidenceSignals.length > 0 && (
-          <div className="mt-3 border-t border-amber-500/20 pt-3" data-testid="planning-evidence-signals">
+          <div className="mt-3 border-t border-warning/20 pt-3" data-testid="planning-evidence-signals">
             <p className="text-xs font-medium text-muted-foreground mb-2">Evidence posture (operator caution)</p>
             <ul className="space-y-2">
               {evidenceSignals.map((signal) => (
@@ -394,7 +394,7 @@ export function Planning() {
           </div>
         )}
         {bundle.wait_versus_expand_hint && (
-          <p className="text-sm mt-3 border-t border-amber-500/20 pt-3">
+          <p className="mt-3 border-t border-warning/20 pt-3 text-sm">
             <span className="font-medium text-foreground">Wait vs expand: </span>
             {bundle.wait_versus_expand_hint}
           </p>
@@ -420,7 +420,7 @@ export function Planning() {
             ))}
           </ul>
           {bn.wait_observe_rationale && (
-            <p className="text-sm mt-3 text-amber-700 dark:text-amber-400">
+            <p className="mt-3 text-sm text-warning">
               <span className="font-medium">Why wait/observe: </span>
               {bn.wait_observe_rationale}
             </p>

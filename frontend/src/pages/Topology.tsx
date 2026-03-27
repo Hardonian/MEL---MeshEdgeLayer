@@ -449,7 +449,7 @@ export function Topology() {
                       {selected.mesh_intel.placement_quality_score.toFixed(2)}
                     </div>
                     {selected.mesh_intel.is_bridge_critical && (
-                      <div className="text-amber-600 dark:text-amber-400">Bridge-critical in observed graph</div>
+                      <div className="text-warning">Bridge-critical in observed graph</div>
                     )}
                     {selected.mesh_intel.notes && selected.mesh_intel.notes.length > 0 && (
                       <ul className="list-disc pl-4 text-muted-foreground">

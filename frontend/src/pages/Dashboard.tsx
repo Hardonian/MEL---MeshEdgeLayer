@@ -412,7 +412,7 @@ function RecommendationListItem({ recommendation }: { recommendation: { message:
     <div className="flex items-start gap-3 rounded-lg border p-3">
       <div className="mt-0.5">
         {recommendation.actionable ? (
-          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertCircle className="h-4 w-4 text-warning" />
         ) : (
           <Zap className="h-4 w-4 text-muted-foreground" />
         )}
