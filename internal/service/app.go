@@ -14,6 +14,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/diagnostics"
 	"github.com/mel-project/mel/internal/events"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/intelligence"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshintel"
@@ -225,6 +226,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.DB != nil {
 		_, _ = a.DB.EnsureInstanceID()
+		_ = fleet.SyncScopeMetadata(a.Cfg, a.DB)
 		canonFP, err := config.CanonicalFingerprintSHA256(a.Cfg)
 		if err == nil {
 			prev, ok, _ := a.DB.GetInstanceMetadata(db.MetaBootConfigFingerprint)

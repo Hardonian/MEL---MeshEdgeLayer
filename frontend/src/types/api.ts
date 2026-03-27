@@ -16,6 +16,8 @@ export interface VersionResponse {
   /** Canonical product boundary (single-gateway operator scope). */
   product?: ProductEnvelope
   instance_id?: string
+  /** Canonical instance/site/fleet boundary when DB is available (same shape as GET /api/v1/fleet/truth). */
+  fleet_truth?: FleetTruthSummary
   process?: { pid: number; started_at: string }
   uptime_seconds?: number
 }
@@ -35,6 +37,33 @@ export interface ProductEnvelope {
     notes?: string
   }>
   integration_enabled: boolean
+  capability_posture?: FleetCapabilityPosture
+}
+
+/** Honest federation and cross-instance boundaries (backend internal/fleet). */
+export interface FleetCapabilityPosture {
+  federation_mode: string
+  federation_read_only_evidence_ingest: string
+  cross_instance_action_execution: string
+  fleet_aggregation_supported: boolean
+  notes: string
+}
+
+/** Instance/site/fleet boundary truth — does not imply global health. */
+export interface FleetTruthSummary {
+  instance_id: string
+  site_id?: string
+  fleet_id?: string
+  fleet_label?: string
+  gateway_label?: string
+  truth_posture: string
+  visibility_posture: string
+  expected_fleet_reporters: number
+  reporting_instances_known: number
+  partial_visibility_reasons?: string[]
+  ordering_posture: string
+  capability_posture: FleetCapabilityPosture
+  physics_network_note: string
 }
 
 /** Durable SQLite identity + optional live process fields (mel serve). */
@@ -55,6 +84,7 @@ export interface StatusResponse {
   transports: TransportHealth[]
   product?: ProductEnvelope
   instance?: InstanceTruth
+  fleet_truth?: FleetTruthSummary
   /** When present, full GET /api/v1/status JSON envelope (panel, privacy, etc.). */
   _apiEnvelope?: Record<string, unknown>
 }

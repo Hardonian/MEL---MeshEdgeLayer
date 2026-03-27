@@ -192,6 +192,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/readyz", s.requireMethod(s.apiV1readyz, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/version", s.requireMethod(s.versionHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/fleet/truth", s.requireMethod(s.fleetTruthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/upgrade", s.requireMethod(s.upgradeHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/audit/verify", s.requireMethod(s.auditVerifyHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/status", s.requireMethod(s.status, http.MethodGet, http.MethodHead))

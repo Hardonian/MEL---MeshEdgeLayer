@@ -6,6 +6,7 @@ import (
 
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/runtime"
 	"github.com/mel-project/mel/internal/upgrade"
@@ -59,6 +60,9 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil {
 		if id, err := s.db.EnsureInstanceID(); err == nil {
 			out["instance_id"] = id
+		}
+		if ft, err := fleet.BuildTruthSummary(s.cfg, s.db); err == nil {
+			out["fleet_truth"] = ft
 		}
 	}
 	if !s.processStartedAt.IsZero() {

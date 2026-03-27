@@ -204,7 +204,12 @@ func (s *Server) snapshotCreateHandler(w http.ResponseWriter, r *http.Request) {
 // globalTopologyHandler handles GET /api/v1/topology/global
 func (s *Server) globalTopologyHandler(w http.ResponseWriter, r *http.Request) {
 	if s.federationHandlers == nil || s.federationHandlers.GlobalTopology == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"regions": []any{}, "global_health": 1.0})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"regions":                 []any{},
+			"global_topology_posture": "unsupported_without_federation_handlers",
+			"notes": "MEL does not ship a global topology plane in core; this endpoint is reserved for optional federation wiring. " +
+				"Do not interpret regional placeholders as network-wide certainty.",
+		})
 		return
 	}
 	result, err := s.federationHandlers.GlobalTopology()
