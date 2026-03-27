@@ -928,6 +928,95 @@ Privacy audit summary: {total:2 critical:0 high:1 medium:1 low:0}
 
 ## Backup/Export Commands
 
+### `mel fleet evidence import`
+
+Import canonical offline remote evidence into the local SQLite database.
+
+**Usage:**
+```
+mel fleet evidence import --file <path.json> --config <path> [--strict-origin] [--actor <id>]
+```
+
+**Accepted input formats:**
+- `mel_remote_evidence_bundle`
+- `mel_remote_evidence_batch`
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--file` | `""` | Path to canonical remote evidence bundle or batch JSON |
+| `--config` | `configs/mel.example.json` | Path to configuration file |
+| `--strict-origin` | `false` | Reject claimed origin instance mismatch instead of accepting with caveat |
+| `--actor` | `""` | Operator id recorded in local audit/timeline rows |
+
+**What it does:**
+- validates the payload,
+- persists an import batch audit row,
+- persists imported evidence item rows,
+- writes timeline audit events,
+- keeps imported evidence distinct from local observations.
+
+**What it does not do:**
+- create live federation,
+- verify authenticity cryptographically,
+- imply remote control or remote execution,
+- claim fleet-wide completeness.
+
+---
+
+### `mel fleet evidence list`
+
+List imported remote evidence items with summary posture.
+
+**Usage:**
+```
+mel fleet evidence list --config <path> [--limit <n>] [--batch <batch-id>]
+```
+
+Use `--batch` when you want to inspect only one persisted import batch without mixing it into other imported evidence.
+
+---
+
+### `mel fleet evidence show`
+
+Show one imported remote evidence item with full inspection detail.
+
+**Usage:**
+```
+mel fleet evidence show <import-id> --config <path>
+```
+
+The output includes provenance, validation, timing posture, merge inspection, and related evidence analysis.
+
+---
+
+### `mel fleet evidence batches`
+
+List offline remote import batches.
+
+**Usage:**
+```
+mel fleet evidence batches --config <path> [--limit <n>]
+```
+
+This is the quickest way to answer "what was imported, from where, and with what validation posture?"
+
+---
+
+### `mel fleet evidence batch-show`
+
+Show one persisted remote import batch and its item drilldown.
+
+**Usage:**
+```
+mel fleet evidence batch-show <batch-id> --config <path>
+```
+
+Use this when you need per-batch acceptance/rejection counts, source path/name, claimed origin, and item-level inspection in one response.
+
+---
+
 ### `mel export`
 
 Export data bundle for analysis or migration.
@@ -997,21 +1086,23 @@ mel import validate --bundle <path>
 - `0` - Bundle is valid
 - `1` - Bundle is invalid or unreadable
 
-**Example Output (canonical remote evidence bundle):**
+**Example Output (canonical remote evidence batch):**
 ```json
 {
-  "format": "mel_remote_evidence_bundle",
+  "format": "mel_remote_evidence_batch",
   "valid": true,
   "remote_evidence_import_supported": true,
   "validation": {
-    "outcome": "accepted_with_caveats",
+    "outcome": "accepted_partial_bundle",
     "reasons": [
       "authenticity_not_cryptographically_verified",
-      "partial_observation_only",
-      "receive_time_differs_from_observed_time"
-    ],
-    "ordering_posture": "receive_time_differs_from_observed_time"
-  }
+      "historical_import_not_live",
+      "accepted_partial_bundle"
+    ]
+  },
+  "item_count": 2,
+  "accepted_count": 1,
+  "rejected_count": 1
 }
 ```
 
@@ -1022,13 +1113,13 @@ mel import validate --bundle <path>
   "format": "mel_export_bundle",
   "remote_evidence_import_supported": false,
   "keys": ["audit_logs", "dead_letters", "exported_at", "messages", "nodes", "redacted"],
-  "note": "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle JSON."
+  "note": "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle or mel_remote_evidence_batch JSON."
 }
 ```
 
 **Common Use Cases:**
 ```bash
-# Validate a canonical remote-evidence bundle before import
+# Validate a canonical remote-evidence batch before import
 mel import validate --bundle /evidence/remote-site.json
 
 # Confirm that a general MEL export is not a canonical remote-evidence import bundle

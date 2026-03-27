@@ -646,7 +646,7 @@ func fleetEvidenceCmd(args []string) {
 	case "import":
 		f := fs("fleet-evidence-import")
 		path := f.String("config", configFlagDefault(), "config")
-		file := f.String("file", "", "path to mel_remote_evidence_bundle JSON (required)")
+		file := f.String("file", "", "path to canonical remote evidence bundle or batch JSON (required)")
 		strict := f.Bool("strict-origin", false, "reject when claimed_origin_instance_id mismatches evidence.origin_instance_id")
 		actor := f.String("actor", "cli-operator", "actor id for audit")
 		_ = f.Parse(args[1:])
@@ -1247,7 +1247,7 @@ func importCmd(args []string) {
 	note := "Unknown bundle format."
 	if hasNodes {
 		format = "mel_export_bundle"
-		note = "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle JSON."
+		note = "This is a general MEL export bundle. It is structurally valid as an export, but `mel fleet evidence import` only accepts canonical mel_remote_evidence_bundle or mel_remote_evidence_batch JSON."
 	}
 	mustPrint(map[string]any{
 		"valid":                            hasNodes,

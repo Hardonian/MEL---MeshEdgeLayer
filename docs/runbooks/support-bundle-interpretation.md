@@ -20,7 +20,8 @@ This document is for second-line support engineers, incident responders, and any
 |`timeline.json`|Full unified event timeline|Chronological investigation|
 |`control_actions.json`|Control actions and decisions|Audit trail: who did what and why|
 |`incidents.json`|Incident records|Correlation, handoff context|
-|`imported_evidence.json`|Remote evidence imports + validation|Provenance, merge posture|
+|`imported_evidence.json`|Remote evidence batches, imported rows, and inspections|Provenance, validation, timing, merge posture|
+|`remote_evidence_export.json`|Canonical offline re-export of imported evidence|Hand off the same imported evidence as a truthful offline batch|
 |`diagnostics.json`|Active diagnostic findings|Issues and recommended next steps|
 
 ## Reading the timeline
@@ -52,13 +53,23 @@ The timeline is a UNION of disparate event types into a single chronological str
 
 ## Reading imported evidence
 
-Each row in `imported_evidence.json` includes:
+`imported_evidence.json` contains batch-level and item-level sections:
+
+- `batches` — persisted import batch audit rows
+- `batch_inspections` — decoded batch validation/source drilldown
+- `imports` — persisted imported item rows
+- `inspections` — normalized per-item provenance/timing/merge drilldown
+
+Each imported item includes:
 
 - **`validation`** — Structured validation outcome (accepted, accepted_with_caveats, rejected) with machine-readable reason codes.
 - **`bundle`** — Raw import bundle JSON (the exact file that was imported).
 - **`evidence`** — Normalized evidence envelope.
 - **`origin_instance_id`** — The MEL instance that *claims* to have originated this evidence.
 - **`origin_site_id`** — The site that *claims* to own this evidence.
+- **`batch_id` / `source_*`** — The local import batch and local file/source context.
+- **`timing_posture`** — How MEL believes the row should be ordered/interpreted.
+- **`merge_disposition` / `merge_correlation_id`** — Why MEL kept the row raw, related, or comparable.
 
 **Critical**: "claimed" means the origin fields are self-reported. MEL does not cryptographically verify origin unless external verification is added by the operator.
 
@@ -69,6 +80,28 @@ Each row in `imported_evidence.json` includes:
 |`accepted`|Structurally valid, no caveats|
 |`accepted_with_caveats`|Structurally valid but with warnings (e.g., partial observation)|
 |`rejected`|Structurally invalid or scope conflict|
+
+### Batch outcomes
+
+Batch validation is separate from per-item validation.
+
+|Outcome|Meaning|
+|---|---|
+|`accepted_with_caveats`|Every item was imported, but the whole batch remains historical/offline/unverified|
+|`accepted_partial_bundle`|Some items were imported, some were rejected|
+|`rejected`|No item was accepted; the raw batch survives only as audit evidence|
+
+### Reading `remote_evidence_export.json`
+
+This file is a canonical `mel_remote_evidence_batch` payload generated from the imported rows already stored locally.
+
+Use it when you need to:
+
+- hand the exact imported evidence to another MEL instance,
+- attach a truthful offline batch to an escalation,
+- preserve the distinction between local evidence and imported evidence.
+
+Do not read it as proof of live sync, cross-instance authority, or fleet-wide completeness.
 
 ## Reading control actions
 

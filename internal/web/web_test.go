@@ -14,6 +14,7 @@ import (
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
+	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
@@ -326,6 +327,83 @@ func TestPanelEndpointExposesCompactOperatorView(t *testing.T) {
 	}
 }
 
+func TestFleetImportBatchEndpointsExposeOfflineAuditDetails(t *testing.T) {
+	const batchID = "batch-web-1"
+	srv := newTestServer(t, nil, func(database *db.DB) {
+		seedRemoteImportBatchFixture(t, database, batchID)
+	})
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/fleet/imports?limit=10", nil)
+	listRec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("unexpected list status: %d body=%s", listRec.Code, listRec.Body.String())
+	}
+	var listPayload map[string]any
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatal(err)
+	}
+	if int(listPayload["count"].(float64)) != 1 {
+		t.Fatalf("expected one batch, got %#v", listPayload)
+	}
+	if note, _ := listPayload["note"].(string); note == "" {
+		t.Fatalf("expected offline-audit note, got %#v", listPayload["note"])
+	}
+	summaries, ok := listPayload["summaries"].([]any)
+	if !ok || len(summaries) != 1 {
+		t.Fatalf("expected one batch summary, got %#v", listPayload["summaries"])
+	}
+	summary := summaries[0].(map[string]any)
+	if summary["batch_id"] != batchID {
+		t.Fatalf("unexpected batch summary %#v", summary)
+	}
+	if summary["partial_success"] != false {
+		t.Fatalf("expected full accepted batch summary, got %#v", summary)
+	}
+
+	detailReq := httptest.NewRequest(http.MethodGet, "/api/v1/fleet/imports/"+batchID, nil)
+	detailRec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(detailRec, detailReq)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("unexpected detail status: %d body=%s", detailRec.Code, detailRec.Body.String())
+	}
+	var detailPayload map[string]any
+	if err := json.Unmarshal(detailRec.Body.Bytes(), &detailPayload); err != nil {
+		t.Fatal(err)
+	}
+	batch := detailPayload["batch"].(map[string]any)
+	if batch["id"] != batchID {
+		t.Fatalf("unexpected batch row %#v", batch)
+	}
+	items, ok := detailPayload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one batch item, got %#v", detailPayload["items"])
+	}
+	item := items[0].(map[string]any)
+	if item["batch_id"] != batchID {
+		t.Fatalf("expected item to retain batch id, got %#v", item)
+	}
+	inspection := detailPayload["inspection"].(map[string]any)
+	inspectionBatch := inspection["batch"].(map[string]any)
+	validation := inspectionBatch["validation"].(map[string]any)
+	if validation["outcome"] != string(fleet.ValidationAcceptedWithCaveats) {
+		t.Fatalf("expected accepted_with_caveats batch validation, got %#v", validation)
+	}
+	itemInspections, ok := inspection["item_inspections"].([]any)
+	if !ok || len(itemInspections) != 1 {
+		t.Fatalf("expected one item inspection, got %#v", inspection["item_inspections"])
+	}
+	itemInspection := itemInspections[0].(map[string]any)
+	source := itemInspection["source"].(map[string]any)
+	if source["source_type"] != "file" {
+		t.Fatalf("expected file source type, got %#v", source)
+	}
+	provenance := itemInspection["provenance"].(map[string]any)
+	if provenance["origin_instance_id"] != "remote-1" {
+		t.Fatalf("expected origin instance to survive inspection, got %#v", provenance)
+	}
+}
+
 func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *Server {
 	t.Helper()
 	cfg := config.Default()
@@ -344,6 +422,164 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 		seed(database)
 	}
 	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(), func() []transport.Health { return health }, func() []policy.Recommendation { return nil }, nil, nil, nil, nil, nil)
+}
+
+func seedRemoteImportBatchFixture(t *testing.T, database *db.DB, batchID string) {
+	t.Helper()
+	localID, err := database.EnsureInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle := fleet.RemoteEvidenceBundle{
+		SchemaVersion:           fleet.RemoteEvidenceBundleSchemaVersion,
+		Kind:                    fleet.RemoteEvidenceBundleKind,
+		ClaimedOriginInstanceID: "remote-1",
+		ClaimedOriginSiteID:     "site-a",
+		ClaimedFleetID:          "fleet-remote",
+		Evidence: fleet.EvidenceEnvelope{
+			EvidenceClass:       fleet.EvidenceClassPacketObservation,
+			OriginInstanceID:    "remote-1",
+			OriginSiteID:        "site-a",
+			OriginClass:         fleet.OriginRemoteReported,
+			CorrelationID:       "corr-web-1",
+			ObservedAt:          "2026-01-01T00:00:00Z",
+			ReceivedAt:          "2026-01-01T00:00:05Z",
+			PhysicalUncertainty: fleet.PhysicalUncertaintyDefault,
+		},
+		Event: &fleet.EventEnvelope{
+			EventID:          "evt-web-1",
+			EventType:        "packet_observation",
+			Summary:          "remote packet observed",
+			OriginInstanceID: "remote-1",
+			OriginSiteID:     "site-a",
+			CorrelationID:    "corr-web-1",
+			ObservedAt:       "2026-01-01T00:00:00Z",
+			RecordedAt:       "2026-01-01T00:00:05Z",
+		},
+	}
+	rawPayload, err := json.Marshal(fleet.RemoteEvidenceBatch{
+		SchemaVersion:     fleet.RemoteEvidenceBatchSchemaVersion,
+		Kind:              fleet.RemoteEvidenceBatchKind,
+		ExportedAt:        "2026-01-01T00:09:00Z",
+		ClaimedOrigin:     fleet.RemoteEvidenceBatchClaimedOrigin{InstanceID: "remote-1", SiteID: "site-a", FleetID: "fleet-remote"},
+		CapabilityPosture: fleet.DefaultCapabilityPosture(),
+		SourceContext:     fleet.RemoteEvidenceImportSource{SourceType: "file", SourceName: "remote-evidence.json", SourcePath: "/tmp/remote-evidence.json"},
+		Items:             []fleet.RemoteEvidenceBundle{bundle},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchValidation, err := json.Marshal(fleet.RemoteEvidenceBatchValidation{
+		Outcome:                  fleet.ValidationAcceptedWithCaveats,
+		Reasons:                  []fleet.ValidationReasonCode{fleet.CaveatNotCryptographicallyVerified, fleet.CaveatHistoricalImportOnly, fleet.CaveatUnverifiedOrigin},
+		TrustPosture:             fleet.TrustPostureImportedReadOnly,
+		AuthenticityNote:         "Import authenticity is not cryptographically verified in core MEL; treat claimed origin as unverified unless checked outside MEL.",
+		OfflineOnlyNote:          "Remote evidence import is offline/file-scoped in core MEL; it does not establish live federation, remote execution, or fleet-wide authority.",
+		Summary:                  "Accepted 1 item with caveats: offline import remains read-only, historical, and authenticity-unverified.",
+		StructurallyValid:        true,
+		ItemCount:                1,
+		AcceptedWithCaveatsCount: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capabilityJSON, err := json.Marshal(fleet.DefaultCapabilityPosture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch := db.RemoteImportBatchRecord{
+		ID:                       batchID,
+		ImportedAt:               "2026-01-01T00:10:00Z",
+		LocalInstanceID:          localID,
+		SourceType:               "file",
+		SourceName:               "remote-evidence.json",
+		SourcePath:               "/tmp/remote-evidence.json",
+		FormatKind:               fleet.RemoteEvidenceBatchKind,
+		SchemaVersion:            fleet.RemoteEvidenceBatchSchemaVersion,
+		ClaimedOriginInstanceID:  "remote-1",
+		ClaimedOriginSiteID:      "site-a",
+		ClaimedFleetID:           "fleet-remote",
+		ExportedAt:               "2026-01-01T00:09:00Z",
+		CapabilityPosture:        capabilityJSON,
+		Validation:               batchValidation,
+		RawPayload:               rawPayload,
+		ItemCount:                1,
+		AcceptedWithCaveatsCount: 1,
+		Note:                     "Offline remote evidence batch for audit and investigation only.",
+	}
+	bundleJSON, err := json.Marshal(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceJSON, err := json.Marshal(bundle.Evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventJSON, err := json.Marshal(bundle.Event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itemValidation, err := json.Marshal(fleet.RemoteEvidenceValidation{
+		Outcome:          fleet.ValidationAcceptedWithCaveats,
+		Reasons:          []fleet.ValidationReasonCode{fleet.CaveatNotCryptographicallyVerified, fleet.CaveatHistoricalImportOnly, fleet.CaveatPartialObservationOnly, fleet.CaveatReceiveDiffersFromObserved},
+		TrustPosture:     fleet.TrustPostureImportedReadOnly,
+		AuthenticityNote: "Import authenticity is not cryptographically verified in core MEL; treat claimed origin as unverified unless checked outside MEL.",
+		OrderingPosture:  fleet.TimingOrderReceiveDiffersFromObserved,
+		Summary:          "Accepted with caveats: structurally valid offline remote evidence; authenticity and authority are not verified; import remains historical/read-only.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := db.ImportedRemoteEvidenceRecord{
+		ID:                      "imp-web-1",
+		BatchID:                 batchID,
+		ItemID:                  batchID + ":001",
+		SequenceNo:              1,
+		ImportedAt:              "2026-01-01T00:10:00Z",
+		LocalInstanceID:         localID,
+		SourceType:              "file",
+		SourceName:              "remote-evidence.json",
+		SourcePath:              "/tmp/remote-evidence.json",
+		ValidationStatus:        string(fleet.ValidationAcceptedWithCaveats),
+		Validation:              itemValidation,
+		Bundle:                  bundleJSON,
+		Evidence:                evidenceJSON,
+		Event:                   eventJSON,
+		ClaimedOriginInstanceID: "remote-1",
+		ClaimedOriginSiteID:     "site-a",
+		ClaimedFleetID:          "fleet-remote",
+		OriginInstanceID:        "remote-1",
+		OriginSiteID:            "site-a",
+		EvidenceClass:           string(fleet.EvidenceClassPacketObservation),
+		ObservationOriginClass:  string(fleet.OriginRemoteReported),
+		CorrelationID:           "corr-web-1",
+		ObservedAt:              "2026-01-01T00:00:00Z",
+		ReceivedAt:              "2026-01-01T00:00:05Z",
+		TimingPosture:           string(fleet.TimingOrderReceiveDiffersFromObserved),
+		MergeDisposition:        "raw_only",
+		MergeCorrelationID:      "corr-web-1",
+		Rejected:                false,
+	}
+	timelineEvents := []db.TimelineEvent{
+		{
+			EventID:            batchID,
+			EventTime:          "2026-01-01T00:10:00Z",
+			EventType:          "remote_import_batch",
+			Summary:            "remote import batch accepted_with_caveats",
+			Severity:           "info",
+			ActorID:            "tester",
+			ResourceID:         batchID,
+			ScopePosture:       "remote_import_batch",
+			TimingPosture:      string(fleet.TimingOrderLocalOrdered),
+			MergeDisposition:   "raw_only",
+			MergeCorrelationID: "corr-web-1",
+			ImportID:           batchID,
+			Details:            map[string]any{"batch_id": batchID, "offline_only_federation": true},
+		},
+	}
+	if err := database.PersistRemoteImportBatch(batch, []db.ImportedRemoteEvidenceRecord{item}, timelineEvents); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestIncidentsEndpointReturnsGroupedTransportIncidents(t *testing.T) {

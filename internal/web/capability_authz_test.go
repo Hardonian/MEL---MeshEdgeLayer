@@ -91,7 +91,7 @@ func newAuthedTrustServer(t *testing.T) (*Server, string) {
 	srv := New(cfg, logging.New("error", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil,`n`t`tfunc() investigation.Summary { return investigation.Summary{} })
 	// Direct DB approve/reject is enough to prove HTTP authz; avoids import cycle with service → web.
 	srv.SetTrustFuncs(
 		func(id, actor, note string, _ bool, _ string) (*models.ApproveActionResponse, error) {
@@ -208,7 +208,7 @@ func TestIncidentsListIncludesHandoffFields(t *testing.T) {
 	srv := New(cfg, logging.New("error", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil,`n`t`tfunc() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents", nil)
 	req.Header.Set("X-API-Key", "viewer-test-key")

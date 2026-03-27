@@ -104,6 +104,12 @@ Versioned readiness for probes and automation. **Semantically identical** to `GE
 **Requires** capability `export_support_bundle` (same as manifest export). Returns `application/zip` containing:
 - `bundle.json` — redacted support payload (see `internal/support`).
 - `doctor.json` — structured output aligned with `mel doctor`, with bundle-specific redaction (config path omitted; `config_inspect` fingerprint only).
+- `imported_evidence.json` and `remote_evidence_export.json` when offline remote evidence exists.
+
+**Important posture notes:**
+- Support bundles preserve remote evidence as **offline imported data**, not live federation state.
+- `remote_evidence_export.json` is re-importable as `mel_remote_evidence_batch`.
+- Authenticity of imported origin is not cryptographically verified by core MEL.
 
 ---
 
@@ -186,6 +192,138 @@ Legacy dead letters endpoint (identical to `/api/v1/dead-letters`).
 ---
 
 ## v1 API
+
+### GET /api/v1/fleet/truth
+Returns the instance-scoped fleet truth posture used to interpret local vs imported evidence.
+
+This endpoint is intentionally bounded:
+- it describes this instance's scope and truth boundary,
+- it does not claim global fleet completeness,
+- it does not imply live federation authority.
+
+---
+
+### POST /api/v1/fleet/remote-evidence
+Offline remote evidence ingest. The request body must be raw JSON matching one of:
+
+- `mel_remote_evidence_bundle`
+- `mel_remote_evidence_batch`
+
+**Behavior:**
+- validates the payload structurally,
+- persists an import batch audit row,
+- persists per-item imported evidence rows,
+- materializes local timeline audit events,
+- never turns imported evidence into a remote control channel.
+
+**Successful response fields:**
+- `status`
+- `batch_id`
+- `validation`
+- `input_kind`
+- `items`
+- `item_inspections`
+- `accepted_count`
+- `rejected_count`
+
+**Notes:**
+- accepted imports are still historical/offline and authenticity-unverified by default,
+- partial success is explicit through `accepted_partial_bundle`,
+- generic MEL export bundles are not importable here unless wrapped in the canonical remote evidence contract.
+
+---
+
+### GET /api/v1/fleet/remote-evidence
+Lists imported remote evidence item rows plus normalized summaries.
+
+**Query params:**
+- `limit`
+- `batch_id` — limit list to one persisted import batch
+
+The response preserves:
+- local/imported distinction,
+- validation posture,
+- timing posture,
+- related-evidence/merge summary counts.
+
+---
+
+### GET /api/v1/fleet/remote-evidence/{id}
+Returns one imported evidence row plus full inspection detail.
+
+The inspection includes:
+- source batch/path context,
+- claimed origin vs local provenance,
+- timing posture,
+- merge inspection,
+- related evidence analysis,
+- remaining unknowns.
+
+---
+
+### GET /api/v1/fleet/imports
+Lists persisted remote import batches.
+
+These are **offline audit containers**, not live peer state. The response includes:
+- raw batch rows,
+- normalized summaries,
+- truth posture note explaining the read-only/offline boundary.
+
+---
+
+### GET /api/v1/fleet/imports/{id}
+Returns one import batch with:
+- the batch audit row,
+- imported item rows in that batch,
+- batch inspection,
+- per-item inspections.
+
+Use this when an operator needs to answer:
+- what was imported,
+- from where it claimed to come,
+- what MEL accepted or rejected,
+- what remains unverified or partial.
+
+---
+
+### GET /api/v1/fleet/merge-explain
+Explains MEL's merge/dedupe classification logic for two candidate keys.
+
+This endpoint is intentionally narrow:
+- it explains structural dedupe posture,
+- it does not prove flooding, congestion, route certainty, or RF coverage.
+
+---
+
+### GET /api/v1/timeline
+Unified instance-local timeline. Imported remote evidence appears as explicit remote-prefixed event types such as:
+
+- `remote_import_batch`
+- `remote_evidence_import_item`
+- `remote_event_materialized`
+
+**Query params:**
+- `start`
+- `end`
+- `limit`
+- `event_type`
+- `scope_posture`
+
+**Ordering note:** the response is instance-local or import-local only. No global total order is implied.
+
+---
+
+### GET /api/v1/timeline/{id}
+Returns one timeline event plus its ordering posture note.
+
+For imported remote evidence events, inspect `details_json` for:
+- validation posture,
+- provenance,
+- timing basis,
+- merge inspection,
+- canonical evidence and remote event envelopes.
+
+---
 
 ### GET /api/v1/status
 Full system status with persisted summary.
