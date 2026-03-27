@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 // Options controls human vs machine output for CLI commands.
@@ -23,9 +23,7 @@ func DetectTTY() bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
 	}
-	fd := int(os.Stdout.Fd())
-	_, err := unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
-	return err == nil
+	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // Print marshals v as indented JSON to w.
