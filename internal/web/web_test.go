@@ -274,6 +274,101 @@ func TestInvestigationsCaseEndpoints(t *testing.T) {
 	}
 }
 
+func TestInvestigationCaseTimelineEndpoint(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	cfg.Transports = []config.TransportConfig{{
+		Name:     "mqtt",
+		Type:     "mqtt",
+		Enabled:  true,
+		Endpoint: "127.0.0.1:1883",
+		Topic:    "msh/test",
+		ClientID: "mel-test",
+	}}
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertTransportRuntime(db.TransportRuntime{
+		Name:          "mqtt",
+		Type:          "mqtt",
+		Source:        "127.0.0.1:1883",
+		Enabled:       true,
+		State:         transport.StateFailed,
+		Detail:        "connect failed",
+		LastError:     "broker unreachable",
+		FailureCount:  2,
+		UpdatedAt:     "2026-03-27T00:00:00Z",
+		LastFailureAt: "2026-03-27T00:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InsertTimelineEvent(db.TimelineEvent{
+		EventID:        "evt-transport-1",
+		EventTime:      "2026-03-27T00:00:00Z",
+		EventType:      "transport_runtime_note",
+		Summary:        "mqtt failed to connect",
+		Severity:       "warning",
+		ActorID:        "system",
+		ResourceID:     "mqtt",
+		ScopePosture:   "local",
+		TimingPosture:  "local_ordered",
+		Details:        map[string]any{"transport": "mqtt"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtimeStates, err := database.TransportRuntimeStatuses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
+		func() []transport.Health {
+			return []transport.Health{{
+				Name:         "mqtt",
+				Type:         "mqtt",
+				Source:       "127.0.0.1:1883",
+				State:        transport.StateFailed,
+				LastError:    "broker unreachable",
+				FailureCount: 2,
+			}}
+		},
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil,
+		func() investigation.Summary {
+			return investigation.Derive(cfg, database, []transport.Health{{
+				Name:         "mqtt",
+				Type:         "mqtt",
+				Source:       "127.0.0.1:1883",
+				State:        transport.StateFailed,
+				LastError:    "broker unreachable",
+				FailureCount: 2,
+			}}, runtimeStates, time.Date(2026, 3, 27, 1, 0, 0, 0, time.UTC))
+		})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/investigations/cases/case:transport:mqtt/timeline", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected timeline status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["case_id"] != "case:transport:mqtt" {
+		t.Fatalf("unexpected case id payload: %#v", payload)
+	}
+	timing, ok := payload["timing"].(map[string]any)
+	if !ok || timing["primary_posture"] == "" {
+		t.Fatalf("expected timing posture in payload, got %#v", payload["timing"])
+	}
+	if payload["linked_event_count"].(float64) < 1 {
+		t.Fatalf("expected linked events in payload, got %#v", payload)
+	}
+}
+
 func TestStatusReturnsTransportSummary(t *testing.T) {
 	insert := func(d *db.DB) {
 		stored, err := d.InsertMessage(map[string]any{

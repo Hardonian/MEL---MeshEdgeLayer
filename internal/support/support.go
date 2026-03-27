@@ -283,6 +283,7 @@ func (b *Bundle) ToZip() ([]byte, error) {
 			"cases":         b.Investigation.Cases,
 			"case_details":  b.InvestigationCaseDetails,
 			"scope_posture": b.Investigation.ScopePosture,
+			"note":          "Case detail includes linked raw events, case-evolution entries, timing posture, and bounded uncertainty/recommendation context. Related events contribute context to cases; they do not automatically prove causality.",
 		}
 	}
 
@@ -353,11 +354,13 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("| remote_evidence_export.json | Canonical offline export of imported evidence | Re-importable batch payload; still offline-only and authenticity-unverified by default |\n")
 	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n")
 	sb.WriteString("| investigation.json | Canonical investigation summary | High-level decision support, cases, findings, evidence gaps, and physics boundaries |\n")
-	sb.WriteString("| investigation_cases.json | Expanded investigation cases | Case list plus expanded case-detail drilldown for support reconstruction |\n\n")
+	sb.WriteString("| investigation_cases.json | Expanded investigation cases | Case list plus expanded case-detail drilldown, linked events, timing posture, and case evolution for support reconstruction |\n\n")
 	sb.WriteString("## Interpretation notes\n\n")
 	sb.WriteString("- **Timeline order is instance-local.** Events from imported remote evidence include timing and scope posture.\n")
 	sb.WriteString("  `scope_posture=remote_imported` means the event came from another truth domain (offline).\n")
 	sb.WriteString("  `timing_posture=local_ordered` means strict local order; other values indicate best-effort correlation.\n")
+	sb.WriteString("- **Case timelines are reconstructable, not theatrical.** `investigation_cases.json` includes raw linked events and typed case-evolution entries.\n")
+	sb.WriteString("  Evolution entries explain how the current case posture was shaped. They are bounded by retained evidence and may be derived or inferred; they are not a hidden incident story log.\n")
 	sb.WriteString("- **Imported evidence is not live federation.** It is file-scoped, instance-local storage.\n")
 	sb.WriteString("  Authenticity is not cryptographically verified unless operator adds external verification.\n")
 	sb.WriteString("- **Absence of evidence ≠ evidence of absence.** Missing data may indicate a transport is disconnected, not that the mesh is healthy.\n")
@@ -383,6 +386,7 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("mel investigate --config <path>\n")
 	sb.WriteString("mel investigate cases --config <path>\n")
 	sb.WriteString("mel investigate show <case-id> --config <path>\n")
+	sb.WriteString("mel investigate timeline <case-id> --config <path>\n")
 	sb.WriteString("mel health trust --config <path>\n")
 	sb.WriteString("```\n")
 	if b.StatusCollectError != "" {

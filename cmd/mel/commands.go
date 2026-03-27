@@ -470,8 +470,34 @@ func investigateCmd(args []string) {
 			return
 		}
 		printInvestigationCaseDetailText(detail)
+	case "timeline":
+		if len(args) == 0 {
+			panic("usage: mel investigate timeline <case-id> --config <path>")
+		}
+		caseID := strings.TrimSpace(args[0])
+		f := fs("investigate-timeline")
+		path := f.String("config", configFlagDefault(), "config")
+		_ = f.Parse(args[1:])
+		summary := deriveInvestigationSummary(*path)
+		detail, ok := summary.CaseDetail(caseID)
+		if !ok {
+			panic("investigation case not found: " + caseID)
+		}
+		if cliGlobal.JSON {
+			mustPrint(map[string]any{
+				"case_id":            detail.Case.ID,
+				"title":              detail.Case.Title,
+				"timing":             detail.Case.Timing,
+				"linked_event_count": len(detail.LinkedEvents),
+				"evolution_count":    len(detail.Evolution),
+				"linked_events":      detail.LinkedEvents,
+				"evolution":          detail.Evolution,
+			})
+			return
+		}
+		printInvestigationCaseTimelineText(detail)
 	default:
-		panic("usage: mel investigate [--config <path>] | mel investigate cases --config <path> | mel investigate show <case-id> --config <path>")
+		panic("usage: mel investigate [--config <path>] | mel investigate cases --config <path> | mel investigate show <case-id> --config <path> | mel investigate timeline <case-id> --config <path>")
 	}
 }
 
@@ -588,6 +614,9 @@ func printInvestigationCasesText(summary investigation.Summary) {
 		fmt.Printf("[%d] %s | %s | %.2f cert | %s\n", i+1, sev, c.Status, c.Certainty, c.Title)
 		fmt.Printf("    ID:      %s\n", c.ID)
 		fmt.Printf("    SUMMARY: %s\n", c.Summary)
+		if c.Timing.PrimaryPosture != "" {
+			fmt.Printf("    TIMING:  %s\n", c.Timing.PrimaryPosture)
+		}
 		if c.MissingEvidence != "" {
 			fmt.Printf("    MISSING: %s\n", c.MissingEvidence)
 		}
@@ -607,6 +636,19 @@ func printInvestigationCaseDetailText(detail investigation.CaseDetail) {
 	fmt.Printf("WHY IT MATTERS: %s\n", c.WhyItMatters)
 	if c.MissingEvidence != "" {
 		fmt.Printf("MISSING EVIDENCE: %s\n", c.MissingEvidence)
+	}
+	if c.Timing.PrimaryPosture != "" {
+		fmt.Printf("TIMING POSTURE: %s\n", c.Timing.PrimaryPosture)
+		if c.Timing.Note != "" {
+			fmt.Printf("TIMING NOTE: %s\n", c.Timing.Note)
+		}
+		if len(c.Timing.Postures) > 0 {
+			postures := make([]string, 0, len(c.Timing.Postures))
+			for _, posture := range c.Timing.Postures {
+				postures = append(postures, string(posture))
+			}
+			fmt.Printf("TIMING FLAGS: %s\n", strings.Join(postures, " | "))
+		}
 	}
 	fmt.Printf("SAFE TO CONSIDER: %s\n", c.SafeToConsider)
 	fmt.Printf("OUT OF SCOPE: %s\n\n", c.OutOfScope)
@@ -647,6 +689,84 @@ func printInvestigationCaseDetailText(detail investigation.CaseDetail) {
 			fmt.Printf("%s | %s | %s\n", record.Kind, record.ID, record.Summary)
 			if record.InspectCLI != "" {
 				fmt.Printf("  CLI: %s\n", record.InspectCLI)
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(detail.LinkedEvents) > 0 {
+		fmt.Printf("--- LINKED EVENTS ---\n")
+		for _, event := range detail.LinkedEvents {
+			fmt.Printf("%s | %s | %s\n", event.EventTime, event.RelationType, event.Summary)
+			fmt.Printf("  contribution=%s scope=%s ordering=%s\n", event.Contribution, event.Scope, event.OrderingPosture)
+			if event.Note != "" {
+				fmt.Printf("  note: %s\n", event.Note)
+			}
+			if event.InspectCLI != "" {
+				fmt.Printf("  CLI: %s\n", event.InspectCLI)
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(detail.Evolution) > 0 {
+		fmt.Printf("--- CASE EVOLUTION ---\n")
+		for _, entry := range detail.Evolution {
+			reasons := make([]string, 0, len(entry.ReasonCodes))
+			for _, reason := range entry.ReasonCodes {
+				reasons = append(reasons, string(reason))
+			}
+			fmt.Printf("%s | %s\n", entry.OccurredAt, entry.Summary)
+			fmt.Printf("  reasons=%s basis=%s ordering=%s\n", strings.Join(reasons, " | "), entry.ReconstructionBasis, entry.OrderingPosture)
+			if entry.Note != "" {
+				fmt.Printf("  note: %s\n", entry.Note)
+			}
+		}
+		fmt.Println()
+	}
+}
+
+func printInvestigationCaseTimelineText(detail investigation.CaseDetail) {
+	c := detail.Case
+	fmt.Printf("\nMEL INVESTIGATION CASE TIMELINE\n")
+	fmt.Printf("ID: %s\n", c.ID)
+	fmt.Printf("Title: %s\n", c.Title)
+	fmt.Printf("Primary timing posture: %s\n", c.Timing.PrimaryPosture)
+	fmt.Printf("Exact sequence: %t\n", c.Timing.ExactSequence)
+	if c.Timing.Note != "" {
+		fmt.Printf("Timing note: %s\n", c.Timing.Note)
+	}
+	fmt.Println()
+
+	if len(detail.LinkedEvents) > 0 {
+		fmt.Printf("--- RAW LINKED EVENTS ---\n")
+		for _, event := range detail.LinkedEvents {
+			fmt.Printf("%s | %s | %s\n", event.EventTime, event.EventType, event.Summary)
+			fmt.Printf("  relation=%s contribution=%s scope=%s ordering=%s basis=%s\n", event.RelationType, event.Contribution, event.Scope, event.OrderingPosture, event.TimeBasis)
+			if event.Note != "" {
+				fmt.Printf("  note: %s\n", event.Note)
+			}
+			if event.InspectCLI != "" {
+				fmt.Printf("  CLI: %s\n", event.InspectCLI)
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(detail.Evolution) > 0 {
+		fmt.Printf("--- CASE EVOLUTION ---\n")
+		for _, entry := range detail.Evolution {
+			reasons := make([]string, 0, len(entry.ReasonCodes))
+			for _, reason := range entry.ReasonCodes {
+				reasons = append(reasons, string(reason))
+			}
+			fmt.Printf("%s | %s\n", entry.OccurredAt, entry.Summary)
+			fmt.Printf("  reasons=%s basis=%s ordering=%s\n", strings.Join(reasons, " | "), entry.ReconstructionBasis, entry.OrderingPosture)
+			if len(entry.RelatedEventIDs) > 0 {
+				fmt.Printf("  related-events: %s\n", strings.Join(entry.RelatedEventIDs, ", "))
+			}
+			if entry.Note != "" {
+				fmt.Printf("  note: %s\n", entry.Note)
 			}
 		}
 		fmt.Println()

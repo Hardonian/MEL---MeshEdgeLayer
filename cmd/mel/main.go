@@ -194,6 +194,7 @@ Global flags (before subcommand): --config <path> --profile <name> --json|--text
   investigate [--config <path>]
   investigate cases --config <path>
   investigate show <case-id> --config <path>
+  investigate timeline <case-id> --config <path>
   fleet truth --config <path>
   fleet evidence import --file <path.json> --config <path> [--strict-origin] [--actor id]
   fleet evidence list --config <path> [--limit n] [--batch <batch-id>]

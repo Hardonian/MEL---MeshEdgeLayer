@@ -8,7 +8,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
@@ -21,13 +21,16 @@ lint: fmt vet
 test:
 	$(GO) test ./...
 
-build: build-agent build-cli
+build: frontend-build build-agent build-cli
+
+frontend-build:
+	cd frontend && npm ci && npm run build
 
 build-agent:
 	mkdir -p $(BINDIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-agent ./cmd/mel-agent
 
-build-cli:
+build-cli: frontend-build
 	mkdir -p $(BINDIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
 

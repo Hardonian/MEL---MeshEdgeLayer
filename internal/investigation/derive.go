@@ -79,6 +79,12 @@ func Derive(
 	sortFindings(findings)
 	cases := buildCases(findings, gaps, ctx)
 	sortCases(cases)
+	caseDetails := buildCaseDetails(cases, findings, gaps, recs, ctx, nowStr)
+	for i := range cases {
+		if detail, ok := caseDetails[cases[i].ID]; ok {
+			cases[i] = detail.Case
+		}
+	}
 
 	counts := computeCounts(findings, gaps, recs)
 	overall := computeOverallAttention(findings)
@@ -101,6 +107,7 @@ func Derive(
 		CaseCounts:       caseCounts(cases),
 		ScopePosture:     scopePosture,
 		PhysicsBoundary:  DefaultPhysicsBoundary(),
+		caseDetails:      caseDetails,
 	}
 }
 
@@ -122,7 +129,7 @@ func loadDeriveContext(cfg config.Config, d *db.DB, transportStates []db.Transpo
 	ctx.alerts, _ = d.TransportAlerts(true)
 	ctx.imports, _ = d.ListImportedRemoteEvidence(100)
 	ctx.batches, _ = d.ListRemoteImportBatches(25)
-	ctx.timeline, _ = d.TimelineEvents("", "", 200)
+	ctx.timeline, _ = d.TimelineEvents("", "", 500)
 	return ctx
 }
 
@@ -1687,7 +1694,10 @@ func newestImportTime(imports []db.ImportedRemoteEvidenceRecord, fallback string
 
 func hasLocalTimelineEvidence(timeline []db.TimelineEvent) bool {
 	for _, event := range timeline {
-		if event.ScopePosture != "remote_imported" {
+		switch strings.TrimSpace(event.ScopePosture) {
+		case "remote_imported", "remote_reported", "remote_import_batch":
+			continue
+		default:
 			return true
 		}
 	}
@@ -1721,6 +1731,10 @@ func scopeFromTimeline(event db.TimelineEvent) ScopePosture {
 	switch strings.TrimSpace(event.ScopePosture) {
 	case "remote_imported":
 		return ScopeImported
+	case "remote_reported":
+		return ScopeHistoricalOnly
+	case "remote_import_batch":
+		return ScopeLocal
 	case "best_effort_fleet":
 		return ScopePartialFleet
 	default:

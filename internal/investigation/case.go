@@ -54,28 +54,31 @@ type RelatedRecord struct {
 // findings, evidence gaps, and recommendations, then linked back to raw
 // timeline/import/incident/transport records.
 type Case struct {
-	ID                string          `json:"id"`
-	Kind              CaseKind        `json:"kind"`
-	Status            CaseStatus      `json:"status"`
-	Attention         AttentionLevel  `json:"attention"`
-	Certainty         float64         `json:"certainty"`
-	Title             string          `json:"title"`
-	Summary           string          `json:"summary"`
-	AttentionReason   string          `json:"attention_reason"`
-	WhyItMatters      string          `json:"why_it_matters"`
-	Scope             ScopePosture    `json:"scope"`
-	HistoricalOnly    bool            `json:"historical_only"`
-	CurrentEvidence   bool            `json:"current_evidence"`
-	FindingIDs        []string        `json:"finding_ids,omitempty"`
-	EvidenceGapIDs    []string        `json:"evidence_gap_ids,omitempty"`
-	RecommendationIDs []string        `json:"recommendation_ids,omitempty"`
-	RelatedRecords    []RelatedRecord `json:"related_records,omitempty"`
-	SafeToConsider    string          `json:"safe_to_consider"`
-	OutOfScope        string          `json:"out_of_scope"`
-	MissingEvidence   string          `json:"missing_evidence,omitempty"`
-	ObservedAt        string          `json:"observed_at"`
-	UpdatedAt         string          `json:"updated_at"`
-	Source            string          `json:"source"`
+	ID                string            `json:"id"`
+	Kind              CaseKind          `json:"kind"`
+	Status            CaseStatus        `json:"status"`
+	Attention         AttentionLevel    `json:"attention"`
+	Certainty         float64           `json:"certainty"`
+	Title             string            `json:"title"`
+	Summary           string            `json:"summary"`
+	AttentionReason   string            `json:"attention_reason"`
+	WhyItMatters      string            `json:"why_it_matters"`
+	Scope             ScopePosture      `json:"scope"`
+	HistoricalOnly    bool              `json:"historical_only"`
+	CurrentEvidence   bool              `json:"current_evidence"`
+	FindingIDs        []string          `json:"finding_ids,omitempty"`
+	EvidenceGapIDs    []string          `json:"evidence_gap_ids,omitempty"`
+	RecommendationIDs []string          `json:"recommendation_ids,omitempty"`
+	RelatedRecords    []RelatedRecord   `json:"related_records,omitempty"`
+	Timing            CaseTimingSummary `json:"timing"`
+	LinkedEventCount  int               `json:"linked_event_count,omitempty"`
+	EvolutionCount    int               `json:"evolution_count,omitempty"`
+	SafeToConsider    string            `json:"safe_to_consider"`
+	OutOfScope        string            `json:"out_of_scope"`
+	MissingEvidence   string            `json:"missing_evidence,omitempty"`
+	ObservedAt        string            `json:"observed_at"`
+	UpdatedAt         string            `json:"updated_at"`
+	Source            string            `json:"source"`
 }
 
 // CaseCounts provides aggregate counts for machine-readable consumers.
@@ -91,10 +94,12 @@ type CaseCounts struct {
 // CaseDetail expands a case into the linked canonical findings, gaps, and
 // recommendations.
 type CaseDetail struct {
-	Case            Case             `json:"case"`
-	Findings        []Finding        `json:"findings,omitempty"`
-	EvidenceGaps    []EvidenceGap    `json:"evidence_gaps,omitempty"`
-	Recommendations []Recommendation `json:"recommendations,omitempty"`
+	Case            Case                 `json:"case"`
+	Findings        []Finding            `json:"findings,omitempty"`
+	EvidenceGaps    []EvidenceGap        `json:"evidence_gaps,omitempty"`
+	Recommendations []Recommendation     `json:"recommendations,omitempty"`
+	LinkedEvents    []CaseEventLink      `json:"linked_events,omitempty"`
+	Evolution       []CaseEvolutionEntry `json:"evolution,omitempty"`
 }
 
 // NewCase creates a Case with the required timestamps.
@@ -115,6 +120,10 @@ func NewCase(id string, kind CaseKind, status CaseStatus, attention AttentionLev
 
 // CaseDetail returns the expanded detail view for a single case ID.
 func (s Summary) CaseDetail(id string) (CaseDetail, bool) {
+	if len(s.caseDetails) > 0 {
+		detail, ok := s.caseDetails[id]
+		return detail, ok
+	}
 	findingByID := make(map[string]Finding, len(s.Findings))
 	for _, finding := range s.Findings {
 		findingByID[finding.ID] = finding
@@ -154,6 +163,16 @@ func (s Summary) CaseDetail(id string) (CaseDetail, bool) {
 
 // CaseDetails returns expanded detail views for every case in summary order.
 func (s Summary) CaseDetails() []CaseDetail {
+	if len(s.caseDetails) > 0 {
+		out := make([]CaseDetail, 0, len(s.Cases))
+		for _, c := range s.Cases {
+			detail, ok := s.caseDetails[c.ID]
+			if ok {
+				out = append(out, detail)
+			}
+		}
+		return out
+	}
 	out := make([]CaseDetail, 0, len(s.Cases))
 	for _, c := range s.Cases {
 		detail, ok := s.CaseDetail(c.ID)

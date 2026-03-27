@@ -84,6 +84,19 @@ func TestCreateIncludesImportedEvidenceInspectionAndTimeline(t *testing.T) {
 	if !foundRemote {
 		t.Fatalf("expected full timeline to contain remote_evidence_import_item event")
 	}
+	foundImportedCaseTimeline := false
+	for _, detail := range b.InvestigationCaseDetails {
+		if detail.Case.Kind != "imported_historical_attention" {
+			continue
+		}
+		if len(detail.LinkedEvents) == 0 || len(detail.Evolution) == 0 {
+			t.Fatalf("expected imported case detail to include linked events and evolution, got %+v", detail)
+		}
+		foundImportedCaseTimeline = true
+	}
+	if !foundImportedCaseTimeline {
+		t.Fatalf("expected imported historical case detail in support bundle, got %+v", b.InvestigationCaseDetails)
+	}
 }
 
 func seedSupportRemoteImportFixture(t *testing.T, cfg config.Config, d *db.DB, batchID string) {
@@ -379,5 +392,9 @@ func TestCreateBuildsInvestigationCaseDetails(t *testing.T) {
 	}
 	if len(b.InvestigationCaseDetails) == 0 {
 		t.Fatal("expected investigation case details")
+	}
+	first := b.InvestigationCaseDetails[0]
+	if first.Case.Timing.Note == "" {
+		t.Fatalf("expected case timing note in support bundle detail, got %+v", first.Case.Timing)
 	}
 }

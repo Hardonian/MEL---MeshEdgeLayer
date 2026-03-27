@@ -55,21 +55,23 @@ type Summary struct {
 	// PhysicsBoundary is a visible, never-hidden reminder of what MEL
 	// cannot conclude from the available evidence.
 	PhysicsBoundary PhysicsBoundary `json:"physics_boundary"`
+
+	caseDetails map[string]CaseDetail
 }
 
 // SummaryCounts provides aggregate counts for machine-readable consumers.
 type SummaryCounts struct {
-	TotalFindings               int `json:"total_findings"`
-	CriticalFindings            int `json:"critical_findings"`
-	HighFindings                int `json:"high_findings"`
-	MediumFindings              int `json:"medium_findings"`
-	LowFindings                 int `json:"low_findings"`
-	InfoFindings                int `json:"info_findings"`
-	EvidenceGaps                int `json:"evidence_gaps"`
-	Recommendations             int `json:"recommendations"`
-	OperatorActionRequired      int `json:"operator_action_required"`
-	FindingsConstrainedByGaps   int `json:"findings_constrained_by_gaps"`
-	RecommendationsWithCaveats  int `json:"recommendations_with_caveats"`
+	TotalFindings              int `json:"total_findings"`
+	CriticalFindings           int `json:"critical_findings"`
+	HighFindings               int `json:"high_findings"`
+	MediumFindings             int `json:"medium_findings"`
+	LowFindings                int `json:"low_findings"`
+	InfoFindings               int `json:"info_findings"`
+	EvidenceGaps               int `json:"evidence_gaps"`
+	Recommendations            int `json:"recommendations"`
+	OperatorActionRequired     int `json:"operator_action_required"`
+	FindingsConstrainedByGaps  int `json:"findings_constrained_by_gaps"`
+	RecommendationsWithCaveats int `json:"recommendations_with_caveats"`
 }
 
 // PhysicsBoundary reminds operators what MEL cannot determine from
