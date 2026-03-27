@@ -476,12 +476,12 @@ func summarizeCaseTiming(detail CaseDetail, generatedAt string) CaseTimingSummar
 		primary = CaseTimingMergedBestEffortOrder
 	case hasMissingTS:
 		primary = CaseTimingOrderingUncertainMissingTS
+	case hasHistoricalImport && !hasLocal:
+		primary = CaseTimingHistoricalImportNotLive
 	case hasClockSkew:
 		primary = CaseTimingOrderingUncertainClockSkew
 	case hasMixedFreshness:
 		primary = CaseTimingMixedFreshnessWindow
-	case hasHistoricalImport:
-		primary = CaseTimingHistoricalImportNotLive
 	case hasImported:
 		primary = CaseTimingImportedPreservedOrder
 	}

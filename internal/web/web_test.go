@@ -306,16 +306,16 @@ func TestInvestigationCaseTimelineEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := database.InsertTimelineEvent(db.TimelineEvent{
-		EventID:        "evt-transport-1",
-		EventTime:      "2026-03-27T00:00:00Z",
-		EventType:      "transport_runtime_note",
-		Summary:        "mqtt failed to connect",
-		Severity:       "warning",
-		ActorID:        "system",
-		ResourceID:     "mqtt",
-		ScopePosture:   "local",
-		TimingPosture:  "local_ordered",
-		Details:        map[string]any{"transport": "mqtt"},
+		EventID:       "evt-transport-1",
+		EventTime:     "2026-03-27T00:00:00Z",
+		EventType:     "transport_runtime_note",
+		Summary:       "mqtt failed to connect",
+		Severity:      "warning",
+		ActorID:       "system",
+		ResourceID:    "mqtt",
+		ScopePosture:  "local",
+		TimingPosture: "local_ordered",
+		Details:       map[string]any{"transport": "mqtt"},
 	}); err != nil {
 		t.Fatal(err)
 	}
