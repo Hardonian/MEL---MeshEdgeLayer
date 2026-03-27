@@ -180,6 +180,71 @@ func SummarizeImportedRemoteEvidenceRecords(truth FleetTruthSummary, rows []db.I
 	return out, nil
 }
 
+// SummarizeRemoteImportBatches builds stable list summaries for import batches.
+func SummarizeRemoteImportBatches(rows []db.RemoteImportBatchRecord) ([]RemoteImportBatchSummary, error) {
+	out := make([]RemoteImportBatchSummary, 0, len(rows))
+	for _, row := range rows {
+		validation, err := decodeRemoteImportBatchValidation(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, RemoteImportBatchSummary{
+			BatchID:                  row.ID,
+			ImportedAt:               row.ImportedAt,
+			FormatKind:               strings.TrimSpace(row.FormatKind),
+			SchemaVersion:            strings.TrimSpace(row.SchemaVersion),
+			Source: RemoteEvidenceImportSource{
+				SourceType:      strings.TrimSpace(row.SourceType),
+				SourceName:      strings.TrimSpace(row.SourceName),
+				SourcePath:      strings.TrimSpace(row.SourcePath),
+				SupportBundleID: strings.TrimSpace(row.SupportBundleID),
+			},
+			ClaimedOrigin: RemoteEvidenceBatchClaimedOrigin{
+				InstanceID: strings.TrimSpace(row.ClaimedOriginInstanceID),
+				SiteID:     strings.TrimSpace(row.ClaimedOriginSiteID),
+				FleetID:    strings.TrimSpace(row.ClaimedFleetID),
+			},
+			Validation:               validation,
+			ItemCount:                row.ItemCount,
+			AcceptedCount:            row.AcceptedCount,
+			AcceptedWithCaveatsCount: row.AcceptedWithCaveatsCount,
+			RejectedCount:            row.RejectedCount,
+			PartialSuccess:           row.PartialSuccess,
+			Note:                     strings.TrimSpace(row.Note),
+		})
+	}
+	return out, nil
+}
+
+// InspectRemoteImportBatchRecord builds a full operator drilldown for one persisted import batch.
+func InspectRemoteImportBatchRecord(truth FleetTruthSummary, batch db.RemoteImportBatchRecord, batchItems, allItems []db.ImportedRemoteEvidenceRecord) (RemoteImportBatchInspection, error) {
+	summaries, err := SummarizeRemoteImportBatches([]db.RemoteImportBatchRecord{batch})
+	if err != nil {
+		return RemoteImportBatchInspection{}, err
+	}
+	compareRows := allItems
+	if len(compareRows) == 0 {
+		compareRows = batchItems
+	}
+	itemInspections := make([]ImportedEvidenceInspection, 0, len(batchItems))
+	for _, item := range batchItems {
+		inspection, err := InspectImportedRemoteEvidenceRecord(truth, item, compareRows)
+		if err != nil {
+			return RemoteImportBatchInspection{}, err
+		}
+		itemInspections = append(itemInspections, inspection)
+	}
+	itemSummaries := make([]ImportedEvidenceSummary, 0, len(itemInspections))
+	for _, inspection := range itemInspections {
+		itemSummaries = append(itemSummaries, inspection.SummaryView())
+	}
+	return RemoteImportBatchInspection{
+		Batch:           summaries[0],
+		ItemSummaries:   itemSummaries,
+		ItemInspections: itemInspections,
+	}, nil
+}
+
 // SummaryView collapses an inspection into the operator-facing list DTO.
 func (i ImportedEvidenceInspection) SummaryView() ImportedEvidenceSummary {
 	counts := map[string]int{}
@@ -308,6 +373,14 @@ func decodeImportedRemoteEvidence(row db.ImportedRemoteEvidenceRecord) (RemoteEv
 		return bundle, validation, fmt.Errorf("decode validation for %s: %w", row.ID, err)
 	}
 	return bundle, validation, nil
+}
+
+func decodeRemoteImportBatchValidation(row db.RemoteImportBatchRecord) (RemoteEvidenceBatchValidation, error) {
+	var validation RemoteEvidenceBatchValidation
+	if err := json.Unmarshal(row.Validation, &validation); err != nil {
+		return validation, fmt.Errorf("decode batch validation for %s: %w", row.ID, err)
+	}
+	return validation, nil
 }
 
 func buildImportedEvidenceTiming(bundle RemoteEvidenceBundle, importedAt string) ImportedEvidenceTiming {
@@ -563,6 +636,9 @@ func collectImportedEvidenceUnknowns(row db.ImportedRemoteEvidenceRecord, bundle
 		"authenticity_not_cryptographically_verified",
 		"import_does_not_imply_remote_site_is_currently_live",
 	}
+	if strings.TrimSpace(row.BatchID) == "" {
+		unknowns = append(unknowns, "batch_id_missing")
+	}
 	if strings.TrimSpace(bundle.Evidence.OriginSiteID) == "" {
 		unknowns = append(unknowns, "origin_site_id_missing")
 	}
@@ -591,6 +667,9 @@ func buildImportedEvidenceSummaryText(i ImportedEvidenceInspection) string {
 		base += " at site " + i.Provenance.OriginSiteID
 	}
 	base += fmt.Sprintf(" (%s).", i.EvidenceEnvelope.EvidenceClass)
+	if strings.TrimSpace(i.Source.BatchID) != "" {
+		base += " Batch " + i.Source.BatchID + "."
+	}
 	if len(i.RelatedEvidence) > 0 {
 		base += fmt.Sprintf(" %d related imported row(s) remain separate for provenance review.", len(i.RelatedEvidence))
 	}

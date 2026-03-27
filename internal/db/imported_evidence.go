@@ -102,24 +102,24 @@ func (d *DB) PersistRemoteImportBatch(batch RemoteImportBatchRecord, items []Imp
 	if len(batch.RawPayload) == 0 {
 		return fmt.Errorf("batch raw payload json required")
 	}
-	stmts := []string{"BEGIN IMMEDIATE;"}
-	stmts = append(stmts, remoteImportBatchInsertSQL(batch))
+	statements := []string{"BEGIN IMMEDIATE;"}
+	statements = append(statements, remoteImportBatchInsertSQL(batch))
 	for _, item := range items {
 		sql, err := importedRemoteEvidenceInsertSQL(item)
 		if err != nil {
 			return err
 		}
-		stmts = append(stmts, sql)
+		statements = append(statements, sql)
 	}
 	for _, ev := range timelineEvents {
 		sql, err := timelineEventInsertSQL(ev)
 		if err != nil {
 			return err
 		}
-		stmts = append(stmts, sql)
+		statements = append(statements, sql)
 	}
-	stmts = append(stmts, "COMMIT;")
-	return d.Exec(strings.Join(stmts, "\n"))
+	statements = append(statements, "COMMIT;")
+	return d.Exec(strings.Join(statements, "\n"))
 }
 
 func remoteImportBatchInsertSQL(rec RemoteImportBatchRecord) string {
