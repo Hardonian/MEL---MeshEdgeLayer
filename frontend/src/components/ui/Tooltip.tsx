@@ -1,4 +1,4 @@
-import { ReactNode, useState, useRef } from 'react'
+import { ReactNode, useState, useRef, useId, isValidElement, cloneElement, type ReactElement } from 'react'
 import { clsx } from 'clsx'
 
 interface TooltipProps {
@@ -18,6 +18,7 @@ export function Tooltip({
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const timeoutRef = useRef<number>()
+  const tooltipId = useId()
 
   const showTooltip = () => {
     timeoutRef.current = window.setTimeout(() => {
@@ -45,6 +46,16 @@ export function Tooltip({
     end: 'right-0',
   }
 
+  const triggerChild = isValidElement(children)
+    ? cloneElement(children as ReactElement<{ 'aria-describedby'?: string }>, {
+        'aria-describedby': isVisible ? tooltipId : undefined,
+      })
+    : (
+        <span className="inline-flex" aria-describedby={isVisible ? tooltipId : undefined}>
+          {children}
+        </span>
+      )
+
   return (
     <div 
       className="relative inline-flex"
@@ -53,9 +64,10 @@ export function Tooltip({
       onFocus={showTooltip}
       onBlur={hideTooltip}
     >
-      {children}
+      {triggerChild}
       {isVisible && (
         <div
+          id={tooltipId}
           className={clsx(
             'absolute z-50 px-3 py-1.5 text-sm rounded-md bg-foreground text-background shadow-md whitespace-nowrap animate-fade-in',
             positions[side],

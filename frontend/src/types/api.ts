@@ -1,5 +1,20 @@
 // MEL API Types - Derived from Go backend structure
 
+/** GET /api/v1/version — build and schema metadata from the running binary */
+export interface VersionResponse {
+  version: string
+  git_commit?: string
+  build_time?: string
+  go_version?: string
+  db_schema_version?: string
+  db_actual_version?: string
+  db_migration_numeric?: number
+  schema_matches_binary?: boolean
+  compatibility_level?: string
+  config_canonical_fingerprint?: string
+  boot_metadata?: Record<string, unknown>
+}
+
 export interface StatusResponse {
   configured_transport_modes: string[]
   messages: number

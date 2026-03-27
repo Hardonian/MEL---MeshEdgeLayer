@@ -15,33 +15,36 @@ import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
 import { Planning } from './pages/Planning'
 import { ApiProvider } from './hooks/useApi'
+import { ConsoleThemeProvider } from './hooks/useConsoleThemePreference'
 import { ToastProvider } from './components/ui/Toast'
 
 export default function App() {
   return (
     <ApiProvider>
-      <ToastProvider>
-        <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/status" element={<Status />} />
-          <Route path="/nodes" element={<Nodes />} />
-          <Route path="/nodes/:nodeId" element={<Nodes />} />
-          <Route path="/topology" element={<Topology />} />
-          <Route path="/planning" element={<Planning />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/dead-letters" element={<DeadLetters />} />
-          <Route path="/incidents" element={<Incidents />} />
-          <Route path="/control-actions" element={<ControlActions />} />
-          <Route path="/recommendations" element={<Recommendations />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-      </ToastProvider>
+      <ConsoleThemeProvider>
+        <ToastProvider>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/status" element={<Status />} />
+              <Route path="/nodes" element={<Nodes />} />
+              <Route path="/nodes/:nodeId" element={<Nodes />} />
+              <Route path="/topology" element={<Topology />} />
+              <Route path="/planning" element={<Planning />} />
+              <Route path="/messages" element={<Messages />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/dead-letters" element={<DeadLetters />} />
+              <Route path="/incidents" element={<Incidents />} />
+              <Route path="/control-actions" element={<ControlActions />} />
+              <Route path="/recommendations" element={<Recommendations />} />
+              <Route path="/events" element={<Events />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/diagnostics" element={<Diagnostics />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        </ToastProvider>
+      </ConsoleThemeProvider>
     </ApiProvider>
   )
 }
