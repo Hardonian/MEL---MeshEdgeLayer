@@ -168,8 +168,35 @@ func (d *DB) Exec(sql string) error {
 	return nil
 }
 
+func (d *DB) ExecScript(sql string) error {
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path)
+	cmd.Stdin = strings.NewReader(sql)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return logging.NewSafeError("database operation failed", fmt.Errorf("sqlite exec failed: %w: %s", err, out), "database", isTransientDBError(err))
+	}
+	return nil
+}
+
 func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
 	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path, sql)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, logging.NewSafeError("database query failed", fmt.Errorf("sqlite query failed: %w: %s", err, out), "database", isTransientDBError(err))
+	}
+	rows := make([]map[string]any, 0)
+	if len(out) == 0 {
+		return rows, nil
+	}
+	if err := json.Unmarshal(out, &rows); err != nil {
+		return nil, logging.NewSafeError("failed to parse query results", err, "database", false)
+	}
+	return rows, nil
+}
+
+func (d *DB) QueryRowsScript(sql string) ([]map[string]any, error) {
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path)
+	cmd.Stdin = strings.NewReader(sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, logging.NewSafeError("database query failed", fmt.Errorf("sqlite query failed: %w: %s", err, out), "database", isTransientDBError(err))

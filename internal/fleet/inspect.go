@@ -132,25 +132,25 @@ type ImportedEvidenceInspection struct {
 
 // RemoteImportBatchSummary is the concise operator-facing summary for one import batch.
 type RemoteImportBatchSummary struct {
-	BatchID                  string                      `json:"batch_id"`
-	ImportedAt               string                      `json:"imported_at"`
-	FormatKind               string                      `json:"format_kind"`
-	SchemaVersion            string                      `json:"schema_version"`
-	Source                   RemoteEvidenceImportSource  `json:"source"`
+	BatchID                  string                           `json:"batch_id"`
+	ImportedAt               string                           `json:"imported_at"`
+	FormatKind               string                           `json:"format_kind"`
+	SchemaVersion            string                           `json:"schema_version"`
+	Source                   RemoteEvidenceImportSource       `json:"source"`
 	ClaimedOrigin            RemoteEvidenceBatchClaimedOrigin `json:"claimed_origin"`
-	Validation               RemoteEvidenceBatchValidation `json:"validation"`
-	ItemCount                int                         `json:"item_count"`
-	AcceptedCount            int                         `json:"accepted_count"`
-	AcceptedWithCaveatsCount int                         `json:"accepted_with_caveats_count"`
-	RejectedCount            int                         `json:"rejected_count"`
-	PartialSuccess           bool                        `json:"partial_success"`
-	Note                     string                      `json:"note,omitempty"`
+	Validation               RemoteEvidenceBatchValidation    `json:"validation"`
+	ItemCount                int                              `json:"item_count"`
+	AcceptedCount            int                              `json:"accepted_count"`
+	AcceptedWithCaveatsCount int                              `json:"accepted_with_caveats_count"`
+	RejectedCount            int                              `json:"rejected_count"`
+	PartialSuccess           bool                             `json:"partial_success"`
+	Note                     string                           `json:"note,omitempty"`
 }
 
 // RemoteImportBatchInspection is the full operator drilldown for one import batch.
 type RemoteImportBatchInspection struct {
-	Batch           RemoteImportBatchSummary `json:"batch"`
-	ItemSummaries   []ImportedEvidenceSummary `json:"item_summaries,omitempty"`
+	Batch           RemoteImportBatchSummary     `json:"batch"`
+	ItemSummaries   []ImportedEvidenceSummary    `json:"item_summaries,omitempty"`
 	ItemInspections []ImportedEvidenceInspection `json:"item_inspections,omitempty"`
 }
 
@@ -189,10 +189,10 @@ func SummarizeRemoteImportBatches(rows []db.RemoteImportBatchRecord) ([]RemoteIm
 			return nil, err
 		}
 		out = append(out, RemoteImportBatchSummary{
-			BatchID:                  row.ID,
-			ImportedAt:               row.ImportedAt,
-			FormatKind:               strings.TrimSpace(row.FormatKind),
-			SchemaVersion:            strings.TrimSpace(row.SchemaVersion),
+			BatchID:       row.ID,
+			ImportedAt:    row.ImportedAt,
+			FormatKind:    strings.TrimSpace(row.FormatKind),
+			SchemaVersion: strings.TrimSpace(row.SchemaVersion),
 			Source: RemoteEvidenceImportSource{
 				SourceType:      strings.TrimSpace(row.SourceType),
 				SourceName:      strings.TrimSpace(row.SourceName),

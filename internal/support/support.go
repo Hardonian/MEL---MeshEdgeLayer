@@ -24,10 +24,16 @@ type Bundle struct {
 	Config      config.Config `json:"config"`
 	// FleetTruth duplicates status fleet boundary for offline triage (canonical with status.fleet_truth when present).
 	FleetTruth fleet.FleetTruthSummary `json:"fleet_truth,omitempty"`
+	// RemoteImportBatches preserves batch-level import audit containers.
+	RemoteImportBatches []db.RemoteImportBatchRecord `json:"remote_import_batches,omitempty"`
+	// RemoteImportBatchInspections expands batch-level payload/source/validation drilldown.
+	RemoteImportBatchInspections []fleet.RemoteImportBatchInspection `json:"remote_import_batch_inspections,omitempty"`
 	// ImportedRemoteEvidence is offline bundle import audit (not live federation); empty when table absent or none.
 	ImportedRemoteEvidence            []db.ImportedRemoteEvidenceRecord  `json:"imported_remote_evidence,omitempty"`
 	ImportedRemoteEvidenceInspections []fleet.ImportedEvidenceInspection `json:"imported_remote_evidence_inspections,omitempty"`
-	RemoteEvidenceTimeline            []db.TimelineEvent                 `json:"remote_evidence_timeline,omitempty"`
+	// RemoteEvidenceExchange is a canonical offline batch export of imported evidence rows for re-import elsewhere.
+	RemoteEvidenceExchange *fleet.RemoteEvidenceBatch `json:"remote_evidence_exchange,omitempty"`
+	RemoteEvidenceTimeline []db.TimelineEvent         `json:"remote_evidence_timeline,omitempty"`
 	// FullTimeline contains ALL timeline events (not just remote imports) for full operator investigation.
 	FullTimeline []db.TimelineEvent    `json:"full_timeline,omitempty"`
 	Diagnostics  []diagnostics.Finding `json:"diagnostics"`
@@ -116,10 +122,24 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 
 	imports, _ := d.ListImportedRemoteEvidence(100)
 	importInspections, _ := fleet.InspectImportedRemoteEvidenceRecords(fleetTruth, imports)
+	importBatches, _ := d.ListRemoteImportBatches(100)
+	batchInspections := make([]fleet.RemoteImportBatchInspection, 0, len(importBatches))
+	for _, batch := range importBatches {
+		batchItems, err := d.ImportedRemoteEvidenceByBatch(batch.ID)
+		if err != nil {
+			continue
+		}
+		inspection, err := fleet.InspectRemoteImportBatchRecord(fleetTruth, batch, batchItems, imports)
+		if err != nil {
+			continue
+		}
+		batchInspections = append(batchInspections, inspection)
+	}
+	remoteEvidenceExchange, _ := buildRemoteEvidenceExchangePayload(imports)
 	timeline, _ := d.TimelineEvents("", "", 500)
 	remoteTimeline := make([]db.TimelineEvent, 0, len(timeline))
 	for _, event := range timeline {
-		if event.EventType == "remote_evidence_import" {
+		if strings.HasPrefix(event.EventType, "remote_") {
 			remoteTimeline = append(remoteTimeline, event)
 		}
 	}
@@ -138,8 +158,11 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		Version:                           version,
 		Config:                            privacy.RedactConfig(cfg),
 		FleetTruth:                        fleetTruth,
+		RemoteImportBatches:               importBatches,
+		RemoteImportBatchInspections:      batchInspections,
 		ImportedRemoteEvidence:            imports,
 		ImportedRemoteEvidenceInspections: importInspections,
+		RemoteEvidenceExchange:            remoteEvidenceExchange,
 		RemoteEvidenceTimeline:            remoteTimeline,
 		FullTimeline:                      timeline,
 		Diagnostics:                       diagnosticsRun.Diagnostics,
@@ -209,11 +232,16 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	}
 	if len(b.ImportedRemoteEvidence) > 0 {
 		files["imported_evidence.json"] = map[string]any{
-			"imports":     b.ImportedRemoteEvidence,
-			"inspections": b.ImportedRemoteEvidenceInspections,
-			"count":       len(b.ImportedRemoteEvidence),
-			"note":        "Offline bundle imports only (not live federation). Validation and provenance are per-row. Authenticity is not cryptographically verified unless external verification is added by operator.",
+			"batches":           b.RemoteImportBatches,
+			"batch_inspections": b.RemoteImportBatchInspections,
+			"imports":           b.ImportedRemoteEvidence,
+			"inspections":       b.ImportedRemoteEvidenceInspections,
+			"count":             len(b.ImportedRemoteEvidence),
+			"note":              "Offline bundle imports only (not live federation). Validation, provenance, batch source, timing posture, and merge posture are preserved per batch and per row. Authenticity is not cryptographically verified unless external verification is added by operator.",
 		}
+	}
+	if b.RemoteEvidenceExchange != nil {
+		files["remote_evidence_export.json"] = b.RemoteEvidenceExchange
 	}
 	if len(b.Diagnostics) > 0 {
 		files["diagnostics.json"] = b.Diagnostics
@@ -242,6 +270,31 @@ func (b *Bundle) ToZip() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func buildRemoteEvidenceExchangePayload(rows []db.ImportedRemoteEvidenceRecord) (*fleet.RemoteEvidenceBatch, error) {
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	items := make([]fleet.RemoteEvidenceBundle, 0, len(rows))
+	for _, row := range rows {
+		var bundle fleet.RemoteEvidenceBundle
+		if err := json.Unmarshal(row.Bundle, &bundle); err != nil {
+			return nil, fmt.Errorf("decode imported evidence bundle %s for export: %w", row.ID, err)
+		}
+		items = append(items, bundle)
+	}
+	return &fleet.RemoteEvidenceBatch{
+		SchemaVersion:     fleet.RemoteEvidenceBatchSchemaVersion,
+		Kind:              fleet.RemoteEvidenceBatchKind,
+		ExportedAt:        time.Now().UTC().Format(time.RFC3339),
+		CapabilityPosture: fleet.DefaultCapabilityPosture(),
+		SourceContext: fleet.RemoteEvidenceImportSource{
+			SourceType: "support_bundle_export",
+			SourceName: "remote_evidence_export.json",
+		},
+		Items: items,
+	}, nil
+}
+
 // bundleManifest generates an operator-readable README for the support bundle zip.
 func bundleManifest(b *Bundle) string {
 	var sb strings.Builder
@@ -257,7 +310,8 @@ func bundleManifest(b *Bundle) string {
 	sb.WriteString("| timeline.json | Full unified event timeline | Investigate what happened and in what order |\n")
 	sb.WriteString("| control_actions.json | Recent control actions and decisions | Audit who did what and why |\n")
 	sb.WriteString("| incidents.json | Recent incidents | Correlation and handoff context |\n")
-	sb.WriteString("| imported_evidence.json | Offline remote evidence imports | Inspect provenance, validation, and merge posture |\n")
+	sb.WriteString("| imported_evidence.json | Offline remote evidence imports | Inspect batch/source provenance, validation, and merge posture |\n")
+	sb.WriteString("| remote_evidence_export.json | Canonical offline export of imported evidence | Re-importable batch payload; still offline-only and authenticity-unverified by default |\n")
 	sb.WriteString("| diagnostics.json | Diagnostics findings | Active issues and recommended steps |\n\n")
 	sb.WriteString("## Interpretation notes\n\n")
 	sb.WriteString("- **Timeline order is instance-local.** Events from imported remote evidence include timing and scope posture.\n")

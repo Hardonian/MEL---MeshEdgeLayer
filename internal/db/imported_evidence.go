@@ -119,25 +119,11 @@ func (d *DB) PersistRemoteImportBatch(batch RemoteImportBatchRecord, items []Imp
 		statements = append(statements, sql)
 	}
 	statements = append(statements, "COMMIT;")
-	return d.Exec(strings.Join(statements, "\n"))
+	return d.ExecScript(strings.Join(statements, "\n"))
 }
 
 func remoteImportBatchInsertSQL(rec RemoteImportBatchRecord) string {
-	return fmt.Sprintf(`INSERT INTO remote_import_batches(
-id, imported_at, local_instance_id, local_site_id, local_fleet_id,
-source_type, source_name, source_path, support_bundle_id,
-format_kind, schema_version,
-claimed_origin_instance_id, claimed_origin_site_id, claimed_fleet_id,
-exported_at, capability_posture_json, validation_json, raw_payload_json,
-item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, note
-) VALUES(
-'%s','%s','%s','%s','%s',
-'%s','%s','%s','%s',
-'%s','%s',
-'%s','%s','%s',
-'%s','%s','%s','%s',
-%d,%d,%d,%d,%d,'%s'
-);`,
+	return fmt.Sprintf(`INSERT INTO remote_import_batches(id, imported_at, local_instance_id, local_site_id, local_fleet_id, source_type, source_name, source_path, support_bundle_id, format_kind, schema_version, claimed_origin_instance_id, claimed_origin_site_id, claimed_fleet_id, exported_at, capability_posture_json, validation_json, raw_payload_json, item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, note) VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d,%d,%d,'%s');`,
 		esc(rec.ID), esc(rec.ImportedAt), esc(rec.LocalInstanceID), esc(rec.LocalSiteID), esc(rec.LocalFleetID),
 		esc(rec.SourceType), esc(rec.SourceName), esc(rec.SourcePath), esc(rec.SupportBundleID),
 		esc(rec.FormatKind), esc(rec.SchemaVersion),
@@ -163,25 +149,7 @@ func importedRemoteEvidenceInsertSQL(rec ImportedRemoteEvidenceRecord) (string, 
 	if rec.Rejected {
 		rej = 1
 	}
-	return fmt.Sprintf(`INSERT INTO imported_remote_evidence(
-id, batch_id, item_id, sequence_no,
-imported_at, local_instance_id, local_site_id, local_fleet_id,
-source_type, source_name, source_path,
-validation_status, validation_json, bundle_json, evidence_json, event_json, normalized_json,
-claimed_origin_instance_id, claimed_origin_site_id, claimed_fleet_id,
-origin_instance_id, origin_site_id, evidence_class, observation_origin_class, correlation_id,
-observed_at, received_at, recorded_at,
-timing_posture, merge_disposition, merge_correlation_id, rejected
-) VALUES(
-'%s','%s','%s',%d,
-'%s','%s','%s','%s',
-'%s','%s','%s',
-'%s','%s','%s','%s','%s','%s',
-'%s','%s','%s',
-'%s','%s','%s','%s','%s',
-'%s','%s','%s',
-'%s','%s','%s',%d
-);`,
+	return fmt.Sprintf(`INSERT INTO imported_remote_evidence(id, batch_id, item_id, sequence_no, imported_at, local_instance_id, local_site_id, local_fleet_id, source_type, source_name, source_path, validation_status, validation_json, bundle_json, evidence_json, event_json, normalized_json, claimed_origin_instance_id, claimed_origin_site_id, claimed_fleet_id, origin_instance_id, origin_site_id, evidence_class, observation_origin_class, correlation_id, observed_at, received_at, recorded_at, timing_posture, merge_disposition, merge_correlation_id, rejected) VALUES('%s','%s','%s',%d,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d);`,
 		esc(rec.ID), esc(rec.BatchID), esc(rec.ItemID), rec.SequenceNo,
 		esc(rec.ImportedAt), esc(rec.LocalInstanceID), esc(rec.LocalSiteID), esc(rec.LocalFleetID),
 		esc(rec.SourceType), esc(rec.SourceName), esc(rec.SourcePath),
@@ -215,9 +183,7 @@ func timelineEventInsertSQL(ev TimelineEvent) (string, error) {
 		ev.MergeDisposition = "raw_only"
 	}
 	detailsJSON, _ := json.Marshal(ev.Details)
-	return fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events
-(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json,scope_posture,origin_instance_id,timing_posture,merge_disposition,merge_correlation_id,import_id)
-VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
+	return fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json,scope_posture,origin_instance_id,timing_posture,merge_disposition,merge_correlation_id,import_id) VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
 		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
 		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)),
 		esc(ev.ScopePosture), esc(ev.OriginInstanceID), esc(ev.TimingPosture),
@@ -228,13 +194,7 @@ VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
 func (d *DB) ListRemoteImportBatches(limit int) ([]RemoteImportBatchRecord, error) {
 	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(
-		`SELECT id, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id,
-COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(support_bundle_id,'') AS support_bundle_id,
-format_kind, schema_version,
-COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id,
-COALESCE(exported_at,'') AS exported_at, COALESCE(capability_posture_json,'{}') AS capability_posture_json,
-validation_json, item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, COALESCE(note,'') AS note
-FROM remote_import_batches ORDER BY imported_at DESC LIMIT %d;`, limit))
+		`SELECT id, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id, COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(support_bundle_id,'') AS support_bundle_id, format_kind, schema_version, COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id, COALESCE(exported_at,'') AS exported_at, COALESCE(capability_posture_json,'{}') AS capability_posture_json, validation_json, item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, COALESCE(note,'') AS note FROM remote_import_batches ORDER BY imported_at DESC LIMIT %d;`, limit))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return nil, nil
@@ -255,14 +215,7 @@ func (d *DB) GetRemoteImportBatch(id string) (RemoteImportBatchRecord, bool, err
 		return RemoteImportBatchRecord{}, false, fmt.Errorf("id required")
 	}
 	rows, err := d.QueryRows(fmt.Sprintf(
-		`SELECT id, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id,
-COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(support_bundle_id,'') AS support_bundle_id,
-format_kind, schema_version,
-COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id,
-COALESCE(exported_at,'') AS exported_at, COALESCE(capability_posture_json,'{}') AS capability_posture_json,
-validation_json, raw_payload_json,
-item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, COALESCE(note,'') AS note
-FROM remote_import_batches WHERE id='%s' LIMIT 1;`, esc(id)))
+		`SELECT id, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id, COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(support_bundle_id,'') AS support_bundle_id, format_kind, schema_version, COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id, COALESCE(exported_at,'') AS exported_at, COALESCE(capability_posture_json,'{}') AS capability_posture_json, validation_json, raw_payload_json, item_count, accepted_count, accepted_with_caveats_count, rejected_count, partial_success, COALESCE(note,'') AS note FROM remote_import_batches WHERE id='%s' LIMIT 1;`, esc(id)))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return RemoteImportBatchRecord{}, false, nil
@@ -328,15 +281,7 @@ func (d *DB) listImportedRemoteEvidenceWhere(where string, limit int) ([]Importe
 		order = "ORDER BY sequence_no ASC, imported_at ASC"
 	}
 	rows, err := d.QueryRows(fmt.Sprintf(
-		`SELECT id, batch_id, COALESCE(item_id,'') AS item_id, COALESCE(sequence_no,0) AS sequence_no,
-imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id,
-COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path,
-COALESCE(validation_status,'') AS validation_status, validation_json, bundle_json, evidence_json, COALESCE(event_json,'') AS event_json, COALESCE(normalized_json,'') AS normalized_json,
-COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id,
-origin_instance_id, origin_site_id, evidence_class, observation_origin_class, COALESCE(correlation_id,'') AS correlation_id,
-COALESCE(observed_at,'') AS observed_at, COALESCE(received_at,'') AS received_at, COALESCE(recorded_at,'') AS recorded_at,
-COALESCE(timing_posture,'') AS timing_posture, COALESCE(merge_disposition,'') AS merge_disposition, COALESCE(merge_correlation_id,'') AS merge_correlation_id, rejected
-FROM imported_remote_evidence %s %s LIMIT %d;`, where, order, limit))
+		`SELECT id, batch_id, COALESCE(item_id,'') AS item_id, COALESCE(sequence_no,0) AS sequence_no, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id, COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(validation_status,'') AS validation_status, validation_json, bundle_json, evidence_json, COALESCE(event_json,'') AS event_json, COALESCE(normalized_json,'') AS normalized_json, COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id, origin_instance_id, origin_site_id, evidence_class, observation_origin_class, COALESCE(correlation_id,'') AS correlation_id, COALESCE(observed_at,'') AS observed_at, COALESCE(received_at,'') AS received_at, COALESCE(recorded_at,'') AS recorded_at, COALESCE(timing_posture,'') AS timing_posture, COALESCE(merge_disposition,'') AS merge_disposition, COALESCE(merge_correlation_id,'') AS merge_correlation_id, rejected FROM imported_remote_evidence %s %s LIMIT %d;`, where, order, limit))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return nil, nil
@@ -357,15 +302,7 @@ func (d *DB) GetImportedRemoteEvidence(id string) (ImportedRemoteEvidenceRecord,
 		return ImportedRemoteEvidenceRecord{}, false, fmt.Errorf("id required")
 	}
 	rows, err := d.QueryRows(fmt.Sprintf(
-		`SELECT id, batch_id, COALESCE(item_id,'') AS item_id, COALESCE(sequence_no,0) AS sequence_no,
-imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id,
-COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path,
-COALESCE(validation_status,'') AS validation_status, validation_json, bundle_json, evidence_json, COALESCE(event_json,'') AS event_json, COALESCE(normalized_json,'') AS normalized_json,
-COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id,
-origin_instance_id, origin_site_id, evidence_class, observation_origin_class, COALESCE(correlation_id,'') AS correlation_id,
-COALESCE(observed_at,'') AS observed_at, COALESCE(received_at,'') AS received_at, COALESCE(recorded_at,'') AS recorded_at,
-COALESCE(timing_posture,'') AS timing_posture, COALESCE(merge_disposition,'') AS merge_disposition, COALESCE(merge_correlation_id,'') AS merge_correlation_id, rejected
-FROM imported_remote_evidence WHERE id='%s' LIMIT 1;`, esc(id)))
+		`SELECT id, batch_id, COALESCE(item_id,'') AS item_id, COALESCE(sequence_no,0) AS sequence_no, imported_at, local_instance_id, COALESCE(local_site_id,'') AS local_site_id, COALESCE(local_fleet_id,'') AS local_fleet_id, COALESCE(source_type,'') AS source_type, COALESCE(source_name,'') AS source_name, COALESCE(source_path,'') AS source_path, COALESCE(validation_status,'') AS validation_status, validation_json, bundle_json, evidence_json, COALESCE(event_json,'') AS event_json, COALESCE(normalized_json,'') AS normalized_json, COALESCE(claimed_origin_instance_id,'') AS claimed_origin_instance_id, COALESCE(claimed_origin_site_id,'') AS claimed_origin_site_id, COALESCE(claimed_fleet_id,'') AS claimed_fleet_id, origin_instance_id, origin_site_id, evidence_class, observation_origin_class, COALESCE(correlation_id,'') AS correlation_id, COALESCE(observed_at,'') AS observed_at, COALESCE(received_at,'') AS received_at, COALESCE(recorded_at,'') AS recorded_at, COALESCE(timing_posture,'') AS timing_posture, COALESCE(merge_disposition,'') AS merge_disposition, COALESCE(merge_correlation_id,'') AS merge_correlation_id, rejected FROM imported_remote_evidence WHERE id='%s' LIMIT 1;`, esc(id)))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return ImportedRemoteEvidenceRecord{}, false, nil

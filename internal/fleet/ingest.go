@@ -93,9 +93,9 @@ type RemoteEvidenceBundle struct {
 	SchemaVersion string `json:"schema_version"`
 	Kind          string `json:"kind"`
 	// ClaimedOriginInstanceID is optional declared sender; must match Evidence.OriginInstanceID when both set (strict mode).
-	ClaimedOriginInstanceID string                     `json:"claimed_origin_instance_id,omitempty"`
-	ClaimedOriginSiteID     string                     `json:"claimed_origin_site_id,omitempty"`
-	ClaimedFleetID          string                     `json:"claimed_fleet_id,omitempty"`
+	ClaimedOriginInstanceID string                      `json:"claimed_origin_instance_id,omitempty"`
+	ClaimedOriginSiteID     string                      `json:"claimed_origin_site_id,omitempty"`
+	ClaimedFleetID          string                      `json:"claimed_fleet_id,omitempty"`
 	ImportContext           RemoteEvidenceImportContext `json:"import_context,omitempty"`
 	Evidence                EvidenceEnvelope            `json:"evidence"`
 	Event                   *EventEnvelope              `json:"event,omitempty"`
@@ -118,13 +118,13 @@ type RemoteEvidenceImportSource struct {
 
 // RemoteEvidenceBatch is the canonical offline multi-item import/export payload.
 type RemoteEvidenceBatch struct {
-	SchemaVersion    string                         `json:"schema_version"`
-	Kind             string                         `json:"kind"`
-	ExportedAt       string                         `json:"exported_at,omitempty"`
-	ClaimedOrigin    RemoteEvidenceBatchClaimedOrigin `json:"claimed_origin,omitempty"`
-	CapabilityPosture CapabilityPosture             `json:"capability_posture,omitempty"`
-	SourceContext    RemoteEvidenceImportSource     `json:"source_context,omitempty"`
-	Items            []RemoteEvidenceBundle         `json:"items"`
+	SchemaVersion     string                           `json:"schema_version"`
+	Kind              string                           `json:"kind"`
+	ExportedAt        string                           `json:"exported_at,omitempty"`
+	ClaimedOrigin     RemoteEvidenceBatchClaimedOrigin `json:"claimed_origin,omitempty"`
+	CapabilityPosture CapabilityPosture                `json:"capability_posture,omitempty"`
+	SourceContext     RemoteEvidenceImportSource       `json:"source_context,omitempty"`
+	Items             []RemoteEvidenceBundle           `json:"items"`
 }
 
 // RemoteEvidenceValidation is the typed validation/trust result for one imported item.
@@ -161,10 +161,10 @@ type RemoteEvidenceImportItem struct {
 
 // RemoteEvidenceImportPayload is the normalized import contract after single-item or batch parsing.
 type RemoteEvidenceImportPayload struct {
-	InputKind  string                      `json:"input_kind"`
-	Batch      RemoteEvidenceBatch         `json:"batch"`
+	InputKind  string                        `json:"input_kind"`
+	Batch      RemoteEvidenceBatch           `json:"batch"`
 	Validation RemoteEvidenceBatchValidation `json:"validation"`
-	Items      []RemoteEvidenceImportItem  `json:"items,omitempty"`
+	Items      []RemoteEvidenceImportItem    `json:"items,omitempty"`
 }
 
 const (

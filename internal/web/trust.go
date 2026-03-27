@@ -499,7 +499,7 @@ func (s *Server) timelineItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"event":                event,
+		"event":                 event,
 		"ordering_posture_note": "Timeline detail remains instance-local or import-local only. Imported remote events preserve timing/provenance posture but do not imply global total order.",
 	})
 }

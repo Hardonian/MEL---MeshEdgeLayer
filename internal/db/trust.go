@@ -535,13 +535,13 @@ FROM operator_notes WHERE ref_type='%s' AND ref_id='%s' ORDER BY created_at DESC
 
 // TimelineEvent is a single item in the unified operator event timeline.
 type TimelineEvent struct {
-	EventTime  string         `json:"event_time"`
-	EventType  string         `json:"event_type"` // action | decision | incident | note | freeze | maintenance | remote_evidence_import
-	EventID    string         `json:"event_id"`
-	Summary    string         `json:"summary"`
-	Severity   string         `json:"severity,omitempty"`
-	ActorID    string         `json:"actor_id,omitempty"`
-	ResourceID string         `json:"resource_id,omitempty"`
+	EventTime  string `json:"event_time"`
+	EventType  string `json:"event_type"` // action | decision | incident | note | freeze | maintenance | remote_evidence_import
+	EventID    string `json:"event_id"`
+	Summary    string `json:"summary"`
+	Severity   string `json:"severity,omitempty"`
+	ActorID    string `json:"actor_id,omitempty"`
+	ResourceID string `json:"resource_id,omitempty"`
 
 	// Foundational provenance fields (OPTION B)
 	ScopePosture       string `json:"scope_posture,omitempty"`
@@ -635,7 +635,7 @@ FROM (
 %s
 ORDER BY event_time DESC LIMIT %d;`, where, limit)
 
-	rows, err := d.QueryRows(sql)
+	rows, err := d.QueryRowsScript(sql)
 	if err != nil {
 		return nil, err
 	}
@@ -729,7 +729,7 @@ FROM (
     COALESCE(scope_posture,'local'), COALESCE(origin_instance_id,''), COALESCE(timing_posture,'local_ordered'), COALESCE(merge_disposition,'raw_only'), COALESCE(merge_correlation_id,''), COALESCE(import_id,'')
   FROM timeline_events WHERE id='%[1]s'
 ) AS tl LIMIT 1;`, esc(id))
-	rows, err := d.QueryRows(sql)
+	rows, err := d.QueryRowsScript(sql)
 	if err != nil {
 		return TimelineEvent{}, false, err
 	}
@@ -794,22 +794,18 @@ func (d *DB) InsertTimelineEvent(ev TimelineEvent) error {
 	}
 	// Fallback/back-compat for older instances or if the columns haven't been migrated yet:
 	// Insert using parameterized or hardcoded string syntax safely.
-	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events
-(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json,scope_posture,origin_instance_id,timing_posture,merge_disposition,merge_correlation_id,import_id)
-VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
+	sql := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json,scope_posture,origin_instance_id,timing_posture,merge_disposition,merge_correlation_id,import_id) VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');`,
 		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
 		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)),
 		esc(ev.ScopePosture), esc(ev.OriginInstanceID), esc(ev.TimingPosture),
 		esc(ev.MergeDisposition), esc(ev.MergeCorrelationID), esc(ev.ImportID))
 	err := d.Exec(sql)
-	
+
 	// Pre-migration backwards compatibility fallback
 	if err != nil && strings.Contains(err.Error(), "table timeline_events has no column") {
-		fallbackSQL := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events
-(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json)
-VALUES('%s','%s','%s','%s','%s','%s','%s','%s');`,
-		esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
-		esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)))
+		fallbackSQL := fmt.Sprintf(`INSERT OR IGNORE INTO timeline_events(id,event_time,event_type,summary,severity,actor_id,resource_id,details_json) VALUES('%s','%s','%s','%s','%s','%s','%s','%s');`,
+			esc(ev.EventID), esc(ev.EventTime), esc(ev.EventType), esc(ev.Summary),
+			esc(ev.Severity), esc(ev.ActorID), esc(ev.ResourceID), esc(string(detailsJSON)))
 		err = d.Exec(fallbackSQL)
 	}
 	// Treat "no such table" as safe-fail during startup before migrations run.

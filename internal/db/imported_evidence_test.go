@@ -30,19 +30,26 @@ func TestImportedRemoteEvidenceRoundTrip(t *testing.T) {
 	valJ, _ := json.Marshal(val)
 	bundleJ, _ := json.Marshal(bundle)
 	evJ, _ := json.Marshal(bundle["evidence"])
+	eventJ, _ := json.Marshal(map[string]any{})
+	normalizedJ, _ := json.Marshal(map[string]any{"status": "normalized"})
 	rec := ImportedRemoteEvidenceRecord{
 		ID:                     "imp-test-1",
+		BatchID:                "impb-test-1",
 		ImportedAt:             "2026-01-01T00:00:00Z",
 		LocalInstanceID:        "local-1",
+		ValidationStatus:       "accepted_with_caveats",
 		Validation:             valJ,
 		Bundle:                 bundleJ,
 		Evidence:               evJ,
+		Event:                  eventJ,
+		Normalized:             normalizedJ,
 		OriginInstanceID:       "o1",
 		EvidenceClass:          "packet_observation",
 		ObservationOriginClass: "remote_reported",
 	}
 	if err := d.InsertImportedRemoteEvidence(rec); err != nil {
-		t.Fatal(err)
+		sql, sqlErr := importedRemoteEvidenceInsertSQL(rec)
+		t.Fatalf("insert err=%v sqlErr=%v sql=%s", err, sqlErr, sql)
 	}
 	list, err := d.ListImportedRemoteEvidence(10)
 	if err != nil || len(list) != 1 {

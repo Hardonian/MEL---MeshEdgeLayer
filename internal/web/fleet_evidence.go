@@ -196,11 +196,11 @@ func (s *Server) fleetImportBatchListHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"batches":      rows,
-		"summaries":    summaries,
-		"count":        len(rows),
+		"batches":       rows,
+		"summaries":     summaries,
+		"count":         len(rows),
 		"truth_posture": truth,
-		"note":         "Import batches are offline audit containers. They preserve source payloads and validation posture, not live federation state.",
+		"note":          "Import batches are offline audit containers. They preserve source payloads and validation posture, not live federation state.",
 	})
 }
 
@@ -245,9 +245,9 @@ func (s *Server) fleetImportBatchGetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"batch":        batch,
-		"items":        batchItems,
-		"inspection":   inspection,
+		"batch":         batch,
+		"items":         batchItems,
+		"inspection":    inspection,
 		"truth_posture": truth,
 	})
 }
