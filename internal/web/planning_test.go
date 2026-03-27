@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -129,8 +130,8 @@ func TestPlanningAdvisoryAlertsEndpointClearsNoAdvisoriesWhenAlertsExist(t *test
 	if !ok {
 		t.Fatalf("missing evidence_flags object")
 	}
-	if flags["no_advisories"] != nil {
-		t.Fatalf("expected no_advisories omitted when alerts exist, got %#v", flags["no_advisories"])
+	if flags["no_advisories"] != false {
+		t.Fatalf("expected no_advisories false when alerts exist, got %#v", flags["no_advisories"])
 	}
 }
 
@@ -251,5 +252,80 @@ func TestPlanningExecutionValidateEndpointEmitsDriftAndInconclusiveFlags(t *test
 	}
 	if flags["directional_only"] != true {
 		t.Fatalf("expected directional_only true, got %#v", flags["directional_only"])
+	}
+}
+
+func TestPlanningExecutionValidationsEndpointPreservesTypedEvidenceFlagsFromPersistence(t *testing.T) {
+	srv, d := setupPlanningServer(t)
+
+	execID, err := planning.StartPlanExecution(d, "plan-typed-evidence", "graph-before", "assessment-before", planning.PostChangeMetricsSnapshot{
+		Captured:            true,
+		FragmentationBefore: 0.61,
+		ResilienceBefore:    0.39,
+	}, 24, "typed evidence parity check")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	validation := planning.ValidationResult{
+		ExecutionID:           execID,
+		GraphHashAfter:        "graph-after",
+		MeshAssessmentIDAfter: "assessment-after",
+		Verdict:               planning.OutcomeVerdictInconclusive,
+		EvidenceFlags: planning.PlanningEvidenceFlags{
+			BaselineMissing:                            true,
+			ConfoundedSameAssessmentContext:            false,
+			DirectionalOnly:                            true,
+			Inconclusive:                               true,
+			TopologyOrGraphDriftDetected:               false,
+			LimitedConfidence:                          true,
+			NoAdvisories:                               false,
+			RecommendationPresentWithUncertainEvidence: true,
+		},
+		Caveat: "persistence parity only",
+		Lines: []string{
+			"evidence posture is cautionary and typed",
+		},
+		Metrics: planning.PostChangeMetricsSnapshot{
+			Captured:            true,
+			FragmentationBefore: 0.61,
+			FragmentationAfter:  0.59,
+			ResilienceBefore:    0.39,
+			ResilienceAfter:     0.41,
+		},
+	}
+	if _, err := planning.SaveValidation(d, execID, validation); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/planning/executions/validations?execution_id="+execID, nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Validations []planning.ValidationResult `json:"validations"`
+		Count       int                         `json:"count"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Count != 1 {
+		t.Fatalf("expected count 1, got %d", payload.Count)
+	}
+	if len(payload.Validations) != 1 {
+		t.Fatalf("expected one validation result, got %#v", payload.Validations)
+	}
+	gotValidation := payload.Validations[0]
+	if gotValidation.ExecutionID != execID {
+		t.Fatalf("expected execution_id %q, got %q", execID, gotValidation.ExecutionID)
+	}
+	if gotValidation.ValidationID == "" {
+		t.Fatalf("expected persisted validation_id")
+	}
+	if !reflect.DeepEqual(gotValidation.EvidenceFlags, validation.EvidenceFlags) {
+		t.Fatalf("expected evidence_flags %#v, got %#v", validation.EvidenceFlags, gotValidation.EvidenceFlags)
 	}
 }

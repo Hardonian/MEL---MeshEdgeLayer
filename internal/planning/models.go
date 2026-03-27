@@ -490,7 +490,7 @@ type ValidationResult struct {
 	GraphHashAfter        string                    `json:"graph_hash_after"`
 	MeshAssessmentIDAfter string                    `json:"mesh_assessment_id_after"`
 	Verdict               OutcomeVerdict            `json:"verdict"`
-	EvidenceFlags         PlanningEvidenceFlags     `json:"evidence_flags,omitempty"`
+	EvidenceFlags         PlanningEvidenceFlags     `json:"evidence_flags"`
 	Caveat                string                    `json:"caveat,omitempty"`
 	Lines                 []string                  `json:"lines"`
 	Metrics               PostChangeMetricsSnapshot `json:"metrics"`
@@ -521,7 +521,7 @@ type PlanningBundle struct {
 	MeshAssessmentID   string                  `json:"mesh_assessment_id,omitempty"`
 	TransportConnected bool                    `json:"transport_connected"`
 	TopologyEnabled    bool                    `json:"topology_enabled"`
-	EvidenceFlags      PlanningEvidenceFlags   `json:"evidence_flags,omitempty"`
+	EvidenceFlags      PlanningEvidenceFlags   `json:"evidence_flags"`
 	Resilience         MeshResilienceSummary   `json:"resilience"`
 	NodeProfiles       []NodeResilienceProfile `json:"node_profiles"`
 	RankedNextPlans    []RankedPlanHint        `json:"ranked_next_plans"`
