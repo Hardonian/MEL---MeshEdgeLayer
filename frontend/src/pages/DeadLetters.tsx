@@ -167,7 +167,7 @@ export function DeadLetters() {
                   key: 'reason',
                   header: 'Reason',
                   render: (dl) => (
-                    <span className="text-sm">{dl.reason}</span>
+                    <span className="break-words text-sm">{dl.reason}</span>
                   ),
                 },
               ]}

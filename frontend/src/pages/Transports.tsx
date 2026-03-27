@@ -89,7 +89,7 @@ export function Transports() {
                 <CardContent>
                   <div className="space-y-2 text-sm">
                     {transport.health?.state && transport.health.state !== 'healthy' && (
-                       <div className="flex justify-between text-amber-600">
+                       <div className="flex justify-between text-warning">
                          <span className="font-medium">Health Check:</span>
                          <span className="font-medium">{transport.health.state}</span>
                        </div>
@@ -107,7 +107,7 @@ export function Transports() {
                       <span className="font-medium">{transport.last_ingest_at ? new Date(transport.last_ingest_at).toLocaleTimeString() : 'Never'}</span>
                     </div>
                     {(transport.consecutive_timeouts > 0 || transport.last_error) && (
-                      <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                      <div className="mt-2 rounded border border-critical/25 bg-critical/10 p-2 text-xs text-foreground">
                         {transport.last_error || `Timeouts: ${transport.consecutive_timeouts}`}
                       </div>
                     )}

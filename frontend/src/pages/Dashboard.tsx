@@ -76,16 +76,18 @@ export function Dashboard() {
   const dashboardStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Real-time overview of your MeshEdgeLayer observability system.</p>
-      </div>
+    <div className="space-y-6 pb-10 animate-fade-in md:space-y-8">
+      <header className="border-b border-border/60 pb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Dashboard</h1>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Operational snapshot from the last API refresh (auto every 30s). Values reflect what MEL has observed, not guaranteed live mesh state.
+        </p>
+      </header>
 
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
       {/* Quick Stats - Enhanced Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 stagger-children sm:gap-4">
         <div className="card-hover">
           <StatCard
             title="Connection Status"
@@ -157,7 +159,7 @@ export function Dashboard() {
       )}
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
         {/* Transport Status */}
         <Card className="overflow-hidden">
           <CardHeader className="pb-4">
@@ -278,8 +280,8 @@ export function Dashboard() {
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950">
-                  <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning/10">
+                  <Zap className="h-4 w-4 text-warning" />
                 </div>
                 <div>
                   <CardTitle className="text-base">Recommendations</CardTitle>
@@ -312,10 +314,10 @@ export function Dashboard() {
 
       {/* Dead Letters Alert - Conditional */}
       {deadLetters.data && deadLetters.data.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30">
+        <Card className="border-warning/25 bg-warning/5">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <AlertTriangle className="h-5 w-5 text-warning" />
               <div>
                 <CardTitle className="text-base">Recent Dead Letters</CardTitle>
                 <CardDescription className="text-xs mt-0.5">Messages that failed to be processed</CardDescription>
@@ -325,7 +327,7 @@ export function Dashboard() {
           <CardContent className="pt-0">
             <div className="space-y-2">
               {deadLetters.data.slice(0, 3).map((dl, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-amber-200/50 bg-white/50 p-3 dark:border-amber-800/50 dark:bg-black/20">
+                <div key={i} className="flex items-center justify-between rounded-lg border border-warning/20 bg-card/80 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{dl.transport_name}</p>
                     <p className="truncate text-xs text-muted-foreground">{dl.reason}</p>
@@ -338,7 +340,7 @@ export function Dashboard() {
             </div>
             <Link
               to="/dead-letters"
-              className="mt-4 flex items-center gap-1 text-sm font-medium text-amber-700 hover:underline dark:text-amber-400"
+              className="mt-4 flex items-center gap-1 text-sm font-medium text-warning hover:underline"
             >
               View all dead letters <ArrowRight className="h-4 w-4" />
             </Link>
@@ -410,7 +412,7 @@ function RecommendationListItem({ recommendation }: { recommendation: { message:
     <div className="flex items-start gap-3 rounded-lg border p-3">
       <div className="mt-0.5">
         {recommendation.actionable ? (
-          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertCircle className="h-4 w-4 text-warning" />
         ) : (
           <Zap className="h-4 w-4 text-muted-foreground" />
         )}

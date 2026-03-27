@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { NoMessagesYet } from '@/components/ui/EmptyState'
 import { formatTimestamp, Message } from '@/types/api'
+import { TruncatedText } from '@/components/ui/TruncatedText'
 import { MessageSquare, Clock, ArrowRight, Hash } from 'lucide-react'
 
 export function Messages() {
@@ -94,8 +95,12 @@ export function Messages() {
         />
         <StatCard
           title="Time Range"
-          value={messages.length > 0 ? 'Active' : 'N/A'}
-          description={messages.length > 0 ? 'Receiving messages' : 'No messages yet'}
+          value={messages.length > 0 ? 'Recent window' : 'N/A'}
+          description={
+            messages.length > 0
+              ? 'Observations in this list (not a live stream guarantee)'
+              : 'No messages in this view yet'
+          }
           icon={<Clock className="h-5 w-5" />}
           variant={messages.length > 0 ? 'success' : 'default'}
         />
@@ -176,11 +181,12 @@ export function Messages() {
                 {
                   key: 'payload',
                   header: 'Payload',
-                  render: (msg) => (
-                    <span className="font-mono text-xs truncate max-w-[200px] block">
-                      {msg.payload_text || '—'}
-                    </span>
-                  ),
+                  render: (msg) =>
+                    msg.payload_text ? (
+                      <TruncatedText text={msg.payload_text} maxLen={56} className="block max-w-[min(20rem,100%)]" />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    ),
                 },
               ]}
               keyField="packet_id"

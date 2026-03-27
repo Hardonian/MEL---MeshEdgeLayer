@@ -18,12 +18,20 @@ export const StaleDataBanner: React.FC<StaleDataBannerProps> = ({
   if (state !== 'stale') return null;
 
   return (
-    <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4 rounded-md shadow-sm" role="alert">
+    <div
+      className="mb-4 rounded-md border border-warning/25 border-l-4 border-l-warning bg-warning/10 p-4 shadow-sm"
+      role="alert"
+    >
       <div className="flex">
-        <div className="ml-3">
-          <h3 className="text-sm font-medium text-amber-800">Stale Data Warning: {componentName}</h3>
-          <div className="mt-1 text-sm text-amber-700">
-            <p>No recent updates received. Last verified activity: <strong>{formatOperatorTime(lastSuccessfulIngest)}</strong>.</p>
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-foreground">
+            Stale data — {componentName}
+          </h3>
+          <div className="mt-1 text-sm text-muted-foreground">
+            <p>
+              No recent updates received. Last verified activity:{' '}
+              <strong className="font-medium text-foreground">{formatOperatorTime(lastSuccessfulIngest)}</strong>.
+            </p>
           </div>
         </div>
       </div>

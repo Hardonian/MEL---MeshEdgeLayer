@@ -85,10 +85,17 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
   }
   
   const colors = {
-    success: 'border-success bg-success/10 text-success',
-    error: 'border-critical bg-critical/10 text-critical',
-    warning: 'border-warning bg-warning/10 text-warning',
-    info: 'border-info bg-info/10 text-info',
+    success: 'border-success/30 bg-background text-foreground',
+    error: 'border-critical/30 bg-background text-foreground',
+    warning: 'border-warning/30 bg-background text-foreground',
+    info: 'border-info/30 bg-background text-foreground',
+  }
+
+  const iconColors = {
+    success: 'text-success',
+    error: 'text-critical',
+    warning: 'text-warning',
+    info: 'text-info',
   }
 
   const Icon = icons[toast.type]
@@ -96,13 +103,13 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
   return (
     <div 
       className={clsx(
-        'flex items-start gap-3 p-4 rounded-lg border shadow-lg animate-slide-up',
-        colors[toast.type],
-        'bg-background'
+        'flex items-start gap-3 rounded-lg border p-4 shadow-lg animate-slide-up',
+        colors[toast.type]
       )}
-      role="alert"
+      role="status"
+      aria-live="polite"
     >
-      <Icon className="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
+      <Icon className={clsx('h-5 w-5 shrink-0 mt-0.5', iconColors[toast.type])} aria-hidden="true" />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-foreground">{toast.title}</p>
         {toast.message && (

@@ -29,18 +29,18 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <div className="rounded-xl border bg-card">
-        <div className="animate-pulse">
-          <div className="border-b p-4">
-            <div className="flex gap-4">
+      <div className="rounded-xl border border-border/80 bg-card shadow-sm">
+        <div className="animate-pulse" aria-busy="true" aria-label="Loading table">
+          <div className="border-b border-border/80 bg-muted/20 p-3">
+            <div className="flex gap-3">
               {columns.map((col) => (
-                <div key={col.key} className="h-4 flex-1 bg-muted rounded" />
+                <div key={col.key} className="h-3 flex-1 rounded bg-muted" />
               ))}
             </div>
           </div>
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="border-b p-4">
-              <div className="h-4 bg-muted rounded" />
+            <div key={i} className="border-b border-border/50 p-3 last:border-b-0">
+              <div className="h-3 rounded bg-muted/80" />
             </div>
           ))}
         </div>
@@ -50,7 +50,7 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-8">
+      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm sm:p-8">
         <div className="text-center">
           <p className="text-sm font-medium text-foreground">{emptyMessage}</p>
           {emptyDescription && (
@@ -62,16 +62,17 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={clsx('rounded-xl border bg-card overflow-hidden', className)}>
+    <div className={clsx('rounded-xl border border-border/80 bg-card shadow-sm overflow-hidden', className)}>
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b bg-muted/30">
+        <table className="w-full min-w-[32rem] border-collapse text-sm">
+          <thead className="border-b border-border/80 bg-muted/40">
+            <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
+                  scope="col"
                   className={clsx(
-                    'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground',
+                    'whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:px-4 sm:py-3',
                     column.className
                   )}
                 >
@@ -80,19 +81,19 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody>
-            {data.map((item, index) => (
+          <tbody className="divide-y divide-border/60">
+            {data.map((item) => (
               <tr
                 key={String(item[keyField])}
-                className={clsx(
-                  'border-b transition-colors hover:bg-muted/50',
-                  index === data.length - 1 && 'border-b-0'
-                )}
+                className="transition-colors hover:bg-muted/40"
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={clsx('px-4 py-3 text-sm', column.className)}
+                    className={clsx(
+                      'max-w-[28rem] px-3 py-2.5 align-top text-sm sm:px-4 sm:py-3',
+                      column.className
+                    )}
                   >
                     {column.render
                       ? column.render(item)

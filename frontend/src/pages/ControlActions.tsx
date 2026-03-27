@@ -66,7 +66,7 @@ export function ControlActions() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Control actions"
@@ -97,14 +97,22 @@ export function ControlActions() {
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase text-muted-foreground">Lifecycle</span>
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="radiogroup"
+        aria-label="Filter by lifecycle state"
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Lifecycle
+        </span>
         {LIFECYCLE_FILTERS.map((f) => (
           <button
             key={f.value || 'all'}
             type="button"
+            role="radio"
+            aria-checked={filter === f.value}
             onClick={() => setFilter(f.value)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               filter === f.value
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border text-muted-foreground hover:bg-muted'
