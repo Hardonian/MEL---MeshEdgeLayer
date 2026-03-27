@@ -15,11 +15,13 @@ import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
 import { Planning } from './pages/Planning'
 import { ApiProvider } from './hooks/useApi'
+import { ConsoleThemeProvider } from './hooks/useConsoleThemePreference'
 import { ToastProvider } from './components/ui/Toast'
 
 export default function App() {
   return (
     <ApiProvider>
+      <ConsoleThemeProvider>
       <ToastProvider>
         <Layout>
         <Routes>
@@ -42,6 +44,7 @@ export default function App() {
         </Routes>
       </Layout>
       </ToastProvider>
+      </ConsoleThemeProvider>
     </ApiProvider>
   )
 }

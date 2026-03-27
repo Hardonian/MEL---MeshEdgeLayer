@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { useStatus } from '@/hooks/useApi'
+import { useApi, useStatus } from '@/hooks/useApi'
+import { HelpMenu } from '@/components/ui/HelpMenu'
 import {
   LayoutDashboard,
   Radio,
@@ -12,12 +13,12 @@ import {
   FileText,
   Menu,
   X,
-  HelpCircle,
   Activity,
   GitBranch,
   Compass,
   AlertTriangle,
   Zap,
+  RefreshCw,
 } from 'lucide-react'
 
 interface NavItem {
@@ -46,8 +47,10 @@ const navItems: NavItem[] = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const status = useStatus()
+  const { refreshAll } = useApi()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [refreshBusy, setRefreshBusy] = useState(false)
 
   const transports = status.data?.transports ?? []
   const hasTransports = transports.length > 0
@@ -67,8 +70,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setIsMobileMenuOpen(false)
   }, [location.pathname])
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshBusy(true)
+    try {
+      await refreshAll()
+    } finally {
+      setRefreshBusy(false)
+    }
+  }, [refreshAll])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setIsMobileMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
       {/* Top navigation */}
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
@@ -91,7 +118,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-2">
             <div
               className={clsx(
                 'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider md:flex',
@@ -119,13 +146,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     ? 'Transport connected'
                     : 'No active transport'}
             </div>
-            <button 
-              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Help and Support"
-              title="Help and Support"
+            <button
+              type="button"
+              onClick={() => void handleRefresh()}
+              disabled={refreshBusy}
+              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data from API'}
+              title="Re-fetch dashboard data (same 30s polling cadence still applies)"
             >
-              <HelpCircle className="h-5 w-5" />
+              <RefreshCw className={clsx('h-5 w-5', refreshBusy && 'animate-spin')} aria-hidden />
             </button>
+            <HelpMenu />
           </div>
         </div>
       </header>
@@ -164,8 +195,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               to="/settings"
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <HelpCircle className="h-4 w-4" />
-              Help & Support
+              <Settings className="h-4 w-4 shrink-0" aria-hidden />
+              Settings &amp; reference
             </Link>
           </div>
         </aside>
@@ -179,7 +210,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Main content */}
-        <main className="flex-1 px-4 py-5 md:ml-64 md:max-w-[min(100%,88rem)] md:px-8 md:py-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 px-4 py-5 outline-none md:ml-64 md:max-w-[min(100%,88rem)] md:px-8 md:py-6"
+        >
           {children}
         </main>
       </div>
