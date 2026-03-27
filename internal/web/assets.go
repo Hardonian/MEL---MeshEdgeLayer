@@ -5,5 +5,5 @@ import (
 	"net/http"
 )
 
-//go:embed all:frontend/dist
+//go:embed all:../../frontend/dist
 var staticAssets embed.FS
