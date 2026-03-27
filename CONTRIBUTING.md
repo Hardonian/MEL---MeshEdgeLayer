@@ -1,64 +1,86 @@
 # Contributing to MEL
 
-## Ground rules
+Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to reduce entropy and increase structural coherence in mesh network operations.
 
-- Keep MEL honest: no fake transports, no fake mesh data, no dead routes.
-- Narrow public claims when implementation proof is missing.
-- Preserve stock Meshtastic compatibility boundaries.
-- Prefer stdlib-only Go unless a dependency is already vendored.
-- Make degraded states explicit in CLI, API, and UI.
-- Add tests with any behavior change that affects operator truth, privacy, config, transport health, or persistence.
+## 🏁 Ground Rules for Contributors
 
-## Repo truths contributors should know
+1. **Keep MEL Honest**: No fake transports, no fake mesh data, and no dead routes.
+2. **Narrow Public Claims**: If a feature is not yet fully implemented or verified, it must be explicitly labeled as such in both code and documentation.
+3. **Preserve Compatibility**: Stock Meshtastic compatibility boundaries are sacred.
+4. **Prefer Stdlib-Only Go**: Avoid adding external dependencies unless they are already vendored.
+5. **No Undefined Access**: All errors must be handled and reported explicitly. Silencing an error is a violation of the "Truth-First" model.
 
-- SQLite access intentionally uses the `sqlite3` CLI in this environment.
-- MEL currently supports ingest from serial direct-node, TCP direct-node, and MQTT.
-- BLE, HTTP ingest, send/publish, metadata fetch, and admin/control are not current features.
-- Metrics config exists, but RC1 does not ship a metrics server.
-- `storage.encryption_required` is not at-rest encryption; do not document it that way.
+---
 
-## Build and verify
+## 🏗️ Architecture & Truth Boundaries
+
+Before you begin, understand where MEL starts and stops:
+
+- **Ingest Layers**: Currently serial direct-node, TCP direct-node, and MQTT are supported.
+- **Explicit Limitations**: BLE, HTTP ingest, and radio transmission (send/publish) are **not** currently implemented.
+- **Metrics**: A `/metrics` endpoint exists, but MEL does not yet ship a dedicated metrics server or exporter.
+- **Control Plane**: Automated remediations must be guarded. No autonomous action without evidence provenance.
+
+Review the [Known Limitations](docs/ops/limitations.md) for more details.
+
+---
+
+## 🛠️ Local Development & Build
+
+### 1. Build and Verify
+MEL uses a straightforward `Makefile` to maintain consistency:
 
 ```bash
+# Full lint, test, and build pass
+make verify
+
+# Build only (outputs to bin/)
 make build
+
+# Run unit tests
 make test
+
+# Run the local smoke test suite
 ./scripts/smoke.sh
 ```
 
-Use `make verify` when you want the full repo pass, including cross-builds.
+### 2. Frontend Development
+The control plane dashboard lives in `frontend/`.
+```bash
+cd frontend
+npm install
+npm run dev      # Start dev server on port 3000
+npm run lint     # Check styling
+npm test         # Run vitest suite
+```
 
-**Frontend:** `cd frontend && npm ci && npm run lint && npm run typecheck && npm test` (Vitest).
+### 3. Verification Standards
+Every Pull Request must:
+- Pass `make lint`.
+- Pass `make test`.
+- Pass `make smoke`.
+- Include verification steps in the description.
 
-**CI merge gate (today):** `.github/workflows/ci.yml` runs Go tests for the whole module, build, and smoke. It does not run frontend tests unless you add a job — document any new jobs so reviewers know what is and is not gated.
+---
 
-## Deployment planning (what-if / resilience)
+## 🔌 Safe Areas for Expansion
 
-- Planning APIs and CLI output are **advisory**: they combine packet-derived topology, mesh intelligence, and optional operator hints.
-- MEL does **not** simulate RF coverage, terrain, or exact propagation; responses label topology-only limits and missing inputs.
-- UI: **Planning** page (`/planning`) reads `GET /api/v1/planning/bundle`. Persisted plans use `deployment_plans` (migration `0024_deployment_planning`).
+- **Policy & Privacy Logic**: Refine redaction or trust boundary enforcement.
+- **Documentation**: New runbooks or operator workflow improvements.
+- **Transport Hardening**: Improve reconnection persistence or error reporting.
+- **Protobuf Decoding**: Support new Meshtastic payloads (include fixtures/tests).
 
-## Safe extension areas
+---
 
-- policy and privacy logic
-- docs and operator workflows
-- export and backup workflows
-- transport hardening backed by code and tests
-- protobuf decode expansion backed by fixtures/tests
+## ⚓ Pull Request Checklist
 
-## Transport changes
+When submitting a PR, include:
+- **Design Intent**: Why is this change necessary?
+- **Operator Impact**: What does a user see or experience differently?
+- **Verification Evidence**: Logs, test results, or manual proof.
+- **Residual Risk**: What is still unknown or partial about this implementation?
 
-A transport can only be documented as supported when all of the following are true:
+**We optimize for a clean, deterministic repository.** If a change increases noise, it will be rejected in favor of a simpler, more coherent solution.
 
-1. there is a real implementation path in `internal/transport`,
-2. `mel doctor`, CLI/API/UI, or both expose truthful health for it,
-3. there is repo-local verification coverage,
-4. docs state its caveats precisely.
-
-## Pull requests
-
-Include:
-
-- design intent,
-- operator impact,
-- verification evidence,
-- residual risk or remaining limitations.
+MEL is licensed under the **Apache-2.0 License**.
+© 2026 Hardonian / MeshEdgeLayer Contributors.
