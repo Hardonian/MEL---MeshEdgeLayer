@@ -22,6 +22,15 @@ type ImportedEvidenceClaimedOrigin struct {
 	ImportReason            string `json:"import_reason,omitempty"`
 }
 
+// ImportedEvidenceSource preserves the local batch/source context for one imported item.
+type ImportedEvidenceSource struct {
+	BatchID    string `json:"batch_id"`
+	SequenceNo int    `json:"sequence_no"`
+	SourceType string `json:"source_type,omitempty"`
+	SourceName string `json:"source_name,omitempty"`
+	SourcePath string `json:"source_path,omitempty"`
+}
+
 // ImportedEvidenceProvenance preserves local import context separately from remote claimed origin.
 type ImportedEvidenceProvenance struct {
 	LocalInstanceID        string                 `json:"local_instance_id"`
@@ -74,6 +83,7 @@ type RelatedImportedEvidence struct {
 // ImportedEvidenceSummary is the concise operator-facing summary for list views.
 type ImportedEvidenceSummary struct {
 	ImportID                 string                   `json:"import_id"`
+	Source                   ImportedEvidenceSource   `json:"source"`
 	ImportedAt               string                   `json:"imported_at"`
 	Rejected                 bool                     `json:"rejected"`
 	SchemaVersion            string                   `json:"schema_version"`
@@ -102,6 +112,7 @@ type ImportedEvidenceSummary struct {
 // ImportedEvidenceInspection is the full operator drilldown for one imported row.
 type ImportedEvidenceInspection struct {
 	ImportID         string                        `json:"import_id"`
+	Source           ImportedEvidenceSource        `json:"source"`
 	ImportedAt       string                        `json:"imported_at"`
 	Rejected         bool                          `json:"rejected"`
 	SchemaVersion    string                        `json:"schema_version"`
@@ -117,6 +128,30 @@ type ImportedEvidenceInspection struct {
 	MergeInspection  MergeInspection               `json:"merge_inspection"`
 	Summary          string                        `json:"summary"`
 	Unknowns         []string                      `json:"unknowns,omitempty"`
+}
+
+// RemoteImportBatchSummary is the concise operator-facing summary for one import batch.
+type RemoteImportBatchSummary struct {
+	BatchID                  string                      `json:"batch_id"`
+	ImportedAt               string                      `json:"imported_at"`
+	FormatKind               string                      `json:"format_kind"`
+	SchemaVersion            string                      `json:"schema_version"`
+	Source                   RemoteEvidenceImportSource  `json:"source"`
+	ClaimedOrigin            RemoteEvidenceBatchClaimedOrigin `json:"claimed_origin"`
+	Validation               RemoteEvidenceBatchValidation `json:"validation"`
+	ItemCount                int                         `json:"item_count"`
+	AcceptedCount            int                         `json:"accepted_count"`
+	AcceptedWithCaveatsCount int                         `json:"accepted_with_caveats_count"`
+	RejectedCount            int                         `json:"rejected_count"`
+	PartialSuccess           bool                        `json:"partial_success"`
+	Note                     string                      `json:"note,omitempty"`
+}
+
+// RemoteImportBatchInspection is the full operator drilldown for one import batch.
+type RemoteImportBatchInspection struct {
+	Batch           RemoteImportBatchSummary `json:"batch"`
+	ItemSummaries   []ImportedEvidenceSummary `json:"item_summaries,omitempty"`
+	ItemInspections []ImportedEvidenceInspection `json:"item_inspections,omitempty"`
 }
 
 // InspectImportedRemoteEvidenceRecords builds full inspections for a set of imported rows.
@@ -153,6 +188,7 @@ func (i ImportedEvidenceInspection) SummaryView() ImportedEvidenceSummary {
 	}
 	return ImportedEvidenceSummary{
 		ImportID:                 i.ImportID,
+		Source:                   i.Source,
 		ImportedAt:               i.ImportedAt,
 		Rejected:                 i.Rejected,
 		SchemaVersion:            i.SchemaVersion,
@@ -189,7 +225,14 @@ func InspectImportedRemoteEvidenceRecord(truth FleetTruthSummary, row db.Importe
 	related, relatedMerge := buildRelatedImportedEvidence(row, bundle, rows)
 	unknowns := collectImportedEvidenceUnknowns(row, bundle, related)
 	inspection := ImportedEvidenceInspection{
-		ImportID:      row.ID,
+		ImportID: row.ID,
+		Source: ImportedEvidenceSource{
+			BatchID:    strings.TrimSpace(row.BatchID),
+			SequenceNo: row.SequenceNo,
+			SourceType: strings.TrimSpace(row.SourceType),
+			SourceName: strings.TrimSpace(row.SourceName),
+			SourcePath: strings.TrimSpace(row.SourcePath),
+		},
 		ImportedAt:    row.ImportedAt,
 		Rejected:      row.Rejected,
 		SchemaVersion: strings.TrimSpace(bundle.SchemaVersion),
@@ -220,6 +263,17 @@ func InspectImportedRemoteEvidenceRecord(truth FleetTruthSummary, row db.Importe
 		MergeInspection:  MergeInspectionFromClassification(relatedMerge),
 		Unknowns:         unknowns,
 	}
+	if strings.TrimSpace(row.TimingPosture) != "" {
+		inspection.Timing.PrimaryPosture = TimingOrderPosture(strings.TrimSpace(row.TimingPosture))
+		inspection.Timing.TimingPostures = uniqueTimingPostures(append(inspection.Timing.TimingPostures, inspection.Timing.PrimaryPosture))
+	}
+	if strings.TrimSpace(row.MergeDisposition) != "" {
+		inspection.MergeInspection.Classification.Disposition = DedupeDisposition(strings.TrimSpace(row.MergeDisposition))
+		inspection.MergeInspection.Explain = ExplainMergeForOperator(inspection.MergeInspection.Classification)
+	}
+	if strings.TrimSpace(row.MergeCorrelationID) != "" {
+		inspection.MergeInspection.Classification.MergeKey = strings.TrimSpace(row.MergeCorrelationID)
+	}
 	inspection.Summary = buildImportedEvidenceSummaryText(inspection)
 	return inspection, nil
 }
@@ -228,6 +282,7 @@ func InspectImportedRemoteEvidenceRecord(truth FleetTruthSummary, row db.Importe
 func BuildImportTimelineDetails(inspection ImportedEvidenceInspection, actor string) map[string]any {
 	return map[string]any{
 		"import_id":                   inspection.ImportID,
+		"source":                      inspection.Source,
 		"actor":                       strings.TrimSpace(actor),
 		"validation":                  inspection.Validation,
 		"claimed_origin":              inspection.ClaimedOrigin,

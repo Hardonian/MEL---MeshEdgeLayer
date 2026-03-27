@@ -12,16 +12,16 @@ This document is for second-line support engineers, incident responders, and any
 
 ## File reference
 
-| File                     | Contents                                      | When to use                           |
-|--------------------------|-----------------------------------------------|---------------------------------------|
-| `MANIFEST.md`            | Index, interpretation notes, quick commands    | Always read first                     |
-| `bundle.json`            | Full monolith (all sections, machine-readable) | Tooling ingestion; grep for fields    |
-| `doctor.json`            | `mel doctor` output (secrets redacted)        | Host and config health                |
-| `timeline.json`          | Full unified event timeline                   | Chronological investigation          |
-| `control_actions.json`   | Control actions and decisions                 | Audit trail: who did what and why    |
-| `incidents.json`         | Incident records                              | Correlation, handoff context         |
-| `imported_evidence.json` | Remote evidence imports + validation          | Provenance, merge posture            |
-| `diagnostics.json`       | Active diagnostic findings                    | Issues and recommended next steps    |
+| File                     | Contents                                      | When to use                        |
+|--------------------------|-----------------------------------------------|------------------------------------|
+| `MANIFEST.md`            | Index, interpretation notes, quick commands    | Always read first                  |
+| `bundle.json`            | Full monolith (all sections, machine-readable) | Tooling ingestion; grep for fields |
+| `doctor.json`            | `mel doctor` output (secrets redacted)        | Host and config health             |
+| `timeline.json`          | Full unified event timeline                   | Chronological investigation       |
+| `control_actions.json`   | Control actions and decisions                 | Audit trail: who did what and why |
+| `incidents.json`         | Incident records                              | Correlation, handoff context      |
+| `imported_evidence.json` | Remote evidence imports + validation          | Provenance, merge posture         |
+| `diagnostics.json`       | Active diagnostic findings                    | Issues and recommended next steps |
 
 ## Reading the timeline
 
@@ -44,10 +44,10 @@ The timeline is a UNION of disparate event types into a single chronological str
 
 ### `merge_disposition`
 
-| Value                              | Meaning                                            |
-|------------------------------------|----------------------------------------------------|
-| `raw_only`                         | No merge processing; single-origin event          |
-| `summary_with_contributor_lineage` | Summary with preserved contributor trail           |
+| Value                              | Meaning                                             |
+|------------------------------------|-----------------------------------------------------|
+| `raw_only`                         | No merge processing; single-origin event           |
+| `summary_with_contributor_lineage` | Summary with preserved contributor trail            |
 | `merged_canonical_summary`         | Merged from multiple sources into canonical summary |
 
 ## Reading imported evidence

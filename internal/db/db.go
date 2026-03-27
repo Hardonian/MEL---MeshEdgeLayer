@@ -732,24 +732,6 @@ func clampLimit(limit int) int {
 	return limit
 }
 
-func validateOrderBy(orderBy string) string {
-	if !IsSafeIdentifier(orderBy) {
-		return ""
-	}
-	return orderBy
-}
-
-func buildSafeWhereClause(column, value string) (string, error) {
-	if !IsSafeIdentifier(column) {
-		return "", logging.NewSafeError("invalid query parameters", fmt.Errorf("invalid column name: %s", column), "validation", false)
-	}
-	sanitized, err := ValidateSQLInput(value)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s='%s'", column, sanitized), nil
-}
-
 func isTransientDBError(err error) bool {
 	if err == nil {
 		return false

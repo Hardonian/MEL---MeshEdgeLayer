@@ -313,20 +313,6 @@ FROM transport_anomaly_snapshots WHERE %s ORDER BY bucket_start DESC, transport_
 	return out, nil
 }
 
-func historyFilter(nameColumn, name, timeColumn, start, end string) string {
-	clauses := []string{"1=1"}
-	if strings.TrimSpace(name) != "" {
-		clauses = append(clauses, fmt.Sprintf("%s='%s'", nameColumn, esc(name)))
-	}
-	if strings.TrimSpace(start) != "" {
-		clauses = append(clauses, fmt.Sprintf("%s >= '%s'", timeColumn, esc(start)))
-	}
-	if strings.TrimSpace(end) != "" {
-		clauses = append(clauses, fmt.Sprintf("%s <= '%s'", timeColumn, esc(end)))
-	}
-	return strings.Join(clauses, " AND ")
-}
-
 func historyFilterSafe(nameColumn, name, timeColumn, start, end string) (string, error) {
 	if !IsSafeIdentifier(nameColumn) {
 		return "", fmt.Errorf("invalid name column: %s", nameColumn)

@@ -502,21 +502,6 @@ func copyMap(in map[string]any) map[string]any {
 	return out
 }
 
-func copyBoolMap(in map[string]bool) map[string]bool {
-	if len(in) == 0 {
-		return map[string]bool{}
-	}
-	out := make(map[string]bool, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
-
-func copyAnyMap(in map[string]any) map[string]any {
-	return copyMap(in)
-}
-
 // ControlDecisionByID returns the control decision with the given ID, or
 // (zero, false, nil) if not found.
 func (d *DB) ControlDecisionByID(id string) (ControlDecisionRecord, bool, error) {
