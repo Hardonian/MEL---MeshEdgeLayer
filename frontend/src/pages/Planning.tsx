@@ -232,6 +232,8 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
   if (signals.length > 0 || hasTypedFlags) {
     return signals
   }
+  // Backward-compatibility path for older API payloads that predate typed evidence_flags.
+  // Typed flags remain the canonical operator-truth surface when present (including explicit false values).
   return deriveEvidenceSignalsFromLegacyText(bundle, advisories)
 }
 

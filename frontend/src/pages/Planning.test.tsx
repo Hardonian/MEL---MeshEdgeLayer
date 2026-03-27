@@ -127,6 +127,20 @@ describe('Planning', () => {
     expect(screen.getByTestId('planning-evidence-signals').textContent).toContain('Graph/topology drift is present')
   })
 
+  it('shows directional/inconclusive caution from typed flags even when backend prose changes', async () => {
+    setupPlanningFetch({
+      evidenceModel: 'Backend wording changed and no longer includes prior directional phrases.',
+      evidenceFlags: { directional_only: true, inconclusive: true },
+    })
+
+    render(<Planning />)
+    await waitFor(() => {
+      expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
+    })
+
+    expect(screen.getByTestId('planning-evidence-signals').textContent).toContain('directional/inconclusive')
+  })
+
   it('keeps empty advisories and uncertainty visible together (not all-clear)', async () => {
     setupPlanningFetch({
       evidenceModel: 'No uncertainty wording in prose.',
