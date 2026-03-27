@@ -25,6 +25,8 @@ build: frontend-build build-agent build-cli
 
 frontend-build:
 	cd frontend && npm ci && npm run build
+	mkdir -p internal/web/assets
+	cp -r frontend/dist/* internal/web/assets/
 
 build-agent:
 	mkdir -p $(BINDIR)

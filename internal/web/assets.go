@@ -2,8 +2,7 @@ package web
 
 import (
 	"embed"
-	"net/http"
 )
 
-//go:embed all:../../frontend/dist
+//go:embed ../../frontend/dist
 var staticAssets embed.FS
