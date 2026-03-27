@@ -8,12 +8,12 @@ interface OperatorEmptyStateProps {
 
 export function OperatorEmptyState({ title, description, actionNode }: OperatorEmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/10 p-10 text-center">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
-        <Inbox className="h-7 w-7 opacity-70" aria-hidden />
+    <div className="surface-panel surface-panel-muted flex flex-col items-center justify-center rounded-[1.1rem] border-dashed p-10 text-center">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-[1.25rem] border border-border/70 bg-card/70 text-primary shadow-inset">
+        <Inbox className="h-7 w-7 opacity-80" aria-hidden />
       </div>
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
+      <h3 className="font-outfit text-lg font-semibold tracking-[-0.02em] text-foreground">{title}</h3>
+      <p className="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
       {actionNode && <div className="mt-6">{actionNode}</div>}
     </div>
   )

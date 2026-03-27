@@ -11,10 +11,7 @@ export function Card({ children, className, id }: CardProps) {
   return (
     <div
       id={id}
-      className={clsx(
-        'rounded-xl border border-border/80 bg-card text-card-foreground shadow-sm',
-        className
-      )}
+      className={clsx('surface-panel text-card-foreground', className)}
     >
       {children}
     </div>
@@ -28,7 +25,7 @@ interface CardHeaderProps {
 
 export function CardHeader({ children, className }: CardHeaderProps) {
   return (
-    <div className={clsx('flex flex-col space-y-1.5 p-5 sm:p-6', className)}>
+    <div className={clsx('flex flex-col gap-1.5 px-5 py-5 sm:px-6 sm:py-6', className)}>
       {children}
     </div>
   )
@@ -41,7 +38,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className }: CardTitleProps) {
   return (
-    <h3 className={clsx('font-semibold leading-none tracking-tight', className)}>
+    <h3 className={clsx('font-outfit text-[1.02rem] font-semibold tracking-[-0.02em] text-foreground', className)}>
       {children}
     </h3>
   )
@@ -54,7 +51,7 @@ interface CardDescriptionProps {
 
 export function CardDescription({ children, className }: CardDescriptionProps) {
   return (
-    <p className={clsx('text-sm text-muted-foreground', className)}>
+    <p className={clsx('text-sm leading-relaxed text-muted-foreground', className)}>
       {children}
     </p>
   )
@@ -67,7 +64,7 @@ interface CardContentProps {
 
 export function CardContent({ children, className }: CardContentProps) {
   return (
-    <div className={clsx('p-5 pt-0 sm:p-6 sm:pt-0', className)}>
+    <div className={clsx('px-5 pb-5 pt-0 sm:px-6 sm:pb-6', className)}>
       {children}
     </div>
   )
@@ -80,7 +77,7 @@ interface CardFooterProps {
 
 export function CardFooter({ children, className }: CardFooterProps) {
   return (
-    <div className={clsx('flex items-center p-5 pt-0 sm:p-6 sm:pt-0', className)}>
+    <div className={clsx('flex items-center px-5 pb-5 pt-0 sm:px-6 sm:pb-6', className)}>
       {children}
     </div>
   )

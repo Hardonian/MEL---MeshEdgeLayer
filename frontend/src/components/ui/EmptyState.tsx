@@ -15,24 +15,27 @@ interface EmptyStateProps {
 
 const typeConfig: Record<EmptyStateType, { icon: ReactNode; iconClass?: string }> = {
   default: {
-    icon: <Inbox className="h-12 w-12" />,
+    icon: <Inbox className="h-10 w-10" />,
+    iconClass: 'text-primary',
   },
   'no-data': {
-    icon: <Inbox className="h-12 w-12" />,
+    icon: <Inbox className="h-10 w-10" />,
+    iconClass: 'text-primary',
   },
   'not-found': {
-    icon: <Search className="h-12 w-12" />,
+    icon: <Search className="h-10 w-10" />,
+    iconClass: 'text-info',
   },
   disconnected: {
-    icon: <Wifi className="h-12 w-12" />,
+    icon: <Wifi className="h-10 w-10" />,
     iconClass: 'text-muted-foreground',
   },
   'not-configured': {
-    icon: <Settings className="h-12 w-12" />,
+    icon: <Settings className="h-10 w-10" />,
     iconClass: 'text-muted-foreground',
   },
   error: {
-    icon: <AlertCircle className="h-12 w-12" />,
+    icon: <AlertCircle className="h-10 w-10" />,
     iconClass: 'text-critical',
   },
 }
@@ -50,31 +53,30 @@ export function EmptyState({
   return (
     <div
       className={clsx(
-        'flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/80 bg-muted/10 p-8 text-center',
+        'surface-panel surface-panel-muted flex flex-col items-center justify-center gap-4 rounded-[1.1rem] border-dashed p-8 text-center sm:p-10',
         className
       )}
     >
       <div
         className={clsx(
-          'flex h-16 w-16 items-center justify-center rounded-full bg-muted/50',
+          'flex h-16 w-16 items-center justify-center rounded-[1.25rem] border border-border/70 bg-card/70 shadow-inset',
           config.iconClass
         )}
       >
         {config.icon}
       </div>
-      <div className="max-w-md space-y-1">
-        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+      <div className="max-w-md space-y-1.5">
+        <h3 className="font-outfit text-lg font-semibold tracking-[-0.02em] text-foreground">{title}</h3>
         {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
         )}
-        {details && <div className="mt-2">{details}</div>}
+        {details && <div className="pt-1">{details}</div>}
       </div>
       {action && <div className="flex items-center gap-2">{action}</div>}
     </div>
   )
 }
 
-// Specialized empty states for common scenarios
 export function NoTransportsConfigured({
   onConfigure,
 }: {
@@ -89,16 +91,16 @@ export function NoTransportsConfigured({
         onConfigure ? (
           <button
             onClick={onConfigure}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="button-primary"
           >
             Configure transports
           </button>
         ) : undefined
       }
       details={
-        <div className="text-xs text-muted-foreground">
+        <div className="space-y-1 text-xs text-muted-foreground">
           <p>Supported transports: MQTT, TCP, Serial</p>
-          <p className="mt-1">See the Configuration Guide for help.</p>
+          <p>See the Configuration Guide for setup details.</p>
         </div>
       }
     />
@@ -125,15 +127,15 @@ export function NoMessagesYet() {
   )
 }
 
-export function SystemHealthy({ message = "All systems operational" }: { message?: string }) {
+export function SystemHealthy({ message = 'All systems operational' }: { message?: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-success/25 bg-success/5 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success/10">
+    <div className="surface-inset flex items-start gap-3 rounded-[1rem] border-success/20 bg-success/10 p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-success/16 bg-success/12 shadow-inset">
         <Info className="h-5 w-5 text-success" aria-hidden />
       </div>
       <div className="min-w-0">
-        <p className="font-medium text-success">{message}</p>
-        <p className="text-sm text-muted-foreground">Nothing to act on in this panel right now.</p>
+        <p className="font-semibold text-success">{message}</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">Nothing to act on in this panel right now.</p>
       </div>
     </div>
   )

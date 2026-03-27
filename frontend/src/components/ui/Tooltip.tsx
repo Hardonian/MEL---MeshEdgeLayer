@@ -9,12 +9,12 @@ interface TooltipProps {
   delay?: number
 }
 
-export function Tooltip({ 
-  content, 
-  children, 
-  side = 'top', 
+export function Tooltip({
+  content,
+  children,
+  side = 'top',
   align = 'center',
-  delay = 300 
+  delay = 240,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const timeoutRef = useRef<number>()
@@ -34,13 +34,13 @@ export function Tooltip({
   }
 
   const positions = {
-    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-2',
+    top: 'bottom-full mb-2.5',
+    bottom: 'top-full mt-2.5',
+    left: 'right-full mr-2.5 top-1/2 -translate-y-1/2',
+    right: 'left-full ml-2.5 top-1/2 -translate-y-1/2',
   }
 
-  const alignments = {
+  const horizontalAlignments = {
     start: 'left-0',
     center: 'left-1/2 -translate-x-1/2',
     end: 'right-0',
@@ -57,7 +57,7 @@ export function Tooltip({
       )
 
   return (
-    <div 
+    <div
       className="relative inline-flex"
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
@@ -69,9 +69,9 @@ export function Tooltip({
         <div
           id={tooltipId}
           className={clsx(
-            'absolute z-50 px-3 py-1.5 text-sm rounded-md bg-foreground text-background shadow-md whitespace-nowrap animate-fade-in motion-reduce:animate-none',
+            'absolute z-50 max-w-xs rounded-xl border border-white/10 bg-slate-950/92 px-3 py-2 text-xs leading-relaxed text-slate-100 shadow-float backdrop-blur-xl animate-fade-in motion-reduce:animate-none',
             positions[side],
-            align === 'center' ? alignments[align] : (side === 'top' || side === 'bottom' ? alignments[align] : 'translate-y-0')
+            side === 'top' || side === 'bottom' ? horizontalAlignments[align] : undefined
           )}
           role="tooltip"
         >
@@ -82,7 +82,6 @@ export function Tooltip({
   )
 }
 
-// Icon button with tooltip
 interface TooltipIconButtonProps {
   icon: ReactNode
   label: string
@@ -90,26 +89,23 @@ interface TooltipIconButtonProps {
   variant?: 'default' | 'ghost' | 'danger'
 }
 
-export function TooltipIconButton({ 
-  icon, 
-  label, 
+export function TooltipIconButton({
+  icon,
+  label,
   onClick,
-  variant = 'default' 
+  variant = 'default',
 }: TooltipIconButtonProps) {
   const variants = {
-    default: 'hover:bg-accent',
-    ghost: 'hover:bg-muted',
-    danger: 'hover:bg-critical/10 text-critical hover:text-critical',
+    default: 'border-border/70 bg-card/80 text-muted-foreground hover:border-primary/16 hover:text-foreground',
+    ghost: 'border-transparent bg-transparent text-muted-foreground hover:bg-accent/65 hover:text-foreground',
+    danger: 'border-critical/18 bg-critical/6 text-critical hover:bg-critical/10 hover:text-critical',
   }
 
   return (
     <Tooltip content={label}>
       <button
         onClick={onClick}
-        className={clsx(
-          'p-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-          variants[variant]
-        )}
+        className={clsx('icon-button', variants[variant])}
         aria-label={label}
       >
         {icon}

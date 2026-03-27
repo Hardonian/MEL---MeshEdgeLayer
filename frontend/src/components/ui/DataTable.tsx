@@ -29,18 +29,18 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-border/80 bg-card shadow-sm">
-        <div className="animate-pulse" aria-busy="true" aria-label="Loading table">
-          <div className="border-b border-border/80 bg-muted/20 p-3">
+      <div className="surface-panel overflow-hidden">
+        <div aria-busy="true" aria-label="Loading table">
+          <div className="border-b border-border/60 bg-muted/35 px-4 py-3">
             <div className="flex gap-3">
               {columns.map((col) => (
-                <div key={col.key} className="h-3 flex-1 rounded bg-muted" />
+                <div key={col.key} className="skeleton-shimmer h-3 flex-1 rounded-full" />
               ))}
             </div>
           </div>
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="border-b border-border/50 p-3 last:border-b-0">
-              <div className="h-3 rounded bg-muted/80" />
+            <div key={i} className="border-b border-border/50 px-4 py-3 last:border-b-0">
+              <div className="skeleton-shimmer h-4 rounded-full" />
             </div>
           ))}
         </div>
@@ -50,11 +50,11 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm sm:p-8">
+      <div className="surface-panel px-6 py-8 sm:px-8">
         <div className="text-center">
-          <p className="text-sm font-medium text-foreground">{emptyMessage}</p>
+          <p className="text-sm font-semibold text-foreground">{emptyMessage}</p>
           {emptyDescription && (
-            <p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{emptyDescription}</p>
           )}
         </div>
       </div>
@@ -62,17 +62,17 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={clsx('rounded-xl border border-border/80 bg-card shadow-sm overflow-hidden', className)}>
+    <div className={clsx('surface-panel overflow-hidden', className)}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] border-collapse text-sm">
-          <thead className="border-b border-border/80 bg-muted/40">
+        <table className="w-full min-w-[34rem] border-collapse text-sm">
+          <thead className="border-b border-border/70 bg-muted/38">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
                   className={clsx(
-                    'whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:px-4 sm:py-3',
+                    'whitespace-nowrap px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground',
                     column.className
                   )}
                 >
@@ -81,17 +81,20 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/60">
-            {data.map((item) => (
+          <tbody className="divide-y divide-border/55">
+            {data.map((item, index) => (
               <tr
                 key={String(item[keyField])}
-                className="transition-colors hover:bg-muted/40"
+                className={clsx(
+                  'transition-colors duration-150 hover:bg-accent/55 focus-within:bg-accent/55',
+                  index % 2 === 1 && 'bg-muted/[0.18]'
+                )}
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
                     className={clsx(
-                      'max-w-[28rem] px-3 py-2.5 align-top text-sm sm:px-4 sm:py-3',
+                      'max-w-[28rem] px-4 py-3.5 align-top text-sm text-foreground',
                       column.className
                     )}
                   >

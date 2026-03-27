@@ -193,10 +193,10 @@ export function HelpMenu() {
         onClick={() => setIsOpen((o) => !o)}
         aria-label="Help menu"
         className={clsx(
-          'flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors sm:px-3',
-          'text-muted-foreground hover:bg-muted hover:text-foreground',
+          'inline-flex h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all duration-150',
+          'border-border/70 bg-card/80 text-muted-foreground shadow-inset hover:border-primary/16 hover:bg-accent/65 hover:text-foreground',
           'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-          isOpen && 'bg-muted text-foreground'
+          isOpen && 'border-primary/18 bg-accent/70 text-foreground'
         )}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -222,7 +222,7 @@ export function HelpMenu() {
           <div
             ref={menuRef}
             id={menuId}
-            className="absolute right-0 z-50 mt-2 w-[min(100vw-2rem,18rem)] rounded-lg border border-border bg-card shadow-xl"
+            className="surface-panel absolute right-0 z-50 mt-2 w-[min(100vw-2rem,18rem)] overflow-hidden rounded-[1.1rem]"
             role="menu"
             aria-labelledby="mel-help-menu-trigger"
           >
@@ -237,8 +237,8 @@ export function HelpMenu() {
                     target={isExternal ? '_blank' : undefined}
                     rel={isExternal ? 'noopener noreferrer' : undefined}
                     className={clsx(
-                      'flex items-start gap-3 rounded-lg p-3 transition-colors',
-                      'hover:bg-accent hover:text-accent-foreground',
+                      'flex items-start gap-3 rounded-xl border border-transparent p-3 transition-all duration-150',
+                      'hover:border-border/60 hover:bg-accent/65 hover:text-accent-foreground',
                       'outline-none focus-visible:ring-2 focus-visible:ring-ring'
                     )}
                     role="menuitem"
@@ -265,8 +265,8 @@ export function HelpMenu() {
                 role="menuitem"
                 tabIndex={-1}
                 className={clsx(
-                  'flex w-full items-start gap-3 rounded-lg p-3 text-left transition-colors',
-                  'hover:bg-accent hover:text-accent-foreground',
+                  'flex w-full items-start gap-3 rounded-xl border border-transparent p-3 text-left transition-all duration-150',
+                  'hover:border-border/60 hover:bg-accent/65 hover:text-accent-foreground',
                   'outline-none focus-visible:ring-2 focus-visible:ring-ring'
                 )}
                 onClick={openShortcuts}
@@ -275,8 +275,8 @@ export function HelpMenu() {
                 <span className="font-medium text-foreground">Keyboard shortcuts</span>
               </button>
             </div>
-            <p className="border-t border-border px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-              Press <kbd className="rounded bg-muted px-1 font-mono text-[10px]">?</kbd> outside fields to open shortcuts.
+            <p className="border-t border-border/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+              Press <kbd className="rounded-md border border-border/70 bg-card/70 px-1.5 py-0.5 font-mono text-[10px] text-foreground">?</kbd> outside fields to open shortcuts.
             </p>
           </div>
         </>
@@ -299,7 +299,7 @@ export function HelpMenu() {
               aria-modal="true"
               aria-labelledby={shortcutsTitleId}
               aria-describedby={shortcutsDescId}
-              className="relative z-[61] w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl"
+              className="surface-panel relative z-[61] w-full max-w-md rounded-[1.25rem] p-6"
             >
               <h2 id={shortcutsTitleId} className="text-lg font-semibold text-foreground">
                 Keyboard shortcuts
@@ -313,7 +313,7 @@ export function HelpMenu() {
               <div className="mt-6 flex justify-end">
                 <button
                   type="button"
-                  className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="button-secondary"
                   onClick={() => {
                     setShortcutsOpen(false)
                     buttonRef.current?.focus()

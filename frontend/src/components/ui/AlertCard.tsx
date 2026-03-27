@@ -14,31 +14,31 @@ interface AlertCardProps {
   children?: ReactNode
 }
 
-const variantStyles: Record<AlertVariant, { container: string; icon: string; border: string }> = {
+const variantStyles: Record<AlertVariant, { container: string; icon: string; rail: string }> = {
   info: {
-    container: 'bg-info/5 border-info/20',
-    icon: 'text-info',
-    border: 'border-l-info',
+    container: 'border-info/20 bg-info/8',
+    icon: 'border-info/16 bg-info/12 text-info',
+    rail: 'from-info/40 via-info/16 to-transparent',
   },
   warning: {
-    container: 'bg-warning/10 border-warning/25',
-    icon: 'text-warning',
-    border: 'border-l-warning',
+    container: 'border-warning/24 bg-warning/10',
+    icon: 'border-warning/18 bg-warning/12 text-warning',
+    rail: 'from-warning/46 via-warning/16 to-transparent',
   },
   success: {
-    container: 'bg-success/10 border-success/25',
-    icon: 'text-success',
-    border: 'border-l-success',
+    container: 'border-success/24 bg-success/10',
+    icon: 'border-success/18 bg-success/12 text-success',
+    rail: 'from-success/42 via-success/16 to-transparent',
   },
   error: {
-    container: 'bg-critical/10 border-critical/25',
-    icon: 'text-critical',
-    border: 'border-l-critical',
+    container: 'border-critical/24 bg-critical/10',
+    icon: 'border-critical/18 bg-critical/12 text-critical',
+    rail: 'from-critical/42 via-critical/16 to-transparent',
   },
   critical: {
-    container: 'bg-critical/10 border-critical/30',
-    icon: 'text-critical',
-    border: 'border-l-critical',
+    container: 'border-critical/28 bg-critical/12',
+    icon: 'border-critical/20 bg-critical/14 text-critical',
+    rail: 'from-critical/52 via-critical/20 to-transparent',
   },
 }
 
@@ -60,30 +60,28 @@ export function AlertCard({
   children,
 }: AlertCardProps) {
   const styles = variantStyles[variant]
-  const defaultIcon = defaultIcons[variant]
 
   return (
     <div
       className={clsx(
-        'rounded-lg border p-4',
+        'surface-panel relative overflow-hidden rounded-[1.1rem] p-4 sm:p-5',
         styles.container,
-        styles.border,
-        'border-l-4',
         className
       )}
     >
+      <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', styles.rail)} aria-hidden />
       <div className="flex items-start gap-3">
-        <div className={clsx('mt-0.5 shrink-0', styles.icon)}>
-          {icon || defaultIcon}
+        <div className={clsx('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inset', styles.icon)}>
+          {icon || defaultIcons[variant]}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           {title && (
             <h4 className="text-sm font-semibold text-foreground">{title}</h4>
           )}
           {(description || children) && (
-            <div className="mt-1">
+            <div className="mt-1.5 space-y-2">
               {description && (
-                <p className="text-sm text-muted-foreground">{description}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
               )}
               {children}
             </div>
@@ -95,7 +93,6 @@ export function AlertCard({
   )
 }
 
-// Compact inline alert for use in lists
 interface InlineAlertProps {
   variant?: AlertVariant
   children: ReactNode
@@ -104,20 +101,19 @@ interface InlineAlertProps {
 
 export function InlineAlert({ variant = 'info', children, className }: InlineAlertProps) {
   const styles = variantStyles[variant]
-  
+
   return (
     <div
       className={clsx(
-        'flex items-center gap-2 rounded-md border-l-4 px-3 py-2 text-sm',
+        'surface-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm',
         styles.container,
-        styles.border,
         className
       )}
     >
-      <span className={clsx('shrink-0', styles.icon)}>
+      <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-inset', styles.icon)}>
         {defaultIcons[variant]}
       </span>
-      <span className="flex-1">{children}</span>
+      <span className="min-w-0 flex-1">{children}</span>
     </div>
   )
 }

@@ -68,7 +68,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [location.pathname])
@@ -91,148 +90,187 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const transportStatusLabel = status.loading
+    ? 'Loading transport state'
+    : !hasTransports
+      ? 'No transport configured'
+      : hasConnectedTransport
+        ? 'Transport connected'
+        : 'No active transport'
+
+  const transportStatusClasses = clsx(
+    'status-pill hidden md:inline-flex',
+    status.loading && 'border-border/80 text-muted-foreground',
+    !status.loading && !hasTransports && 'border-border/80 text-muted-foreground',
+    !status.loading && hasTransports && hasConnectedTransport && 'border-success/30 text-foreground',
+    !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/30 text-foreground'
+  )
+
+  const transportDotClasses = clsx(
+    'status-dot',
+    status.loading && 'bg-muted-foreground text-muted-foreground',
+    !status.loading && !hasTransports && 'bg-muted-foreground text-muted-foreground',
+    !status.loading && hasTransports && hasConnectedTransport && 'animate-pulse-slow bg-success text-success',
+    !status.loading && hasTransports && !hasConnectedTransport && 'bg-warning text-warning'
+  )
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow focus:outline-none focus:ring-2 focus:ring-ring"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-panel focus:outline-none focus:ring-2 focus:ring-ring"
       >
         Skip to main content
       </a>
-      {/* Top navigation */}
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-4">
+
+      <header className="sticky top-0 z-50 px-3 pt-3 md:px-4">
+        <div className="surface-toolbar mx-auto flex h-16 max-w-[min(100%,96rem)] items-center justify-between px-3 sm:px-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="rounded-md p-2 hover:bg-muted md:hidden"
+              className="icon-button md:hidden"
               aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
+
             <Link
               to="/"
-              className="flex items-center gap-2 rounded-md outline-none ring-offset-background transition-transform focus-visible:ring-2 focus-visible:ring-ring group hover:opacity-90"
+              className="group flex items-center gap-3 rounded-xl outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <div className="rounded-lg bg-primary p-1.5 text-primary-foreground shadow-inner transition-transform group-hover:scale-[1.02]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/14 text-primary shadow-[0_14px_28px_-20px_hsl(var(--primary)/0.72)] transition-transform duration-200 group-hover:-translate-y-0.5">
                 <Radio className="h-5 w-5" />
               </div>
-              <span className="hidden font-outfit text-xl font-bold tracking-tight sm:inline">MEL</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-outfit text-xl font-semibold tracking-[-0.03em] text-foreground">MEL</span>
+                  <span className="hidden rounded-full border border-border/70 bg-card/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:inline-flex">
+                    Operator Console
+                  </span>
+                </div>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  MeshEdgeLayer control plane
+                </p>
+              </div>
             </Link>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            <div
-              className={clsx(
-                'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider md:flex',
-                !status.loading && !hasTransports && 'border-border bg-muted/40 text-muted-foreground',
-                !status.loading && hasTransports && hasConnectedTransport && 'border-success/25 bg-success/5 text-foreground',
-                !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/30 bg-warning/10 text-foreground',
-                status.loading && 'border-border bg-muted/30 text-muted-foreground'
-              )}
-            >
-              <span
-                className={clsx(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  status.loading && 'bg-muted-foreground',
-                  !status.loading && !hasTransports && 'bg-muted-foreground',
-                  !status.loading && hasTransports && hasConnectedTransport && 'bg-success animate-pulse',
-                  !status.loading && hasTransports && !hasConnectedTransport && 'bg-warning'
-                )}
-                aria-hidden
-              />
-              {status.loading
-                ? 'Loading transport state…'
-                : !hasTransports
-                  ? 'No transport configured'
-                  : hasConnectedTransport
-                    ? 'Transport connected'
-                    : 'No active transport'}
+          <div className="flex items-center gap-2">
+            <div className={transportStatusClasses}>
+              <span className={transportDotClasses} aria-hidden />
+              {transportStatusLabel}
             </div>
+
             <button
               type="button"
               onClick={() => void handleRefresh()}
               disabled={refreshBusy}
-              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="icon-button"
               aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data from API'}
-              title={refreshBusy ? 'Refreshing…' : 'Re-fetch dashboard data (same 30s polling cadence still applies)'}
+              title={refreshBusy ? 'Refreshing…' : 'Re-fetch dashboard data from the API'}
             >
-              <RefreshCw className={clsx('h-5 w-5', refreshBusy && 'animate-spin')} aria-hidden />
+              <RefreshCw className={clsx('h-4 w-4', refreshBusy && 'animate-spin')} aria-hidden />
             </button>
+
             <HelpMenu />
           </div>
         </div>
       </header>
 
       <div className="flex">
-        {/* Sidebar navigation - desktop */}
-        <aside className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-border/80 bg-background transition-transform duration-200 ease-in-out md:translate-x-0",
-          isMobile && isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <nav className="flex flex-col gap-0.5 p-3 pt-14" aria-label="Primary">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.href || 
-                (item.href !== '/' && location.pathname.startsWith(item.href))
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className={clsx(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
+        <aside
+          className={clsx(
+            'fixed inset-y-0 left-0 z-40 w-72 transform px-3 pb-3 pt-24 transition-transform duration-200 ease-out md:translate-x-0 md:px-4',
+            isMobile && isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          )}
+        >
+          <div className="surface-panel surface-panel-strong flex h-full flex-col overflow-hidden">
+            <div className="border-b border-border/60 px-4 pb-3 pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Console
+              </p>
+              <p className="mt-1 text-sm text-foreground">Operational surfaces</p>
+            </div>
 
-          {/* Bottom section */}
-          <div className="absolute bottom-0 left-0 right-0 border-t border-border/80 p-3">
-            <Link
-              to="/settings"
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Settings className="h-4 w-4 shrink-0" aria-hidden />
-              Settings &amp; reference
-            </Link>
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Primary">
+              {navItems.map((item) => {
+                const isActive =
+                  location.pathname === item.href ||
+                  (item.href !== '/' && location.pathname.startsWith(item.href))
+
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className={clsx(
+                      'group flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+                      isActive
+                        ? 'border-primary/22 bg-primary/12 text-foreground shadow-[0_18px_28px_-24px_hsl(var(--primary)/0.65)]'
+                        : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/65 hover:text-foreground'
+                    )}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <span
+                      className={clsx(
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors',
+                        isActive
+                          ? 'border-primary/20 bg-primary/16 text-primary'
+                          : 'border-border/70 bg-card/70 text-muted-foreground group-hover:border-primary/12 group-hover:text-foreground'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </nav>
+
+            <div className="border-t border-border/60 p-3">
+              <Link
+                to="/settings"
+                className="group flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition-all duration-150 hover:border-border/60 hover:bg-accent/65 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-card/70 text-muted-foreground transition-colors group-hover:border-primary/12 group-hover:text-foreground">
+                  <Settings className="h-4 w-4" aria-hidden />
+                </span>
+                Settings &amp; reference
+              </Link>
+            </div>
           </div>
         </aside>
 
-        {/* Mobile menu overlay */}
         {isMobile && isMobileMenuOpen && (
           <div
-            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            className="fixed inset-0 z-30 bg-background/72 backdrop-blur-sm md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
-        {/* Main content */}
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 py-5 outline-none md:ml-64 md:max-w-[min(100%,88rem)] md:px-8 md:py-6"
+          className="flex-1 px-4 pb-10 pt-4 outline-none md:ml-72 md:px-6 md:pt-5"
         >
-          {children}
+          <div className="mx-auto w-full max-w-8xl page-enter">{children}</div>
         </main>
       </div>
+
       {!status.loading && (instanceId || productScope) && (
-        <footer className="border-t border-border/50 px-4 py-2 text-[11px] text-muted-foreground md:px-8">
-          <div className="mx-auto flex max-w-[min(100%,88rem)] flex-wrap items-center gap-x-4 gap-y-1">
+        <footer className="px-4 pb-5 md:pl-[21rem] md:pr-6">
+          <div className="surface-toolbar mx-auto flex max-w-8xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 text-[11px] text-muted-foreground">
             {productScope && (
               <span title={status.data?.product?.notes}>
-                Scope: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{productScope}</code>
+                Scope:{' '}
+                <code className="rounded-md border border-border/60 bg-card/75 px-1.5 py-0.5 font-mono text-[10px] text-foreground">
+                  {productScope}
+                </code>
               </span>
             )}
             {instanceId && (
               <span>
                 Instance:{' '}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]" title={instanceId}>
+                <code className="rounded-md border border-border/60 bg-card/75 px-1.5 py-0.5 font-mono text-[10px] text-foreground" title={instanceId}>
                   {truncateMiddle(instanceId, 36)}
                 </code>
               </span>

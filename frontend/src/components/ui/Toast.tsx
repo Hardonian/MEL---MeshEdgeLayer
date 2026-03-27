@@ -37,19 +37,18 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = crypto.randomUUID()
-    setToasts(prev => [...prev, { ...toast, id }])
-    
-    // Auto-remove after duration (default 5 seconds)
+    setToasts((prev) => [...prev, { ...toast, id }])
+
     const duration = toast.duration ?? 5000
     if (duration > 0) {
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id))
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
       }, duration)
     }
   }, [])
 
   const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
+    setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
   return (
@@ -64,12 +63,12 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
   if (toasts.length === 0) return null
 
   return (
-    <div 
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"
-      role="region" 
+    <div
+      className="fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2"
+      role="region"
       aria-label="Notifications"
     >
-      {toasts.map(toast => (
+      {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
     </div>
@@ -83,54 +82,61 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
     warning: AlertTriangle,
     info: Info,
   }
-  
-  const colors = {
-    success: 'border-success/30 bg-background text-foreground',
-    error: 'border-critical/30 bg-background text-foreground',
-    warning: 'border-warning/30 bg-background text-foreground',
-    info: 'border-info/30 bg-background text-foreground',
-  }
 
-  const iconColors = {
-    success: 'text-success',
-    error: 'text-critical',
-    warning: 'text-warning',
-    info: 'text-info',
-  }
+  const colors = {
+    success: {
+      rail: 'from-success/55 via-success/20 to-transparent',
+      icon: 'border-success/16 bg-success/12 text-success',
+    },
+    error: {
+      rail: 'from-critical/55 via-critical/22 to-transparent',
+      icon: 'border-critical/18 bg-critical/12 text-critical',
+    },
+    warning: {
+      rail: 'from-warning/55 via-warning/22 to-transparent',
+      icon: 'border-warning/18 bg-warning/12 text-warning',
+    },
+    info: {
+      rail: 'from-info/55 via-info/22 to-transparent',
+      icon: 'border-info/18 bg-info/12 text-info',
+    },
+  } as const
 
   const Icon = icons[toast.type]
+  const tone = colors[toast.type]
 
   return (
-    <div 
-      className={clsx(
-        'flex items-start gap-3 rounded-lg border p-4 shadow-lg animate-slide-up',
-        colors[toast.type]
-      )}
+    <div
+      className="surface-panel animate-toast-in relative overflow-hidden rounded-[1.1rem] p-4"
       role="status"
       aria-live="polite"
     >
-      <Icon className={clsx('h-5 w-5 shrink-0 mt-0.5', iconColors[toast.type])} aria-hidden="true" />
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-foreground">{toast.title}</p>
-        {toast.message && (
-          <p className="mt-1 text-sm text-muted-foreground">{toast.message}</p>
-        )}
+      <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', tone.rail)} aria-hidden />
+      <div className="flex items-start gap-3">
+        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inset', tone.icon)}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground">{toast.title}</p>
+          {toast.message && (
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{toast.message}</p>
+          )}
+        </div>
+        <button
+          onClick={() => onRemove(toast.id)}
+          className="icon-button h-8 min-h-8 w-8 min-w-8 rounded-xl"
+          aria-label="Dismiss notification"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
-      <button
-        onClick={() => onRemove(toast.id)}
-        className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-        aria-label="Dismiss notification"
-      >
-        <X className="h-4 w-4" />
-      </button>
     </div>
   )
 }
 
-// Hook for easy toast triggers
 export function useToastHelpers() {
   const { addToast } = useToast()
-  
+
   return {
     success: (title: string, message?: string) => addToast({ type: 'success', title, message }),
     error: (title: string, message?: string) => addToast({ type: 'error', title, message }),

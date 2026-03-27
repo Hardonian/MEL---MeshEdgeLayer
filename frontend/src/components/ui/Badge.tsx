@@ -10,20 +10,24 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'border-transparent bg-primary text-primary-foreground',
+  default: 'border-primary/18 bg-primary/10 text-primary',
   success: 'border-success/20 bg-success/10 text-success',
-  warning: 'border-warning/20 bg-warning/10 text-warning',
-  critical: 'border-critical/20 bg-critical/10 text-critical',
-  secondary: 'border-transparent bg-secondary text-secondary-foreground',
-  outline: 'border-border text-foreground',
-  info: 'border-info/25 bg-info/10 text-info',
+  warning: 'border-warning/24 bg-warning/10 text-warning',
+  critical: 'border-critical/24 bg-critical/10 text-critical',
+  secondary: 'border-border/70 bg-muted/70 text-muted-foreground',
+  outline: 'border-border/75 bg-card/65 text-foreground',
+  info: 'border-info/20 bg-info/10 text-info',
+}
+
+function BadgeDot({ className }: { className?: string }) {
+  return <span aria-hidden className={clsx('h-1.5 w-1.5 rounded-full', className)} />
 }
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+        'inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold leading-none shadow-inset transition-colors sm:text-[11px]',
         variantStyles[variant],
         className
       )}
@@ -33,7 +37,6 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
   )
 }
 
-// Health-specific badge
 type HealthVariant = 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
 
 export function HealthBadge({ health, showLabel = true }: { health: HealthVariant; showLabel?: boolean }) {
@@ -43,7 +46,6 @@ export function HealthBadge({ health, showLabel = true }: { health: HealthVarian
     unhealthy: 'critical',
     unknown: 'secondary',
   }
-  const variant = variantMap[health]
 
   const label = {
     healthy: 'Healthy',
@@ -52,22 +54,21 @@ export function HealthBadge({ health, showLabel = true }: { health: HealthVarian
     unknown: 'Unknown',
   }[health]
 
-  const icon = {
-    healthy: '●',
-    degraded: '●',
-    unhealthy: '●',
-    unknown: '○',
+  const dotClass = {
+    healthy: 'bg-success',
+    degraded: 'bg-warning',
+    unhealthy: 'bg-critical',
+    unknown: 'bg-muted-foreground',
   }[health]
 
   return (
-    <Badge variant={variant}>
-      {showLabel && <span className="mr-1.5">{icon}</span>}
+    <Badge variant={variantMap[health]} className="uppercase tracking-[0.16em]">
+      {showLabel && <BadgeDot className={dotClass} />}
       {label}
     </Badge>
   )
 }
 
-// Severity badge for privacy findings
 type SeverityVariant = 'critical' | 'high' | 'medium' | 'low'
 
 export function SeverityBadge({ severity }: { severity: SeverityVariant }) {
@@ -79,21 +80,20 @@ export function SeverityBadge({ severity }: { severity: SeverityVariant }) {
   }
 
   const label = {
-    critical: 'CRITICAL',
-    high: 'HIGH',
-    medium: 'MEDIUM',
-    low: 'LOW',
+    critical: 'Critical',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
   }[severity]
 
   return (
-    <Badge variant={variantMap[severity]}>
-      {severity === 'critical' && <span className="mr-1">●</span>}
+    <Badge variant={variantMap[severity]} className="uppercase tracking-[0.16em]">
+      {severity === 'critical' && <BadgeDot className="bg-critical" />}
       {label}
     </Badge>
   )
 }
 
-// Connection state badge
 type ConnectionState = 'connected' | 'disconnected' | 'connecting' | 'error'
 
 export function ConnectionBadge({ state }: { state: ConnectionState }) {
@@ -104,13 +104,6 @@ export function ConnectionBadge({ state }: { state: ConnectionState }) {
     error: 'critical',
   }
 
-  const icon = {
-    connected: '●',
-    disconnected: '○',
-    connecting: '◐',
-    error: '●',
-  }[state]
-
   const label = {
     connected: 'Connected',
     disconnected: 'Disconnected',
@@ -118,15 +111,21 @@ export function ConnectionBadge({ state }: { state: ConnectionState }) {
     error: 'Error',
   }[state]
 
+  const dotClass = {
+    connected: 'bg-success',
+    disconnected: 'bg-muted-foreground',
+    connecting: 'bg-info animate-pulse-slow',
+    error: 'bg-critical',
+  }[state]
+
   return (
-    <Badge variant={variantMap[state]}>
-      <span className="mr-1.5">{icon}</span>
+    <Badge variant={variantMap[state]} className="uppercase tracking-[0.16em]">
+      <BadgeDot className={dotClass} />
       {label}
     </Badge>
   )
 }
 
-// Priority badge
 type PriorityVariant = 'urgent' | 'high' | 'normal' | 'low'
 
 export function PriorityBadge({ priority }: { priority: PriorityVariant }) {
@@ -145,13 +144,12 @@ export function PriorityBadge({ priority }: { priority: PriorityVariant }) {
   }[priority]
 
   return (
-    <Badge variant={variantMap[priority]}>
+    <Badge variant={variantMap[priority]} className="uppercase tracking-[0.16em]">
       {label}
     </Badge>
   )
 }
 
-// Transport type badge
 export function TransportBadge({ type }: { type: string }) {
   const variantMap: Record<string, BadgeVariant> = {
     mqtt: 'info',
@@ -164,7 +162,7 @@ export function TransportBadge({ type }: { type: string }) {
   const variant = variantMap[type.toLowerCase()] || 'outline'
 
   return (
-    <Badge variant={variant}>
+    <Badge variant={variant} className="uppercase tracking-[0.16em]">
       {type.toUpperCase()}
     </Badge>
   )

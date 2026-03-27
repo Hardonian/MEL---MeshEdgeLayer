@@ -7,7 +7,7 @@ import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { getHealthState, formatRelativeTime, TransportHealth } from '@/types/api'
-import { Wifi, WifiOff, AlertCircle, Activity, Clock, MessageSquare, TrendingUp, CheckCircle2, HelpCircle } from 'lucide-react'
+import { Wifi, WifiOff, AlertCircle, Activity, Clock, MessageSquare, TrendingUp, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 
 export function Status() {
@@ -27,7 +27,7 @@ export function Status() {
           action={
             <button
               onClick={refresh}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
+              className="button-danger"
             >
               Retry
             </button>
@@ -40,29 +40,43 @@ export function Status() {
   const transports = data?.transports || []
   const hasTransports = transports.length > 0
 
-  const connectedCount = transports.filter(t => t.effective_state === 'connected').length
-  const healthyCount = transports.filter(t => getHealthState(t.health) === 'healthy').length
-  const degradedCount = transports.filter(t => getHealthState(t.health) === 'degraded').length
-  const unhealthyCount = transports.filter(t => getHealthState(t.health) === 'unhealthy').length
+  const connectedCount = transports.filter((t) => t.effective_state === 'connected').length
+  const healthyCount = transports.filter((t) => getHealthState(t.health) === 'healthy').length
+  const degradedCount = transports.filter((t) => getHealthState(t.health) === 'degraded').length
+  const unhealthyCount = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="System Status"
-        description="Detailed view of transport health, connection status, and system metrics."
+        description="Detailed view of transport health, connection status, and current runtime metrics."
+        action={
+          <button
+            onClick={refresh}
+            className="button-secondary"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh status
+          </button>
+        }
       />
 
-      {/* System Overview */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">System Overview</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/16 bg-primary/12 text-primary shadow-inset">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base">System Overview</CardTitle>
+              <CardDescription className="mt-1 text-sm">
+                Current MEL runtime configuration and transport posture.
+              </CardDescription>
+            </div>
           </div>
-          <CardDescription>Current MEL runtime configuration and status</CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="pt-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               title="Transport Modes"
               value={data?.configured_transport_modes?.length || 0}
@@ -74,6 +88,7 @@ export function Status() {
               value={data?.messages || 0}
               description="Messages processed"
               icon={<MessageSquare className="h-4 w-4" />}
+              variant="info"
             />
             <StatCard
               title="Connected"
@@ -85,7 +100,13 @@ export function Status() {
             <StatCard
               title="Healthy"
               value={healthyCount}
-              description={unhealthyCount > 0 ? `${unhealthyCount} unhealthy` : degradedCount > 0 ? `${degradedCount} degraded` : 'All systems operational'}
+              description={
+                unhealthyCount > 0
+                  ? `${unhealthyCount} unhealthy`
+                  : degradedCount > 0
+                    ? `${degradedCount} degraded`
+                    : 'All configured transports operational'
+              }
               icon={<Activity className="h-4 w-4" />}
               variant={healthyCount === transports.length && transports.length > 0 ? 'success' : unhealthyCount > 0 ? 'critical' : 'warning'}
             />
@@ -93,18 +114,29 @@ export function Status() {
         </CardContent>
       </Card>
 
-      {/* Transport Health Details */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <Wifi className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Transport Health</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-info/16 bg-info/12 text-info shadow-inset">
+                <Wifi className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Transport Health</CardTitle>
+                <CardDescription className="mt-1 text-sm">
+                  Detailed health information for each configured transport.
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={connectedCount > 0 ? 'success' : 'secondary'}>{connectedCount} connected</Badge>
+              <Badge variant={unhealthyCount > 0 ? 'critical' : degradedCount > 0 ? 'warning' : 'success'}>
+                {unhealthyCount > 0 ? `${unhealthyCount} unhealthy` : degradedCount > 0 ? `${degradedCount} degraded` : 'stable'}
+              </Badge>
+            </div>
           </div>
-          <CardDescription>
-            Detailed health information for each configured transport
-          </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-5">
           {!hasTransports ? (
             <NoTransportsConfigured />
           ) : (
@@ -117,15 +149,21 @@ export function Status() {
         </CardContent>
       </Card>
 
-      {/* Health Explanation */}
-      <Card className="bg-muted/30">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Understanding Transport Health</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-card/75 text-muted-foreground shadow-inset">
+              <HelpCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Understanding Transport Health</CardTitle>
+              <CardDescription className="mt-1 text-sm">
+                Severity remains tied to reported transport evidence. Visual treatment does not imply stronger certainty than the API provides.
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-5">
           <div className="grid gap-4 sm:grid-cols-3">
             <HealthExplanation
               status="healthy"
@@ -151,47 +189,61 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
   const isConnected = transport.effective_state === 'connected'
 
   return (
-    <div className={clsx(
-      'rounded-lg border p-4 transition-all',
-      healthState === 'healthy' ? 'border-success/20 bg-success/5' :
-      healthState === 'degraded' ? 'border-warning/20 bg-warning/5' :
-      'border-critical/10 bg-critical/5'
-    )}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={clsx(
-            'flex h-10 w-10 items-center justify-center rounded-lg',
-            healthState === 'healthy' ? 'bg-success/10' :
-            healthState === 'degraded' ? 'bg-warning/10' :
-            'bg-critical/10'
-          )}>
-            {isConnected ? (
-              <Wifi className={clsx(
-                'h-5 w-5',
-                healthState === 'healthy' ? 'text-success' :
-                healthState === 'degraded' ? 'text-warning' :
-                'text-critical'
-              )} />
-            ) : (
-              <WifiOff className="h-5 w-5 text-muted-foreground" />
+    <div
+      className={clsx(
+        'surface-panel surface-panel-muted interactive-lift overflow-hidden rounded-[1.1rem] p-4 sm:p-5',
+        healthState === 'healthy'
+          ? 'border-success/20'
+          : healthState === 'degraded'
+            ? 'border-warning/22'
+            : 'border-critical/22'
+      )}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            className={clsx(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-inset',
+              healthState === 'healthy'
+                ? 'border-success/18 bg-success/12 text-success'
+                : healthState === 'degraded'
+                  ? 'border-warning/18 bg-warning/12 text-warning'
+                  : 'border-critical/18 bg-critical/12 text-critical'
             )}
+          >
+            {isConnected ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5 text-muted-foreground" />}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold">{transport.name}</h3>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">{transport.name}</h3>
               <TransportBadge type={transport.type} />
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <ConnectionBadge state={isConnected ? 'connected' : transport.effective_state === 'error' ? 'error' : 'disconnected'} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <ConnectionBadge
+                state={isConnected ? 'connected' : transport.effective_state === 'error' ? 'error' : 'disconnected'}
+              />
               <HealthBadge health={healthState} />
+              <Badge variant="outline">Runtime {transport.runtime_state || 'unknown'}</Badge>
             </div>
+          </div>
+        </div>
+
+        <div className="surface-inset flex flex-wrap items-center gap-3 rounded-2xl px-3 py-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last activity</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {transport.last_heartbeat_at ? formatRelativeTime(transport.last_heartbeat_at) : 'Never'}
+            </p>
+          </div>
+          <div className="hidden h-8 w-px bg-border/60 sm:block" />
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Guidance</p>
+            <p className="mt-1 text-sm text-foreground">{transport.guidance || 'No additional guidance reported.'}</p>
           </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatBox
           label="Effective State"
           value={transport.effective_state || 'unknown'}
@@ -219,81 +271,77 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
         />
       </div>
 
-      {/* Health Details */}
       {transport.health && (
-        <div className="mt-4 pt-4 border-t border-border/50">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 border-t border-border/50 pt-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <div className="space-y-3">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Health Score</p>
-              <div className="flex items-center gap-2">
-                <ProgressBar 
-                  value={transport.health.score} 
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Health score</p>
+              <div className="mt-2 flex items-center gap-3">
+                <ProgressBar
+                  value={transport.health.score}
                   variant={healthState === 'healthy' ? 'success' : healthState === 'degraded' ? 'warning' : 'critical'}
                   className="mt-1"
                 />
-                <span className="text-sm font-mono font-medium">{transport.health.score}</span>
+                <span className="font-mono text-sm font-semibold text-foreground">{transport.health.score}</span>
               </div>
               {transport.health.primary_reason && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Primary: {transport.health.primary_reason}
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Primary reason: {transport.health.primary_reason}
                 </p>
               )}
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Active Alerts</p>
-              {transport.active_alerts && transport.active_alerts.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {transport.active_alerts.map((alert, i) => (
-                    <Badge key={i} variant="warning" className="text-xs">{alert}</Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-success">None</p>
-              )}
-            </div>
+
+            {transport.health.explanation && transport.health.explanation.length > 0 && (
+              <div className="raw-block px-4 py-3">
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {transport.health.explanation.join(' ')}
+                </p>
+              </div>
+            )}
           </div>
-          {transport.health.explanation && transport.health.explanation.length > 0 && (
-            <div className="mt-3 p-2 rounded bg-muted/50">
-              <p className="text-xs text-muted-foreground">
-                {transport.health.explanation.join(' ')}
-              </p>
-            </div>
-          )}
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Active alerts</p>
+            {transport.active_alerts && transport.active_alerts.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {transport.active_alerts.map((alert, i) => (
+                  <Badge key={i} variant="warning">
+                    {alert}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <div className="surface-inset mt-2 rounded-2xl border-success/18 bg-success/10 px-3 py-3 text-sm font-medium text-success">
+                None
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Error Info */}
       {transport.last_error && (
-        <div className="mt-4 pt-4 border-t border-border/50">
+        <div className="mt-4 border-t border-border/50 pt-4">
           <InlineAlert variant="critical">
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium">Last Error</p>
-                <p className="text-xs font-mono mt-0.5">{transport.last_error}</p>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last error</p>
+                <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground">{transport.last_error}</p>
               </div>
             </div>
           </InlineAlert>
-        </div>
-      )}
-
-      {/* Guidance */}
-      {transport.guidance && (
-        <div className="mt-4 pt-4 border-t border-border/50">
-          <p className="text-xs text-muted-foreground mb-1">Guidance</p>
-          <p className="text-sm">{transport.guidance}</p>
         </div>
       )}
     </div>
   )
 }
 
-function StatBox({ 
-  label, 
-  value, 
-  subValue, 
-  icon, 
-  highlight 
-}: { 
+function StatBox({
+  label,
+  value,
+  subValue,
+  icon,
+  highlight,
+}: {
   label: string
   value: string
   subValue: string
@@ -301,38 +349,43 @@ function StatBox({
   highlight?: boolean
 }) {
   return (
-    <div className={clsx(
-      'rounded-md p-2.5',
-      highlight ? 'bg-critical/5 border border-critical/20' : 'bg-muted/30'
-    )}>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+    <div
+      className={clsx(
+        'surface-inset rounded-2xl px-3 py-3',
+        highlight && 'border-critical/22 bg-critical/10'
+      )}
+    >
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {icon}
         {label}
       </div>
-      <p className={clsx(
-        'text-sm font-mono font-medium',
-        highlight ? 'text-critical' : 'text-foreground'
-      )}>
+      <p className={clsx('font-mono text-base font-semibold', highlight ? 'text-critical' : 'text-foreground')}>
         {value}
       </p>
-      <p className="text-xs text-muted-foreground">{subValue}</p>
+      <p className="mt-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">{subValue}</p>
     </div>
   )
 }
 
-function HealthExplanation({ status, description }: { status: string; description: string }) {
-  const colors = {
-    healthy: 'text-success',
-    degraded: 'text-warning',
-    unhealthy: 'text-critical',
-  }
-  
+function HealthExplanation({
+  status,
+  description,
+}: {
+  status: 'healthy' | 'degraded' | 'unhealthy'
+  description: string
+}) {
+  const tones = {
+    healthy: 'border-success/20 bg-success/10',
+    degraded: 'border-warning/20 bg-warning/10',
+    unhealthy: 'border-critical/20 bg-critical/10',
+  } as const
+
   return (
-    <div className="space-y-1">
-      <p className={clsx('text-sm font-medium', colors[status as keyof typeof colors])}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </p>
-      <p className="text-xs text-muted-foreground">{description}</p>
+    <div className={clsx('surface-inset rounded-[1rem] p-4', tones[status])}>
+      <div className="flex items-center gap-2">
+        <HealthBadge health={status} />
+      </div>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{description}</p>
     </div>
   )
 }

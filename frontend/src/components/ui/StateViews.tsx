@@ -1,7 +1,6 @@
 import { Loader2, AlertCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
-// Fade-in wrapper for content transitions
 interface FadeInProps {
   children: React.ReactNode
   className?: string
@@ -28,7 +27,6 @@ export function FadeIn({ children, className, delay = 0 }: FadeInProps) {
   )
 }
 
-// Slide-in from bottom for panels
 interface SlideInProps {
   children: React.ReactNode
   className?: string
@@ -43,7 +41,6 @@ export function SlideIn({ children, className, delay = 0 }: SlideInProps) {
   )
 }
 
-// Expand animation for cards/panels
 interface ExpandInProps {
   children: React.ReactNode
   className?: string
@@ -66,19 +63,23 @@ export function Loading({ message = 'Loading...', className }: LoadingProps) {
   return (
     <div
       className={clsx(
-        'flex min-h-[12rem] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/80 bg-muted/20 p-10 text-center',
+        'surface-panel surface-panel-muted flex min-h-[12rem] flex-col items-center justify-center gap-4 p-10 text-center',
         className
       )}
       role="status"
       aria-live="polite"
     >
-      <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
-      <p className="text-sm text-muted-foreground">{message}</p>
+      <div className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-primary/16 bg-primary/10 shadow-inset">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{message}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Working with current API evidence</p>
+      </div>
     </div>
   )
 }
 
-// Inline loading spinner for smaller areas
 export function InlineLoading({ className }: { className?: string }) {
   return (
     <Loader2 className={clsx('h-5 w-5 animate-spin text-muted-foreground', className)} />
@@ -96,21 +97,21 @@ export function ErrorView({
   title = 'Something went wrong',
   message = 'An error occurred while loading this data.',
   onRetry,
-  className
+  className,
 }: ErrorViewProps) {
   return (
-    <div className={clsx('flex flex-col items-center justify-center gap-4 p-12 text-center', className)}>
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-critical/10">
+    <div className={clsx('surface-panel flex flex-col items-center justify-center gap-4 p-10 text-center', className)}>
+      <div className="flex h-16 w-16 items-center justify-center rounded-[1.3rem] border border-critical/18 bg-critical/10 shadow-inset">
         <AlertCircle className="h-8 w-8 text-critical" />
       </div>
-      <div>
-        <h3 className="font-semibold text-foreground">{title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+      <div className="space-y-1.5">
+        <h3 className="font-outfit text-lg font-semibold text-foreground">{title}</h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{message}</p>
       </div>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="button-primary"
         >
           Try again
         </button>
@@ -125,34 +126,34 @@ interface SkeletonProps {
 
 export function Skeleton({ className }: SkeletonProps) {
   return (
-    <div className={clsx('animate-pulse rounded-md bg-muted', className)} />
+    <div className={clsx('skeleton-shimmer rounded-md', className)} />
   )
 }
 
 export function CardSkeleton() {
   return (
-    <div className="rounded-xl border bg-card p-6">
-      <Skeleton className="h-4 w-1/3 mb-4" />
-      <Skeleton className="h-8 w-1/2 mb-2" />
-      <Skeleton className="h-4 w-1/4" />
+    <div className="surface-panel p-6">
+      <Skeleton className="mb-4 h-4 w-1/3 rounded-full" />
+      <Skeleton className="mb-2 h-8 w-1/2 rounded-full" />
+      <Skeleton className="h-4 w-1/4 rounded-full" />
     </div>
   )
 }
 
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
-      <div className="border-b p-4">
+    <div className="surface-panel overflow-hidden">
+      <div className="border-b border-border/60 px-4 py-4">
         <div className="flex gap-4">
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="h-4 flex-1 rounded-full" />
+          <Skeleton className="h-4 flex-1 rounded-full" />
+          <Skeleton className="h-4 flex-1 rounded-full" />
+          <Skeleton className="h-4 flex-1 rounded-full" />
         </div>
       </div>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="border-b p-4 last:border-0">
-          <Skeleton className="h-4 w-full" />
+        <div key={i} className="border-b border-border/50 px-4 py-4 last:border-0">
+          <Skeleton className="h-4 w-full rounded-full" />
         </div>
       ))}
     </div>
@@ -161,29 +162,28 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 
 export function StatSkeleton() {
   return (
-    <div className="rounded-xl border bg-card p-5">
-      <div className="flex items-start justify-between">
+    <div className="surface-panel p-5">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <Skeleton className="h-4 w-20 mb-3" />
-          <Skeleton className="h-8 w-16 mb-2" />
-          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mb-3 h-3 w-20 rounded-full" />
+          <Skeleton className="mb-2 h-8 w-16 rounded-full" />
+          <Skeleton className="h-3 w-24 rounded-full" />
         </div>
-        <Skeleton className="h-10 w-10 rounded-lg" />
+        <Skeleton className="h-11 w-11 rounded-2xl" />
       </div>
     </div>
   )
 }
 
-export function StaleBanner({ timestamp, message = "Data may be stale" }: { timestamp?: string; message?: string }) {
+export function StaleBanner({ timestamp, message = 'Data may be stale' }: { timestamp?: string; message?: string }) {
   if (!timestamp) return null
-  
+
   const date = new Date(timestamp)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
-  
-  // Consider stale if > 5 minutes (300000 ms)
+
   if (diffMs < 300000) return null
-  
+
   let timeStr = 'never'
   try {
     const diffMins = Math.floor(diffMs / 60000)
@@ -197,12 +197,12 @@ export function StaleBanner({ timestamp, message = "Data may be stale" }: { time
   } catch {
     timeStr = timestamp
   }
-  
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-foreground">
+    <div className="surface-inset flex flex-wrap items-center gap-2 rounded-xl border-warning/22 bg-warning/10 px-3 py-2 text-sm text-foreground">
       <AlertCircle className="h-4 w-4 shrink-0 text-warning" aria-hidden />
-      <span className="font-medium text-warning">{message}</span>
-      <span className="ml-auto text-xs text-muted-foreground">Last updated: {timeStr}</span>
+      <span className="font-semibold text-warning">{message}</span>
+      <span className="ml-auto text-xs uppercase tracking-[0.16em] text-muted-foreground">Last updated {timeStr}</span>
     </div>
   )
 }

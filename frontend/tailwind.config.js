@@ -63,9 +63,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
-        inter: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'JetBrains Mono', 'Menlo', 'monospace'],
+        inter: ['Manrope', 'system-ui', 'sans-serif'],
         outfit: ['Outfit', 'system-ui', 'sans-serif'],
       },
       spacing: {
@@ -74,6 +74,12 @@ export default {
       },
       maxWidth: {
         '8xl': '88rem',
+      },
+      boxShadow: {
+        panel: '0 18px 42px -26px hsl(var(--shell-shadow) / 0.55), 0 10px 18px -14px hsl(var(--shell-shadow) / 0.35)',
+        float: '0 22px 56px -28px hsl(var(--shell-shadow) / 0.65), 0 14px 28px -20px hsl(var(--shell-shadow) / 0.45)',
+        chrome: '0 18px 48px -32px hsl(var(--shell-shadow) / 0.72)',
+        inset: 'inset 0 1px 0 hsl(var(--foreground) / 0.05)',
       },
     },
   },
