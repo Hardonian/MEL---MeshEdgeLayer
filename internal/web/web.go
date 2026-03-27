@@ -73,6 +73,11 @@ type Server struct {
 	recentIncidents         func(limit int) ([]models.Incident, error)
 	queueOperatorControl    func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
 
+	// Offline remote evidence import (instance-local; not live federation).
+	importRemoteEvidence       func(raw []byte, strictOrigin bool, actor string) (map[string]any, error)
+	listImportedRemoteEvidence func(limit int) ([]db.ImportedRemoteEvidenceRecord, error)
+	getImportedRemoteEvidence  func(id string) (db.ImportedRemoteEvidenceRecord, bool, error)
+
 	// Topology: optional callback — true when at least one enabled transport is live or idle (ingest-capable).
 	topologyTransportLive func() bool
 	// meshIntelLatest returns the last mesh deployment intelligence assessment from the service (if any).
@@ -193,6 +198,9 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/metrics", s.requireMethod(s.metrics, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/version", s.requireMethod(s.versionHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/fleet/truth", s.requireMethod(s.fleetTruthHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/fleet/remote-evidence", s.requireMethod(s.fleetRemoteEvidenceHandler, http.MethodGet, http.MethodHead, http.MethodPost))
+	mux.HandleFunc("/api/v1/fleet/remote-evidence/", s.requireMethod(s.fleetRemoteEvidenceItemHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/fleet/merge-explain", s.requireMethod(s.fleetMergeExplainHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/health/upgrade", s.requireMethod(s.upgradeHealthHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/audit/verify", s.requireMethod(s.auditVerifyHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/status", s.requireMethod(s.status, http.MethodGet, http.MethodHead))

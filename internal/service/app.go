@@ -114,6 +114,11 @@ func New(cfg config.Config, debug bool) (*App, error) {
 		app.InspectAction,
 		app.OperationalState,
 	)
+	app.Web.SetFleetImport(
+		app.ImportRemoteEvidenceBundle,
+		app.ListImportedRemoteEvidence,
+		app.GetImportedRemoteEvidence,
+	)
 	app.Web.SetIncidentCollaboration(app.IncidentHandoff, app.IncidentByID)
 	app.Web.SetRecentIncidents(app.RecentIncidentsWithLinkedActions)
 	app.Web.SetOperatorControlQueue(app.QueueOperatorControlAction)

@@ -23,8 +23,10 @@ type Bundle struct {
 	Version     string        `json:"version"`
 	Config      config.Config `json:"config"`
 	// FleetTruth duplicates status fleet boundary for offline triage (canonical with status.fleet_truth when present).
-	FleetTruth  fleet.FleetTruthSummary `json:"fleet_truth,omitempty"`
-	Diagnostics []diagnostics.Finding   `json:"diagnostics"`
+	FleetTruth fleet.FleetTruthSummary `json:"fleet_truth,omitempty"`
+	// ImportedRemoteEvidence is offline bundle import audit (not live federation); empty when table absent or none.
+	ImportedRemoteEvidence []db.ImportedRemoteEvidenceRecord `json:"imported_remote_evidence,omitempty"`
+	Diagnostics            []diagnostics.Finding             `json:"diagnostics"`
 	// Operator evidence (offline-safe): status, control plane, incidents, upgrade posture.
 	StatusSnapshot         *statuspkg.Snapshot             `json:"status_snapshot,omitempty"`
 	StatusCollectError     string                          `json:"status_collect_error,omitempty"`
@@ -108,6 +110,8 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 	}
 	alerts, _ := d.TransportAlerts(true)
 
+	imports, _ := d.ListImportedRemoteEvidence(100)
+
 	var doctorForBundle map[string]any
 	doctorNote := "Structured mel doctor payload (redacted for bundle export). Same checks as CLI; review before sharing externally."
 	if p := strings.TrimSpace(cfgPath); p != "" {
@@ -122,6 +126,7 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 		Version:                version,
 		Config:                 privacy.RedactConfig(cfg),
 		FleetTruth:             fleetTruth,
+		ImportedRemoteEvidence: imports,
 		Diagnostics:            diagnosticsRun.Diagnostics,
 		StatusSnapshot:         snapPtr,
 		StatusCollectError:     statusErrStr,
