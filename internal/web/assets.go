@@ -4,5 +4,5 @@ import (
 	"embed"
 )
 
-//go:embed ../../frontend/dist
+//go:embed assets
 var staticAssets embed.FS
