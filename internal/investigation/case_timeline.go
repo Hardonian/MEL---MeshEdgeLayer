@@ -515,7 +515,7 @@ func summarizeCaseTiming(detail CaseDetail, generatedAt string) CaseTimingSummar
 	}
 }
 
-func buildCaseTimingNote(primary CaseTimingPosture, linkedEvents []CaseEventLink, generatedAt string) string {
+func buildCaseTimingNote(primary CaseTimingPosture, _ []CaseEventLink, generatedAt string) string {
 	switch primary {
 	case CaseTimingLocallyOrdered:
 		return "Linked case events were recorded by this MEL instance. Sequence is exact within this database only; it is not a fleet-wide total order."
