@@ -239,17 +239,17 @@ func (rs *RiskScorer) evaluateActionTypeRisk(action control.ControlAction, reali
 			explanation = "Backoff control not verified in this build"
 		}
 	case control.ActionTemporarilyDeprioritize:
-		impact = 0.5
-		level = RiskLevelMedium
-		explanation = "Routing deprioritization requires verified path selection which is not shipped"
+		impact = 0.25
+		level = RiskLevelLow
+		explanation = "MEL ingest-side delay only; does not change Meshtastic RF routing"
 	case control.ActionTemporarilySuppressNoisySource:
-		impact = 0.6
+		impact = 0.35
 		level = RiskLevelMedium
-		explanation = "Source suppression requires metrics-backed verification which is not shipped"
+		explanation = "Drops decoded ingest for one node on one transport; may hide traffic from MEL operators until cleared"
 	case control.ActionClearSuppression:
-		impact = 0.4
-		level = RiskLevelMedium
-		explanation = "Suppression clearing requires actuator that is not shipped"
+		impact = 0.05
+		level = RiskLevelNone
+		explanation = "Clears local ingest actuator windows for the transport"
 	case control.ActionTriggerHealthRecheck:
 		if reality.ActuatorExists {
 			impact = 0.05

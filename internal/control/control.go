@@ -251,11 +251,11 @@ func DefaultActionRealityMatrix() []ActionReality {
 	return []ActionReality{
 		{ActionType: ActionBackoffIncrease, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Raises only the local reconnect backoff multiplier until expiry or reset."},
 		{ActionType: ActionBackoffReset, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Restores the local reconnect backoff multiplier to baseline."},
-		{ActionType: ActionClearSuppression, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "Suppression is not shipped as a real actuator in this build, so clear_suppression stays advisory-only."},
+		{ActionType: ActionClearSuppression, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Clears MEL ingest-level source suppression and deprioritization windows for the named transport (does not change Meshtastic RF routing)."},
 		{ActionType: ActionRestartTransport, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Interrupts only the named transport so the bounded reconnect loop can re-enter connect/subscribe."},
 		{ActionType: ActionResubscribeTransport, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Interrupts only the named transport subscription path and relies on the existing reconnect/subscribe loop."},
-		{ActionType: ActionTemporarilyDeprioritize, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "MEL does not currently own a verified live routing selector, so routing changes remain advisory."},
-		{ActionType: ActionTemporarilySuppressNoisySource, ActuatorExists: false, Reversible: false, BlastRadiusKnown: false, BlastRadiusClass: "unknown", AdvisoryOnly: true, DenialCode: DenialMissingActuator, Notes: "MEL does not currently ship a verified source suppression actuator or metrics-backed suppression path."},
+		{ActionType: ActionTemporarilyDeprioritize, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Raises MEL ingest worker delay for the degraded transport when another healthy path exists (observability-side deprioritization only; does not modify Meshtastic routing tables)."},
+		{ActionType: ActionTemporarilySuppressNoisySource, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_transport", SafeForGuardedAuto: true, Notes: "Drops decoded ingest for a single strongly attributed from_node on the named transport until expiry (SQLite and mesh state unchanged; RF traffic may still arrive)."},
 		{ActionType: ActionTriggerHealthRecheck, ActuatorExists: true, Reversible: true, BlastRadiusKnown: true, BlastRadiusClass: "local_process", SafeForGuardedAuto: true, Notes: "Schedules a bounded asynchronous health recheck without changing transport routing."},
 	}
 }
@@ -530,6 +530,9 @@ func evaluateCandidate(cfg config.Config, database *db.DB, policy ControlPolicy,
 		reality = ActionReality{ActionType: candidate.ActionType, BlastRadiusClass: "unknown", DenialCode: DenialMissingActuator}
 	}
 	attribution := suppressionAttribution(database, candidate.TargetTransport, now)
+	if candidate.ActionType == ActionTemporarilySuppressNoisySource && attribution.Strong && attribution.FromNodeNum > 0 && strings.TrimSpace(candidate.TargetNode) == "" {
+		candidate.TargetNode = fmt.Sprintf("%d", attribution.FromNodeNum)
+	}
 	evidencePass := persistentEvidence(database, candidate, now)
 	if candidate.ActionType == ActionRestartTransport && signals.byTransport[candidate.TargetTransport].State != transport.StateFailed && signals.byTransport[candidate.TargetTransport].FailureCount == 0 {
 		evidencePass = false
@@ -683,6 +686,7 @@ func persistentEvidence(database *db.DB, candidate ControlAction, now time.Time)
 
 type attributionSummary struct {
 	NodeID      string
+	FromNodeNum int64
 	Confidence  float64
 	BestEffort  bool
 	Strong      bool
@@ -694,13 +698,14 @@ func suppressionAttribution(database *db.DB, transportName string, now time.Time
 		return attributionSummary{BestEffort: true}
 	}
 	start := now.Add(-15 * time.Minute).UTC().Format(time.RFC3339)
-	rows, err := database.QueryRows(fmt.Sprintf(`SELECT COALESCE(NULLIF(n.node_id,''), CAST(m.from_node AS TEXT)) AS attributed_node_id,
+	rows, err := database.QueryRows(fmt.Sprintf(`SELECT m.from_node AS from_node_num,
+COALESCE(NULLIF(n.node_id,''), CAST(m.from_node AS TEXT)) AS attributed_node_id,
 COUNT(*) AS message_count
 FROM messages m
 LEFT JOIN nodes n ON n.node_num = m.from_node
 WHERE m.transport_name='%s' AND m.from_node > 0 AND m.rx_time >= '%s' AND m.rx_time <= '%s'
-GROUP BY attributed_node_id
-ORDER BY message_count DESC, attributed_node_id ASC
+GROUP BY m.from_node
+ORDER BY message_count DESC, from_node_num ASC
 LIMIT 3;`, sqlSafe(transportName), sqlSafe(start), sqlSafe(now.UTC().Format(time.RFC3339))))
 	if err != nil || len(rows) == 0 {
 		return attributionSummary{BestEffort: true}
@@ -716,8 +721,10 @@ LIMIT 3;`, sqlSafe(transportName), sqlSafe(start), sqlSafe(now.UTC().Format(time
 		confidence = float64(topCount) / float64(total)
 	}
 	strong := len(rows) == 1 && topCount >= 3 && confidence >= 0.85
+	fromNum := int64(asFloatValue(top["from_node_num"]))
 	return attributionSummary{
 		NodeID:      fmt.Sprint(top["attributed_node_id"]),
+		FromNodeNum: fromNum,
 		Confidence:  confidence,
 		BestEffort:  len(rows) > 1 || !strong,
 		Strong:      strong,
