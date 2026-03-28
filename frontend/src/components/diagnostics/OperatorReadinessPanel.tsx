@@ -47,7 +47,14 @@ export function OperatorReadinessPanel() {
     const run = async () => {
       try {
         const [rRes, sRes] = await Promise.all([fetch('/api/v1/readyz'), fetch('/api/v1/status')])
-        const rJson = (await rRes.json()) as ReadyzPayload
+        let rJson: ReadyzPayload
+        try {
+          rJson = (await rRes.json()) as ReadyzPayload
+        } catch {
+          setPhase('error')
+          setErr('Readiness response was not valid JSON — check reverse proxy or API version.')
+          return
+        }
         setReadyz(rJson)
         if (sRes.ok) {
           setStatusJson(await sRes.json())

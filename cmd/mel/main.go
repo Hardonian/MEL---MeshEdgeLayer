@@ -462,6 +462,9 @@ func serveCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
+	if err := config.ValidateProductionDeploy(cfg); err != nil {
+		panic(err)
+	}
 	if err := security.CheckFileMode(*path); err != nil {
 		panic(err)
 	}

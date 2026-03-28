@@ -34,6 +34,9 @@ type Config struct {
 	Topology     TopologyConfig     `json:"topology"`
 	Scope        ScopeConfig        `json:"scope"`
 	StrictMode   bool               `json:"strict_mode"`
+	// ProductionDeploy rejects configs that are valid for dev/lab but unsafe or incomplete for field rollout
+	// (strict safe-default posture plus at least one enabled transport). See ValidateProductionDeploy.
+	ProductionDeploy bool `json:"production_deploy"`
 	// OperatorAPIKeys loaded from env (Auth.APIKeysEnv); never persisted in JSON.
 	OperatorAPIKeys []string `json:"-"`
 	// OperatorAPIKeyEntries merges auth.operator_keys from JSON with env keys (env-only keys get full admin caps).
@@ -317,8 +320,9 @@ func Default() Config {
 			ScoreHistoryDays:        14,
 			MaxMeshIntelHistory:     120,
 		},
-		Scope:      ScopeConfig{},
-		StrictMode: false,
+		Scope:            ScopeConfig{},
+		StrictMode:       false,
+		ProductionDeploy: false,
 	}
 }
 
@@ -759,6 +763,7 @@ func applyEnv(cfg *Config) {
 	setBool("MEL_CONTROL_ALLOW_SOURCE_SUPPRESSION", &cfg.Control.AllowSourceSuppression)
 	setInt("MEL_CONTROL_MAX_QUEUE", &cfg.Control.MaxQueue)
 	setBool("MEL_STRICT_MODE", &cfg.StrictMode)
+	setBool("MEL_PRODUCTION_DEPLOY", &cfg.ProductionDeploy)
 	loadOperatorAPIKeys(cfg)
 }
 
@@ -984,6 +989,27 @@ func ValidateStrict(cfg Config) error {
 			msgs = append(msgs, fmt.Sprintf("%s: %s (current=%s, safe=%s)", v.Field, v.Issue, v.Current, v.Safe))
 		}
 		return errors.New("strict mode validation failed: " + strings.Join(msgs, "; "))
+	}
+	return nil
+}
+
+// ValidateProductionDeploy enforces a field-oriented posture: same checks as strict mode plus
+// at least one enabled transport so the instance cannot start "production" while explicitly idle.
+func ValidateProductionDeploy(cfg Config) error {
+	if !cfg.ProductionDeploy {
+		return nil
+	}
+	if err := ValidateStrict(cfg); err != nil {
+		return fmt.Errorf("production_deploy: %w", err)
+	}
+	enabled := 0
+	for _, t := range cfg.Transports {
+		if t.Enabled {
+			enabled++
+		}
+	}
+	if enabled == 0 {
+		return errors.New("production_deploy requires at least one enabled transport")
 	}
 	return nil
 }

@@ -66,6 +66,28 @@ func TestValidateRejectsRemoteWithoutAuth(t *testing.T) {
 	_ = os.Unsetenv("MEL_BIND_API")
 }
 
+func TestValidateProductionDeployRequiresStrictAndTransport(t *testing.T) {
+	cfg := Default()
+	cfg.ProductionDeploy = true
+	if err := ValidateProductionDeploy(cfg); err == nil {
+		t.Fatal("expected error: no enabled transport")
+	}
+	cfg.Transports = []TransportConfig{{Name: "mqtt", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/t", ClientID: "x"}}
+	if err := normalize(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateProductionDeploy(cfg); err != nil {
+		t.Fatalf("expected ok with advisory control and one transport: %v", err)
+	}
+	cfg.Control.Mode = "guarded_auto"
+	if err := ValidateProductionDeploy(cfg); err == nil {
+		t.Fatal("expected strict violation for non-advisory control")
+	}
+}
+
 func TestLintConfig(t *testing.T) {
 	cfg := Default()
 	cfg.Bind.AllowRemote = true

@@ -67,4 +67,5 @@ var ConfigKeyHelp = map[string]string{
 	"scope.gateway_label":                            "Optional label for this gateway among co-located observers.",
 	"scope.expected_fleet_reporter_count":            "Expected MEL instances in a fleet view; values >1 surface partial-fleet visibility.",
 	"strict_mode":                                    "When true, reject configs that violate safe-default posture.",
+	"production_deploy":                              "When true, mel serve requires strict safe-default posture and at least one enabled transport.",
 }

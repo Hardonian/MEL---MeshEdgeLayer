@@ -2,26 +2,21 @@ import { useEffect, useState } from 'react'
 import { OperatorReadinessPanel } from '@/components/diagnostics/OperatorReadinessPanel'
 import { SupportBundleExport } from '@/components/diagnostics/SupportBundleExport'
 import { OperatorEmptyState } from '@/components/states/OperatorEmptyState'
-import { safeArray } from '@/utils/apiResilience'
+import {
+  parseDiagnosticsFindingsFromApi,
+  safeArray,
+  type DiagnosticsApiFinding,
+} from '@/utils/apiResilience'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loading } from '@/components/ui/StateViews'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Card } from '@/components/ui/Card'
 import { clsx } from 'clsx'
 
-interface DiagnosticFinding {
-  code: string
-  severity: 'critical' | 'warning' | 'info'
-  component: string
-  title: string
-  explanation: string
-  recommended_steps: string[]
-}
-
 type DiagnosticsPageState = 'loading' | 'unreachable' | 'disabled' | 'ready'
 
 export function Diagnostics() {
-  const [findings, setFindings] = useState<DiagnosticFinding[]>([])
+  const [findings, setFindings] = useState<DiagnosticsApiFinding[]>([])
   const [pageState, setPageState] = useState<DiagnosticsPageState>('loading')
   const [error, setError] = useState<string | null>(null)
 
@@ -35,7 +30,7 @@ export function Diagnostics() {
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch diagnostics`)
         const data = await res.json()
-        setFindings(safeArray(data.findings))
+        setFindings(parseDiagnosticsFindingsFromApi(data))
         setPageState('ready')
       } catch (err) {
         setPageState('unreachable')
@@ -94,23 +89,28 @@ export function Diagnostics() {
           />
         ) : (
           pageState === 'ready' &&
-          findings.map((f, idx) => (
+          findings.map((f, idx) => {
+            const sev =
+              f.severity === 'critical' || f.severity === 'warning' || f.severity === 'info'
+                ? f.severity
+                : 'info'
+            return (
             <Card
               key={idx}
               className={clsx(
                 'p-5',
-                f.severity === 'critical' && 'border-critical/30 bg-critical/5',
-                f.severity === 'warning' && 'border-warning/30 bg-warning/5',
-                f.severity === 'info' && 'border-info/25 bg-info/5'
+                sev === 'critical' && 'border-critical/30 bg-critical/5',
+                sev === 'warning' && 'border-warning/30 bg-warning/5',
+                sev === 'info' && 'border-info/25 bg-info/5'
               )}
             >
               <div className="mb-2 flex items-start justify-between gap-3">
                 <h4
                   className={clsx(
                     'text-lg font-semibold',
-                    f.severity === 'critical' && 'text-critical',
-                    f.severity === 'warning' && 'text-warning',
-                    f.severity === 'info' && 'text-info'
+                    sev === 'critical' && 'text-critical',
+                    sev === 'warning' && 'text-warning',
+                    sev === 'info' && 'text-info'
                   )}
                 >
                   {f.title}
@@ -127,7 +127,8 @@ export function Diagnostics() {
                 ))}
               </ul>
             </Card>
-          ))
+            )
+          })
         )}
       </div>
     </div>
