@@ -26,11 +26,23 @@ func Run(database *db.DB, cfg config.Config) error {
 	if err := database.PruneDeadLetters(now.AddDate(0, 0, -cfg.Retention.AuditDays)); err != nil {
 		return err
 	}
+	timelineCutoff := now.AddDate(0, 0, -cfg.Retention.AuditDays).Format(time.RFC3339)
+	if err := database.Exec(fmt.Sprintf("DELETE FROM timeline_events WHERE event_time < '%s';", timelineCutoff)); err != nil {
+		return err
+	}
 	if err := database.PruneTransportIntelligence(time.Now().UTC().AddDate(0, 0, -cfg.Intelligence.Retention.HealthSnapshotDays), cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
 		return err
 	}
 	controlCutoff := time.Now().UTC().AddDate(0, 0, -cfg.Control.RetentionDays)
 	if err := database.PruneControlHistory(controlCutoff, cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
+		return err
+	}
+	if err := database.Exec(fmt.Sprintf(`
+DELETE FROM incident_action_outcome_snapshots WHERE derived_at < '%s';
+DELETE FROM incident_action_outcome_snapshots WHERE snapshot_id IN (
+	SELECT snapshot_id FROM incident_action_outcome_snapshots ORDER BY derived_at DESC LIMIT -1 OFFSET %d
+);`,
+		controlCutoff.Format(time.RFC3339), cfg.Intelligence.Retention.HealthSnapshotMaxRows)); err != nil {
 		return err
 	}
 	// Retention for runtime status and evidence: 90 days aligns with operational telemetry window

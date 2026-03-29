@@ -1397,6 +1397,9 @@ func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, code, "could not assemble proofpack", err.Error())
 		return
 	}
+	if s.cfg.Privacy.RedactExports {
+		pack = redactProofpackExport(pack)
+	}
 	// Set content-disposition for download when ?download=true is present.
 	if r.URL.Query().Get("download") == "true" {
 		filename := proofpackDownloadFilename(incidentID, pack)
@@ -1435,6 +1438,81 @@ func proofpackDownloadFilename(incidentID string, pack map[string]any) string {
 		}
 	}
 	return fmt.Sprintf("mel-proofpack-%s-%s.json", cleanID, timestamp)
+}
+
+func redactProofpackExport(pack map[string]any) map[string]any {
+	if pack == nil {
+		return map[string]any{
+			"privacy_redacted": true,
+			"redaction_scope":  []string{"proofpack_export"},
+		}
+	}
+	pack["privacy_redacted"] = true
+	pack["redaction_scope"] = []string{
+		"incident.actor_id",
+		"incident.owner_actor_id",
+		"linked_actions.proposed_by",
+		"linked_actions.submitted_by",
+		"linked_actions.approved_by",
+		"linked_actions.rejected_by",
+		"timeline.actor_id",
+		"operator_notes.actor_id",
+		"audit_entries.actor_id",
+		"dead_letter_evidence.details",
+	}
+	if incidentRaw, ok := pack["incident"].(map[string]any); ok {
+		incidentRaw["actor_id"] = "redacted"
+		incidentRaw["owner_actor_id"] = "redacted"
+	}
+	redactActorList(pack, "linked_actions", []string{"proposed_by", "submitted_by", "approved_by", "rejected_by"})
+	redactActorList(pack, "timeline", []string{"actor_id"})
+	redactActorList(pack, "operator_notes", []string{"actor_id"})
+	redactActorList(pack, "audit_entries", []string{"actor_id"})
+	if deadLetters, ok := pack["dead_letter_evidence"].([]any); ok {
+		for _, entry := range deadLetters {
+			if row, ok := entry.(map[string]any); ok {
+				row["details"] = map[string]any{
+					"redacted": true,
+					"reason":   "platform.privacy.redact_exports=true",
+				}
+			}
+		}
+	} else if deadLetters, ok := pack["dead_letter_evidence"].([]map[string]any); ok {
+		for _, row := range deadLetters {
+			row["details"] = map[string]any{
+				"redacted": true,
+				"reason":   "platform.privacy.redact_exports=true",
+			}
+		}
+	}
+	return pack
+}
+
+func redactActorList(pack map[string]any, listKey string, keys []string) {
+	rowsAny, ok := pack[listKey].([]any)
+	if ok {
+		for _, rowRaw := range rowsAny {
+			row, ok := rowRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, key := range keys {
+				if _, has := row[key]; has {
+					row[key] = "redacted"
+				}
+			}
+		}
+		return
+	}
+	if rowsMap, ok := pack[listKey].([]map[string]any); ok {
+		for _, row := range rowsMap {
+			for _, key := range keys {
+				if _, has := row[key]; has {
+					row[key] = "redacted"
+				}
+			}
+		}
+	}
 }
 
 func sanitizeFilenamePart(v string) string {
