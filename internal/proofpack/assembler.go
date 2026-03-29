@@ -446,6 +446,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			AssembledBy:                  a.cfg.ActorID,
 			InstanceID:                   a.cfg.InstanceID,
 			IncidentID:                   incidentID,
+			ManifestVersion:              ManifestVersion,
+			IntegrityNote:                "Counts and section_statuses are deterministic assembly metadata; export is a snapshot, not live truth or cryptographic attestation.",
 			TimeWindowFrom:               windowFrom,
 			TimeWindowTo:                 windowTo,
 			ActionCount:                  len(actions),
