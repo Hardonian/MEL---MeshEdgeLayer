@@ -61,6 +61,8 @@ For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/ev
 - Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md)
 - API reference: [`docs/ops/api-reference.md`](docs/ops/api-reference.md)
 - Repo operating system: [`docs/repo-os/README.md`](docs/repo-os/README.md)
+- Repo-local model spec: [`docs/repo-os/model-spec.md`](docs/repo-os/model-spec.md)
+- Repo-local skills/checklists: [`docs/repo-os/skills/README.md`](docs/repo-os/skills/README.md)
 - Privacy platform policy: [`docs/privacy/platform-policy.md`](docs/privacy/platform-policy.md)
 - Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
 
