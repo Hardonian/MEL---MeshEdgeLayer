@@ -1,146 +1,84 @@
 # MEL — MeshEdgeLayer
 
-**Truthful, local-first mesh observability and operator control plane.**
+**Incident intelligence and trusted control for mesh operations.**
 
 ![MEL Hero](assets/mel_hero_new_1774058412698.png)
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/mel-project/mel)](https://goreportcard.com/report/github.com/mel-project/mel)
-[![License](https://img.shields.io/github/license/mel-project/mel)](LICENSE)
-[![Status](https://img.shields.io/badge/status-0.1.0--rc1-blue.svg)](docs/roadmap/ROADMAP_EXECUTION.md)
+MEL is a local-first operational system for mesh environments. It ingests evidence, preserves action and incident history, and exposes operator-facing truth with explicit degraded semantics.
 
----
+## What MEL is
 
-## What is MEL?
+- A mesh observability and control workflow system.
+- An evidence-first platform for incidents, actions, audits, and proofpacks.
+- A local runtime that keeps operator trust boundaries explicit.
 
-MEL is a heavy-duty ingest, persistence, and observability layer designed for **production-oriented Meshtastic deployments**. It provides operators with high-fidelity visibility into mesh health, packet traffic, and node telemetry without relying on cloud services or external dependencies.
+## What MEL is not
 
-Unlike generic dashboards, MEL is built on a **"Truth First" Philosophy**: it only reports data it has successfully persisted and verified in its local state. If MEL says it happened, it happened on the wire.
+- Not a mesh routing stack.
+- Not proof of RF propagation or routing success unless evidence exists.
+- Not authorized to imply unsupported transport paths.
 
-### Core Value Proposition
+## Truth contract (short)
 
-- **The "Black Box" Problem**: Generic mesh dashboards often hide transport failures or invent "healthy" traffic. MEL makes every degraded state explicit.
-- **Operator Ownership**: Your mesh data belongs in your SQLite database, not a third-party cloud.
-- **Relentless Persistence**: Every packet is checked, classified, and stored with an audit trail.
-- **Guarded Automation**: MEL doesn't just watch; its [Control Plane](docs/architecture/control-plane.md) suggests and executes safe remediation to keep your mesh alive.
+MEL does not claim more than evidence supports.
 
----
+- **Live** means recent persisted ingest evidence exists.
+- **Stale** means ingest evidence is old.
+- **Historical** means prior records, not current runtime proof.
+- **Imported/Offline** means external context, not live fleet proof by default.
+- **Partial/Degraded** means known gaps are explicit and machine-visible.
 
-## Key Capabilities
+See the canonical terminology guide: [`docs/repo-os/terminology.md`](docs/repo-os/terminology.md).
 
-- **Multi-Transport Ingest**: Simultaneous support for **Serial (USB)**, **TCP (Network)**, and **MQTT** transports.
-- **Authoritative Diagnostics**: Run `mel doctor` to verify host permissions, database integrity, and transport health in seconds.
-- **Modern Operator UI**: A sleek, real-time Web Dashboard and a responsive TUI for field operations.
-- **Intelligence Layer**: Deep packet inspection that classifies traffic into `text`, `position`, `node_info`, and `telemetry`.
-- **Privacy by Design**: Built-in redaction, privacy audits, and local-only position storage by default.
+## Transport support matrix (current)
 
----
+| Surface | State | Contract |
+|---|---|---|
+| Direct ingest (serial/TCP) | Supported | Claim only persisted and timestamped ingest evidence. |
+| MQTT ingest | Supported | Surface disconnects and partial ingest explicitly. |
+| BLE ingest | Unsupported | Label unsupported; no implied partial support. |
+| HTTP ingest | Unsupported | Label unsupported; no optimistic wording. |
+| Radio transmit/routing by MEL | Not implemented as a mesh-stack feature | Do not imply MEL performs RF routing/propagation execution. |
 
-## ⚡ Quickstart (Under 5 Minutes)
-
-MEL is designed to be operational before your next packet arrives.
-
-### 1. Build & Install
-
-```bash
-go build -o mel ./cmd/mel
-```
-
-### 2. Initialize & Validate
+## Quick start
 
 ```bash
-# Generate a fresh operator config
-./mel init --config configs/mel.json
-
-# Run environment diagnostics (Config, DB, Transports)
-./mel doctor --config configs/mel.json
+make build
+./bin/mel init --config .tmp/mel.json
+./bin/mel doctor --config .tmp/mel.json
+./bin/mel serve --config .tmp/mel.json
 ```
 
-### 3. Launch the Control Plane
+Open <http://127.0.0.1:8080>.
+
+For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/evaluate-in-10-minutes.md).
+
+## Documentation map
+
+- Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
+- Operations: [`docs/ops/OPERATIONS_RUNBOOK.md`](docs/ops/OPERATIONS_RUNBOOK.md)
+- Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md)
+- API reference: [`docs/ops/api-reference.md`](docs/ops/api-reference.md)
+- Repo operating system: [`docs/repo-os/README.md`](docs/repo-os/README.md)
+- Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
+
+## Verification entry points
+
+Use these before making release-strength claims:
 
 ```bash
-# Start the ingest engine and web dashboard
-./mel serve --config configs/mel.json
+make lint
+make test
+make build
+make smoke
 ```
 
-Visit **[http://localhost:8080](http://localhost:8080)** to see your mesh come alive.
-
----
-
-## What MEL is NOT (Honest Boundaries)
-
-- **Not a Mesh Stack**: MEL does not implement Meshtastic routing or transmit radio packets itself.
-- **No Mystery Interpolation**: 0 messages means 0 messages. We do not "guess" mesh state.
-- **No Cloud Required**: MEL is local-first and works entirely offline.
-- **No Hidden Randomness**: Decisions are grounded in deterministic, inspectable evidence.
-
-Review our full [Known Limitations](docs/ops/limitations.md) for a detailed support matrix.
-
----
-
-## 🏗️ Architecture
-
-MEL follows a unidirectional, guarded data flow to ensure integrity.
-
-```mermaid
-graph TD
-    subgraph "Meshtastic Mesh"
-        N1[Node 1] --- N2[Node 2]
-        N2 --- N3[Node 3]
-    end
-
-    subgraph "MEL Transports"
-        SR[Serial / USB]
-        TC[TCP / Network]
-        MQ[MQTT Feed]
-    end
-
-    subgraph "MEL Core Engine"
-        IG[Ingest Worker]
-        DB[(SQLite Persistence)]
-        IL[[Intelligence Layer]]
-    end
-
-    subgraph "Operator Interface"
-        CLI[mel doctor / status]
-        TUI[Terminal UI]
-        WEB[Web Dashboard]
-        API[JSON API / Metrics]
-    end
-
-    N1 --> SR
-    N2 --> TC
-    N3 --> MQ
-
-    SR --> IG
-    TC --> IG
-    MQ --> IG
-
-    IG --> DB
-    DB <--> IL
-    IL --> API
-    DB --> CLI
-    DB --> TUI
-    DB --> WEB
-```
-
----
-
-## 📖 Next Steps in the Documentation
-
-- [**Installation Guide**](docs/getting-started/installation.md)
-- [**Full CLI Reference**](docs/ops/cli-reference.md)
-- [**API Reference**](docs/ops/api-reference.md)
-- [**Operator Runbooks**](docs/runbooks/README.md)
-- [**Troubleshooting**](docs/ops/troubleshooting.md)
-
----
+Then apply the repo-os gates:
+- [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
+- [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
 
 ## Contributing
 
-We welcome contributions that increase structural coherence and reduce entropy.
-
-- **Bug Reports**: Open a [Bug Report](https://github.com/mel-project/mel/issues/new?template=bug_report.md).
-- **Guidelines**: Read our [CONTRIBUTING.md](CONTRIBUTING.md).
-
-MEL is licensed under the **Apache-2.0 License**.
-© 2026 Hardonian / MeshEdgeLayer Contributors.
+- Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Repo contract for agents/contributors: [`AGENTS.md`](AGENTS.md)

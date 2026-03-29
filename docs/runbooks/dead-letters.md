@@ -64,4 +64,4 @@ If the dead letters are known garbage (e.g., noise on a serial line), reduce ret
 
 - **Monitor Rate of Change**: Alert when your `dead_letter_growth` exceeds **1%** of your `ingest_rate`.
 - **Verify Transport Integrity**: For serial nodes, check for EMI/RFI cable noise if `protobuf_decode_errors` are frequent.
-- **Support New Payloads**: If dead letters are `unsupported_payload_type`, share a sample with the [MEL contributors](../CONTRIBUTING.md) to add support.
+- **Support New Payloads**: If dead letters are `unsupported_payload_type`, share a sample with the [MEL contributors](../../CONTRIBUTING.md) to add support.

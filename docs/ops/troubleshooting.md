@@ -1,6 +1,6 @@
 # MEL Troubleshooting Guide
 
-This guide helps operators diagnose and resolve common issues with MEL deployments. For detailed step-by-step procedures, refer to the [Operational Runbooks](./runbooks.md).
+This guide helps operators diagnose and resolve common issues with MEL deployments. For detailed step-by-step procedures, refer to the [Operational Runbooks](../runbooks/README.md).
 
 ---
 
@@ -28,17 +28,17 @@ mel doctor --config /etc/mel/config.json
 mel doctor --config /etc/mel/config.json > diagnostics-$(date +%Y%m%d).json
 
 # See the full diagnostics collection guide
-# ./diagnostics-collection.md
+# ./diagnostics.md
 ```
 
-For automated collection, use the script in [Diagnostics Collection](./diagnostics-collection.md).
+For automated collection, use the script in [Diagnostics Collection](./diagnostics.md).
 
 ### How to Use This Guide
 
 1. **Identify your symptom** - Find the section matching your issue
 2. **Run diagnostics** - Use `mel doctor` to validate the environment
 3. **Follow resolution steps** - Work through solutions in order
-4. **Reference runbooks** - For complex issues, see detailed procedures in [Runbooks](./runbooks.md)
+4. **Reference runbooks** - For complex issues, see detailed procedures in [Runbooks](../runbooks/README.md)
 5. **Escalate if needed** - See [Getting Help](#getting-help) section
 
 ---
@@ -221,7 +221,7 @@ mel backup create --config /etc/mel/config.json --out /backup/pre-migration.tar.
 
 ## Transport Issues
 
-For detailed transport troubleshooting, see [Troubleshooting Transports](./troubleshooting-transports.md). For operational runbooks, see [Runbooks](./runbooks.md).
+For detailed transport troubleshooting, see [Troubleshooting Transports](./troubleshooting-transports.md). For operational runbooks, see [Runbooks](../runbooks/README.md).
 
 ### Serial Device Not Found
 
@@ -243,7 +243,7 @@ sudo usermod -a -G dialout $USER
 screen /dev/ttyUSB0 115200
 ```
 
-**See Runbook 1** in [Runbooks](./runbooks.md) for detailed reconnection procedures.
+**See Runbook 1** in [Runbooks](../runbooks/README.md) for detailed reconnection procedures.
 
 ### Serial Permission Denied
 
@@ -283,7 +283,7 @@ curl -v telnet://<host>:<port>
 sudo iptables -L | grep <port>
 ```
 
-**See Runbook 1** in [Runbooks](./runbooks.md) for reconnection and timeout tuning.
+**See Runbook 1** in [Runbooks](../runbooks/README.md) for reconnection and timeout tuning.
 
 ### MQTT Connection Issues
 
@@ -302,7 +302,7 @@ mel inspect transport <mqtt-transport> --show-credentials-hashes
 grep topic_filter /etc/mel/config.json
 ```
 
-**See Runbook 2** in [Runbooks](./runbooks.md) for detailed MQTT subscription troubleshooting.
+**See Runbook 2** in [Runbooks](../runbooks/README.md) for detailed MQTT subscription troubleshooting.
 
 ### Transport Stuck in Error State
 
@@ -325,7 +325,7 @@ mel transport disconnect <name>
 mel transport connect <name>
 ```
 
-**See Runbook 1** in [Runbooks](./runbooks.md) for transport down/reconnect procedures.
+**See Runbook 1** in [Runbooks](../runbooks/README.md) for transport down/reconnect procedures.
 
 ---
 
@@ -397,7 +397,7 @@ mel inspect transport <name> --config /etc/mel/config.json
 mel logs tail --config /etc/mel/config.json | grep -i "decode\|protobuf"
 ```
 
-**See Runbook 3** in [Runbooks](./runbooks.md) for dead letter analysis.
+**See Runbook 3** in [Runbooks](../runbooks/README.md) for dead letter analysis.
 
 ---
 
@@ -435,7 +435,7 @@ mel db vacuum --config /etc/mel/config.json
 ls -lh /var/lib/mel/mel.db
 ```
 
-**See Runbook 10** in [Runbooks](./runbooks.md) for detailed retention and cleanup procedures.
+**See Runbook 10** in [Runbooks](../runbooks/README.md) for detailed retention and cleanup procedures.
 
 ### Disk Space Warnings
 
@@ -489,7 +489,7 @@ mel control history --config /etc/mel/config.json
 mel control history --denied --since 1h --config /etc/mel/config.json
 ```
 
-**See Runbook 6** in [Runbooks](./runbooks.md) for denied control actions troubleshooting.
+**See Runbook 6** in [Runbooks](../runbooks/README.md) for denied control actions troubleshooting.
 
 ### Understanding Denial Reasons
 
@@ -658,7 +658,7 @@ Before filing an issue or escalating:
 **Level 1 - Self-Service:**
 1. Run `mel doctor` for automated diagnosis
 2. Review this troubleshooting guide
-3. Check [Runbooks](./runbooks.md) for detailed procedures
+3. Check [Runbooks](../runbooks/README.md) for detailed procedures
 
 **Level 2 - Community Support:**
 1. Search existing GitHub issues
@@ -706,9 +706,9 @@ Before filing an issue or escalating:
 
 ### Related Documentation
 
-- [Diagnostics Collection](./diagnostics-collection.md) - Comprehensive diagnostic procedures
+- [Diagnostics Collection](./diagnostics.md) - Comprehensive diagnostic procedures
 - [Troubleshooting Transports](./troubleshooting-transports.md) - Transport-specific issues
-- [Operational Runbooks](./runbooks.md) - Step-by-step operational procedures
+- [Operational Runbooks](../runbooks/README.md) - Step-by-step operational procedures
 - [Incident Triage](./incident-triage.md) - Structured incident response
 - [CLI Reference](./cli-reference.md) - Complete command documentation
-- [Configuration](./configuration.md) - Configuration options and security rules
+- [Configuration](./configuration-reference.md) - Configuration options and security rules

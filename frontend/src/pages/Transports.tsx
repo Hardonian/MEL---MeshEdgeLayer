@@ -39,7 +39,7 @@ export function Transports() {
     <div className="space-y-6">
       <PageHeader
         title="Transports"
-        description="Monitor the health and status of your active transports."
+        description="View ingest evidence, transport health, and degraded conditions."
       />
 
       {transports.length === 0 ? (
@@ -83,7 +83,7 @@ export function Transports() {
                     </Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    {transport.type} transport module — Runtime: {transport.runtime_state || 'unknown'}
+                    {transport.type} transport — runtime state: {transport.runtime_state || 'unknown'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

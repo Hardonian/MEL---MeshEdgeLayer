@@ -1,51 +1,48 @@
 # MEL Documentation Hub
 
-Welcome to the MeshEdgeLayer (MEL) documentation. This portal provides comprehensive guides for operators, contributors, and implementers.
+This hub is organized for operator truth: simple wording by default, precise contract language where needed.
 
-## 🏁 Getting Started
+## Start here
 
-If you are new to MEL, start with these guides:
+- [Getting started](getting-started/README.md)
+- [Evaluate in 10 minutes](ops/evaluate-in-10-minutes.md)
+- [Support matrix](ops/support-matrix.md)
+- [Known limitations](ops/limitations.md)
 
-- [**Installation Guide**](getting-started/installation.md) - Setup procedures for Linux, Pi, and Termux.
-- [**Quickstart Walkthrough**](getting-started/README.md) - Initial setup and environment verification.
-- [**First 10 Minutes**](getting-started/first-10-minutes.md) - A guided tour of your new instance.
-- [**Hardware Support**](ops/support-matrix.md) - Verified nodes and transport compatibility.
+## Canonical truth and language
 
-## 🏗️ Architecture & Core Concepts
+- [Repo OS](repo-os/README.md)
+- [Canonical terminology](repo-os/terminology.md)
+- [Verification matrix](repo-os/verification-matrix.md)
+- [Release readiness gate](repo-os/release-readiness.md)
 
-Understand the "Truth-First" model and system design:
+## Operations
 
-- [**Repo Operating System**](repo-os/README.md) - Canonical execution contracts, audits, verification matrix, and release reality gates.
+- [Operations runbook](ops/OPERATIONS_RUNBOOK.md)
+- [CLI reference](ops/cli-reference.md)
+- [API reference](ops/api-reference.md)
+- [Diagnostics](ops/diagnostics.md)
+- [Troubleshooting](ops/troubleshooting.md)
+- [Control plane](ops/control-plane.md)
 
-- [**System Overview**](architecture/overview.md) - High-level architecture and data flow.
-- [**Subsystems**](architecture/layers.md) - Ingest, Intelligence, and Persistence layers.
-- [**Trust & Security Model**](architecture/trust-model.md) - How MEL handles security and remediation.
-- [**Production Maturity**](architecture/PRODUCTION_MATURITY_MATRIX.md) - Maturity of each subsystem.
-- [**Event Model**](architecture/event-model.md) - Structured event data and audit trails.
+## Runbooks
 
-## 🛠️ Operations & Administration
+- [Runbook index](runbooks/README.md)
+- [Common connectivity](runbooks/common-connectivity.md)
+- [Dead letters](runbooks/dead-letters.md)
+- [Incident investigation](runbooks/incident-investigation.md)
+- [Proofpack export](runbooks/proofpack-export.md)
 
-Guides for running and maintaining MEL in a production environment:
+## Architecture and boundaries
 
-- [**Full CLI Reference**](ops/cli-reference.md) - Documentation for the `mel` command.
-- [**API Reference**](ops/api-reference.md) - JSON API for external integrations.
-- [**Configuration Reference**](ops/configuration-reference.md) - Comprehensive `mel.json` field guide.
-- [**Troubleshooting**](ops/troubleshooting.md) - Diagnosing common operational issues.
-- [**Runbooks**](runbooks/README.md) - Step-by-step incident response procedures.
-- [**Known Limitations**](ops/limitations.md) - Truthful boundaries and non-claims.
+- [Architecture overview](architecture/overview.md)
+- [Operational boundaries](architecture/OPERATIONAL_BOUNDARIES.md)
+- [Control-plane trust model](architecture/CONTROL_PLANE_TRUST_MODEL.md)
+- [Transport flow](architecture/transport-flow.md)
+- [Timeline truth](architecture/timeline-truth.md)
 
-## 🌐 Connectivity & Integration
+## Project context
 
-Extend MEL into your existing ecosystem:
-
-- [**Metrics & Monitoring**](ops/metrics.md) - JSON metrics and Prometheus integration.
-- [**Privacy Audits**](privacy/overview.md) - Managing your privacy and position data.
-- [**Federation Model**](architecture/federation-model.md) - Connecting multiple MEL instances.
-- [**Backup & Restore**](ops/backup-restore.md) - Protecting your historical observations.
-
-## 🤝 Project & Community
-
-- [**Roadmap**](roadmap/ROADMAP_EXECUTION.md) - Current status and future execution plans.
-- [**Contributing Guide**](../CONTRIBUTING.md) - How to help improve MEL safely.
-- [**Security Policy**](../SECURITY.md) - Reporting vulnerabilities correctly.
-- [**Changelog**](../CHANGELOG.md) - Recent updates and version history.
+- [What MEL is not](product/what-mel-is-not.md)
+- [Claims vs reality](community/claims-vs-reality.md)
+- [Roadmap execution](roadmap/ROADMAP_EXECUTION.md)

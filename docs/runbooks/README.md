@@ -1,32 +1,28 @@
-# MEL Operational Runbooks
+# MEL Runbooks
 
-This index provides step-by-step guidance for common operational scenarios.
+Step-by-step procedures for incidents, degraded ingest, and recovery.
 
----
+## Connectivity and ingest
 
-## 🚦 Connectivity & Ingest
+- [Transport down / reconnect churn](common-connectivity.md)
+- [Dead letter growth](dead-letters.md)
+- [Partial fleet and scope gaps](partial-fleet-and-scope.md)
 
-- [**Transport Down / Reconnect Churn**](common-connectivity.md) — Reclaiming live ingest after a link failure.
-- [**MQTT Subscription Issues**](mqtt-troubleshoot.md) — Managing subscription filters and broker compliance.
-- [**Dead Letter Growth**](dead-letters.md) — Analyzing and resolving ingest processing failures.
+## Incident response and evidence
 
-## 🛠️ Incident & Investigation
+- [Incident investigation](incident-investigation.md)
+- [Remote evidence import](remote-evidence-import.md)
+- [Proofpack export](proofpack-export.md)
+- [Support bundle interpretation](support-bundle-interpretation.md)
 
-- [**Incident Investigation**](incident-investigation.md) — Following the evidence trail for mesh-wide issues.
-- [**Evidence Import**](remote-evidence-import.md) — Bringing offline research data into a MEL instance.
-- [**Support Bundle Interpretation**](support-bundle-interpretation.md) — Reading and trusting automated diagnostics.
+## Recovery and maintenance
 
-## 🏥 System Health & Recovery
+- [System recovery](recovery.md)
+- [Database maintenance](database-maintenance.md)
 
-- [**System Recovery**](recovery.md) — Restoring service after a data directory or disk failure.
-- [**Database Maintenance**](database-maintenance.md) — Vacuuming, retention tuning, and pruning.
-- [**Upgrade Safety**](upgrade-safety.md) — Verifying schema parity and state preservation before minor/major updates.
+## Escalation path
 
----
-
-## Escalation Path
-
-1. Run `mel doctor` to verify the local environment.
-2. Review the [Troubleshooting Guide](../ops/troubleshooting.md).
-3. Follow the appropriate runbook above.
-4. If the issue persists, collect a [Support Bundle](support-bundle-interpretation.md) for further analysis.
+1. Run `mel doctor --config <path>`.
+2. Check [Troubleshooting](../ops/troubleshooting.md).
+3. Follow the matching runbook above.
+4. Export a support bundle if deeper analysis is needed.

@@ -4,6 +4,8 @@ This document outlines known issues, intentional design limitations, and operati
 
 ---
 
+For canonical language rules, see [`docs/repo-os/terminology.md`](../repo-os/terminology.md).
+
 ## By Design (Not Bugs)
 
 | Limitation | Description | Rationale |
