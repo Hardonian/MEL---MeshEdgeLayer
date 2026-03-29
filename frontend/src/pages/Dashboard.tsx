@@ -11,7 +11,9 @@ import {
   TrendingUp,
   AlertCircle,
   Zap,
-  Clock,
+  Inbox,
+  FileText,
+  Compass,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -21,8 +23,10 @@ import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
-import { EmptyState, SystemHealthy, NoTransportsConfigured } from '@/components/ui/EmptyState'
-import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters } from '@/hooks/useApi'
+import { NoTransportsConfigured } from '@/components/ui/EmptyState'
+import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
+import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters, useEvents, useDiagnostics } from '@/hooks/useApi'
+import { useIncidents } from '@/hooks/useIncidents'
 import { getHealthState, formatRelativeTime, TransportHealth, NodeInfo } from '@/types/api'
 
 export function Dashboard() {
@@ -32,6 +36,9 @@ export function Dashboard() {
   const privacy = usePrivacyFindings()
   const recommendations = useRecommendations()
   const deadLetters = useDeadLetters()
+  const events = useEvents()
+  const diagnostics = useDiagnostics()
+  const incidents = useIncidents()
 
   const isLoading = status.loading || nodes.loading || messagesLoading
   const hasError = status.error || nodes.error || messagesError
@@ -65,9 +72,20 @@ export function Dashboard() {
   const healthyTransports = transports.filter((t) => getHealthState(t.health) === 'healthy').length
   const totalTransports = transports.length
   const hasTransports = totalTransports > 0
+  const degradedTransports = transports.filter((t) => getHealthState(t.health) === 'degraded').length
+  const unhealthyTransports = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
 
   const activePrivacyFindings = privacy.data?.filter((p) => p.severity === 'critical' || p.severity === 'high') || []
   const pendingRecommendations = recommendations.data?.filter((r) => r.actionable) || []
+  const criticalDiags = diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high') || []
+  const deadLetterCount = deadLetters.data?.length ?? 0
+
+  const openIncidents = (incidents.data ?? []).filter(
+    (inc) => {
+      const s = (inc.state || '').toLowerCase()
+      return s !== 'resolved' && s !== 'closed'
+    }
+  )
 
   const newestHeartbeat = transports.reduce((max, t) => {
     if (!t.last_heartbeat_at) return max
@@ -76,19 +94,122 @@ export function Dashboard() {
   }, 0)
   const dashboardStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
 
+  // Build unified feed items
+  const feedItems: FeedItem[] = [
+    ...eventsToFeedItems(events.data ?? []),
+    ...(openIncidents.map((inc) => ({
+      id: `inc-${inc.id}`,
+      type: 'incident' as const,
+      level: (inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'info') as FeedItem['level'],
+      title: inc.title || `Incident ${inc.id.slice(0, 8)}`,
+      detail: inc.summary,
+      timestamp: inc.occurred_at ?? inc.updated_at ?? '',
+      href: '/incidents',
+      category: inc.category,
+    }))),
+    ...(deadLetters.data ?? []).slice(0, 5).map((dl, i) => ({
+      id: `dl-${i}-${dl.created_at}`,
+      type: 'dead_letter' as const,
+      level: 'warning' as const,
+      title: `Dead letter: ${dl.transport_name}`,
+      detail: dl.reason,
+      timestamp: dl.created_at,
+      href: '/dead-letters',
+    })),
+  ]
+
+  // Count attention items for the system pulse
+  const attentionCount =
+    openIncidents.length +
+    activePrivacyFindings.length +
+    criticalDiags.length +
+    (unhealthyTransports > 0 ? 1 : 0)
+
   return (
-    <div className="space-y-6 pb-10 md:space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="Operational snapshot from the last API refresh. Values reflect what MEL has observed, not guaranteed live mesh state. The console re-polls every 30 seconds."
-        action={<Badge variant="outline" className="uppercase tracking-[0.18em]">Auto refresh 30s</Badge>}
-      />
+    <div className="space-y-5 pb-10 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          title="Dashboard"
+          description="Operational snapshot. Auto-refreshes every 30 seconds."
+        />
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="uppercase tracking-[0.18em]">Auto refresh 30s</Badge>
+          {status.lastUpdated && (
+            <span className="text-[11px] text-muted-foreground/60">
+              {formatRelativeTime(status.lastUpdated.toISOString())}
+            </span>
+          )}
+        </div>
+      </div>
 
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 stagger-children">
+      {/* System Pulse — what needs attention */}
+      {attentionCount > 0 && (
+        <div className="rounded-2xl border border-warning/25 bg-warning/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-warning/25 bg-warning/12 text-warning">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                {attentionCount} item{attentionCount > 1 ? 's' : ''} need{attentionCount === 1 ? 's' : ''} attention
+              </p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {openIncidents.length > 0 && (
+                  <Link to="/incidents" className="inline-flex items-center gap-1 text-xs text-warning hover:text-foreground transition-colors">
+                    <AlertTriangle className="h-3 w-3" />
+                    {openIncidents.length} open incident{openIncidents.length > 1 ? 's' : ''}
+                  </Link>
+                )}
+                {unhealthyTransports > 0 && (
+                  <Link to="/status" className="inline-flex items-center gap-1 text-xs text-critical hover:text-foreground transition-colors">
+                    <Activity className="h-3 w-3" />
+                    {unhealthyTransports} unhealthy transport{unhealthyTransports > 1 ? 's' : ''}
+                  </Link>
+                )}
+                {criticalDiags.length > 0 && (
+                  <Link to="/diagnostics" className="inline-flex items-center gap-1 text-xs text-critical hover:text-foreground transition-colors">
+                    <Shield className="h-3 w-3" />
+                    {criticalDiags.length} diagnostic finding{criticalDiags.length > 1 ? 's' : ''}
+                  </Link>
+                )}
+                {activePrivacyFindings.length > 0 && (
+                  <Link to="/privacy" className="inline-flex items-center gap-1 text-xs text-critical hover:text-foreground transition-colors">
+                    <Shield className="h-3 w-3" />
+                    {activePrivacyFindings.length} privacy finding{activePrivacyFindings.length > 1 ? 's' : ''}
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calm state — when everything is quiet */}
+      {attentionCount === 0 && !isLoading && hasTransports && (
+        <div className="rounded-2xl border border-success/20 bg-success/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-success/20 bg-success/10 text-success">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">System operating normally</p>
+              <p className="text-xs text-muted-foreground">
+                No open incidents, transports healthy
+                {pendingRecommendations.length > 0 && (
+                  <> &middot; <Link to="/recommendations" className="text-primary hover:underline">{pendingRecommendations.length} recommendation{pendingRecommendations.length > 1 ? 's' : ''} available</Link></>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI cards */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 stagger-children">
         <StatCard
-          title="Connection Status"
+          title="Connection"
           value={connectedTransport ? 'Connected' : 'Disconnected'}
           description={connectedTransport ? connectedTransport.name : 'No active transport'}
           icon={connectedTransport ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
@@ -109,186 +230,210 @@ export function Dashboard() {
           variant="info"
         />
         <StatCard
-          title="Transport Health"
+          title="Transport health"
           value={`${healthyTransports}/${totalTransports}`}
-          description={hasTransports ? 'Healthy transport connections' : 'No transports configured'}
+          description={
+            !hasTransports
+              ? 'No transports configured'
+              : degradedTransports > 0
+                ? `${degradedTransports} degraded`
+                : unhealthyTransports > 0
+                  ? `${unhealthyTransports} unhealthy`
+                  : 'All transports healthy'
+          }
           icon={<TrendingUp className="h-5 w-5" />}
           variant={healthyTransports === totalTransports && hasTransports ? 'success' : healthyTransports > 0 ? 'warning' : 'default'}
         />
       </div>
 
-      {(activePrivacyFindings.length > 0 || pendingRecommendations.length > 0 || (deadLetters.data && deadLetters.data.length > 0)) && (
-        <AlertCard
-          variant={activePrivacyFindings.length > 0 ? 'critical' : pendingRecommendations.length > 0 ? 'warning' : 'info'}
-          title={
-            activePrivacyFindings.length > 0
-              ? `${activePrivacyFindings.length} critical privacy finding${activePrivacyFindings.length > 1 ? 's' : ''} require attention`
-              : pendingRecommendations.length > 0
-                ? `${pendingRecommendations.length} recommendation${pendingRecommendations.length > 1 ? 's' : ''} pending`
-                : 'System status'
-          }
-          description={
-            activePrivacyFindings.length > 0
-              ? 'Review and address these findings to maintain your privacy posture.'
-              : pendingRecommendations.length > 0
-                ? 'Review recommendations to optimize your MEL deployment.'
-                : undefined
-          }
-          action={
-            <Link
-              to="/recommendations"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-foreground transition-colors hover:text-primary"
-            >
-              View all <ArrowRight className="h-4 w-4" />
+      {/* Main content grid: Activity feed left, key surfaces right */}
+      <div className="grid gap-5 xl:grid-cols-5">
+        {/* Activity feed — left column, takes more space */}
+        <div className="xl:col-span-3">
+          <Card>
+            <CardHeader className="border-b border-border/50 pb-3">
+              <SectionCardHeader
+                icon={<FileText className="h-4 w-4" />}
+                iconClassName="border-primary/16 bg-primary/12 text-primary"
+                title="Recent activity"
+                description="Events, incidents, and changes across the mesh"
+                href="/events"
+              />
+            </CardHeader>
+            <CardContent className="pt-3">
+              <ActivityFeed
+                items={feedItems}
+                maxItems={10}
+                viewAllHref="/events"
+                emptyMessage="No recent activity. The system is quiet."
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right column: key operational surfaces */}
+        <div className="space-y-4 xl:col-span-2">
+          {/* Open incidents quick view */}
+          <Card>
+            <CardHeader className="border-b border-border/50 pb-3">
+              <SectionCardHeader
+                icon={<AlertTriangle className="h-4 w-4" />}
+                iconClassName={openIncidents.length > 0 ? 'border-warning/18 bg-warning/12 text-warning' : 'border-success/16 bg-success/10 text-success'}
+                title="Incidents"
+                description={openIncidents.length > 0 ? `${openIncidents.length} open` : 'None open'}
+                href="/incidents"
+              />
+            </CardHeader>
+            <CardContent className="pt-3">
+              {incidents.loading && !incidents.data ? (
+                <Loading message="Loading..." />
+              ) : openIncidents.length === 0 ? (
+                <div className="flex items-center gap-3 py-3">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <p className="text-sm text-muted-foreground">No open incidents</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {openIncidents.slice(0, 3).map((inc) => (
+                    <Link
+                      key={inc.id}
+                      to="/incidents"
+                      className="block rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:bg-accent/50"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {inc.title || inc.id.slice(0, 8)}
+                          </p>
+                          {inc.intelligence?.signature_match_count && inc.intelligence.signature_match_count > 1 && (
+                            <p className="mt-0.5 text-[11px] text-warning">
+                              Seen {inc.intelligence.signature_match_count} times before
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5">
+                          {inc.severity && <Badge variant={inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'}>{inc.severity}</Badge>}
+                          <Badge variant="secondary">{inc.intelligence?.evidence_strength ?? 'unknown'}</Badge>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Transport status */}
+          <Card>
+            <CardHeader className="border-b border-border/50 pb-3">
+              <SectionCardHeader
+                icon={<Activity className="h-4 w-4" />}
+                iconClassName="border-primary/16 bg-primary/12 text-primary"
+                title="Transports"
+                description="Health of configured transports"
+                href="/status"
+              />
+            </CardHeader>
+            <CardContent className="pt-3">
+              {!hasTransports ? (
+                <NoTransportsConfigured />
+              ) : (
+                <div className="space-y-2">
+                  {transports.slice(0, 4).map((transport) => (
+                    <TransportListItem key={transport.name} transport={transport} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recommendations quick view */}
+          {pendingRecommendations.length > 0 && (
+            <Card>
+              <CardHeader className="border-b border-border/50 pb-3">
+                <SectionCardHeader
+                  icon={<Compass className="h-4 w-4" />}
+                  iconClassName="border-warning/16 bg-warning/12 text-warning"
+                  title="Recommendations"
+                  description={`${pendingRecommendations.length} actionable`}
+                  href="/recommendations"
+                />
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="space-y-2">
+                  {pendingRecommendations.slice(0, 3).map((rec, i) => (
+                    <RecommendationListItem key={i} recommendation={rec} />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Dead letters alert */}
+          {deadLetterCount > 0 && (
+            <Link to="/dead-letters" className="block">
+              <div className="flex items-center gap-3 rounded-2xl border border-warning/20 bg-warning/5 p-3 transition-colors hover:bg-warning/8">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-warning/12 text-warning">
+                  <Inbox className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {deadLetterCount} dead letter{deadLetterCount > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Messages that failed processing</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
             </Link>
-          }
-        />
-      )}
+          )}
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/50 pb-4">
-            <SectionCardHeader
-              icon={<Activity className="h-4 w-4" />}
-              iconClassName="border-primary/16 bg-primary/12 text-primary"
-              title="Transport Status"
-              description="Health status of configured transports"
-              href="/status"
-            />
-          </CardHeader>
-          <CardContent className="pt-5">
-            {!hasTransports ? (
-              <NoTransportsConfigured />
-            ) : (
-              <div className="space-y-3">
-                {transports.slice(0, 4).map((transport) => (
-                  <TransportListItem key={transport.name} transport={transport} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {/* Privacy posture */}
+          {activePrivacyFindings.length > 0 && (
+            <Card>
+              <CardHeader className="border-b border-border/50 pb-3">
+                <SectionCardHeader
+                  icon={<Shield className="h-4 w-4" />}
+                  iconClassName="border-critical/16 bg-critical/10 text-critical"
+                  title="Privacy"
+                  description={`${activePrivacyFindings.length} critical/high`}
+                  href="/privacy"
+                />
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="space-y-2">
+                  {activePrivacyFindings.slice(0, 3).map((finding, i) => (
+                    <InlineAlert key={i} variant={finding.severity === 'critical' ? 'critical' : 'warning'}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm">{finding.message}</span>
+                        <SeverityBadge severity={finding.severity} />
+                      </div>
+                    </InlineAlert>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
 
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/50 pb-4">
-            <SectionCardHeader
-              icon={<Shield className="h-4 w-4" />}
-              iconClassName="border-success/16 bg-success/12 text-success"
-              title="Privacy Posture"
-              description="Security and privacy assessment"
-              href="/privacy"
-            />
-          </CardHeader>
-          <CardContent className="pt-5">
-            {privacy.loading ? (
-              <Loading message="Scanning..." />
-            ) : activePrivacyFindings.length === 0 ? (
-              <SystemHealthy message="No critical privacy issues detected" />
-            ) : (
-              <div className="space-y-3">
-                {activePrivacyFindings.slice(0, 3).map((finding, i) => (
-                  <InlineAlert key={i} variant={finding.severity === 'critical' ? 'critical' : 'warning'}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm">{finding.message}</span>
-                      <SeverityBadge severity={finding.severity} />
-                    </div>
-                  </InlineAlert>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/50 pb-4">
+      {/* Bottom row: nodes quick view when nothing dramatic is happening */}
+      {openIncidents.length === 0 && (nodes.data?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader className="border-b border-border/50 pb-3">
             <SectionCardHeader
               icon={<Radio className="h-4 w-4" />}
               iconClassName="border-border/70 bg-secondary text-secondary-foreground"
-              title="Recent Nodes"
-              description="Recently observed mesh devices"
+              title="Recent nodes"
+              description={`${nodes.data?.length ?? 0} devices observed`}
               href="/nodes"
             />
           </CardHeader>
-          <CardContent className="pt-5">
-            {nodes.loading ? (
-              <Loading message="Loading nodes..." />
-            ) : nodes.data?.length === 0 ? (
-              <EmptyState
-                type="no-data"
-                title="No nodes yet"
-                description="Nodes will appear here once mesh traffic is observed."
-              />
-            ) : (
-              <div className="space-y-2.5">
-                {nodes.data?.slice(0, 5).map((node) => (
-                  <NodeListItem key={node.node_id} node={node} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/50 pb-4">
-            <SectionCardHeader
-              icon={<Zap className="h-4 w-4" />}
-              iconClassName="border-warning/16 bg-warning/12 text-warning"
-              title="Recommendations"
-              description="Actions to improve your setup"
-              href="/recommendations"
-            />
-          </CardHeader>
-          <CardContent className="pt-5">
-            {recommendations.loading ? (
-              <Loading message="Analyzing..." />
-            ) : pendingRecommendations.length === 0 ? (
-              <SystemHealthy message="No pending recommendations" />
-            ) : (
-              <div className="space-y-2.5">
-                {pendingRecommendations.slice(0, 4).map((rec, i) => (
-                  <RecommendationListItem key={i} recommendation={rec} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {deadLetters.data && deadLetters.data.length > 0 && (
-        <Card className="overflow-hidden border-warning/20">
-          <CardHeader className="border-b border-border/50 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-warning/18 bg-warning/12 text-warning shadow-inset">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Recent Dead Letters</CardTitle>
-                <CardDescription className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  Messages that failed to be processed
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-5">
-            <div className="space-y-2.5">
-              {deadLetters.data.slice(0, 3).map((dl, i) => (
-                <div key={i} className="list-row px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">{dl.transport_name}</p>
-                    <p className="truncate text-xs leading-relaxed text-muted-foreground">{dl.reason}</p>
-                  </div>
-                  <div className="ml-4 shrink-0 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {formatRelativeTime(dl.created_at)}
-                  </div>
-                </div>
+          <CardContent className="pt-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {nodes.data?.slice(0, 6).map((node) => (
+                <NodeCompactItem key={node.node_id} node={node} />
               ))}
             </div>
-            <Link
-              to="/dead-letters"
-              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-warning transition-colors hover:text-foreground"
-            >
-              View all dead letters <ArrowRight className="h-4 w-4" />
-            </Link>
           </CardContent>
         </Card>
       )}
@@ -310,23 +455,23 @@ function SectionCardHeader({
   href: string
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <div className={clsx('flex h-10 w-10 items-center justify-center rounded-2xl border shadow-inset', iconClassName)}>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <div className={clsx('flex h-8 w-8 items-center justify-center rounded-xl border shadow-inset', iconClassName)}>
           {icon}
         </div>
         <div>
-          <CardTitle className="text-base">{title}</CardTitle>
-          <CardDescription className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <CardTitle className="text-[14px]">{title}</CardTitle>
+          <CardDescription className="mt-0.5 text-[11px] text-muted-foreground">
             {description}
           </CardDescription>
         </div>
       </div>
       <Link
         to={href}
-        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        View all <ArrowRight className="h-3.5 w-3.5" />
+        View <ArrowRight className="h-3 w-3" />
       </Link>
     </div>
   )
@@ -336,50 +481,45 @@ function TransportListItem({ transport }: { transport: TransportHealth }) {
   const healthState = getHealthState(transport.health)
 
   return (
-    <div className="list-row justify-between gap-3 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <div
-          className={clsx(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inset',
-            healthState === 'healthy'
-              ? 'border-success/18 bg-success/12 text-success'
-              : healthState === 'degraded'
-                ? 'border-warning/18 bg-warning/12 text-warning'
-                : 'border-critical/18 bg-critical/12 text-critical'
-          )}
-        >
-          <Activity className="h-4 w-4" />
+    <Link to="/status" className="block">
+      <div className="list-row justify-between gap-3 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div
+            className={clsx(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-inset',
+              healthState === 'healthy'
+                ? 'border-success/18 bg-success/12 text-success'
+                : healthState === 'degraded'
+                  ? 'border-warning/18 bg-warning/12 text-warning'
+                  : 'border-critical/18 bg-critical/12 text-critical'
+            )}
+          >
+            <Activity className="h-3.5 w-3.5" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-semibold text-foreground">{transport.name}</p>
+            <p className="truncate text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{transport.type}</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{transport.name}</p>
-          <p className="truncate text-xs uppercase tracking-[0.16em] text-muted-foreground">{transport.type}</p>
-        </div>
-      </div>
-      <div className="ml-3 flex flex-col items-end gap-1.5">
-        <HealthBadge health={healthState} />
-        <div className="flex items-center gap-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          {transport.last_heartbeat_at ? formatRelativeTime(transport.last_heartbeat_at) : 'Never'}
+        <div className="ml-2 flex items-center gap-2">
+          <HealthBadge health={healthState} />
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 
-function NodeListItem({ node }: { node: NodeInfo }) {
+function NodeCompactItem({ node }: { node: NodeInfo }) {
   return (
-    <div className="list-row justify-between gap-3 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-secondary text-secondary-foreground shadow-inset">
-          <Radio className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{node.long_name || 'Unknown Node'}</p>
-          <p className="truncate font-mono text-xs text-muted-foreground">{node.node_id}</p>
-        </div>
+    <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary text-secondary-foreground">
+        <Radio className="h-3.5 w-3.5" />
       </div>
-      <div className="ml-3 shrink-0 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-        {formatRelativeTime(node.last_seen)}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium text-foreground">{node.long_name || 'Unknown'}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {formatRelativeTime(node.last_seen)}
+        </p>
       </div>
     </div>
   )
@@ -391,24 +531,19 @@ function RecommendationListItem({
   recommendation: { message: string; category?: string; actionable: boolean }
 }) {
   return (
-    <div className="list-row items-start gap-3 px-4 py-3">
+    <div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-card/40 px-3 py-2.5">
       <div
         className={clsx(
-          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border shadow-inset',
+          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border shadow-inset',
           recommendation.actionable
             ? 'border-warning/18 bg-warning/12 text-warning'
             : 'border-border/70 bg-card/75 text-muted-foreground'
         )}
       >
-        {recommendation.actionable ? <AlertCircle className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+        {recommendation.actionable ? <AlertCircle className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm leading-relaxed text-foreground">{recommendation.message}</p>
-        {recommendation.category && (
-          <Badge variant="outline" className="mt-2">
-            {recommendation.category}
-          </Badge>
-        )}
+        <p className="text-[13px] leading-relaxed text-foreground">{recommendation.message}</p>
       </div>
     </div>
   )
