@@ -27,6 +27,7 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
+	"github.com/mel-project/mel/internal/platform"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
 	"github.com/mel-project/mel/internal/readiness"
@@ -240,6 +241,7 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/panel", s.requireMethod(s.panel, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/privacy/audit", s.requireMethod(s.audit, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/policy/explain", s.requireMethod(s.recs, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/platform/posture", s.requireMethod(s.platformPostureHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/events", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/audit-logs", s.requireMethod(s.logs, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/dead-letters", s.requireMethod(s.deadLetters, http.MethodGet, http.MethodHead))
@@ -854,6 +856,13 @@ func (s *Server) controlStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) supportBundleHandler(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.Platform.Retention.AllowExport {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error":  "export disabled by policy",
+			"detail": "platform.retention.allow_export=false",
+		})
+		return
+	}
 	bundle, err := support.Create(s.cfg, s.db, version.GetFullVersionString(), s.configPath, s.processStartedAt)
 	if err != nil {
 		s.log.Error("support_bundle_failed", "support bundle generation failed", map[string]any{
@@ -1367,6 +1376,13 @@ func (s *Server) incidentHandoffHandler(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if !s.cfg.Platform.Retention.AllowExport {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error":  "proofpack export disabled by policy",
+			"detail": "platform.retention.allow_export=false",
+		})
+		return
+	}
 	if s.assembleProofpack == nil {
 		writeError(w, http.StatusServiceUnavailable, "proofpack assembly not available", "")
 		return
@@ -1387,6 +1403,19 @@ func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	}
 	writeJSON(w, http.StatusOK, pack)
+}
+
+func (s *Server) platformPostureHandler(w http.ResponseWriter, r *http.Request) {
+	posture := platform.BuildPosture(s.cfg)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"platform_posture": posture,
+		"privacy_summary":  privacy.Summary(privacy.Audit(s.cfg)),
+		"generated_at":     time.Now().UTC().Format(time.RFC3339),
+		"notes": []string{
+			"Assistive outputs are non-canonical and cannot mutate control truth without deterministic checks.",
+			"No hidden telemetry path is enabled unless platform.telemetry.enabled and allow_outbound are both true.",
+		},
+	})
 }
 
 func proofpackDownloadFilename(incidentID string, pack map[string]any) string {

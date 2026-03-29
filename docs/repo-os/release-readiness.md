@@ -26,6 +26,7 @@ Use this before merging changes that alter capability claims or operator-critica
 - [ ] Runbooks updated for new operator behaviors.
 - [ ] Config/runtime prerequisites documented.
 - [ ] Known caveats and residual risks documented with concrete scope.
+- [ ] `GET /api/v1/platform/posture` reflects true telemetry/export/delete/inference policy for this release.
 
 ## 6) Verification evidence package
 - [ ] Verification commands/results attached.

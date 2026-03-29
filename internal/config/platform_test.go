@@ -17,6 +17,9 @@ func TestPlatformDefaultsNormalize(t *testing.T) {
 	if cfg.Platform.EventBus.Provider == "" {
 		t.Fatalf("expected event bus provider default")
 	}
+	if cfg.Platform.Inference.Budget.MaxContextTokens <= 0 {
+		t.Fatalf("expected inference budget defaults")
+	}
 }
 
 func TestPlatformValidationRejectsHiddenTelemetry(t *testing.T) {
@@ -37,5 +40,14 @@ func TestPlatformValidationRequiresInferenceProvider(t *testing.T) {
 	err := Validate(cfg)
 	if err == nil || !strings.Contains(err.Error(), "default_provider=ollama") {
 		t.Fatalf("expected ollama provider validation error, got %v", err)
+	}
+}
+
+func TestPlatformValidationRejectsInvalidInferenceBudget(t *testing.T) {
+	cfg := Default()
+	cfg.Platform.Inference.Budget.MaxContextTokens = 128
+	err := Validate(cfg)
+	if err == nil || !strings.Contains(err.Error(), "max_context_tokens") {
+		t.Fatalf("expected max_context_tokens validation error, got %v", err)
 	}
 }

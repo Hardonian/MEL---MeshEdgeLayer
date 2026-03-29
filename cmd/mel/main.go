@@ -1140,6 +1140,9 @@ func replayMessageQueryCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
+	if !cfg.Platform.Retention.AllowExport {
+		panic("export disabled by policy: platform.retention.allow_export=false")
+	}
 	d := openDB(cfg)
 	clauses := []string{"1=1"}
 	if *node != "" {
@@ -1186,6 +1189,9 @@ func exportCmd(args []string) {
 	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
+	}
+	if !cfg.Platform.Retention.AllowExport {
+		panic("export disabled by policy: platform.retention.allow_export=false")
 	}
 	d := openDB(cfg)
 	nodes, err := d.QueryRows("SELECT node_num,node_id,long_name,short_name,last_seen,lat_redacted,lon_redacted,altitude FROM nodes ORDER BY node_num;")

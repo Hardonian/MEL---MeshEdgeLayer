@@ -14,6 +14,8 @@ This policy governs MEL communications-hub infrastructure decisions and defaults
 - Operator controls local retention windows.
 - Evidence export remains enabled by default for audit portability.
 - Delete semantics are explicit and controlled by local policy.
+- `platform.retention.allow_export=false` hard-disables evidence export endpoints/commands.
+- `platform.retention.allow_delete=false` blocks delete-capable APIs; retention pruning still applies.
 
 ## Key and secret handling boundaries
 - Key custody stays with deployment owner.
@@ -29,3 +31,10 @@ This policy governs MEL communications-hub infrastructure decisions and defaults
 - AI output is non-canonical helper text only.
 - Incident truth, support status, evidence posture, and control lifecycle remain deterministic and typed.
 - If AI runtime is unavailable, MEL remains fully functional with honest assist status (`unavailable`, `partial`, `queued`).
+
+## Runtime truth endpoint
+- `GET /api/v1/platform/posture` is the canonical machine-visible summary for:
+  - outbound telemetry posture,
+  - retention/export/delete policy gates,
+  - inference provider config availability,
+  - assist task routing semantics (non-canonical by design).

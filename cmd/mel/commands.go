@@ -38,6 +38,9 @@ func alertsCmd(args []string) {
 	if err != nil {
 		panic(err)
 	}
+	if !cfg.Platform.Retention.AllowExport {
+		panic("support bundle export disabled by policy: platform.retention.allow_export=false")
+	}
 	d := openDB(cfg)
 	rows, err := d.TransportAlerts(!*activeOnly)
 	if err != nil {
@@ -127,6 +130,9 @@ func supportCmd(args []string) {
 	cfg, _, err := loadConfigFile(*path)
 	if err != nil {
 		panic(err)
+	}
+	if !cfg.Platform.Retention.AllowExport {
+		panic("support bundle export disabled by policy: platform.retention.allow_export=false")
 	}
 	d := openDB(cfg)
 	b, err := support.Create(cfg, d, version.GetFullVersionString(), *path, time.Time{})
