@@ -668,6 +668,80 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 	return out, nil
 }
 
+// TimelineEventsForIncidentResource returns timeline-union events scoped to an incident:
+// explicit timeline_events rows referencing the incident, control_actions with incident_id FK,
+// and the incident row itself when it falls in the window.
+func (d *DB) TimelineEventsForIncidentResource(incidentID, fromInclusive, toInclusive string, limit int) ([]TimelineEvent, error) {
+	incidentID = strings.TrimSpace(incidentID)
+	if incidentID == "" {
+		return nil, nil
+	}
+	limit = clampLimit(limit)
+	clauses := []string{fmt.Sprintf(`(event_time >= '%s' AND event_time <= '%s')`, esc(fromInclusive), esc(toInclusive))}
+	whereTime := "WHERE " + strings.Join(clauses, " AND ")
+	sql := fmt.Sprintf(`
+SELECT event_time, event_type, event_id, summary, severity, actor_id, resource_id, details_json,
+       COALESCE(scope_posture,'local') AS scope_posture, COALESCE(origin_instance_id,'') AS origin_instance_id,
+       COALESCE(timing_posture,'local_ordered') AS timing_posture, COALESCE(merge_disposition,'raw_only') AS merge_disposition,
+       COALESCE(merge_correlation_id,'') AS merge_correlation_id, COALESCE(import_id,'') AS import_id
+FROM (
+  SELECT created_at AS event_time, 'control_action' AS event_type, id AS event_id,
+    action_type||': '||COALESCE(target_transport,'global')||' ('||COALESCE(lifecycle_state,'')||')' AS summary,
+    '' AS severity, COALESCE(proposed_by,'system') AS actor_id,
+    COALESCE(incident_id,'') AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM control_actions WHERE COALESCE(incident_id,'')='%s'
+
+  UNION ALL
+
+  SELECT occurred_at AS event_time, 'incident' AS event_type, id AS event_id,
+    title AS summary, severity, COALESCE(actor_id,'') AS actor_id, resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM incidents WHERE id='%s'
+
+  UNION ALL
+
+  SELECT event_time, event_type, id AS event_id,
+    summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json,
+    COALESCE(scope_posture,'local'), COALESCE(origin_instance_id,''), COALESCE(timing_posture,'local_ordered'), COALESCE(merge_disposition,'raw_only'), COALESCE(merge_correlation_id,''), COALESCE(import_id,'')
+  FROM timeline_events WHERE resource_id='%s'
+) AS tl
+%s
+ORDER BY event_time ASC LIMIT %d;`, esc(incidentID), esc(incidentID), esc(incidentID), whereTime, limit)
+
+	rows, err := d.QueryRowsScript(sql)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TimelineEvent, 0, len(rows))
+	for _, row := range rows {
+		details := map[string]any{}
+		if dj := strings.TrimSpace(asString(row["details_json"])); dj != "" && dj != "{}" {
+			_ = json.Unmarshal([]byte(dj), &details)
+			if details == nil {
+				details = map[string]any{}
+			}
+		}
+		out = append(out, TimelineEvent{
+			EventTime:          asString(row["event_time"]),
+			EventType:          asString(row["event_type"]),
+			EventID:            asString(row["event_id"]),
+			Summary:            asString(row["summary"]),
+			Severity:           asString(row["severity"]),
+			ActorID:            asString(row["actor_id"]),
+			ResourceID:         asString(row["resource_id"]),
+			ScopePosture:       asString(row["scope_posture"]),
+			OriginInstanceID:   asString(row["origin_instance_id"]),
+			TimingPosture:      asString(row["timing_posture"]),
+			MergeDisposition:   asString(row["merge_disposition"]),
+			MergeCorrelationID: asString(row["merge_correlation_id"]),
+			ImportID:           asString(row["import_id"]),
+			Details:            details,
+		})
+	}
+	return out, nil
+}
+
 // TimelineEventByID fetches a single event by ID across the unified logical views.
 func (d *DB) TimelineEventByID(id string) (TimelineEvent, bool, error) {
 	sql := fmt.Sprintf(`
