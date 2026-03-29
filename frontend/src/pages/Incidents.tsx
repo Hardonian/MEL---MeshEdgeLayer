@@ -92,6 +92,24 @@ function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'war
   return 'outline'
 }
 
+function strengthLabel(s: string | undefined): string {
+  switch (s) {
+    case 'historically_proven':
+    case 'proven_historically':
+      return 'Historically observed (still association-only)'
+    case 'historically_promising':
+      return 'Historically promising (bounded evidence)'
+    case 'plausible':
+      return 'Plausible from history'
+    case 'weakly_supported':
+      return 'Weakly supported'
+    case 'unsupported':
+      return 'Unsupported by history'
+    default:
+      return toWords(s) || 'Unknown strength'
+  }
+}
+
 function defaultProofpackFilename(incidentId: string): string {
   return `proofpack-${incidentId || 'incident'}.json`
 }
@@ -148,6 +166,7 @@ export function Incidents() {
   const openIncidents = incidents.filter(isOpenIncident)
   const closedIncidents = incidents.filter((i) => !isOpenIncident(i))
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
+  const canMutate = ctx.trustUI?.incident_mutate === true
 
   return (
     <div className="space-y-5">
@@ -210,7 +229,7 @@ export function Incidents() {
       ) : (
         <div className="space-y-4">
           {openIncidents.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} />
+            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} onRefresh={() => void refresh()} />
           ))}
         </div>
       )}

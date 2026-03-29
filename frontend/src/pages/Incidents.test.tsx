@@ -33,7 +33,7 @@ function setupFetch() {
                     reasons: [
                       { code: 'wifi_backhaul_terms_present', statement: 'Wi-Fi/backhaul terms appear in incident/evidence text; inspect transport continuity and dead letters.' },
                     ],
-                    evidence_gaps: ['limited_correlated_evidence'],
+                    evidence_gaps: [],
                   },
                   similar_incidents: [{ incident_id: 'inc-old-1' }],
                   action_outcome_memory: [
@@ -107,8 +107,8 @@ function setupFetch() {
                 state: 'open',
                 intelligence: {
                   evidence_strength: 'sparse',
-                  degraded: true,
-                  degraded_reasons: ['limited_correlated_evidence'],
+                  degraded: false,
+                  sparsity_markers: ['limited_correlated_evidence'],
                 },
               },
             ],
@@ -121,8 +121,9 @@ function setupFetch() {
           json: async () => ({
             trust_ui: {
               incident_handoff_write: true,
+              incident_mutate: true,
             },
-            capabilities: ['read_incidents'],
+            capabilities: ['read_incidents', 'incident_update'],
           }),
         } as Response)
       }
@@ -165,10 +166,11 @@ describe('Incidents intelligence rendering', () => {
     expect(screen.getByText(/Observed domains: wifi, lora/i)).toBeTruthy()
   })
 
-  it('renders degraded warning when evidence is sparse', async () => {
+  it('shows sparsity markers without falsely marking intelligence degraded', async () => {
     render(<Incidents />)
     await waitFor(() => {
       expect(screen.getByText(/Intelligence limited by available evidence/i)).toBeTruthy()
     })
+    expect(screen.queryByText(/Intelligence is limited by available evidence/i)).toBeNull()
   })
 })

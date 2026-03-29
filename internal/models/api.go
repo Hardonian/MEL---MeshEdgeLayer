@@ -58,6 +58,15 @@ type Incident struct {
 
 	// Intelligence is deterministic, evidence-linked incident memory/guidance derived from stored MEL history.
 	Intelligence *IncidentIntelligence `json:"intelligence,omitempty"`
+
+	// Review / workflow (migration 0031); orthogonal to control lifecycle state.
+	ReviewState            string `json:"review_state,omitempty"`
+	InvestigationNotes     string `json:"investigation_notes,omitempty"`
+	ResolutionSummary      string `json:"resolution_summary,omitempty"`
+	CloseoutReason         string `json:"closeout_reason,omitempty"`
+	LessonsLearned         string `json:"lessons_learned,omitempty"`
+	ReopenedFromIncidentID string `json:"reopened_from_incident_id,omitempty"`
+	ReopenedAt             string `json:"reopened_at,omitempty"`
 }
 
 // IncidentIntelligence is an evidence-bounded operator aid for recurring signatures and investigation flow.
@@ -65,6 +74,7 @@ type IncidentIntelligence struct {
 	SignatureKey            string                          `json:"signature_key,omitempty"`
 	SignatureLabel          string                          `json:"signature_label,omitempty"`
 	SignatureMatchCount     int                             `json:"signature_match_count,omitempty"`
+	Fingerprint             *IncidentFingerprint            `json:"fingerprint,omitempty"`
 	EvidenceStrength        string                          `json:"evidence_strength"` // sparse, moderate, strong
 	EvidenceItems           []IncidentEvidenceItem          `json:"evidence_items,omitempty"`
 	ImplicatedDomains       []IncidentDomainHint            `json:"implicated_domains,omitempty"`
@@ -77,7 +87,67 @@ type IncidentIntelligence struct {
 	ActionOutcomeTrace      *IncidentActionOutcomeTrace     `json:"action_outcome_trace,omitempty"`
 	Degraded                bool                            `json:"degraded"`
 	DegradedReasons         []string                        `json:"degraded_reasons,omitempty"`
+	SparsityMarkers         []string                        `json:"sparsity_markers,omitempty"`
+	RunbookRecommendations  []IncidentRunbookRecommendation `json:"runbook_recommendations,omitempty"`
+	RunbookAssets           []IncidentRunbookAsset          `json:"runbook_assets,omitempty"`
+	PolicyGovernanceHints   []IncidentPolicyGovernanceHint  `json:"policy_governance_hints,omitempty"`
+	GovernanceMemory        []IncidentGovernanceMemory      `json:"governance_memory,omitempty"`
+	DriftFingerprints       []IncidentDriftFingerprint      `json:"drift_fingerprints,omitempty"`
+	CorrelationGroups       []IncidentCorrelationGroup      `json:"correlation_groups,omitempty"`
+	FaultDomains            []IncidentFaultDomain           `json:"fault_domains,omitempty"`
+	ReplayHints             *IncidentReplayHints            `json:"replay_hints,omitempty"`
+	LearningLoopHints       []string                        `json:"learning_loop_hints,omitempty"`
 	GeneratedAt             string                          `json:"generated_at,omitempty"`
+}
+
+// IncidentFingerprint is a versioned structured fingerprint derived from persisted and correlated evidence.
+type IncidentFingerprint struct {
+	SchemaVersion      string              `json:"schema_version"`
+	ProfileVersion     string              `json:"profile_version"`
+	LegacySignatureKey string              `json:"legacy_signature_key,omitempty"`
+	CanonicalHash      string              `json:"canonical_hash"`
+	Components         map[string][]string `json:"components,omitempty"`
+	SparsityMarkers    []string            `json:"sparsity_markers,omitempty"`
+	ComputedAt         string              `json:"computed_at,omitempty"`
+}
+
+// IncidentRunbookAsset is a durable runbook/playbook unit traceable to operational history.
+type IncidentRunbookAsset struct {
+	ID                 string   `json:"id"`
+	Status             string   `json:"status"` // proposed, approved, deprecated, historical_only
+	SourceKind         string   `json:"source_kind"`
+	Title              string   `json:"title"`
+	Body               string   `json:"body,omitempty"`
+	EvidenceRefs       []string `json:"evidence_refs,omitempty"`
+	SourceIncidentIDs  []string `json:"source_incident_ids,omitempty"`
+	LegacySignatureKey string   `json:"legacy_signature_key,omitempty"`
+	FingerprintHash    string   `json:"fingerprint_canonical_hash,omitempty"`
+	PromotionBasis     string   `json:"promotion_basis,omitempty"`
+	CreatedAt          string   `json:"created_at,omitempty"`
+	UpdatedAt          string   `json:"updated_at,omitempty"`
+}
+
+// IncidentFaultDomain groups cross-signal members with explicit uncertainty (not root-cause proof).
+type IncidentFaultDomain struct {
+	DomainID       string            `json:"domain_id"`
+	DomainKey      string            `json:"domain_key"`
+	Basis          string            `json:"basis"`
+	Uncertainty    string            `json:"uncertainty"` // likely_related, possibly_related, shared_symptoms_only, inconclusive
+	Rationale      []string          `json:"rationale,omitempty"`
+	EvidenceBundle map[string]string `json:"evidence_bundle,omitempty"`
+	MemberKinds    []string          `json:"member_kinds,omitempty"`
+}
+
+// IncidentGovernanceMemory summarizes historical adjudication posture for action classes (observational).
+type IncidentGovernanceMemory struct {
+	ActionType            string   `json:"action_type"`
+	Summary               string   `json:"summary"`
+	LinkedActionCount     int      `json:"linked_action_count"`
+	ApprovedOrPassedCount int      `json:"approved_or_passed_count"`
+	RejectedCount         int      `json:"rejected_count"`
+	HighBlastCount        int      `json:"high_blast_count"`
+	SeparateApproverCount int      `json:"separate_approver_count"`
+	EvidenceRefs          []string `json:"evidence_refs,omitempty"`
 }
 
 type IncidentActionOutcomeTrace struct {
@@ -113,6 +183,95 @@ type IncidentGuidanceItem struct {
 	Confidence   string   `json:"confidence"` // low, medium
 }
 
+// IncidentRunbookRecommendation is assistive, non-command guidance ranked from stored history and governance fields.
+type IncidentRunbookRecommendation struct {
+	ID                    string   `json:"id"`
+	Title                 string   `json:"title"`
+	ActionType            string   `json:"action_type,omitempty"`
+	Rationale             string   `json:"rationale"`
+	EvidenceRefs          []string `json:"evidence_refs,omitempty"`
+	Strength              string   `json:"strength"` // historically_proven, historically_promising, plausible, weakly_supported, unsupported
+	StrengthExplanation   []string `json:"strength_explanation,omitempty"`
+	RankScore             float64  `json:"rank_score,omitempty"`
+	RequiresApproval      bool     `json:"requires_approval"`
+	BlastRadiusClass      string   `json:"blast_radius_class,omitempty"`
+	Reversibility         string   `json:"reversibility"` // high, medium, low, unknown
+	PriorOutcomeFraming   string   `json:"prior_outcome_framing,omitempty"`
+	PriorSampleSize       int      `json:"prior_sample_size,omitempty"`
+	HistoricalOutcomeNote string   `json:"historical_outcome_note,omitempty"`
+	Suppressed            bool     `json:"suppressed,omitempty"`
+	SuppressedReason      string   `json:"suppressed_reason,omitempty"`
+	IsCommand             bool     `json:"is_command"`
+}
+
+// IncidentPolicyGovernanceHint summarizes observable approval / risk posture from linked actions (not policy mutation).
+type IncidentPolicyGovernanceHint struct {
+	Summary      string   `json:"summary"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Posture      string   `json:"posture"` // informational
+}
+
+// IncidentDriftFingerprint compares bounded transport anomaly history to the incident window (association only).
+type IncidentDriftFingerprint struct {
+	Kind              string `json:"kind"` // transport_anomaly_reason_recurring
+	TransportName     string `json:"transport_name,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+	Statement         string `json:"statement"`
+	CurrentBucketHits int    `json:"current_bucket_hits"`
+	PriorBucketHits   int    `json:"prior_bucket_hits"`
+	SupportsOnly      string `json:"supports_only"`
+}
+
+// IncidentCorrelationGroup is a persisted structural grouping; not causal proof.
+type IncidentCorrelationGroup struct {
+	GroupID          string   `json:"group_id"`
+	CorrelationKey   string   `json:"correlation_key"`
+	Basis            string   `json:"basis"`
+	CreatedAt        string   `json:"created_at,omitempty"`
+	UpdatedAt        string   `json:"updated_at,omitempty"`
+	Rationale        []string `json:"rationale,omitempty"`
+	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
+	UncertaintyNote  string   `json:"uncertainty_note,omitempty"`
+	MemberCount      int      `json:"member_count,omitempty"`
+	OtherIncidentIDs []string `json:"other_incident_ids,omitempty"`
+}
+
+// IncidentReplayHints are pointers for post-incident review; not simulation output.
+type IncidentReplayHints struct {
+	Statement          string   `json:"statement"`
+	EvidenceAtTimeRefs []string `json:"evidence_at_time_refs,omitempty"`
+	CounterfactualNote string   `json:"counterfactual_note,omitempty"`
+	RankingModelNote   string   `json:"ranking_model_note,omitempty"`
+}
+
+// IncidentRecommendationOutcomeRecord is persisted operator feedback on a recommendation id.
+type IncidentRecommendationOutcomeRecord struct {
+	ID               string `json:"id"`
+	IncidentID       string `json:"incident_id"`
+	RecommendationID string `json:"recommendation_id"`
+	Outcome          string `json:"outcome"`
+	ActorID          string `json:"actor_id,omitempty"`
+	Note             string `json:"note,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// IncidentWorkflowPatch is the body for PATCH /api/v1/incidents/{id}/workflow.
+type IncidentWorkflowPatch struct {
+	ReviewState            *string `json:"review_state,omitempty"`
+	InvestigationNotes     *string `json:"investigation_notes,omitempty"`
+	ResolutionSummary      *string `json:"resolution_summary,omitempty"`
+	CloseoutReason         *string `json:"closeout_reason,omitempty"`
+	LessonsLearned         *string `json:"lessons_learned,omitempty"`
+	ReopenedFromIncidentID *string `json:"reopened_from_incident_id,omitempty"`
+}
+
+// IncidentRecommendationOutcomeRequest records how an operator adjudicated assistive guidance.
+type IncidentRecommendationOutcomeRequest struct {
+	RecommendationID string `json:"recommendation_id"`
+	Outcome          string `json:"outcome"`
+	Note             string `json:"note,omitempty"`
+}
+
 type IncidentWirelessContext struct {
 	Classification    string                        `json:"classification"` // lora_mesh_pressure, bluetooth_onboarding_issue, wifi_backhaul_instability, mixed_path_degradation, sparse_evidence_incident, recurring_unknown_pattern, unsupported_wireless_domain_observed
 	PrimaryDomain     string                        `json:"primary_domain"` // lora, bluetooth, wifi, mixed, unknown
@@ -139,11 +298,18 @@ type IncidentWirelessUnsupported struct {
 }
 
 type IncidentSimilarityRecord struct {
-	IncidentID       string   `json:"incident_id"`
-	Title            string   `json:"title,omitempty"`
-	State            string   `json:"state,omitempty"`
-	OccurredAt       string   `json:"occurred_at,omitempty"`
-	SimilarityReason []string `json:"similarity_reason,omitempty"`
+	IncidentID           string   `json:"incident_id"`
+	Title                string   `json:"title,omitempty"`
+	State                string   `json:"state,omitempty"`
+	OccurredAt           string   `json:"occurred_at,omitempty"`
+	SimilarityReason     []string `json:"similarity_reason,omitempty"`
+	MatchCategory        string   `json:"match_category,omitempty"`
+	WeightedScore        float64  `json:"weighted_score,omitempty"`
+	MatchedDimensions    []string `json:"matched_dimensions,omitempty"`
+	UnmatchedDimensions  []string `json:"unmatched_dimensions,omitempty"`
+	WeakSparseDimensions []string `json:"weak_sparse_dimensions,omitempty"`
+	InsufficientEvidence bool     `json:"insufficient_evidence,omitempty"`
+	MatchExplanation     []string `json:"match_explanation,omitempty"`
 }
 
 type IncidentActionPattern struct {

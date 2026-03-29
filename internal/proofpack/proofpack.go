@@ -16,7 +16,10 @@ import "time"
 
 // FormatVersion is the canonical proofpack schema version.
 // Consumers must check this before parsing.
-const FormatVersion = "1.0.0"
+const FormatVersion = "1.1.0"
+
+// ManifestVersion labels assembly semantics (provenance / completeness contract).
+const ManifestVersion = "mel-proofpack-manifest/v1"
 
 // Proofpack is the top-level evidence bundle for a single incident.
 type Proofpack struct {
@@ -55,6 +58,15 @@ type Proofpack struct {
 	// Audit log entries for actions on this incident.
 	AuditEntries []AuditEntry `json:"audit_entries"`
 
+	// Operator adjudication of assistive recommendations (non-canonical).
+	RecommendationOutcomes []RecommendationOutcomeEntry `json:"recommendation_outcomes,omitempty"`
+
+	// Structural cross-incident correlation (association only).
+	CorrelationGroups []CorrelationGroupEntry `json:"correlation_groups,omitempty"`
+
+	// Assistive intelligence snapshot at assembly time (labeled non-canonical in JSON).
+	IncidentIntelligenceSnapshot map[string]interface{} `json:"incident_intelligence_snapshot,omitempty"`
+
 	// Explicit evidence gap markers. Every known gap or limitation in
 	// the assembled evidence is listed here so consumers do not infer
 	// completeness from the absence of gap markers.
@@ -64,16 +76,25 @@ type Proofpack struct {
 	SectionStatuses []ProofpackSectionStatus `json:"section_statuses,omitempty"`
 }
 
+// ProofpackSectionStatus records per-section assembly posture for machine-readable completeness.
+type ProofpackSectionStatus struct {
+	Section string `json:"section"`
+	Status  string `json:"status"` // complete, partial, unavailable
+	Reason  string `json:"reason,omitempty"`
+}
+
 // AssemblyMetadata records who assembled the proofpack, when, and what
 // evidence was available. This is not an attestation of correctness; it
 // is a record of assembly conditions.
 type AssemblyMetadata struct {
-	AssembledAt    string `json:"assembled_at"`     // RFC3339
-	AssembledBy    string `json:"assembled_by"`     // actor ID or "system"
-	InstanceID     string `json:"instance_id"`      // MEL instance that assembled
-	IncidentID     string `json:"incident_id"`      // scoping incident
-	TimeWindowFrom string `json:"time_window_from"` // earliest evidence considered (RFC3339)
-	TimeWindowTo   string `json:"time_window_to"`   // latest evidence considered (RFC3339)
+	AssembledAt     string `json:"assembled_at"` // RFC3339
+	AssembledBy     string `json:"assembled_by"`
+	InstanceID      string `json:"instance_id"`
+	IncidentID      string `json:"incident_id"`
+	ManifestVersion string `json:"manifest_version,omitempty"`
+	IntegrityNote   string `json:"integrity_note,omitempty"` // non-crypto: assembly bounds, not a signature
+	TimeWindowFrom  string `json:"time_window_from"`
+	TimeWindowTo    string `json:"time_window_to"`
 
 	// Counts of evidence items assembled (for quick integrity checks).
 	ActionCount                 int                        `json:"action_count"`
@@ -85,7 +106,13 @@ type AssemblyMetadata struct {
 	DeadLetterCount             int                        `json:"dead_letter_count"`
 	NoteCount                   int                        `json:"note_count"`
 	AuditEntryCount             int                        `json:"audit_entry_count"`
+	RecommendationOutcomeCount  int                        `json:"recommendation_outcome_count"`
+	CorrelationGroupCount       int                        `json:"correlation_group_count"`
 	EvidenceGapCount            int                        `json:"evidence_gap_count"`
+
+	// ProofpackCompleteness summarizes section availability (partial when any section is partial/unavailable).
+	ProofpackCompleteness        string   `json:"proofpack_completeness"`
+	ProofpackCompletenessReasons []string `json:"proofpack_completeness_reasons,omitempty"`
 
 	// AssemblyDurationMs is the wall-clock time spent assembling.
 	AssemblyDurationMs int64 `json:"assembly_duration_ms"`
@@ -126,6 +153,14 @@ type IncidentEvidence struct {
 	Risks           []string                  `json:"risks,omitempty"`
 	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
 	WirelessContext *ProofpackWirelessContext `json:"wireless_context,omitempty"`
+	// Workflow / review (migration 0031)
+	ReviewState            string `json:"review_state,omitempty"`
+	InvestigationNotes     string `json:"investigation_notes,omitempty"`
+	ResolutionSummary      string `json:"resolution_summary,omitempty"`
+	CloseoutReason         string `json:"closeout_reason,omitempty"`
+	LessonsLearned         string `json:"lessons_learned,omitempty"`
+	ReopenedFromIncidentID string `json:"reopened_from_incident_id,omitempty"`
+	ReopenedAt             string `json:"reopened_at,omitempty"`
 }
 
 type ProofpackWirelessContext struct {
@@ -250,6 +285,28 @@ type OperatorNote struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// RecommendationOutcomeEntry is operator feedback on a recommendation id.
+type RecommendationOutcomeEntry struct {
+	ID               string `json:"id"`
+	RecommendationID string `json:"recommendation_id"`
+	Outcome          string `json:"outcome"`
+	ActorID          string `json:"actor_id,omitempty"`
+	Note             string `json:"note,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// CorrelationGroupEntry is a persisted grouping with explicit uncertainty.
+type CorrelationGroupEntry struct {
+	GroupID          string   `json:"group_id"`
+	CorrelationKey   string   `json:"correlation_key"`
+	Basis            string   `json:"basis"`
+	UncertaintyNote  string   `json:"uncertainty_note,omitempty"`
+	Rationale        []string `json:"rationale,omitempty"`
+	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
+	MemberCount      int      `json:"member_count,omitempty"`
+	OtherIncidentIDs []string `json:"other_incident_ids,omitempty"`
+}
+
 // AuditEntry is an RBAC audit log entry related to the incident.
 type AuditEntry struct {
 	ID           string `json:"id"`
@@ -286,6 +343,9 @@ const GapCategoryActions = "actions"
 
 // GapCategoryAudit indicates audit log evidence gaps.
 const GapCategoryAudit = "audit"
+
+// GapCategoryIntelligence marks assistive intelligence / correlation gaps.
+const GapCategoryIntelligence = "intelligence"
 
 // GapCategoryIncident indicates incident record gaps.
 const GapCategoryIncident = "incident"

@@ -79,7 +79,11 @@ func (d *DB) LinkIncidentToSignature(signatureKey, incidentID string) error {
 	sql := fmt.Sprintf(`INSERT OR IGNORE INTO incident_signature_incidents(signature_key,incident_id,linked_at)
 		VALUES('%s','%s','%s');`,
 		esc(signatureKey), esc(incidentID), esc(time.Now().UTC().Format(time.RFC3339)))
-	return d.Exec(sql)
+	if err := d.Exec(sql); err != nil {
+		return err
+	}
+	_ = d.EnsureSignatureCorrelationGroup(signatureKey)
+	return nil
 }
 
 func (d *DB) SignatureByKey(signatureKey string) (IncidentSignatureRecord, bool, error) {

@@ -3,6 +3,7 @@ package proofpack
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mel-project/mel/internal/db"
@@ -24,13 +25,7 @@ func (d *DBAdapter) IncidentByID(id string) (models.Incident, bool, error) {
 }
 
 func (d *DBAdapter) SignatureKeyForIncident(incidentID string) (string, error) {
-	rows, err := d.DB.QueryRows(fmt.Sprintf(
-		`SELECT signature_key FROM incident_signature_incidents WHERE incident_id='%s' ORDER BY linked_at DESC LIMIT 1;`,
-		db.EscString(incidentID)))
-	if err != nil || len(rows) == 0 {
-		return "", err
-	}
-	return strings.TrimSpace(asString(rows[0]["signature_key"])), nil
+	return d.DB.SignatureKeyForIncident(incidentID)
 }
 
 func (d *DBAdapter) ControlActionsByIncidentID(incidentID string, limit int) ([]ActionEvidence, error) {
@@ -208,6 +203,54 @@ func (d *DBAdapter) OperatorNotesForResource(refType, refID string, limit int) (
 			ActorID:   asString(row["actor_id"]),
 			Content:   asString(row["content"]),
 			CreatedAt: asString(row["created_at"]),
+		})
+	}
+	return out, nil
+}
+
+func (d *DBAdapter) RecommendationOutcomesForIncident(incidentID string, limit int) ([]RecommendationOutcomeEntry, error) {
+	rows, err := d.DB.RecommendationOutcomesForIncident(incidentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RecommendationOutcomeEntry, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, RecommendationOutcomeEntry{
+			ID:               r.ID,
+			RecommendationID: r.RecommendationID,
+			Outcome:          r.Outcome,
+			ActorID:          r.ActorID,
+			Note:             r.Note,
+			CreatedAt:        r.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+func (d *DBAdapter) CorrelationGroupsForIncident(incidentID string) ([]CorrelationGroupEntry, error) {
+	groups, err := d.DB.CorrelationGroupsForIncident(incidentID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CorrelationGroupEntry, 0, len(groups))
+	for _, g := range groups {
+		ids, _ := d.DB.CorrelatedIncidentIDsForGroup(g.GroupID)
+		others := make([]string, 0, len(ids))
+		for _, id := range ids {
+			if id != incidentID {
+				others = append(others, id)
+			}
+		}
+		sort.Strings(others)
+		out = append(out, CorrelationGroupEntry{
+			GroupID:          g.GroupID,
+			CorrelationKey:   g.CorrelationKey,
+			Basis:            g.Basis,
+			UncertaintyNote:  g.UncertaintyNote,
+			Rationale:        append([]string(nil), g.Rationale...),
+			EvidenceRefs:     append([]string(nil), g.EvidenceRefs...),
+			MemberCount:      len(ids),
+			OtherIncidentIDs: others,
 		})
 	}
 	return out, nil
