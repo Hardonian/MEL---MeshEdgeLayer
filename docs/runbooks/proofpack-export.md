@@ -29,7 +29,7 @@ incident at assembly time:
 1. Navigate to **Incidents** in the MEL console.
 2. Find the incident you want to export.
 3. Click the **Export proofpack** button on the incident card.
-4. The browser downloads a JSON file: `mel-proofpack-{incident-id}.json`.
+4. The browser downloads a JSON file named with incident scope + assembly snapshot time, for example: `mel-proofpack-inc-123-20260329T123456Z.json`.
 
 ### Via the API
 
@@ -41,7 +41,10 @@ GET /api/v1/incidents/{incident-id}/proofpack?download=true
 **Required capabilities**: `export_support_bundle` or `read_incidents`.
 
 The `?download=true` query parameter sets the `Content-Disposition` header for
-browser-friendly file download.
+browser-friendly file download. The filename is generated from:
+- incident id (sanitized for filesystem safety)
+- assembly timestamp (`assembly.assembled_at`) when available
+- fallback suffix `snapshot` when assembly time cannot be parsed
 
 ### Via CLI (future)
 

@@ -183,7 +183,10 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `mel-proofpack-${incidentId}.json`
+      a.download = filenameFromDisposition(
+        resp.headers.get('content-disposition'),
+        defaultProofpackFilename(incidentId),
+      )
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -197,19 +200,22 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => void download()}
-        disabled={state === 'loading'}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-        title="Download incident evidence proofpack (JSON)"
-      >
-        <Download className="h-3.5 w-3.5" />
-        {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
-      </button>
-      {state === 'error' && errorMsg && (
-        <span className="text-xs text-critical">{errorMsg}</span>
-      )}
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={() => void download()}
+          disabled={state === 'loading'}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+          title="Download incident evidence proofpack (JSON)"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
+        </button>
+        <p className="text-[11px] text-muted-foreground">
+          Snapshot at request-time only; always review <code>evidence_gaps</code>.
+        </p>
+      </div>
+      {state === 'error' && errorMsg && <span className="text-xs text-critical">{errorMsg}</span>}
     </div>
   )
 }
@@ -354,8 +360,24 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
               </div>
             )}
             {inc.intelligence.degraded && (
-              <p className="text-xs text-amber-700">
-                Intelligence is limited by available evidence: {(inc.intelligence.degraded_reasons || []).join(', ') || 'unknown limitation'}.
+              <div className="space-y-1 text-xs text-amber-700">
+                <p>
+                  Intelligence is limited by available evidence. Treat this as investigative guidance, not causal proof.
+                </p>
+                {inc.intelligence.degraded_reasons && inc.intelligence.degraded_reasons.length > 0 && (
+                  <ul className="list-disc pl-4">
+                    {inc.intelligence.degraded_reasons.map((reason) => (
+                      <li key={reason}>
+                        <code>{reason}</code> — {humanizeReasonCode(reason)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {inc.intelligence.generated_at && (
+              <p className="text-[11px] text-muted-foreground">
+                Intelligence generated at {formatTimestamp(inc.intelligence.generated_at)}.
               </p>
             )}
           </div>

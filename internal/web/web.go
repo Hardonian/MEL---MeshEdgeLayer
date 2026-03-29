@@ -1383,10 +1383,45 @@ func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request
 	}
 	// Set content-disposition for download when ?download=true is present.
 	if r.URL.Query().Get("download") == "true" {
-		filename := fmt.Sprintf("mel-proofpack-%s.json", incidentID)
+		filename := proofpackDownloadFilename(incidentID, pack)
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	}
 	writeJSON(w, http.StatusOK, pack)
+}
+
+func proofpackDownloadFilename(incidentID string, pack map[string]any) string {
+	cleanID := strings.TrimSpace(incidentID)
+	if cleanID == "" {
+		cleanID = "incident"
+	}
+	cleanID = sanitizeFilenamePart(cleanID)
+	timestamp := "snapshot"
+	if assemblyRaw, ok := pack["assembly"]; ok {
+		if assembly, ok := assemblyRaw.(map[string]any); ok {
+			if assembledAt := strings.TrimSpace(fmt.Sprint(assembly["assembled_at"])); assembledAt != "" {
+				if ts, err := time.Parse(time.RFC3339, assembledAt); err == nil {
+					timestamp = ts.UTC().Format("20060102T150405Z")
+				}
+			}
+		}
+	}
+	return fmt.Sprintf("mel-proofpack-%s-%s.json", cleanID, timestamp)
+}
+
+func sanitizeFilenamePart(v string) string {
+	var b strings.Builder
+	for _, r := range v {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	s := strings.Trim(strings.TrimSpace(b.String()), "-")
+	if s == "" {
+		return "item"
+	}
+	return s
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
