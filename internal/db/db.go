@@ -595,12 +595,16 @@ func (d *DB) UpsertIncident(record models.Incident) error {
 		record.OccurredAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if strings.TrimSpace(record.ReviewState) == "" {
+		record.ReviewState = "open"
+	}
 
-	sql := fmt.Sprintf(`INSERT INTO incidents(id,category,severity,title,summary,resource_type,resource_id,state,actor_id,occurred_at,updated_at,resolved_at,metadata_json,owner_actor_id,handoff_summary,pending_actions_json,recent_actions_json,linked_evidence_json,risks_json)
-		VALUES('%s','%s','%s','%s','%s','%s','%s','%s',%s,'%s','%s',%s,'%s',%s,'%s','%s','%s','%s','%s')
-		ON CONFLICT(id) DO UPDATE SET category=excluded.category,severity=excluded.severity,title=excluded.title,summary=excluded.summary,resource_type=excluded.resource_type,resource_id=excluded.resource_id,state=excluded.state,actor_id=excluded.actor_id,occurred_at=excluded.occurred_at,updated_at=excluded.updated_at,resolved_at=excluded.resolved_at,metadata_json=excluded.metadata_json,owner_actor_id=excluded.owner_actor_id,handoff_summary=excluded.handoff_summary,pending_actions_json=excluded.pending_actions_json,recent_actions_json=excluded.recent_actions_json,linked_evidence_json=excluded.linked_evidence_json,risks_json=excluded.risks_json;`,
+	sql := fmt.Sprintf(`INSERT INTO incidents(id,category,severity,title,summary,resource_type,resource_id,state,actor_id,occurred_at,updated_at,resolved_at,metadata_json,owner_actor_id,handoff_summary,pending_actions_json,recent_actions_json,linked_evidence_json,risks_json,review_state,investigation_notes,resolution_summary,closeout_reason,lessons_learned,reopened_from_incident_id,reopened_at)
+		VALUES('%s','%s','%s','%s','%s','%s','%s','%s',%s,'%s','%s',%s,'%s',%s,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')
+		ON CONFLICT(id) DO UPDATE SET category=excluded.category,severity=excluded.severity,title=excluded.title,summary=excluded.summary,resource_type=excluded.resource_type,resource_id=excluded.resource_id,state=excluded.state,actor_id=excluded.actor_id,occurred_at=excluded.occurred_at,updated_at=excluded.updated_at,resolved_at=excluded.resolved_at,metadata_json=excluded.metadata_json,owner_actor_id=excluded.owner_actor_id,handoff_summary=excluded.handoff_summary,pending_actions_json=excluded.pending_actions_json,recent_actions_json=excluded.recent_actions_json,linked_evidence_json=excluded.linked_evidence_json,risks_json=excluded.risks_json,review_state=excluded.review_state,investigation_notes=excluded.investigation_notes,resolution_summary=excluded.resolution_summary,closeout_reason=excluded.closeout_reason,lessons_learned=excluded.lessons_learned,reopened_from_incident_id=excluded.reopened_from_incident_id,reopened_at=excluded.reopened_at;`,
 		esc(record.ID), esc(record.Category), esc(record.Severity), esc(record.Title), esc(record.Summary), esc(record.ResourceType), esc(record.ResourceID), esc(record.State), sqlString(record.ActorID), esc(record.OccurredAt), esc(record.UpdatedAt), sqlString(record.ResolvedAt), esc(string(metadataJSON)),
-		sqlString(record.OwnerActorID), esc(record.HandoffSummary), esc(string(pendingJSON)), esc(string(recentJSON)), esc(string(linkedJSON)), esc(string(risksJSON)))
+		sqlString(record.OwnerActorID), esc(record.HandoffSummary), esc(string(pendingJSON)), esc(string(recentJSON)), esc(string(linkedJSON)), esc(string(risksJSON)),
+		esc(record.ReviewState), esc(record.InvestigationNotes), esc(record.ResolutionSummary), esc(record.CloseoutReason), esc(record.LessonsLearned), esc(record.ReopenedFromIncidentID), esc(record.ReopenedAt))
 	return d.Exec(sql)
 }
 
@@ -639,6 +643,27 @@ func incidentFromRow(row map[string]any) models.Incident {
 	if v, ok := row["risks_json"]; ok {
 		_ = json.Unmarshal([]byte(asString(v)), &item.Risks)
 	}
+	if v, ok := row["review_state"]; ok {
+		item.ReviewState = asString(v)
+	}
+	if v, ok := row["investigation_notes"]; ok {
+		item.InvestigationNotes = asString(v)
+	}
+	if v, ok := row["resolution_summary"]; ok {
+		item.ResolutionSummary = asString(v)
+	}
+	if v, ok := row["closeout_reason"]; ok {
+		item.CloseoutReason = asString(v)
+	}
+	if v, ok := row["lessons_learned"]; ok {
+		item.LessonsLearned = asString(v)
+	}
+	if v, ok := row["reopened_from_incident_id"]; ok {
+		item.ReopenedFromIncidentID = asString(v)
+	}
+	if v, ok := row["reopened_at"]; ok {
+		item.ReopenedAt = asString(v)
+	}
 	return item
 }
 
@@ -647,7 +672,10 @@ func (d *DB) RecentIncidents(limit int) ([]models.Incident, error) {
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json,
 		COALESCE(owner_actor_id,'') AS owner_actor_id, COALESCE(handoff_summary,'') AS handoff_summary,
 		COALESCE(pending_actions_json,'[]') AS pending_actions_json, COALESCE(recent_actions_json,'[]') AS recent_actions_json,
-		COALESCE(linked_evidence_json,'[]') AS linked_evidence_json, COALESCE(risks_json,'[]') AS risks_json
+		COALESCE(linked_evidence_json,'[]') AS linked_evidence_json, COALESCE(risks_json,'[]') AS risks_json,
+		COALESCE(review_state,'open') AS review_state, COALESCE(investigation_notes,'') AS investigation_notes, COALESCE(resolution_summary,'') AS resolution_summary,
+		COALESCE(closeout_reason,'') AS closeout_reason, COALESCE(lessons_learned,'') AS lessons_learned,
+		COALESCE(reopened_from_incident_id,'') AS reopened_from_incident_id, COALESCE(reopened_at,'') AS reopened_at
 		FROM incidents ORDER BY occurred_at DESC LIMIT %d;`, limit))
 	if err != nil {
 		return nil, err
@@ -663,7 +691,10 @@ func (d *DB) IncidentByID(id string) (models.Incident, bool, error) {
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT id, category, severity, title, summary, resource_type, resource_id, state, COALESCE(actor_id,'') AS actor_id, occurred_at, updated_at, COALESCE(resolved_at,'') AS resolved_at, COALESCE(metadata_json,'{}') AS metadata_json,
 		COALESCE(owner_actor_id,'') AS owner_actor_id, COALESCE(handoff_summary,'') AS handoff_summary,
 		COALESCE(pending_actions_json,'[]') AS pending_actions_json, COALESCE(recent_actions_json,'[]') AS recent_actions_json,
-		COALESCE(linked_evidence_json,'[]') AS linked_evidence_json, COALESCE(risks_json,'[]') AS risks_json
+		COALESCE(linked_evidence_json,'[]') AS linked_evidence_json, COALESCE(risks_json,'[]') AS risks_json,
+		COALESCE(review_state,'open') AS review_state, COALESCE(investigation_notes,'') AS investigation_notes, COALESCE(resolution_summary,'') AS resolution_summary,
+		COALESCE(closeout_reason,'') AS closeout_reason, COALESCE(lessons_learned,'') AS lessons_learned,
+		COALESCE(reopened_from_incident_id,'') AS reopened_from_incident_id, COALESCE(reopened_at,'') AS reopened_at
 		FROM incidents WHERE id='%s' LIMIT 1;`, esc(id)))
 	if err != nil {
 		return models.Incident{}, false, err
