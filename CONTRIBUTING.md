@@ -76,6 +76,16 @@ Every Pull Request must:
 
 ---
 
+## 🧭 MEL Repo-OS Discipline
+
+All non-trivial changes must run through the repo operating system in `docs/repo-os/README.md`.
+
+Minimum expectation per PR:
+- Classify work as Maintenance / Leverage / Moat (`docs/repo-os/change-classification.md`).
+- Run applicable truth/governance/security audits from `docs/repo-os/`.
+- Meet verification obligations from `docs/repo-os/verification-matrix.md`.
+- Pass release reality gate in `docs/repo-os/release-readiness.md` for capability-affecting changes.
+
 ## ⚓ Pull Request Checklist
 
 When submitting a PR, include:

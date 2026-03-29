@@ -15,6 +15,8 @@ If you are new to MEL, start with these guides:
 
 Understand the "Truth-First" model and system design:
 
+- [**Repo Operating System**](repo-os/README.md) - Canonical execution contracts, audits, verification matrix, and release reality gates.
+
 - [**System Overview**](architecture/overview.md) - High-level architecture and data flow.
 - [**Subsystems**](architecture/layers.md) - Ingest, Intelligence, and Persistence layers.
 - [**Trust & Security Model**](architecture/trust-model.md) - How MEL handles security and remediation.
