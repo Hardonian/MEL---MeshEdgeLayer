@@ -20,6 +20,43 @@ function copyText(text: string) {
   void navigator.clipboard.writeText(text)
 }
 
+function toWords(value: string | undefined): string {
+  return (value || '').replace(/_/g, ' ').trim()
+}
+
+function outcomeFramingLabel(value: string | undefined): string {
+  switch (value) {
+    case 'improvement_observed':
+      return 'Improvement observed in similar history'
+    case 'deterioration_observed':
+      return 'Deterioration observed in similar history'
+    case 'mixed_historical_evidence':
+      return 'Mixed historical evidence'
+    case 'insufficient_evidence':
+      return 'Insufficient historical evidence'
+    case 'no_clear_post_action_signal':
+      return 'No clear post-action signal'
+    default:
+      return toWords(value) || 'Historical signal unavailable'
+  }
+}
+
+function observedStatusLabel(value: string | undefined): string {
+  switch (value) {
+    case 'mixed_signals':
+      return 'Observed status: mixed signals'
+    case 'inconclusive':
+      return 'Observed status: inconclusive'
+    case 'improvement_observed':
+      return 'Observed status: improvement observed'
+    case 'deterioration_observed':
+      return 'Observed status: deterioration observed'
+    default:
+      return `Observed status: ${toWords(value) || 'unavailable'}`
+  }
+}
+
+
 export function Incidents() {
   const { data, loading, error, refresh } = useIncidents()
   const ctx = useOperatorContext()
@@ -281,20 +318,33 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             )}
             {inc.intelligence.action_outcome_memory && inc.intelligence.action_outcome_memory.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs uppercase text-muted-foreground">Historical action-outcome memory</div>
+                <div className="text-xs uppercase text-muted-foreground">Historical action-outcome memory (association only)</div>
+                <p className="text-xs text-muted-foreground">
+                  Historical observations from similar incidents. This does not recommend execution or establish causality.
+                </p>
                 <ul className="space-y-2">
                   {inc.intelligence.action_outcome_memory.map((m) => (
-                    <li key={m.action_type} className="rounded border border-border bg-background px-2 py-2 text-xs">
+                    <li key={m.action_type} className="space-y-2 rounded border border-border bg-background px-2 py-2 text-xs">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
-                        <Badge variant="outline">seen {m.occurrence_count}x</Badge>
-                        <Badge variant="secondary">{m.outcome_framing.replace(/_/g, ' ')}</Badge>
+                        <Badge variant="outline">occurrences {m.occurrence_count}</Badge>
+                        <Badge variant="outline">sample n={m.sample_size}</Badge>
+                        <Badge variant="secondary">{outcomeFramingLabel(m.outcome_framing)}</Badge>
+                        {m.sample_size < 3 && <Badge variant="warning">Sparse history</Badge>}
                       </div>
-                      <p className="mt-1 text-muted-foreground">
-                        {m.observed_post_action_status.replace(/_/g, ' ')} • evidence {m.evidence_strength} • sample {m.sample_size}
+                      <p className="text-muted-foreground">
+                        {observedStatusLabel(m.observed_post_action_status)} • evidence strength {m.evidence_strength}
                       </p>
+                      <p className="text-muted-foreground">
+                        Observed outcomes: improved {m.improvement_observed_count} • deteriorated {m.deterioration_observed_count} • inconclusive {m.inconclusive_count}
+                      </p>
+                      {(m.caveats || []).length > 0 && (
+                        <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-100">
+                          Caveat: {(m.caveats || []).join('; ')}
+                        </p>
+                      )}
                       {(m.inspect_before_reuse || []).length > 0 && (
-                        <p className="mt-1 text-muted-foreground">
+                        <p className="rounded border border-border/80 bg-muted/30 px-2 py-1 text-foreground">
                           Inspect before reuse: {m.inspect_before_reuse?.slice(0, 1).join(', ')}
                         </p>
                       )}
