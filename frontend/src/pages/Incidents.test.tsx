@@ -24,6 +24,21 @@ function setupFetch() {
                   signature_match_count: 3,
                   evidence_strength: 'moderate',
                   similar_incidents: [{ incident_id: 'inc-old-1' }],
+                  action_outcome_memory: [
+                    {
+                      action_type: 'trigger_health_recheck',
+                      action_label: 'trigger health recheck',
+                      occurrence_count: 4,
+                      sample_size: 4,
+                      outcome_framing: 'mixed_historical_evidence',
+                      evidence_strength: 'moderate',
+                      observed_post_action_status: 'mixed_signals',
+                      improvement_observed_count: 2,
+                      deterioration_observed_count: 1,
+                      inconclusive_count: 1,
+                      inspect_before_reuse: ['Confirm signature match before reuse.'],
+                    },
+                  ],
                   investigate_next: [
                     {
                       id: 'g-1',
@@ -79,6 +94,8 @@ describe('Incidents intelligence rendering', () => {
     })
     expect(screen.getByText(/seen 3 times/i)).toBeTruthy()
     expect(screen.getByText(/Similar prior incidents: inc-old-1/i)).toBeTruthy()
+    expect(screen.getByText(/Historical action-outcome memory/i)).toBeTruthy()
+    expect(screen.getByText(/trigger health recheck/i)).toBeTruthy()
   })
 
   it('renders degraded warning when evidence is sparse', async () => {
@@ -88,4 +105,3 @@ describe('Incidents intelligence rendering', () => {
     })
   })
 })
-

@@ -157,3 +157,143 @@ func TestRecentIncidentsWithLinkedActions_IntelligenceIncludesSimilarity(t *test
 		t.Fatalf("did not find inc-sim-new")
 	}
 }
+
+func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(t *testing.T) {
+	a := newSoDTestApp(t)
+	base := time.Now().UTC().Add(-6 * time.Hour)
+	makeIncident := func(id string, occurred time.Time, state string) {
+		t.Helper()
+		err := a.DB.UpsertIncident(models.Incident{
+			ID:           id,
+			Category:     "transport",
+			Severity:     "warning",
+			Title:        "MQTT timeout",
+			Summary:      "timeout burst",
+			ResourceType: "transport",
+			ResourceID:   "mqtt-sod",
+			State:        state,
+			OccurredAt:   occurred.Format(time.RFC3339),
+			Metadata:     map[string]any{"reason": "timeout_stall"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	makeIncident("inc-hist-1", base, "resolved")
+	makeIncident("inc-hist-2", base.Add(2*time.Hour), "open")
+	makeIncident("inc-current", base.Add(5*time.Hour), "open")
+
+	// Seed signatures first (build intelligence mutates signature tables).
+	if _, ok, err := a.IncidentByID("inc-hist-1"); err != nil || !ok {
+		t.Fatalf("seed intelligence 1: ok=%v err=%v", ok, err)
+	}
+	if _, ok, err := a.IncidentByID("inc-hist-2"); err != nil || !ok {
+		t.Fatalf("seed intelligence 2: ok=%v err=%v", ok, err)
+	}
+
+	// Same action type across similar incidents with opposite signal trends -> mixed.
+	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
+		ID:              "act-hist-1",
+		ActionType:      "trigger_health_recheck",
+		TargetTransport: "mqtt-sod",
+		IncidentID:      "inc-hist-1",
+		CreatedAt:       base.Add(30 * time.Minute).Format(time.RFC3339),
+		CompletedAt:     base.Add(30 * time.Minute).Format(time.RFC3339),
+		Result:          "completed",
+		LifecycleState:  "completed",
+		Mode:            "operator",
+		Reason:          "manual",
+		ExecutionSource: "test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
+		ID:              "act-hist-2",
+		ActionType:      "trigger_health_recheck",
+		TargetTransport: "mqtt-sod",
+		IncidentID:      "inc-hist-2",
+		CreatedAt:       base.Add(150 * time.Minute).Format(time.RFC3339),
+		CompletedAt:     base.Add(150 * time.Minute).Format(time.RFC3339),
+		Result:          "failed",
+		LifecycleState:  "failed",
+		Mode:            "operator",
+		Reason:          "manual",
+		ExecutionSource: "test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := a.IncidentByID("inc-current")
+	if err != nil || !ok || got.Intelligence == nil {
+		t.Fatalf("incident intelligence: ok=%v err=%v", ok, err)
+	}
+	if len(got.Intelligence.ActionOutcomeMemory) == 0 {
+		t.Fatalf("expected action outcome memory")
+	}
+	found := false
+	for _, m := range got.Intelligence.ActionOutcomeMemory {
+		if m.ActionType != "trigger_health_recheck" {
+			continue
+		}
+		found = true
+		if m.OutcomeFraming != "mixed_historical_evidence" {
+			t.Fatalf("outcome framing=%q", m.OutcomeFraming)
+		}
+		if m.ImprovementObservedCount == 0 || m.DeteriorationObservedCount == 0 {
+			t.Fatalf("expected mixed counts, got improvement=%d deterioration=%d", m.ImprovementObservedCount, m.DeteriorationObservedCount)
+		}
+	}
+	if !found {
+		t.Fatalf("expected trigger_health_recheck memory")
+	}
+}
+
+func TestIncidentIntelligence_ActionOutcomeMemory_DegradesOnSparseHistory(t *testing.T) {
+	a := newSoDTestApp(t)
+	now := time.Now().UTC().Add(-2 * time.Hour)
+	for _, id := range []string{"inc-single-hist", "inc-single-current"} {
+		if err := a.DB.UpsertIncident(models.Incident{
+			ID:           id,
+			Category:     "transport",
+			Severity:     "warning",
+			Title:        "Sparse",
+			Summary:      "sparse",
+			ResourceType: "transport",
+			ResourceID:   "mqtt-sod",
+			State:        "open",
+			OccurredAt:   now.Format(time.RFC3339),
+			Metadata:     map[string]any{"reason": "timeout_stall"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Hour)
+	}
+	if _, ok, err := a.IncidentByID("inc-single-hist"); err != nil || !ok {
+		t.Fatalf("seed intelligence: ok=%v err=%v", ok, err)
+	}
+	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
+		ID:              "act-single",
+		ActionType:      "reset_transport_session",
+		TargetTransport: "mqtt-sod",
+		IncidentID:      "inc-single-hist",
+		CreatedAt:       time.Now().UTC().Add(-90 * time.Minute).Format(time.RFC3339),
+		CompletedAt:     time.Now().UTC().Add(-90 * time.Minute).Format(time.RFC3339),
+		Result:          "completed",
+		LifecycleState:  "completed",
+		Mode:            "operator",
+		Reason:          "manual",
+		ExecutionSource: "test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := a.IncidentByID("inc-single-current")
+	if err != nil || !ok || got.Intelligence == nil {
+		t.Fatalf("incident intelligence: ok=%v err=%v", ok, err)
+	}
+	if len(got.Intelligence.ActionOutcomeMemory) == 0 {
+		t.Fatalf("expected action outcome memory")
+	}
+	if got.Intelligence.ActionOutcomeMemory[0].OutcomeFraming != "insufficient_evidence" {
+		t.Fatalf("outcome framing=%q", got.Intelligence.ActionOutcomeMemory[0].OutcomeFraming)
+	}
+}

@@ -279,6 +279,30 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                 ))}
               </ul>
             )}
+            {inc.intelligence.action_outcome_memory && inc.intelligence.action_outcome_memory.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs uppercase text-muted-foreground">Historical action-outcome memory</div>
+                <ul className="space-y-2">
+                  {inc.intelligence.action_outcome_memory.map((m) => (
+                    <li key={m.action_type} className="rounded border border-border bg-background px-2 py-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
+                        <Badge variant="outline">seen {m.occurrence_count}x</Badge>
+                        <Badge variant="secondary">{m.outcome_framing.replace(/_/g, ' ')}</Badge>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {m.observed_post_action_status.replace(/_/g, ' ')} • evidence {m.evidence_strength} • sample {m.sample_size}
+                      </p>
+                      {(m.inspect_before_reuse || []).length > 0 && (
+                        <p className="mt-1 text-muted-foreground">
+                          Inspect before reuse: {m.inspect_before_reuse?.slice(0, 1).join(', ')}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {inc.intelligence.degraded && (
               <p className="text-xs text-amber-700">
                 Intelligence is limited by available evidence: {(inc.intelligence.degraded_reasons || []).join(', ') || 'unknown limitation'}.
