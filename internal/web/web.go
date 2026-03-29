@@ -84,6 +84,9 @@ type Server struct {
 	topologyTransportLive func() bool
 	// meshIntelLatest returns the last mesh deployment intelligence assessment from the service (if any).
 	meshIntelLatest func() (meshintel.Assessment, bool)
+
+	// Proofpack: assembles incident-scoped evidence bundles for audit/export.
+	assembleProofpack func(incidentID, actorID string) (map[string]any, error)
 }
 
 // SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
@@ -135,6 +138,11 @@ func (s *Server) SetIncidentCollaboration(
 ) {
 	s.incidentHandoff = handoff
 	s.incidentByID = byID
+}
+
+// SetProofpackAssembler wires incident proofpack assembly for evidence export.
+func (s *Server) SetProofpackAssembler(f func(incidentID, actorID string) (map[string]any, error)) {
+	s.assembleProofpack = f
 }
 
 // SetRecentIncidents wires list enrichment (e.g. linked control actions); falls back to DB when nil.
@@ -1303,6 +1311,10 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 		security.Require(security.CapIncidentHandoffWrite, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentHandoffHandler(w, r, id)
 		})(w, r)
+	case sub == "proofpack" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		security.RequireAny([]security.Capability{security.CapExportBundle, security.CapReadIncidents}, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentProofpackHandler(w, r, id)
+		})(w, r)
 	default:
 		writeError(w, http.StatusNotFound, "unknown incident path", "")
 	}
@@ -1352,6 +1364,29 @@ func (s *Server) incidentHandoffHandler(w http.ResponseWriter, r *http.Request, 
 		"to":          strings.TrimSpace(req.ToOperatorID),
 		"from":        from,
 	})
+}
+
+func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if s.assembleProofpack == nil {
+		writeError(w, http.StatusServiceUnavailable, "proofpack assembly not available", "")
+		return
+	}
+	actor := s.actorFromTrustContext(r)
+	pack, err := s.assembleProofpack(incidentID, actor)
+	if err != nil {
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		}
+		writeError(w, code, "could not assemble proofpack", err.Error())
+		return
+	}
+	// Set content-disposition for download when ?download=true is present.
+	if r.URL.Query().Get("download") == "true" {
+		filename := fmt.Sprintf("mel-proofpack-%s.json", incidentID)
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	}
+	writeJSON(w, http.StatusOK, pack)
 }
 
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {

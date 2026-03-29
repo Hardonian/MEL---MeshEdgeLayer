@@ -7,8 +7,9 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatTimestamp, type Incident } from '@/types/api'
-import { ClipboardCopy, RefreshCw } from 'lucide-react'
+import { ClipboardCopy, Download, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
+import { useState } from 'react'
 
 function isOpenIncident(inc: Incident): boolean {
   const s = (inc.state || '').toLowerCase()
@@ -120,6 +121,62 @@ export function Incidents() {
   )
 }
 
+function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  async function download() {
+    setState('loading')
+    setErrorMsg('')
+    try {
+      const resp = await fetch(`/api/v1/incidents/${encodeURIComponent(incidentId)}/proofpack?download=true`)
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '')
+        if (resp.status === 401 || resp.status === 403) {
+          setErrorMsg('Insufficient permissions for proofpack export.')
+        } else if (resp.status === 404) {
+          setErrorMsg('Incident not found.')
+        } else {
+          setErrorMsg(body || `HTTP ${resp.status}`)
+        }
+        setState('error')
+        return
+      }
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mel-proofpack-${incidentId}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setState('idle')
+    } catch {
+      setErrorMsg('Network error — MEL backend unreachable.')
+      setState('error')
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void download()}
+        disabled={state === 'loading'}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+        title="Download incident evidence proofpack (JSON)"
+      >
+        <Download className="h-3.5 w-3.5" />
+        {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
+      </button>
+      {state === 'error' && errorMsg && (
+        <span className="text-xs text-critical">{errorMsg}</span>
+      )}
+    </div>
+  )
+}
+
 function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
   const pending = inc.pending_actions?.filter(Boolean) ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
@@ -166,6 +223,8 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
           </div>
         </div>
+        <ProofpackDownloadButton incidentId={inc.id} />
+
         <div>
           <div className="mb-1 text-xs uppercase text-muted-foreground">Referenced mesh / node action IDs</div>
           {pending.length === 0 ? (
