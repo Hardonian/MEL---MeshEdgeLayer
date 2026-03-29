@@ -863,6 +863,24 @@ func TestControlEndpointsExposeStatusAndHistory(t *testing.T) {
 	}
 }
 
+func TestProofpackDownloadFilename_UsesAssemblyTimestamp(t *testing.T) {
+	filename := proofpackDownloadFilename("inc-42", map[string]any{
+		"assembly": map[string]any{
+			"assembled_at": "2026-03-29T12:34:56Z",
+		},
+	})
+	if filename != "mel-proofpack-inc-42-20260329T123456Z.json" {
+		t.Fatalf("unexpected filename: %s", filename)
+	}
+}
+
+func TestProofpackDownloadFilename_FallbackWhenTimestampMissing(t *testing.T) {
+	filename := proofpackDownloadFilename("inc 42/alpha", map[string]any{})
+	if filename != "mel-proofpack-inc-42-alpha-snapshot.json" {
+		t.Fatalf("unexpected fallback filename: %s", filename)
+	}
+}
+
 func TestTransportHistoryEndpointsAndInspect(t *testing.T) {
 	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-1", FailureCount: 2, ObservationDrops: 3, LastHeartbeatAt: "2026-03-19T00:00:00Z"}}, func(database *db.DB) {
 		if err := database.InsertTransportHealthSnapshot(db.TransportHealthSnapshot{TransportName: "mqtt", TransportType: "mqtt", Score: 42, State: "unstable", SnapshotTime: "2026-03-19T00:00:00Z", ActiveAlertCount: 1}); err != nil {
