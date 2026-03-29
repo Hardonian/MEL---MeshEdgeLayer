@@ -61,4 +61,27 @@ Every recommendation includes a **Confidence Score** (0.0 to 1.0) derived from:
 - **Temporal Consistency**: How long the anomaly has persisted across time buckets.
 - **Attribution Strength**: How clearly a specific node or transport can be identified as the source.
 
-*MEL — Truthful, deterministic mesh observability.*
+---
+
+## Incident Intelligence Summary (deterministic, history-backed)
+
+MEL now attaches a typed `incident.intelligence` payload on incident list/detail APIs.  
+This payload is derived from persisted evidence and does **not** claim root cause.
+
+What MEL computes:
+
+- deterministic **signature key** from incident category/resource/reason fields;
+- persisted signature counters (`incident_signatures`) and incident/signature links;
+- evidence items from incident rows, transport alerts, dead-letter reason clusters, and linked control-action outcomes;
+- bounded domain hints (`transport`, `control`, `topology`) with explicit “association only” language;
+- “investigate next” guidance tied to specific evidence references;
+- similar prior incidents only when signature linkage exists.
+
+What MEL does **not** compute:
+
+- no probabilistic/ML root-cause model;
+- no action auto-execution from incident intelligence;
+- no causality claim from correlation;
+- no “all clear” when evidence is sparse (degraded reasons are surfaced).
+
+This keeps incident guidance explainable, replayable, and bounded by stored operator evidence history.

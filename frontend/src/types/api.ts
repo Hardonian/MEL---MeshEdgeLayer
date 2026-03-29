@@ -198,6 +198,57 @@ export interface Incident {
   risks?: string[]
   /** Canonical FK-linked control actions (when backend enriches list/detail) */
   linked_control_actions?: ControlActionRecord[]
+  intelligence?: IncidentIntelligence
+}
+
+export interface IncidentIntelligence {
+  signature_key?: string
+  signature_label?: string
+  signature_match_count?: number
+  evidence_strength: 'sparse' | 'moderate' | 'strong'
+  evidence_items?: IncidentEvidenceItem[]
+  implicated_domains?: IncidentDomainHint[]
+  investigate_next?: IncidentGuidanceItem[]
+  similar_incidents?: IncidentSimilarityRecord[]
+  historically_used_actions?: IncidentActionPattern[]
+  degraded?: boolean
+  degraded_reasons?: string[]
+  generated_at?: string
+}
+
+export interface IncidentEvidenceItem {
+  kind: string
+  reference_id?: string
+  summary: string
+  observed_at?: string
+  supports_only?: string
+}
+
+export interface IncidentDomainHint {
+  domain: string
+  evidence_refs?: string[]
+  note?: string
+}
+
+export interface IncidentGuidanceItem {
+  id: string
+  title: string
+  rationale: string
+  evidence_refs?: string[]
+  confidence: 'low' | 'medium'
+}
+
+export interface IncidentSimilarityRecord {
+  incident_id: string
+  title?: string
+  state?: string
+  occurred_at?: string
+  similarity_reason?: string[]
+}
+
+export interface IncidentActionPattern {
+  action_type: string
+  count: number
 }
 
 /** Control-plane action row (matches backend ActionRecord) */

@@ -55,6 +55,60 @@ type Incident struct {
 
 	// LinkedControlActions: rows where control_actions.incident_id = this incident (canonical).
 	LinkedControlActions []ActionRecord `json:"linked_control_actions,omitempty"`
+
+	// Intelligence is deterministic, evidence-linked incident memory/guidance derived from stored MEL history.
+	Intelligence *IncidentIntelligence `json:"intelligence,omitempty"`
+}
+
+// IncidentIntelligence is an evidence-bounded operator aid for recurring signatures and investigation flow.
+type IncidentIntelligence struct {
+	SignatureKey            string                     `json:"signature_key,omitempty"`
+	SignatureLabel          string                     `json:"signature_label,omitempty"`
+	SignatureMatchCount     int                        `json:"signature_match_count,omitempty"`
+	EvidenceStrength        string                     `json:"evidence_strength"` // sparse, moderate, strong
+	EvidenceItems           []IncidentEvidenceItem     `json:"evidence_items,omitempty"`
+	ImplicatedDomains       []IncidentDomainHint       `json:"implicated_domains,omitempty"`
+	InvestigateNext         []IncidentGuidanceItem     `json:"investigate_next,omitempty"`
+	SimilarIncidents        []IncidentSimilarityRecord `json:"similar_incidents,omitempty"`
+	HistoricallyUsedActions []IncidentActionPattern    `json:"historically_used_actions,omitempty"`
+	Degraded                bool                       `json:"degraded"`
+	DegradedReasons         []string                   `json:"degraded_reasons,omitempty"`
+	GeneratedAt             string                     `json:"generated_at,omitempty"`
+}
+
+type IncidentEvidenceItem struct {
+	Kind         string `json:"kind"`
+	ReferenceID  string `json:"reference_id,omitempty"`
+	Summary      string `json:"summary"`
+	ObservedAt   string `json:"observed_at,omitempty"`
+	SupportsOnly string `json:"supports_only,omitempty"` // association, chronology, recurring_pattern
+}
+
+type IncidentDomainHint struct {
+	Domain       string   `json:"domain"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Note         string   `json:"note,omitempty"`
+}
+
+type IncidentGuidanceItem struct {
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Rationale    string   `json:"rationale"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Confidence   string   `json:"confidence"` // low, medium
+}
+
+type IncidentSimilarityRecord struct {
+	IncidentID       string   `json:"incident_id"`
+	Title            string   `json:"title,omitempty"`
+	State            string   `json:"state,omitempty"`
+	OccurredAt       string   `json:"occurred_at,omitempty"`
+	SimilarityReason []string `json:"similarity_reason,omitempty"`
+}
+
+type IncidentActionPattern struct {
+	ActionType string `json:"action_type"`
+	Count      int    `json:"count"`
 }
 
 // SupportManifest defines the inventory of a support bundle
@@ -106,14 +160,14 @@ type ActionRecord struct {
 	SodBypassReason          string `json:"sod_bypass_reason,omitempty"`
 
 	// Policy / approval truth (aligned with control_actions; migration 0022)
-	ApprovalMode                     string   `json:"approval_mode,omitempty"`
-	RequiredApprovals                int      `json:"required_approvals,omitempty"`
-	CollectedApprovals               int      `json:"collected_approvals,omitempty"`
-	ApprovalBasis                    []string `json:"approval_basis,omitempty"`
-	ApprovalPolicySource             string   `json:"approval_policy_source,omitempty"`
-	HighBlastRadius                  bool     `json:"high_blast_radius,omitempty"`
-	ApprovalEscalatedDueToBlastRadius bool    `json:"approval_escalated_due_to_blast_radius,omitempty"`
-	ExecutionSource                  string   `json:"execution_source,omitempty"`
+	ApprovalMode                      string   `json:"approval_mode,omitempty"`
+	RequiredApprovals                 int      `json:"required_approvals,omitempty"`
+	CollectedApprovals                int      `json:"collected_approvals,omitempty"`
+	ApprovalBasis                     []string `json:"approval_basis,omitempty"`
+	ApprovalPolicySource              string   `json:"approval_policy_source,omitempty"`
+	HighBlastRadius                   bool     `json:"high_blast_radius,omitempty"`
+	ApprovalEscalatedDueToBlastRadius bool     `json:"approval_escalated_due_to_blast_radius,omitempty"`
+	ExecutionSource                   string   `json:"execution_source,omitempty"`
 
 	// OperatorView is derived from canonical fields for UI/CLI legibility (not a second source of truth).
 	OperatorView map[string]any `json:"operator_view,omitempty"`
@@ -187,7 +241,7 @@ type ApprovalPolicyDTO struct {
 	HighBlastRadius                   bool     `json:"high_blast_radius"`
 	BlastRadiusClassification         string   `json:"blast_radius_classification"`
 	ApprovalEscalatedDueToBlastRadius bool     `json:"approval_escalated_due_to_blast_radius"`
-	SubmitterDisqualifiedFromApproval bool   `json:"submitter_disqualified_from_approval"`
+	SubmitterDisqualifiedFromApproval bool     `json:"submitter_disqualified_from_approval"`
 	ApproverAllowed                   bool     `json:"approver_allowed"`
 	ApproverDenialReason              string   `json:"approver_denial_reason,omitempty"`
 	ApprovedDoesNotImplyExecution     bool     `json:"approved_does_not_imply_execution"`
@@ -204,14 +258,14 @@ type ApproveActionRequest struct {
 // ApproveActionResponse is returned after HTTP approve; approval does not imply execution
 // and does not drain unrelated queued work.
 type ApproveActionResponse struct {
-	Status    string `json:"status"`
-	ActionID  string `json:"action_id"`
-	ActorID   string `json:"actor"`
+	Status   string `json:"status"`
+	ActionID string `json:"action_id"`
+	ActorID  string `json:"actor"`
 
 	LifecycleState string `json:"lifecycle_state"`
 	Result         string `json:"result"`
 
-	FullyApprovedSingleStep        bool `json:"fully_approved_single_step"`
+	FullyApprovedSingleStep       bool `json:"fully_approved_single_step"`
 	ApprovalDoesNotImplyExecution bool `json:"approval_does_not_imply_execution"`
 
 	QueuedForExecution bool `json:"queued_for_execution"`
@@ -233,12 +287,12 @@ type RejectActionRequest struct {
 
 // RejectActionResponse is returned after HTTP reject.
 type RejectActionResponse struct {
-	Status         string              `json:"status"`
-	ActionID       string              `json:"action_id"`
-	ActorID        string              `json:"actor"`
-	LifecycleState string              `json:"lifecycle_state"`
-	Result         string              `json:"result"`
-	Policy         ApprovalPolicyDTO   `json:"policy"`
+	Status         string            `json:"status"`
+	ActionID       string            `json:"action_id"`
+	ActorID        string            `json:"actor"`
+	LifecycleState string            `json:"lifecycle_state"`
+	Result         string            `json:"result"`
+	Policy         ApprovalPolicyDTO `json:"policy"`
 }
 
 // IncidentHandoffRequest is the body for POST /api/v1/incidents/{id}/handoff.

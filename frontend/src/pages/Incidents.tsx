@@ -192,6 +192,41 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             </ul>
           )}
         </div>
+        {inc.intelligence && (
+          <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase text-muted-foreground">Incident intelligence</span>
+              {inc.intelligence.signature_label && <Badge variant="outline">{inc.intelligence.signature_label}</Badge>}
+              <Badge variant="secondary">evidence {inc.intelligence.evidence_strength}</Badge>
+              {(inc.intelligence.signature_match_count || 0) > 1 && (
+                <Badge variant="outline">seen {inc.intelligence.signature_match_count} times</Badge>
+              )}
+            </div>
+            {inc.intelligence.similar_incidents && inc.intelligence.similar_incidents.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Similar prior incidents:{' '}
+                {inc.intelligence.similar_incidents
+                  .map((s) => s.incident_id)
+                  .filter(Boolean)
+                  .join(', ')}
+              </p>
+            )}
+            {inc.intelligence.investigate_next && inc.intelligence.investigate_next.length > 0 && (
+              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                {inc.intelligence.investigate_next.slice(0, 2).map((g) => (
+                  <li key={g.id}>
+                    <span className="font-medium text-foreground">{g.title}:</span> {g.rationale}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {inc.intelligence.degraded && (
+              <p className="text-xs text-amber-700">
+                Intelligence is limited by available evidence: {(inc.intelligence.degraded_reasons || []).join(', ') || 'unknown limitation'}.
+              </p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
