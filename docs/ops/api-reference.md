@@ -1180,7 +1180,9 @@ Assembles and returns an incident-scoped evidence proofpack for audit and export
   `...-snapshot.json` when assembly timestamp is unavailable)
 
 **Response:** JSON proofpack (format_version `1.0.0`) containing:
-- `assembly` — assembly metadata (who, when, instance, time window, item counts)
+- `assembly` — assembly metadata (who, when, instance, time window, item counts), including:
+  - `action_outcome_snapshot_status`: `complete | partial | unavailable`
+  - `action_outcome_snapshot_trace`: retrieval posture (`retrieval_status`, `status_reason`, `retrieval_error`, `retrieval_limited`, `signature_key_present`, `max_snapshots`)
 - `incident` — full incident record at assembly time
 - `linked_actions[]` — control actions linked via incident FK
 - `timeline[]` — chronological events in the evidence window

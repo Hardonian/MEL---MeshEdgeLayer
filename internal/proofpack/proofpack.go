@@ -73,18 +73,31 @@ type AssemblyMetadata struct {
 	TimeWindowTo   string `json:"time_window_to"`   // latest evidence considered (RFC3339)
 
 	// Counts of evidence items assembled (for quick integrity checks).
-	ActionCount                 int    `json:"action_count"`
-	ActionOutcomeSnapshotCount  int    `json:"action_outcome_snapshot_count"`
-	ActionOutcomeSnapshotStatus string `json:"action_outcome_snapshot_status"` // complete, partial, unavailable
-	TimelineCount               int    `json:"timeline_count"`
-	TransportCount              int    `json:"transport_count"`
-	DeadLetterCount             int    `json:"dead_letter_count"`
-	NoteCount                   int    `json:"note_count"`
-	AuditEntryCount             int    `json:"audit_entry_count"`
-	EvidenceGapCount            int    `json:"evidence_gap_count"`
+	ActionCount                 int                        `json:"action_count"`
+	ActionOutcomeSnapshotCount  int                        `json:"action_outcome_snapshot_count"`
+	ActionOutcomeSnapshotStatus string                     `json:"action_outcome_snapshot_status"` // complete, partial, unavailable
+	ActionOutcomeSnapshotTrace  ActionOutcomeSnapshotTrace `json:"action_outcome_snapshot_trace"`
+	TimelineCount               int                        `json:"timeline_count"`
+	TransportCount              int                        `json:"transport_count"`
+	DeadLetterCount             int                        `json:"dead_letter_count"`
+	NoteCount                   int                        `json:"note_count"`
+	AuditEntryCount             int                        `json:"audit_entry_count"`
+	EvidenceGapCount            int                        `json:"evidence_gap_count"`
 
 	// AssemblyDurationMs is the wall-clock time spent assembling.
 	AssemblyDurationMs int64 `json:"assembly_duration_ms"`
+}
+
+// ActionOutcomeSnapshotTrace captures retrieval posture for incident-action snapshot history.
+// It makes degraded retrieval states machine-visible without promoting assistive inferences
+// to canonical evidence truth.
+type ActionOutcomeSnapshotTrace struct {
+	SignatureKeyPresent bool   `json:"signature_key_present"`
+	RetrievalStatus     string `json:"retrieval_status"` // available, unavailable, error
+	RetrievalError      string `json:"retrieval_error,omitempty"`
+	RetrievalLimited    bool   `json:"retrieval_limited"`
+	StatusReason        string `json:"status_reason,omitempty"`
+	MaxSnapshots        int    `json:"max_snapshots"`
 }
 
 // IncidentEvidence is the incident record at assembly time, preserved
