@@ -121,6 +121,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	)
 	app.Web.SetIncidentCollaboration(app.IncidentHandoff, app.IncidentByID)
 	app.Web.SetRecentIncidents(app.RecentIncidentsWithLinkedActions)
+	app.Web.SetProofpackAssembler(app.AssembleProofpack)
 	app.Web.SetOperatorControlQueue(app.QueueOperatorControlAction)
 	for _, tc := range cfg.Transports {
 		app.transportControls[tc.Name] = newTransportControlState()

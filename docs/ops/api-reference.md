@@ -1168,6 +1168,34 @@ Recent transport incidents.
 
 ---
 
+### GET /api/v1/incidents/{id}/proofpack
+
+Assembles and returns an incident-scoped evidence proofpack for audit and export.
+
+**Required capabilities:** `export_support_bundle` or `read_incidents`
+
+**Query parameters:**
+- `download=true` — sets `Content-Disposition: attachment` for browser download
+
+**Response:** JSON proofpack (format_version `1.0.0`) containing:
+- `assembly` — assembly metadata (who, when, instance, time window, item counts)
+- `incident` — full incident record at assembly time
+- `linked_actions[]` — control actions linked via incident FK
+- `timeline[]` — chronological events in the evidence window
+- `transport_context[]` — transport health snapshots in the window
+- `dead_letter_evidence[]` — dead letters in the window
+- `operator_notes[]` — notes attached to the incident
+- `audit_entries[]` — RBAC audit log entries for the incident
+- `evidence_gaps[]` — explicit markers for missing or degraded evidence
+
+**Error responses:**
+- `404` — incident not found
+- `503` — proofpack assembly not available (service not wired)
+
+See `docs/runbooks/proofpack-export.md` for full operational guide.
+
+---
+
 ## Control Plane Endpoints
 
 ### GET /api/v1/control/status

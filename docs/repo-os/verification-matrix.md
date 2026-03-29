@@ -62,6 +62,17 @@ This matrix defines minimum verification obligations by work category.
 - Cross-check against implementation and support matrix.
 - Update limitations/caveats where wording changed operator expectations.
 
+## H) Evidence export / proofpack
+**Required (release-blocking):**
+- Unit tests for proofpack assembly logic (full, sparse, partial-failure cases).
+- Evidence gap markers present for all degraded/missing evidence paths.
+- Audit trail verification (proofpack export logged to RBAC audit + timeline).
+- API contract check (correct HTTP status codes, capability enforcement).
+
+**Advisory:**
+- Manual proofpack download from UI for a real incident.
+- Schema version check in exported JSON.
+
 ## Standard command baseline
 Run what is relevant and report failures honestly:
 - `make lint`
