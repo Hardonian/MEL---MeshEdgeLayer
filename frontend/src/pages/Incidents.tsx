@@ -89,8 +89,11 @@ function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'war
 
 function strengthLabel(s: string | undefined): string {
   switch (s) {
+    case 'historically_proven':
     case 'proven_historically':
       return 'Historically observed (still association-only)'
+    case 'historically_promising':
+      return 'Historically promising (bounded evidence)'
     case 'plausible':
       return 'Plausible from history'
     case 'weakly_supported':
@@ -503,14 +506,46 @@ function IncidentCard({
                 <Badge variant="outline">seen {inc.intelligence.signature_match_count} times</Badge>
               )}
             </div>
-            {inc.intelligence.similar_incidents && inc.intelligence.similar_incidents.length > 0 && (
+            {inc.intelligence.fingerprint && (
               <p className="text-xs text-muted-foreground">
-                Similar prior incidents:{' '}
-                {inc.intelligence.similar_incidents
-                  .map((s) => s.incident_id)
-                  .filter(Boolean)
-                  .join(', ')}
+                Structured fingerprint{' '}
+                <span className="font-mono text-[11px]">{inc.intelligence.fingerprint.canonical_hash}</span>
+                {inc.intelligence.fingerprint.sparsity_markers && inc.intelligence.fingerprint.sparsity_markers.length > 0 && (
+                  <span className="block mt-1">
+                    Fingerprint sparsity: {inc.intelligence.fingerprint.sparsity_markers.slice(0, 4).join(', ')}
+                  </span>
+                )}
               </p>
+            )}
+            {inc.intelligence.similar_incidents && inc.intelligence.similar_incidents.length > 0 && (
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>
+                  Similar prior incidents (weighted reasoning, not same-root-cause claims):{' '}
+                  {inc.intelligence.similar_incidents
+                    .map((s) => s.incident_id)
+                    .filter(Boolean)
+                    .join(', ')}
+                </p>
+                <ul className="list-disc space-y-1 pl-4">
+                  {inc.intelligence.similar_incidents.slice(0, 3).map((s) => (
+                    <li key={s.incident_id}>
+                      <span className="font-medium text-foreground">{s.incident_id}</span>
+                      {s.match_category && (
+                        <>
+                          {' '}
+                          <Badge variant="outline">{toWords(s.match_category)}</Badge>
+                        </>
+                      )}
+                      {typeof s.weighted_score === 'number' && (
+                        <span className="ml-1 font-mono text-[11px]">score {s.weighted_score.toFixed(3)}</span>
+                      )}
+                      {s.insufficient_evidence && (
+                        <span className="ml-1 text-amber-800 dark:text-amber-200">insufficient evidence for strong match</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {inc.intelligence.wireless_context && (
               <div className="space-y-2 rounded border border-border/80 bg-background px-2 py-2 text-xs">
@@ -569,10 +604,22 @@ function IncidentCard({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-foreground">{r.title}</span>
                         <Badge variant="outline">{strengthLabel(r.strength)}</Badge>
+                        {typeof r.rank_score === 'number' && (
+                          <Badge variant="secondary" className="font-mono text-[11px]">
+                            rank {r.rank_score.toFixed(1)}
+                          </Badge>
+                        )}
+                        {r.suppressed && <Badge variant="warning">Suppressed</Badge>}
                         {r.is_command && <Badge variant="warning">Control-plane action pattern</Badge>}
                         {r.requires_approval && <Badge variant="secondary">Approval historically required</Badge>}
                       </div>
                       <p className="mt-1 text-muted-foreground">{r.rationale}</p>
+                      {r.historical_outcome_note && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">{r.historical_outcome_note}</p>
+                      )}
+                      {r.suppressed_reason && (
+                        <p className="mt-1 text-[11px] text-amber-900 dark:text-amber-100">{r.suppressed_reason}</p>
+                      )}
                       {canMutate && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {(['accepted', 'rejected', 'not_attempted', 'ineffective'] as const).map((o) => (
@@ -599,6 +646,31 @@ function IncidentCard({
                 {inc.intelligence.policy_governance_hints[0]?.summary}
               </div>
             )}
+            {inc.intelligence.governance_memory && inc.intelligence.governance_memory.length > 0 && (
+              <div className="rounded border border-border/80 bg-muted/15 px-2 py-2 text-xs text-muted-foreground space-y-1">
+                <span className="font-medium text-foreground">Per-action-type governance memory</span>
+                <ul className="list-disc space-y-1 pl-4">
+                  {inc.intelligence.governance_memory.slice(0, 4).map((g) => (
+                    <li key={g.action_type}>
+                      <span className="font-medium text-foreground">{g.action_type}</span>: {g.summary}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {inc.intelligence.runbook_assets && inc.intelligence.runbook_assets.length > 0 && (
+              <div className="rounded border border-border/80 bg-muted/15 px-2 py-2 text-xs text-muted-foreground space-y-1">
+                <span className="font-medium text-foreground">Durable runbook assets</span>
+                <ul className="list-disc space-y-1 pl-4">
+                  {inc.intelligence.runbook_assets.slice(0, 3).map((a) => (
+                    <li key={a.id}>
+                      <Badge variant="outline">{toWords(a.status)}</Badge> {a.title}
+                      {a.promotion_basis && <span className="block text-[11px] mt-0.5">{a.promotion_basis}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {inc.intelligence.drift_fingerprints && inc.intelligence.drift_fingerprints.length > 0 && (
               <div className="space-y-1 text-xs">
                 <div className="font-medium text-foreground">Transport / anomaly drift (association)</div>
@@ -622,12 +694,27 @@ function IncidentCard({
                 ))}
               </div>
             )}
+            {inc.intelligence.fault_domains && inc.intelligence.fault_domains.length > 0 && (
+              <div className="space-y-1 rounded border border-border/80 bg-muted/15 px-2 py-2 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">Fault domains (multi-signal)</div>
+                {inc.intelligence.fault_domains.slice(0, 2).map((fd) => (
+                  <div key={fd.domain_id}>
+                    <Badge variant="outline">{toWords(fd.uncertainty)}</Badge>{' '}
+                    <span className="font-mono text-[11px]">{fd.domain_key}</span>
+                    {fd.rationale && fd.rationale.length > 0 && <p className="mt-1">{fd.rationale[0]}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
             {inc.intelligence.replay_hints && (
               <div className="rounded border border-border/80 bg-background px-2 py-2 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Replay / post-incident review</p>
                 <p>{inc.intelligence.replay_hints.statement}</p>
                 {inc.intelligence.replay_hints.counterfactual_note && (
                   <p className="mt-1">{inc.intelligence.replay_hints.counterfactual_note}</p>
+                )}
+                {inc.intelligence.replay_hints.ranking_model_note && (
+                  <p className="mt-1">{inc.intelligence.replay_hints.ranking_model_note}</p>
                 )}
               </div>
             )}

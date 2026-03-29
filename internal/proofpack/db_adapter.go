@@ -25,13 +25,7 @@ func (d *DBAdapter) IncidentByID(id string) (models.Incident, bool, error) {
 }
 
 func (d *DBAdapter) SignatureKeyForIncident(incidentID string) (string, error) {
-	rows, err := d.DB.QueryRows(fmt.Sprintf(
-		`SELECT signature_key FROM incident_signature_incidents WHERE incident_id='%s' ORDER BY linked_at DESC LIMIT 1;`,
-		db.EscString(incidentID)))
-	if err != nil || len(rows) == 0 {
-		return "", err
-	}
-	return strings.TrimSpace(asString(rows[0]["signature_key"])), nil
+	return d.DB.SignatureKeyForIncident(incidentID)
 }
 
 func (d *DBAdapter) ControlActionsByIncidentID(incidentID string, limit int) ([]ActionEvidence, error) {

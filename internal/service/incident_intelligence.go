@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/incidentintel"
 	"github.com/mel-project/mel/internal/models"
 )
 
@@ -116,7 +117,6 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 		}
 	}
 
-	out.SimilarIncidents = a.similarIncidents(sigKey, inc.ID)
 	var outcomeDegradedReasons []string
 	out.ActionOutcomeMemory, out.ActionOutcomeSnapshots, out.ActionOutcomeTrace, outcomeDegradedReasons = a.actionOutcomeMemory(sigKey, inc)
 	out.DegradedReasons = append(out.DegradedReasons, outcomeDegradedReasons...)
@@ -134,11 +134,37 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	default:
 		out.EvidenceStrength = "sparse"
 	}
+
+	out.DriftFingerprints = a.deriveDriftFingerprints(inc)
+	fp := incidentintel.BuildFingerprintV1(inc, sigKey, out.EvidenceItems, out.DriftFingerprints, out.DegradedReasons)
+	compJSON, _ := incidentintel.ComponentMapJSON(fp)
+	sparseJSON, _ := incidentintel.SparsityJSON(fp)
+	if err := a.DB.UpsertIncidentFingerprint(db.IncidentFingerprintRecord{
+		IncidentID:               inc.ID,
+		FingerprintSchemaVersion: fp.SchemaVersion,
+		ProfileVersion:           fp.ProfileVersion,
+		LegacySignatureKey:       sigKey,
+		CanonicalHash:            fp.CanonicalHash,
+		ComponentJSON:            compJSON,
+		SparsityJSON:             sparseJSON,
+		ComputedAt:               fp.ComputedAt,
+	}); err != nil {
+		out.Degraded = true
+		out.DegradedReasons = append(out.DegradedReasons, "fingerprint_persistence_failed")
+	}
+	out.Fingerprint = ptrFingerprint(fp.ToModel())
+	out.SimilarIncidents = a.similarIncidentsWeighted(fp, inc)
+
 	a.enrichIncidentIntelligenceMoat(inc, out)
+	a.maybeSyncRunbookCandidate(inc, out)
 	if out.WirelessContext != nil && len(out.SparsityMarkers) > 0 {
 		out.WirelessContext.EvidenceGaps = append(out.WirelessContext.EvidenceGaps, out.SparsityMarkers...)
 	}
 	return out
+}
+
+func ptrFingerprint(m models.IncidentFingerprint) *models.IncidentFingerprint {
+	return &m
 }
 
 func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) ([]models.IncidentActionOutcomeMemory, []models.IncidentActionOutcomeSnapshot, *models.IncidentActionOutcomeTrace, []string) {
@@ -340,7 +366,70 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	return out, allSnapshots, trace, degradedReasons
 }
 
-func (a *App) similarIncidents(signatureKey, currentID string) []models.IncidentSimilarityRecord {
+func (a *App) similarIncidentsWeighted(self incidentintel.FingerprintV1, current models.Incident) []models.IncidentSimilarityRecord {
+	if a == nil || a.DB == nil {
+		return nil
+	}
+	peers, err := a.DB.IncidentFingerprintsByLegacySignature(self.LegacySignatureKey, current.ID, 12)
+	if err != nil || len(peers) == 0 {
+		return a.similarIncidentsFallback(self.LegacySignatureKey, current.ID)
+	}
+	type scored struct {
+		rec models.IncidentSimilarityRecord
+		s   float64
+	}
+	var buf []scored
+	for _, pr := range peers {
+		otherModel, err := db.RecordToIncidentFingerprint(pr)
+		if err != nil {
+			continue
+		}
+		other := incidentintel.FingerprintFromModel(otherModel, pr.IncidentID)
+		sim := incidentintel.CompareFingerprints(self, other)
+		inc, ok, err := a.DB.IncidentByID(pr.IncidentID)
+		if err != nil || !ok {
+			continue
+		}
+		reasons := append([]string(nil), sim.Explanation...)
+		reasons = append(reasons, "legacy_signature_key:"+self.LegacySignatureKey)
+		buf = append(buf, scored{
+			s: sim.Score,
+			rec: models.IncidentSimilarityRecord{
+				IncidentID:           inc.ID,
+				Title:                inc.Title,
+				State:                inc.State,
+				OccurredAt:           inc.OccurredAt,
+				SimilarityReason:     reasons,
+				MatchCategory:        sim.Category,
+				WeightedScore:        sim.Score,
+				MatchedDimensions:    sim.MatchedComponents,
+				UnmatchedDimensions:  sim.MismatchedComponents,
+				WeakSparseDimensions: sim.WeakDimensions,
+				InsufficientEvidence: sim.InsufficientEvidence,
+				MatchExplanation:     sim.Explanation,
+			},
+		})
+	}
+	if len(buf) == 0 {
+		return a.similarIncidentsFallback(self.LegacySignatureKey, current.ID)
+	}
+	sort.Slice(buf, func(i, j int) bool {
+		if buf[i].s == buf[j].s {
+			return buf[i].rec.IncidentID < buf[j].rec.IncidentID
+		}
+		return buf[i].s > buf[j].s
+	})
+	if len(buf) > 5 {
+		buf = buf[:5]
+	}
+	out := make([]models.IncidentSimilarityRecord, 0, len(buf))
+	for _, x := range buf {
+		out = append(out, x.rec)
+	}
+	return out
+}
+
+func (a *App) similarIncidentsFallback(signatureKey, currentID string) []models.IncidentSimilarityRecord {
 	if a == nil || a.DB == nil {
 		return nil
 	}
@@ -351,11 +440,14 @@ func (a *App) similarIncidents(signatureKey, currentID string) []models.Incident
 	out := make([]models.IncidentSimilarityRecord, 0, len(incs))
 	for _, inc := range incs {
 		out = append(out, models.IncidentSimilarityRecord{
-			IncidentID:       inc.ID,
-			Title:            inc.Title,
-			State:            inc.State,
-			OccurredAt:       inc.OccurredAt,
-			SimilarityReason: []string{"same_deterministic_signature_key"},
+			IncidentID:           inc.ID,
+			Title:                inc.Title,
+			State:                inc.State,
+			OccurredAt:           inc.OccurredAt,
+			SimilarityReason:     []string{"same_deterministic_signature_key", "fingerprint_peer_rows_unavailable_fallback"},
+			MatchCategory:        "same_recurring_signature_bucket",
+			InsufficientEvidence: true,
+			MatchExplanation:     []string{"Peer fingerprint rows missing; using signature-bucket fallback only."},
 		})
 	}
 	return out

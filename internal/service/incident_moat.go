@@ -1,6 +1,9 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -27,9 +30,9 @@ func (a *App) enrichIncidentIntelligenceMoat(inc models.Incident, intel *models.
 	}
 	intel.SparsityMarkers = sparse
 
-	intel.RunbookRecommendations = deriveRunbookRecommendations(intel, inc)
+	intel.RunbookRecommendations = deriveRunbookRecommendations(intel, inc, a)
 	intel.PolicyGovernanceHints = derivePolicyGovernanceHints(inc)
-	intel.DriftFingerprints = a.deriveDriftFingerprints(inc)
+	intel.GovernanceMemory = deriveGovernanceMemory(inc)
 	if groups, err := a.DB.CorrelationGroupsForIncident(inc.ID); err == nil {
 		for i := range groups {
 			ids, _ := a.DB.CorrelatedIncidentIDsForGroup(groups[i].GroupID)
@@ -42,6 +45,10 @@ func (a *App) enrichIncidentIntelligenceMoat(inc models.Incident, intel *models.
 			sort.Strings(groups[i].OtherIncidentIDs)
 		}
 		intel.CorrelationGroups = groups
+	}
+	a.syncMultiSignalFaultDomain(inc, intel)
+	if assets := a.runbookAssetsForIntel(intel); len(assets) > 0 {
+		intel.RunbookAssets = assets
 	}
 	intel.ReplayHints = buildReplayHints(inc, intel)
 	intel.LearningLoopHints = buildLearningLoopHints(intel, inc)
@@ -64,9 +71,17 @@ func buildLearningLoopHints(intel *models.IncidentIntelligence, inc models.Incid
 	return hints
 }
 
-func deriveRunbookRecommendations(intel *models.IncidentIntelligence, inc models.Incident) []models.IncidentRunbookRecommendation {
+func deriveRunbookRecommendations(intel *models.IncidentIntelligence, inc models.Incident, a *App) []models.IncidentRunbookRecommendation {
 	if intel == nil {
 		return nil
+	}
+	effByID := map[string]db.RecEffectivenessRecord{}
+	if a != nil && a.DB != nil && strings.TrimSpace(intel.SignatureKey) != "" {
+		if rows, err := a.DB.RecEffectivenessByScope(intel.SignatureKey); err == nil {
+			for _, r := range rows {
+				effByID[r.RecommendationID] = r
+			}
+		}
 	}
 	byType := map[string]models.IncidentActionOutcomeMemory{}
 	for _, m := range intel.ActionOutcomeMemory {
@@ -83,16 +98,19 @@ func deriveRunbookRecommendations(intel *models.IncidentIntelligence, inc models
 			continue
 		}
 		seen[id] = struct{}{}
-		out = append(out, models.IncidentRunbookRecommendation{
+		baseStrength := mapGuidanceConfidenceToStrength(g.Confidence)
+		rec := models.IncidentRunbookRecommendation{
 			ID:               id,
 			Title:            g.Title,
 			Rationale:        g.Rationale,
 			EvidenceRefs:     append([]string(nil), g.EvidenceRefs...),
-			Strength:         mapGuidanceConfidenceToStrength(g.Confidence),
+			Strength:         baseStrength,
 			RequiresApproval: false,
 			Reversibility:    "unknown",
 			IsCommand:        false,
-		})
+		}
+		applyOutcomeWeighting(&rec, effByID[id], intel, false)
+		out = append(out, rec)
 	}
 	for actionType, mem := range byType {
 		if strings.TrimSpace(actionType) == "" {
@@ -103,20 +121,9 @@ func deriveRunbookRecommendations(intel *models.IncidentIntelligence, inc models
 			continue
 		}
 		seen[id] = struct{}{}
-		strength := "weakly_supported"
-		switch mem.EvidenceStrength {
-		case "strong":
-			strength = "proven_historically"
-		case "moderate":
-			strength = "plausible"
-		case "sparse":
-			strength = "weakly_supported"
-		}
-		if mem.SampleSize < 2 {
-			strength = "unsupported"
-		}
+		strength := strengthFromActionMemory(mem)
 		reqAppr, blast, rev := actionGovernanceFromIncident(inc, actionType)
-		out = append(out, models.IncidentRunbookRecommendation{
+		rec := models.IncidentRunbookRecommendation{
 			ID:                  id,
 			Title:               "Consider control action pattern: " + firstNonEmpty(mem.ActionLabel, actionType),
 			ActionType:          actionType,
@@ -129,16 +136,88 @@ func deriveRunbookRecommendations(intel *models.IncidentIntelligence, inc models
 			PriorOutcomeFraming: mem.OutcomeFraming,
 			PriorSampleSize:     mem.SampleSize,
 			IsCommand:           true,
-		})
+		}
+		applyOutcomeWeighting(&rec, effByID[id], intel, true)
+		out = append(out, rec)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].RankScore == out[j].RankScore {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].RankScore > out[j].RankScore
+	})
 	return out
+}
+
+func strengthFromActionMemory(mem models.IncidentActionOutcomeMemory) string {
+	if mem.SampleSize < 2 {
+		return "unsupported"
+	}
+	switch mem.EvidenceStrength {
+	case "strong":
+		if mem.DeteriorationObservedCount > mem.ImprovementObservedCount+1 {
+			return "weakly_supported"
+		}
+		return "historically_proven"
+	case "moderate":
+		return "historically_promising"
+	case "sparse":
+		return "weakly_supported"
+	default:
+		return "plausible"
+	}
+}
+
+func applyOutcomeWeighting(rec *models.IncidentRunbookRecommendation, eff db.RecEffectivenessRecord, intel *models.IncidentIntelligence, isCommand bool) {
+	if rec == nil {
+		return
+	}
+	base := rankScoreFromStrength(rec.Strength)
+	explain := []string{fmt.Sprintf("Base rank from evidence-derived strength %q (deterministic rules; not ML).", rec.Strength)}
+	if eff.TotalCount > 0 {
+		harm := eff.IneffectiveCount + eff.WorsenedCount*2
+		help := eff.AcceptedCount*2 + eff.ModifiedCount
+		explain = append(explain, fmt.Sprintf("Operator outcomes in signature scope: n=%d accepted=%d rejected=%d ineffective=%d worsened=%d.",
+			eff.TotalCount, eff.AcceptedCount, eff.RejectedCount, eff.IneffectiveCount, eff.WorsenedCount))
+		base += float64(help - harm - eff.RejectedCount)
+		rec.HistoricalOutcomeNote = fmt.Sprintf("Scoped outcomes: total=%d net_help_score=%d", eff.TotalCount, help-harm-eff.RejectedCount)
+		if harm >= 3 && eff.AcceptedCount == 0 && isCommand {
+			rec.Suppressed = true
+			rec.SuppressedReason = "Repeated ineffective or harmful operator outcomes in this signature scope; downgraded to unsupported until reviewed."
+			rec.Strength = "unsupported"
+			explain = append(explain, rec.SuppressedReason)
+			base = -50
+		}
+	}
+	if intel != nil && len(intel.SparsityMarkers) > 2 {
+		base -= 1.5
+		explain = append(explain, "Sparse history penalty applied (multiple sparsity markers on this incident intelligence view).")
+	}
+	rec.RankScore = base
+	rec.StrengthExplanation = explain
+}
+
+func rankScoreFromStrength(s string) float64 {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "historically_proven", "proven_historically":
+		return 100
+	case "historically_promising":
+		return 85
+	case "plausible":
+		return 70
+	case "weakly_supported":
+		return 45
+	case "unsupported":
+		return 10
+	default:
+		return 40
+	}
 }
 
 func mapGuidanceConfidenceToStrength(c string) string {
 	switch strings.ToLower(strings.TrimSpace(c)) {
 	case "medium":
-		return "plausible"
+		return "historically_promising"
 	default:
 		return "weakly_supported"
 	}
@@ -203,6 +282,211 @@ func derivePolicyGovernanceHints(inc models.Incident) []models.IncidentPolicyGov
 			Posture:      "observed_from_linked_actions",
 		},
 	}
+}
+
+func deriveGovernanceMemory(inc models.Incident) []models.IncidentGovernanceMemory {
+	if len(inc.LinkedControlActions) == 0 {
+		return nil
+	}
+	byType := map[string]*models.IncidentGovernanceMemory{}
+	for _, ca := range inc.LinkedControlActions {
+		t := strings.TrimSpace(ca.ActionType)
+		if t == "" {
+			t = "unknown_action_type"
+		}
+		if byType[t] == nil {
+			byType[t] = &models.IncidentGovernanceMemory{
+				ActionType: t,
+				EvidenceRefs: []string{
+					"incident:" + inc.ID + ":linked_control_actions",
+				},
+			}
+		}
+		g := byType[t]
+		g.LinkedActionCount++
+		if strings.TrimSpace(ca.ApprovedBy) != "" || ca.RequiresSeparateApprover {
+			g.ApprovedOrPassedCount++
+		}
+		if strings.TrimSpace(ca.RejectedBy) != "" {
+			g.RejectedCount++
+		}
+		if ca.HighBlastRadius || strings.EqualFold(strings.TrimSpace(ca.BlastRadiusClass), "high") || strings.EqualFold(strings.TrimSpace(ca.BlastRadiusClass), "fleet") {
+			g.HighBlastCount++
+		}
+		if ca.RequiresSeparateApprover {
+			g.SeparateApproverCount++
+		}
+	}
+	out := make([]models.IncidentGovernanceMemory, 0, len(byType))
+	for _, g := range byType {
+		g.Summary = fmt.Sprintf("Observed linked actions for type %s: n=%d approved_or_gated=%d rejected=%d high_blast=%d separate_approver=%d (association only; not policy truth).",
+			g.ActionType, g.LinkedActionCount, g.ApprovedOrPassedCount, g.RejectedCount, g.HighBlastCount, g.SeparateApproverCount)
+		out = append(out, *g)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ActionType < out[j].ActionType })
+	return out
+}
+
+func (a *App) runbookAssetsForIntel(intel *models.IncidentIntelligence) []models.IncidentRunbookAsset {
+	if a == nil || a.DB == nil || intel == nil {
+		return nil
+	}
+	var rows []db.RunbookEntryRecord
+	var err error
+	if intel.Fingerprint != nil && strings.TrimSpace(intel.Fingerprint.CanonicalHash) != "" {
+		rows, err = a.DB.RunbookEntriesForFingerprintHash(intel.Fingerprint.CanonicalHash, 20)
+	}
+	if err != nil || len(rows) == 0 {
+		rows, _ = a.DB.RunbookEntriesForSignature(intel.SignatureKey, 20)
+	}
+	out := make([]models.IncidentRunbookAsset, 0, len(rows))
+	for _, r := range rows {
+		var refs, srcIDs []string
+		_ = json.Unmarshal([]byte(r.EvidenceRefJSON), &refs)
+		_ = json.Unmarshal([]byte(r.SourceIncidentIDsJSON), &srcIDs)
+		out = append(out, models.IncidentRunbookAsset{
+			ID:                 r.ID,
+			Status:             r.Status,
+			SourceKind:         r.SourceKind,
+			Title:              r.Title,
+			Body:               r.Body,
+			EvidenceRefs:       refs,
+			SourceIncidentIDs:  srcIDs,
+			LegacySignatureKey: r.LegacySignatureKey,
+			FingerprintHash:    r.FingerprintCanonicalHash,
+			PromotionBasis:     r.PromotionBasis,
+			CreatedAt:          r.CreatedAt,
+			UpdatedAt:          r.UpdatedAt,
+		})
+	}
+	return out
+}
+
+func (a *App) syncMultiSignalFaultDomain(inc models.Incident, intel *models.IncidentIntelligence) {
+	if a == nil || a.DB == nil || intel == nil {
+		return
+	}
+	parts := []string{intel.SignatureKey}
+	if intel.Fingerprint != nil && strings.TrimSpace(intel.Fingerprint.CanonicalHash) != "" {
+		parts = append(parts, intel.Fingerprint.CanonicalHash)
+	}
+	if inc.ResourceType == "transport" && strings.TrimSpace(inc.ResourceID) != "" {
+		parts = append(parts, "transport:"+inc.ResourceID)
+	}
+	raw := strings.Join(parts, "|")
+	sum := sha256.Sum256([]byte(raw))
+	domainKey := "fd:" + hex.EncodeToString(sum[:10])
+	domainID := "ifd-" + hex.EncodeToString(sum[:8])
+	rationale := []string{
+		"Grouping joins signature bucket, structured fingerprint hash, and transport resource when present.",
+		"Uncertainty is explicit: shared symptoms and correlated persistence only — not verified single root cause.",
+	}
+	evidence := map[string]string{
+		"legacy_signature": intel.SignatureKey,
+	}
+	if intel.Fingerprint != nil {
+		evidence["fingerprint_canonical_hash"] = intel.Fingerprint.CanonicalHash
+	}
+	if inc.ResourceType == "transport" {
+		evidence["transport_resource"] = inc.ResourceID
+	}
+	rj, _ := json.Marshal(rationale)
+	ej, _ := json.Marshal(evidence)
+	uncertainty := "possibly_related"
+	if len(intel.EvidenceItems) >= 4 && intel.SignatureMatchCount >= 2 {
+		uncertainty = "likely_related"
+	}
+	if len(intel.EvidenceItems) < 2 {
+		uncertainty = "inconclusive"
+	}
+	_ = a.DB.UpsertFaultDomain(db.FaultDomainRecord{
+		ID:                 domainID,
+		DomainKey:          domainKey,
+		Basis:              "multi_signal_fingerprint_transport",
+		Uncertainty:        uncertainty,
+		RationaleJSON:      string(rj),
+		EvidenceBundleJSON: string(ej),
+		CreatedAt:          time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:          time.Now().UTC().Format(time.RFC3339),
+	})
+	members := []db.FaultDomainMember{{Kind: "incident", ID: inc.ID, Reason: "scoped_incident"}}
+	if inc.ResourceType == "transport" && strings.TrimSpace(inc.ResourceID) != "" {
+		members = append(members, db.FaultDomainMember{Kind: "transport", ID: inc.ResourceID, Reason: "incident_resource"})
+	}
+	for _, cg := range intel.CorrelationGroups {
+		if strings.TrimSpace(cg.GroupID) != "" {
+			members = append(members, db.FaultDomainMember{Kind: "correlation_group", ID: cg.GroupID, Reason: "structural_correlation"})
+		}
+	}
+	for _, it := range intel.EvidenceItems {
+		if it.Kind == "transport_alert" && strings.HasPrefix(it.ReferenceID, "transport_alert:") {
+			id := strings.TrimPrefix(it.ReferenceID, "transport_alert:")
+			members = append(members, db.FaultDomainMember{Kind: "transport_alert", ID: id, Reason: "incident_window_evidence"})
+		}
+	}
+	_ = a.DB.ReplaceFaultDomainMembers(domainID, members)
+	if doms, err := a.DB.FaultDomainsForIncident(inc.ID); err == nil && len(doms) > 0 {
+		intel.FaultDomains = doms
+	}
+}
+
+func (a *App) maybeSyncRunbookCandidate(inc models.Incident, intel *models.IncidentIntelligence) {
+	if a == nil || a.DB == nil || intel == nil {
+		return
+	}
+	if intel.SignatureMatchCount < 3 {
+		return
+	}
+	rs := strings.TrimSpace(inc.ResolutionSummary)
+	ll := strings.TrimSpace(inc.LessonsLearned)
+	if rs == "" && ll == "" {
+		return
+	}
+	fpHash := ""
+	if intel.Fingerprint != nil {
+		fpHash = intel.Fingerprint.CanonicalHash
+	}
+	sum := sha256.Sum256([]byte(intel.SignatureKey + "|" + fpHash + "|" + rs + "|" + ll))
+	id := "irb-" + hex.EncodeToString(sum[:10])
+	title := "Candidate guidance from repeated incidents"
+	if rs != "" {
+		title = "Candidate: " + truncateRunbookTitle(rs, 80)
+	}
+	body := rs
+	if ll != "" {
+		if body != "" {
+			body += "\n\nLessons learned:\n" + ll
+		} else {
+			body = "Lessons learned:\n" + ll
+		}
+	}
+	evidenceRefs := []string{"incident:" + inc.ID, "incident_signatures:" + intel.SignatureKey}
+	if fpHash != "" {
+		evidenceRefs = append(evidenceRefs, "incident_fingerprint:"+fpHash)
+	}
+	srcIDs := []string{inc.ID}
+	refsJ, _ := json.Marshal(evidenceRefs)
+	srcJ, _ := json.Marshal(srcIDs)
+	_ = a.DB.InsertRunbookEntry(db.RunbookEntryRecord{
+		ID:                       id,
+		Status:                   "proposed",
+		SourceKind:               "repeated_incident_resolution_text",
+		LegacySignatureKey:       intel.SignatureKey,
+		FingerprintCanonicalHash: fpHash,
+		Title:                    title,
+		Body:                     body,
+		EvidenceRefJSON:          string(refsJ),
+		SourceIncidentIDsJSON:    string(srcJ),
+		PromotionBasis:           fmt.Sprintf("signature_match_count=%d with non-empty resolution or lessons on this incident", intel.SignatureMatchCount),
+	})
+}
+
+func truncateRunbookTitle(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func (a *App) deriveDriftFingerprints(inc models.Incident) []models.IncidentDriftFingerprint {
@@ -283,10 +567,12 @@ func buildReplayHints(inc models.Incident, intel *models.IncidentIntelligence) *
 	if len(intel.ActionOutcomeSnapshots) > 0 {
 		note += " Historical action-outcome snapshots show bounded pre/post windows around past actions on similar signatures."
 	}
+	rankNote := "Counterfactual ranking is bounded: given current deterministic recommendation ranking (rules + stored outcomes), order may differ from what an operator saw historically; this does not imply a better outcome would have occurred."
 	return &models.IncidentReplayHints{
 		Statement:          "Use timeline, linked actions, and proofpack export to reconstruct what MEL had persisted before each operator step.",
 		EvidenceAtTimeRefs: refs,
 		CounterfactualNote: note,
+		RankingModelNote:   rankNote,
 	}
 }
 
@@ -324,6 +610,10 @@ func (a *App) RecordRecommendationOutcome(incidentID, actorID string, req models
 	}
 	if err := a.DB.InsertIncidentRecommendationOutcome(rec); err != nil {
 		return fmt.Errorf("could not persist outcome: %w", err)
+	}
+	sigKey, _ := a.DB.SignatureKeyForIncident(incidentID)
+	if strings.TrimSpace(sigKey) != "" {
+		_ = a.DB.AccumulateRecommendationEffectiveness(sigKey, recID, outcome)
 	}
 	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
 		ID:           newTrustID("aud"),
@@ -460,14 +750,79 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 			"created_at":        o.CreatedAt,
 		})
 	}
+	from, to := incidentEvidenceWindow(inc)
+	timeline, _ := a.DB.TimelineEventsForIncidentResource(incidentID, from, to, 200)
+	segments := replaySegmentsFromTimeline(timeline, inc)
+	knowledge := []map[string]any{}
+	for _, seg := range segments {
+		knowledge = append(knowledge, map[string]any{
+			"event_time":        seg.EventTime,
+			"event_type":        seg.EventType,
+			"summary":           seg.Summary,
+			"knowledge_posture": seg.Posture,
+			"evidence_refs":     seg.EvidenceRefs,
+		})
+	}
+	var counterfactual map[string]any
+	if inc.Intelligence != nil && len(inc.Intelligence.RunbookRecommendations) > 1 {
+		top := inc.Intelligence.RunbookRecommendations[0]
+		second := inc.Intelligence.RunbookRecommendations[1]
+		counterfactual = map[string]any{
+			"statement": "Given today's deterministic rank_score ordering on this incident, top two recommendation ids are ordered as below. This is not a claim about historical operator UI order or outcome optimality.",
+			"top":       []map[string]any{{"id": top.ID, "rank_score": top.RankScore, "strength": top.Strength}},
+			"second":    []map[string]any{{"id": second.ID, "rank_score": second.RankScore, "strength": second.Strength}},
+		}
+	}
 	return map[string]any{
-		"kind":                    "incident_replay_view/v1",
-		"incident_id":             inc.ID,
-		"incident":                inc,
-		"recommendation_outcomes": omo,
-		"truth_note":              "Derived from persisted rows at query time; not a live simulation.",
-		"generated_at":            time.Now().UTC().Format(time.RFC3339),
+		"kind":                           "incident_replay_view/v2",
+		"incident_id":                    inc.ID,
+		"incident":                       inc,
+		"recommendation_outcomes":        omo,
+		"replay_segments":                segments,
+		"knowledge_timeline":             knowledge,
+		"bounded_counterfactual_ranking": counterfactual,
+		"truth_note":                     "Derived from persisted rows at query time; not a live simulation. Segment posture labels what MEL could observe vs derive vs operator-adjudicated assistive layers.",
+		"generated_at":                   time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+type replaySegment struct {
+	EventTime    string   `json:"event_time"`
+	EventType    string   `json:"event_type"`
+	EventID      string   `json:"event_id,omitempty"`
+	Summary      string   `json:"summary"`
+	Posture      string   `json:"knowledge_posture"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+}
+
+func replaySegmentsFromTimeline(events []db.TimelineEvent, inc models.Incident) []replaySegment {
+	out := make([]replaySegment, 0, len(events))
+	for _, ev := range events {
+		posture := "observed_persisted_event"
+		switch ev.EventType {
+		case "proofpack_export", "incident_workflow", "incident_handoff":
+			posture = "observed_operator_or_system_event"
+		case "control_action":
+			posture = "observed_control_plane_event"
+		default:
+			if strings.HasPrefix(ev.EventType, "action_") {
+				posture = "observed_control_lifecycle_event"
+			}
+		}
+		refs := []string{"timeline_event:" + ev.EventID}
+		if strings.TrimSpace(ev.ResourceID) != "" && ev.ResourceID == inc.ID {
+			refs = append(refs, "incident:"+inc.ID)
+		}
+		out = append(out, replaySegment{
+			EventTime:    ev.EventTime,
+			EventType:    ev.EventType,
+			EventID:      ev.EventID,
+			Summary:      ev.Summary,
+			Posture:      posture,
+			EvidenceRefs: refs,
+		})
+	}
+	return out
 }
 
 // BuildEscalationBundle returns a concise machine-readable bundle for support handoff.

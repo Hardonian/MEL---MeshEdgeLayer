@@ -16,7 +16,10 @@ import "time"
 
 // FormatVersion is the canonical proofpack schema version.
 // Consumers must check this before parsing.
-const FormatVersion = "1.0.0"
+const FormatVersion = "1.1.0"
+
+// ManifestVersion labels assembly semantics (provenance / completeness contract).
+const ManifestVersion = "mel-proofpack-manifest/v1"
 
 // Proofpack is the top-level evidence bundle for a single incident.
 type Proofpack struct {
@@ -84,12 +87,14 @@ type ProofpackSectionStatus struct {
 // evidence was available. This is not an attestation of correctness; it
 // is a record of assembly conditions.
 type AssemblyMetadata struct {
-	AssembledAt    string `json:"assembled_at"`     // RFC3339
-	AssembledBy    string `json:"assembled_by"`     // actor ID or "system"
-	InstanceID     string `json:"instance_id"`      // MEL instance that assembled
-	IncidentID     string `json:"incident_id"`      // scoping incident
-	TimeWindowFrom string `json:"time_window_from"` // earliest evidence considered (RFC3339)
-	TimeWindowTo   string `json:"time_window_to"`   // latest evidence considered (RFC3339)
+	AssembledAt     string `json:"assembled_at"` // RFC3339
+	AssembledBy     string `json:"assembled_by"`
+	InstanceID      string `json:"instance_id"`
+	IncidentID      string `json:"incident_id"`
+	ManifestVersion string `json:"manifest_version,omitempty"`
+	IntegrityNote   string `json:"integrity_note,omitempty"` // non-crypto: assembly bounds, not a signature
+	TimeWindowFrom  string `json:"time_window_from"`
+	TimeWindowTo    string `json:"time_window_to"`
 
 	// Counts of evidence items assembled (for quick integrity checks).
 	ActionCount                 int                        `json:"action_count"`
