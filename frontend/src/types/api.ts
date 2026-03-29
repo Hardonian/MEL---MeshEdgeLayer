@@ -208,6 +208,7 @@ export interface IncidentIntelligence {
   evidence_strength: 'sparse' | 'moderate' | 'strong'
   evidence_items?: IncidentEvidenceItem[]
   implicated_domains?: IncidentDomainHint[]
+  wireless_context?: IncidentWirelessContext
   investigate_next?: IncidentGuidanceItem[]
   similar_incidents?: IncidentSimilarityRecord[]
   historically_used_actions?: IncidentActionPattern[]
@@ -215,6 +216,38 @@ export interface IncidentIntelligence {
   degraded?: boolean
   degraded_reasons?: string[]
   generated_at?: string
+}
+
+export interface IncidentWirelessContext {
+  classification:
+    | 'lora_mesh_pressure'
+    | 'bluetooth_onboarding_issue'
+    | 'wifi_backhaul_instability'
+    | 'mixed_path_degradation'
+    | 'sparse_evidence_incident'
+    | 'recurring_unknown_pattern'
+    | 'unsupported_wireless_domain_observed'
+  primary_domain: 'lora' | 'bluetooth' | 'wifi' | 'mixed' | 'unknown'
+  observed_domains?: string[]
+  evidence_posture: 'live' | 'historical' | 'partial' | 'sparse' | 'imported' | 'unsupported'
+  confidence_posture: 'evidence_backed' | 'mixed' | 'sparse' | 'inconclusive'
+  summary: string
+  reasons?: IncidentWirelessReason[]
+  evidence_gaps?: string[]
+  inspect_next?: string[]
+  unsupported?: IncidentWirelessUnsupported[]
+}
+
+export interface IncidentWirelessReason {
+  code: string
+  statement: string
+  evidence_refs?: string[]
+}
+
+export interface IncidentWirelessUnsupported {
+  domain: string
+  scope: string
+  note: string
 }
 
 export interface IncidentEvidenceItem {

@@ -68,6 +68,7 @@ type IncidentIntelligence struct {
 	EvidenceStrength        string                          `json:"evidence_strength"` // sparse, moderate, strong
 	EvidenceItems           []IncidentEvidenceItem          `json:"evidence_items,omitempty"`
 	ImplicatedDomains       []IncidentDomainHint            `json:"implicated_domains,omitempty"`
+	WirelessContext         *IncidentWirelessContext        `json:"wireless_context,omitempty"`
 	InvestigateNext         []IncidentGuidanceItem          `json:"investigate_next,omitempty"`
 	SimilarIncidents        []IncidentSimilarityRecord      `json:"similar_incidents,omitempty"`
 	HistoricallyUsedActions []IncidentActionPattern         `json:"historically_used_actions,omitempty"`
@@ -98,6 +99,31 @@ type IncidentGuidanceItem struct {
 	Rationale    string   `json:"rationale"`
 	EvidenceRefs []string `json:"evidence_refs,omitempty"`
 	Confidence   string   `json:"confidence"` // low, medium
+}
+
+type IncidentWirelessContext struct {
+	Classification    string                        `json:"classification"` // lora_mesh_pressure, bluetooth_onboarding_issue, wifi_backhaul_instability, mixed_path_degradation, sparse_evidence_incident, recurring_unknown_pattern, unsupported_wireless_domain_observed
+	PrimaryDomain     string                        `json:"primary_domain"` // lora, bluetooth, wifi, mixed, unknown
+	ObservedDomains   []string                      `json:"observed_domains,omitempty"`
+	EvidencePosture   string                        `json:"evidence_posture"`   // live, historical, partial, sparse, imported, unsupported
+	ConfidencePosture string                        `json:"confidence_posture"` // evidence_backed, mixed, sparse, inconclusive
+	Summary           string                        `json:"summary"`
+	Reasons           []IncidentWirelessReason      `json:"reasons,omitempty"`
+	EvidenceGaps      []string                      `json:"evidence_gaps,omitempty"`
+	InspectNext       []string                      `json:"inspect_next,omitempty"`
+	Unsupported       []IncidentWirelessUnsupported `json:"unsupported,omitempty"`
+}
+
+type IncidentWirelessReason struct {
+	Code         string   `json:"code"`
+	Statement    string   `json:"statement"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+}
+
+type IncidentWirelessUnsupported struct {
+	Domain string `json:"domain"`
+	Scope  string `json:"scope"`
+	Note   string `json:"note"`
 }
 
 type IncidentSimilarityRecord struct {

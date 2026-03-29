@@ -56,6 +56,47 @@ function observedStatusLabel(value: string | undefined): string {
   }
 }
 
+function wirelessClassificationLabel(value: string | undefined): string {
+  switch (value) {
+    case 'lora_mesh_pressure':
+      return 'LoRa / frequency pressure'
+    case 'wifi_backhaul_instability':
+      return 'Wi-Fi backhaul instability'
+    case 'mixed_path_degradation':
+      return 'Mixed-path degradation'
+    case 'sparse_evidence_incident':
+      return 'Sparse evidence incident'
+    case 'unsupported_wireless_domain_observed':
+      return 'Unsupported wireless domain observed'
+    case 'recurring_unknown_pattern':
+      return 'Recurring unknown wireless pattern'
+    default:
+      return toWords(value) || 'Wireless classification unavailable'
+  }
+}
+
+function humanizeReasonCode(value: string | undefined): string {
+  const text = toWords(value)
+  if (!text) return 'No additional context'
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function defaultProofpackFilename(incidentId: string): string {
+  return `proofpack-${incidentId || 'incident'}.json`
+}
+
+function filenameFromDisposition(contentDisposition: string | null, fallback: string): string {
+  if (!contentDisposition) return fallback
+  const match = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i)
+  if (!match || !match[1]) return fallback
+  const value = match[1].replace(/\"/g, '').trim()
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value || fallback
+  }
+}
+
 
 export function Incidents() {
   const { data, loading, error, refresh } = useIncidents()
@@ -312,6 +353,39 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                   .filter(Boolean)
                   .join(', ')}
               </p>
+            )}
+            {inc.intelligence.wireless_context && (
+              <div className="space-y-2 rounded border border-border/80 bg-background px-2 py-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">Mixed wireless context</span>
+                  <Badge variant="outline">{wirelessClassificationLabel(inc.intelligence.wireless_context.classification)}</Badge>
+                  <Badge variant="secondary">confidence {toWords(inc.intelligence.wireless_context.confidence_posture)}</Badge>
+                  <Badge variant="outline">posture {toWords(inc.intelligence.wireless_context.evidence_posture)}</Badge>
+                </div>
+                <p className="text-muted-foreground">{inc.intelligence.wireless_context.summary}</p>
+                {(inc.intelligence.wireless_context.observed_domains || []).length > 0 && (
+                  <p className="text-muted-foreground">
+                    Observed domains: {(inc.intelligence.wireless_context.observed_domains || []).join(', ')}.
+                  </p>
+                )}
+                {(inc.intelligence.wireless_context.reasons || []).length > 0 && (
+                  <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+                    {inc.intelligence.wireless_context.reasons?.slice(0, 2).map((reason) => (
+                      <li key={reason.code}>{reason.statement}</li>
+                    ))}
+                  </ul>
+                )}
+                {(inc.intelligence.wireless_context.evidence_gaps || []).length > 0 && (
+                  <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-100">
+                    Evidence gaps: {inc.intelligence.wireless_context.evidence_gaps?.slice(0, 3).join(', ')}
+                  </p>
+                )}
+                {(inc.intelligence.wireless_context.unsupported || []).length > 0 && (
+                  <p className="rounded border border-border/80 bg-muted/30 px-2 py-1 text-foreground">
+                    Unsupported scope: {inc.intelligence.wireless_context.unsupported?.map((u) => `${u.domain} ${u.scope}`).join(', ')}.
+                  </p>
+                )}
+              </div>
             )}
             {inc.intelligence.investigate_next && inc.intelligence.investigate_next.length > 0 && (
               <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">

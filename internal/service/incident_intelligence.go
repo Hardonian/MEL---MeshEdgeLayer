@@ -119,6 +119,7 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	out.SimilarIncidents = a.similarIncidents(sigKey, inc.ID)
 	out.ActionOutcomeMemory, out.ActionOutcomeSnapshots = a.actionOutcomeMemory(sigKey, inc)
 	out.ImplicatedDomains = deriveDomains(out.EvidenceItems, inc)
+	out.WirelessContext = deriveWirelessContext(inc, out)
 	out.InvestigateNext = deriveInvestigationGuidance(out, inc)
 	switch {
 	case len(out.EvidenceItems) >= 5:
@@ -453,7 +454,233 @@ func deriveInvestigationGuidance(intel *models.IncidentIntelligence, inc models.
 			Confidence:   "low",
 		})
 	}
+	if intel.WirelessContext != nil {
+		out = append(out, models.IncidentGuidanceItem{
+			ID:           "guide-wireless-context",
+			Title:        "Inspect mixed wireless context boundaries",
+			Rationale:    intel.WirelessContext.Summary,
+			EvidenceRefs: wirelessRefs(intel.WirelessContext.Reasons),
+			Confidence:   "low",
+		})
+	}
 	return out
+}
+
+func deriveWirelessContext(inc models.Incident, intel *models.IncidentIntelligence) *models.IncidentWirelessContext {
+	if intel == nil {
+		return nil
+	}
+	tokens := strings.ToLower(strings.Join([]string{
+		inc.Category,
+		inc.ResourceType,
+		inc.ResourceID,
+		inc.Title,
+		inc.Summary,
+		collectMetadataText(inc.Metadata),
+	}, " "))
+	for _, it := range intel.EvidenceItems {
+		tokens += " " + strings.ToLower(it.Kind) + " " + strings.ToLower(it.Summary)
+	}
+	for _, action := range inc.LinkedControlActions {
+		tokens += " " + strings.ToLower(action.ActionType) + " " + strings.ToLower(action.TransportName) + " " + strings.ToLower(action.TargetSegment)
+	}
+
+	loraHit := containsAny(tokens, []string{"lora", "long range", "frequency", "band", "channel", "snr", "rssi"})
+	wifiHit := containsAny(tokens, []string{"wifi", "wi-fi", "backhaul", "ssid", "ap ", "access point", "wlan"})
+	bluetoothHit := containsAny(tokens, []string{"bluetooth", "ble", "provision", "pairing", "nearby"})
+
+	observedDomains := make([]string, 0, 3)
+	if loraHit {
+		observedDomains = append(observedDomains, "lora")
+	}
+	if bluetoothHit {
+		observedDomains = append(observedDomains, "bluetooth")
+	}
+	if wifiHit {
+		observedDomains = append(observedDomains, "wifi")
+	}
+	if len(observedDomains) == 0 {
+		observedDomains = append(observedDomains, "unknown")
+	}
+
+	gaps := []string{}
+	for _, r := range intel.DegradedReasons {
+		if strings.TrimSpace(r) != "" {
+			gaps = append(gaps, r)
+		}
+	}
+	if len(intel.EvidenceItems) < 2 {
+		gaps = append(gaps, "limited_correlated_evidence")
+	}
+
+	reasons := make([]models.IncidentWirelessReason, 0, 4)
+	if loraHit {
+		reasons = append(reasons, models.IncidentWirelessReason{
+			Code:         "lora_terms_present",
+			Statement:    "LoRa or frequency-linked terms appear in incident/evidence text; this is association only.",
+			EvidenceRefs: []string{"incident:" + inc.ID},
+		})
+	}
+	if wifiHit {
+		reasons = append(reasons, models.IncidentWirelessReason{
+			Code:         "wifi_backhaul_terms_present",
+			Statement:    "Wi-Fi/backhaul terms appear in incident/evidence text; inspect transport continuity and dead letters.",
+			EvidenceRefs: []string{"incident:" + inc.ID},
+		})
+	}
+	if bluetoothHit {
+		reasons = append(reasons, models.IncidentWirelessReason{
+			Code:         "bluetooth_terms_present",
+			Statement:    "Bluetooth/nearby onboarding terms are present, but MEL BLE ingest is currently unsupported.",
+			EvidenceRefs: []string{"incident:" + inc.ID},
+		})
+	}
+	if len(reasons) == 0 {
+		reasons = append(reasons, models.IncidentWirelessReason{
+			Code:         "no_domain_specific_terms",
+			Statement:    "No clear LoRa/Bluetooth/Wi-Fi terms were found in incident-linked evidence.",
+			EvidenceRefs: []string{"incident:" + inc.ID},
+		})
+	}
+
+	hasTransportSignals := false
+	for _, item := range intel.EvidenceItems {
+		if item.Kind == "transport_alert" || item.Kind == "dead_letter_reason_cluster" {
+			hasTransportSignals = true
+			break
+		}
+	}
+	unsupported := []models.IncidentWirelessUnsupported{}
+	if bluetoothHit {
+		unsupported = append(unsupported, models.IncidentWirelessUnsupported{
+			Domain: "bluetooth",
+			Scope:  "ingest",
+			Note:   "BLE ingest is unsupported in current MEL contract; preserve evidence but do not infer direct runtime diagnosis.",
+		})
+	}
+
+	sparseGap := containsAny(strings.Join(gaps, " "), []string{"limited_correlated_evidence"}) &&
+		!loraHit && !wifiHit && !bluetoothHit
+	if !sparseGap && intel.EvidenceStrength == "sparse" && !hasTransportSignals && len(observedDomains) == 1 && observedDomains[0] == "unknown" {
+		sparseGap = true
+	}
+
+	classification := "recurring_unknown_pattern"
+	primary := "unknown"
+	evidencePosture := "historical"
+	confidence := "inconclusive"
+	summary := "Wireless context is ambiguous; compare timeline, linked evidence, and prior incidents before attributing cause."
+
+	switch {
+	case sparseGap:
+		classification = "sparse_evidence_incident"
+		evidencePosture = "sparse"
+		confidence = "sparse"
+		summary = "Sparse evidence: MEL can preserve context but cannot distinguish mesh, node, frequency, Bluetooth, or Wi-Fi path with confidence."
+	case len(observedDomains) > 1:
+		classification = "mixed_path_degradation"
+		primary = "mixed"
+		evidencePosture = "partial"
+		confidence = "mixed"
+		summary = "Mixed wireless context: multiple domains are implicated by associated evidence; inspect each domain before action."
+	case wifiHit && hasTransportSignals:
+		classification = "wifi_backhaul_instability"
+		primary = "wifi"
+		evidencePosture = "partial"
+		confidence = "evidence_backed"
+		summary = "Wireless context suggests Wi-Fi/backhaul instability association from transport evidence; this is not root-cause proof."
+	case loraHit:
+		classification = "lora_mesh_pressure"
+		primary = "lora"
+		evidencePosture = "partial"
+		confidence = "mixed"
+		summary = "Mesh context includes LoRa/frequency-associated signals; verify node/link history before treating as reach or RF failure."
+	case bluetoothHit:
+		classification = "unsupported_wireless_domain_observed"
+		primary = "bluetooth"
+		evidencePosture = "unsupported"
+		confidence = "inconclusive"
+		summary = "Bluetooth-side context is observed, but MEL currently preserves only bounded evidence and cannot diagnose BLE runtime state."
+	case intel.SignatureMatchCount > 1:
+		classification = "recurring_unknown_pattern"
+		evidencePosture = "historical"
+		confidence = "mixed"
+		summary = "Recurring pattern detected from similar incidents, but wireless domain attribution remains uncertain."
+	}
+	if primary == "unknown" && len(observedDomains) == 1 && observedDomains[0] != "unknown" {
+		primary = observedDomains[0]
+	}
+	inspectNext := []string{
+		"Review incident timeline ordering and linked evidence before attributing cause.",
+	}
+	if wifiHit {
+		inspectNext = append(inspectNext, "Inspect Wi-Fi/backhaul transport disconnect and dead-letter evidence in the same window.")
+	}
+	if loraHit {
+		inspectNext = append(inspectNext, "Inspect node/link message recency and frequency metadata if available.")
+	}
+	if bluetoothHit {
+		inspectNext = append(inspectNext, "Treat Bluetooth context as unsupported telemetry; use manual nearby checks before action.")
+	}
+	return &models.IncidentWirelessContext{
+		Classification:    classification,
+		PrimaryDomain:     primary,
+		ObservedDomains:   observedDomains,
+		EvidencePosture:   evidencePosture,
+		ConfidencePosture: confidence,
+		Summary:           summary,
+		Reasons:           reasons,
+		EvidenceGaps:      dedupeStrings(gaps),
+		InspectNext:       dedupeStrings(inspectNext),
+		Unsupported:       unsupported,
+	}
+}
+
+func collectMetadataText(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(metadata)*2)
+	for k, v := range metadata {
+		parts = append(parts, strings.ToLower(strings.TrimSpace(k)))
+		parts = append(parts, strings.ToLower(strings.TrimSpace(fmt.Sprint(v))))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, " ")
+}
+
+func containsAny(haystack string, needles []string) bool {
+	for _, n := range needles {
+		if strings.Contains(haystack, strings.ToLower(strings.TrimSpace(n))) {
+			return true
+		}
+	}
+	return false
+}
+
+func dedupeStrings(in []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		key := strings.TrimSpace(v)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	return out
+}
+
+func wirelessRefs(reasons []models.IncidentWirelessReason) []string {
+	refs := []string{}
+	for _, reason := range reasons {
+		refs = append(refs, reason.EvidenceRefs...)
+	}
+	return dedupeStrings(refs)
 }
 
 func firstNonEmpty(v ...string) string {

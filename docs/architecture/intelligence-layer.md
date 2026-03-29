@@ -85,3 +85,14 @@ What MEL does **not** compute:
 - no “all clear” when evidence is sparse (degraded reasons are surfaced).
 
 This keeps incident guidance explainable, replayable, and bounded by stored operator evidence history.
+
+## Mixed wireless context (typed, bounded)
+
+`incident.intelligence.wireless_context` now adds a deterministic mixed-wireless lens that normalizes LoRa / Bluetooth / Wi-Fi terms and evidence posture into shared operator language.
+
+Current boundaries:
+
+- Classification is association-first and limitation-aware (`wifi_backhaul_instability`, `lora_mesh_pressure`, `mixed_path_degradation`, `sparse_evidence_incident`, `unsupported_wireless_domain_observed`, etc.).
+- BLE context can be preserved as a domain hint, but BLE ingest/runtime diagnosis is still unsupported.
+- Wi-Fi and LoRa classifications are based on incident/evidence linkage in MEL history, not RF causality proof.
+- Every context includes confidence/evidence posture plus explicit evidence gaps to avoid false certainty.

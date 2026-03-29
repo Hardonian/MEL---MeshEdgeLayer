@@ -23,6 +23,18 @@ function setupFetch() {
                   signature_label: 'transport/transport pattern (timeout_stall)',
                   signature_match_count: 3,
                   evidence_strength: 'moderate',
+                  wireless_context: {
+                    classification: 'wifi_backhaul_instability',
+                    primary_domain: 'wifi',
+                    observed_domains: ['wifi', 'lora'],
+                    evidence_posture: 'partial',
+                    confidence_posture: 'evidence_backed',
+                    summary: 'Wireless context suggests Wi-Fi/backhaul instability association from transport evidence; this is not root-cause proof.',
+                    reasons: [
+                      { code: 'wifi_backhaul_terms_present', statement: 'Wi-Fi/backhaul terms appear in incident/evidence text; inspect transport continuity and dead letters.' },
+                    ],
+                    evidence_gaps: ['limited_correlated_evidence'],
+                  },
                   similar_incidents: [{ incident_id: 'inc-old-1' }],
                   action_outcome_memory: [
                     {
@@ -116,6 +128,9 @@ describe('Incidents intelligence rendering', () => {
     expect(screen.getByText(/Caveat: Historical association only/i)).toBeTruthy()
     expect(screen.getByText(/Insufficient historical evidence/i)).toBeTruthy()
     expect(screen.getByText(/Sparse history/i)).toBeTruthy()
+    expect(screen.getByText(/Mixed wireless context/i)).toBeTruthy()
+    expect(screen.getByText(/Wi-Fi backhaul instability/i)).toBeTruthy()
+    expect(screen.getByText(/Observed domains: wifi, lora./i)).toBeTruthy()
   })
 
   it('renders degraded warning when evidence is sparse', async () => {

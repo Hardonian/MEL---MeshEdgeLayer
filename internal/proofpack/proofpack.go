@@ -89,25 +89,37 @@ type AssemblyMetadata struct {
 // IncidentEvidence is the incident record at assembly time, preserved
 // exactly as it existed in the database.
 type IncidentEvidence struct {
-	ID             string                   `json:"id"`
-	Category       string                   `json:"category"`
-	Severity       string                   `json:"severity"`
-	Title          string                   `json:"title"`
-	Summary        string                   `json:"summary"`
-	ResourceType   string                   `json:"resource_type"`
-	ResourceID     string                   `json:"resource_id"`
-	State          string                   `json:"state"`
-	ActorID        string                   `json:"actor_id,omitempty"`
-	OccurredAt     string                   `json:"occurred_at"`
-	UpdatedAt      string                   `json:"updated_at,omitempty"`
-	ResolvedAt     string                   `json:"resolved_at,omitempty"`
-	OwnerActorID   string                   `json:"owner_actor_id,omitempty"`
-	HandoffSummary string                   `json:"handoff_summary,omitempty"`
-	PendingActions []string                 `json:"pending_actions,omitempty"`
-	RecentActions  []string                 `json:"recent_actions,omitempty"`
-	LinkedEvidence []map[string]interface{} `json:"linked_evidence,omitempty"`
-	Risks          []string                 `json:"risks,omitempty"`
-	Metadata       map[string]interface{}   `json:"metadata,omitempty"`
+	ID              string                    `json:"id"`
+	Category        string                    `json:"category"`
+	Severity        string                    `json:"severity"`
+	Title           string                    `json:"title"`
+	Summary         string                    `json:"summary"`
+	ResourceType    string                    `json:"resource_type"`
+	ResourceID      string                    `json:"resource_id"`
+	State           string                    `json:"state"`
+	ActorID         string                    `json:"actor_id,omitempty"`
+	OccurredAt      string                    `json:"occurred_at"`
+	UpdatedAt       string                    `json:"updated_at,omitempty"`
+	ResolvedAt      string                    `json:"resolved_at,omitempty"`
+	OwnerActorID    string                    `json:"owner_actor_id,omitempty"`
+	HandoffSummary  string                    `json:"handoff_summary,omitempty"`
+	PendingActions  []string                  `json:"pending_actions,omitempty"`
+	RecentActions   []string                  `json:"recent_actions,omitempty"`
+	LinkedEvidence  []map[string]interface{}  `json:"linked_evidence,omitempty"`
+	Risks           []string                  `json:"risks,omitempty"`
+	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
+	WirelessContext *ProofpackWirelessContext `json:"wireless_context,omitempty"`
+}
+
+type ProofpackWirelessContext struct {
+	Classification    string   `json:"classification"`
+	PrimaryDomain     string   `json:"primary_domain"`
+	ObservedDomains   []string `json:"observed_domains,omitempty"`
+	EvidencePosture   string   `json:"evidence_posture"`
+	ConfidencePosture string   `json:"confidence_posture"`
+	Summary           string   `json:"summary"`
+	EvidenceGaps      []string `json:"evidence_gaps,omitempty"`
+	InspectNext       []string `json:"inspect_next,omitempty"`
 }
 
 // ActionEvidence is a control action record preserved for the proofpack.
