@@ -134,17 +134,9 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	default:
 		out.EvidenceStrength = "sparse"
 	}
-	if len(out.SimilarIncidents) == 0 {
-		out.Degraded = true
-		out.DegradedReasons = append(out.DegradedReasons, "no_similar_incident_history")
-	}
-	if len(out.ActionOutcomeMemory) == 0 {
-		out.Degraded = true
-		out.DegradedReasons = append(out.DegradedReasons, "insufficient_action_outcome_history")
-	}
-	if len(out.EvidenceItems) < 2 {
-		out.Degraded = true
-		out.DegradedReasons = append(out.DegradedReasons, "limited_correlated_evidence")
+	a.enrichIncidentIntelligenceMoat(inc, out)
+	if out.WirelessContext != nil && len(out.SparsityMarkers) > 0 {
+		out.WirelessContext.EvidenceGaps = append(out.WirelessContext.EvidenceGaps, out.SparsityMarkers...)
 	}
 	return out
 }

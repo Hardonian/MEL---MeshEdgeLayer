@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { formatTimestamp, type Incident } from '@/types/api'
 import { ClipboardCopy, Download, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 function isOpenIncident(inc: Incident): boolean {
   const s = (inc.state || '').toLowerCase()
@@ -87,6 +87,21 @@ function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'war
   return 'outline'
 }
 
+function strengthLabel(s: string | undefined): string {
+  switch (s) {
+    case 'proven_historically':
+      return 'Historically observed (still association-only)'
+    case 'plausible':
+      return 'Plausible from history'
+    case 'weakly_supported':
+      return 'Weakly supported'
+    case 'unsupported':
+      return 'Unsupported by history'
+    default:
+      return toWords(s) || 'Unknown strength'
+  }
+}
+
 function defaultProofpackFilename(incidentId: string): string {
   return `proofpack-${incidentId || 'incident'}.json`
 }
@@ -136,6 +151,7 @@ export function Incidents() {
   const incidents = data || []
   const openIncidents = incidents.filter(isOpenIncident)
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
+  const canMutate = ctx.trustUI?.incident_mutate === true
 
   return (
     <div className="space-y-6">
@@ -169,6 +185,14 @@ export function Incidents() {
         />
       )}
 
+      {!canMutate && !ctx.loading && (
+        <AlertCard
+          variant="info"
+          title="Workflow and recommendation feedback read-only"
+          description="Your credentials do not include incident_update. You can view intelligence but cannot PATCH workflow fields or record recommendation outcomes from this session."
+        />
+      )}
+
       {openIncidents.length === 0 ? (
         <EmptyState
           type="no-data"
@@ -182,7 +206,7 @@ export function Incidents() {
       ) : (
         <div className="grid gap-4">
           {openIncidents.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} />
+            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} onRefresh={() => void refresh()} />
           ))}
         </div>
       )}
@@ -196,7 +220,7 @@ export function Incidents() {
             {incidents
               .filter((i) => !isOpenIncident(i))
               .map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} muted />
+                <IncidentCard key={inc.id} incident={inc} muted canMutate={canMutate} onRefresh={() => void refresh()} />
               ))}
           </div>
         </section>
@@ -267,10 +291,80 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
   )
 }
 
-function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
+function IncidentCard({
+  incident: inc,
+  muted = false,
+  canMutate = false,
+  onRefresh,
+}: {
+  incident: Incident
+  muted?: boolean
+  canMutate?: boolean
+  onRefresh?: () => void
+}) {
   const pending = inc.pending_actions?.filter(Boolean) ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
   const owner = inc.owner_actor_id?.trim()
+  const [wfNote, setWfNote] = useState(inc.investigation_notes || '')
+  const [wfRes, setWfRes] = useState(inc.resolution_summary || '')
+  const [wfReview, setWfReview] = useState(inc.review_state || 'open')
+  const [wfBusy, setWfBusy] = useState(false)
+  const [wfErr, setWfErr] = useState<string | null>(null)
+  const [recBusy, setRecBusy] = useState<string | null>(null)
+
+  useEffect(() => {
+    setWfNote(inc.investigation_notes || '')
+    setWfRes(inc.resolution_summary || '')
+    setWfReview(inc.review_state || 'open')
+  }, [inc.id, inc.investigation_notes, inc.resolution_summary, inc.review_state])
+
+  async function saveWorkflow() {
+    if (!canMutate) return
+    setWfBusy(true)
+    setWfErr(null)
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/workflow`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_state: wfReview,
+          investigation_notes: wfNote,
+          resolution_summary: wfRes,
+        }),
+      })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      onRefresh?.()
+    } catch (e) {
+      setWfErr(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setWfBusy(false)
+    }
+  }
+
+  async function recordRecOutcome(recommendationId: string, outcome: string) {
+    if (!canMutate) return
+    setRecBusy(recommendationId + outcome)
+    setWfErr(null)
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/recommendation-outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recommendation_id: recommendationId, outcome }),
+      })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      onRefresh?.()
+    } catch (e) {
+      setWfErr(e instanceof Error ? e.message : 'Outcome save failed')
+    } finally {
+      setRecBusy(null)
+    }
+  }
 
   return (
     <Card
@@ -312,6 +406,64 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
           <div className="mt-1 rounded-md border border-border bg-muted/30 p-2 text-sm">
             {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
           </div>
+        </div>
+        <div className="space-y-2 rounded-md border border-border bg-background/40 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Investigation &amp; resolution (persisted)</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-muted-foreground">Review state</span>
+              <select
+                className="rounded border border-border bg-background px-2 py-1 text-sm"
+                value={wfReview}
+                disabled={!canMutate}
+                onChange={(e) => setWfReview(e.target.value)}
+              >
+                <option value="open">open</option>
+                <option value="investigating">investigating</option>
+                <option value="pending_review">pending_review</option>
+                <option value="resolved_review">resolved_review</option>
+                <option value="closed_review">closed_review</option>
+              </select>
+            </label>
+          </div>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-muted-foreground">Investigation notes</span>
+            <textarea
+              className="min-h-[72px] rounded border border-border bg-background px-2 py-1 text-sm"
+              value={wfNote}
+              disabled={!canMutate}
+              onChange={(e) => setWfNote(e.target.value)}
+              placeholder="Linked to this incident row; not a substitute for operator_notes on evidence refs."
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-muted-foreground">Resolution summary</span>
+            <textarea
+              className="min-h-[56px] rounded border border-border bg-background px-2 py-1 text-sm"
+              value={wfRes}
+              disabled={!canMutate}
+              onChange={(e) => setWfRes(e.target.value)}
+            />
+          </label>
+          {canMutate && (
+            <button
+              type="button"
+              onClick={() => void saveWorkflow()}
+              disabled={wfBusy}
+              className="rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            >
+              {wfBusy ? 'Saving…' : 'Save workflow fields'}
+            </button>
+          )}
+          {wfErr && <p className="text-xs text-critical">{wfErr}</p>}
+          {(inc.closeout_reason || '').trim() && (
+            <p className="text-xs text-muted-foreground">
+              Closeout: {inc.closeout_reason}
+            </p>
+          )}
+          {(inc.lessons_learned || '').trim() && (
+            <p className="text-xs text-muted-foreground">Lessons: {inc.lessons_learned}</p>
+          )}
         </div>
         <ProofpackDownloadButton incidentId={inc.id} />
 
@@ -402,6 +554,90 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                 ))}
               </ul>
             )}
+            {inc.intelligence.sparsity_markers && inc.intelligence.sparsity_markers.length > 0 && (
+              <div className="rounded border border-border/80 bg-muted/20 px-2 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Evidence sparsity: </span>
+                {inc.intelligence.sparsity_markers.join(', ')}. Thin historical samples are expected for new signatures; this is not the same as a persistence failure.
+              </div>
+            )}
+            {inc.intelligence.runbook_recommendations && inc.intelligence.runbook_recommendations.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs uppercase text-muted-foreground">Runbook-style recommendations (assistive, non-command)</div>
+                <ul className="space-y-2">
+                  {inc.intelligence.runbook_recommendations.slice(0, 5).map((r) => (
+                    <li key={r.id} className="rounded border border-border bg-background px-2 py-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-foreground">{r.title}</span>
+                        <Badge variant="outline">{strengthLabel(r.strength)}</Badge>
+                        {r.is_command && <Badge variant="warning">Control-plane action pattern</Badge>}
+                        {r.requires_approval && <Badge variant="secondary">Approval historically required</Badge>}
+                      </div>
+                      <p className="mt-1 text-muted-foreground">{r.rationale}</p>
+                      {canMutate && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {(['accepted', 'rejected', 'not_attempted', 'ineffective'] as const).map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              disabled={recBusy !== null}
+                              onClick={() => void recordRecOutcome(r.id, o)}
+                              className="rounded border border-border px-2 py-0.5 text-[11px] hover:bg-muted"
+                            >
+                              {recBusy === r.id + o ? '…' : o.replace(/_/g, ' ')}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {inc.intelligence.policy_governance_hints && inc.intelligence.policy_governance_hints.length > 0 && (
+              <div className="rounded border border-dashed border-border/80 bg-muted/10 px-2 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Policy / governance memory (observed): </span>
+                {inc.intelligence.policy_governance_hints[0]?.summary}
+              </div>
+            )}
+            {inc.intelligence.drift_fingerprints && inc.intelligence.drift_fingerprints.length > 0 && (
+              <div className="space-y-1 text-xs">
+                <div className="font-medium text-foreground">Transport / anomaly drift (association)</div>
+                {inc.intelligence.drift_fingerprints.slice(0, 2).map((d, i) => (
+                  <p key={i} className="text-muted-foreground">
+                    {d.statement}
+                  </p>
+                ))}
+              </div>
+            )}
+            {inc.intelligence.correlation_groups && inc.intelligence.correlation_groups.length > 0 && (
+              <div className="space-y-1 rounded border border-amber-300/50 bg-amber-50/40 px-2 py-2 text-xs dark:border-amber-800/60 dark:bg-amber-950/20">
+                <div className="font-medium text-foreground">Cross-incident correlation (structural)</div>
+                {inc.intelligence.correlation_groups.slice(0, 2).map((g) => (
+                  <div key={g.group_id}>
+                    <p className="text-muted-foreground">
+                      Group {g.group_id}: {(g.other_incident_ids || []).join(', ') || 'no peer ids listed'}
+                    </p>
+                    {g.uncertainty_note && <p className="text-amber-900 dark:text-amber-200">{g.uncertainty_note}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {inc.intelligence.replay_hints && (
+              <div className="rounded border border-border/80 bg-background px-2 py-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Replay / post-incident review</p>
+                <p>{inc.intelligence.replay_hints.statement}</p>
+                {inc.intelligence.replay_hints.counterfactual_note && (
+                  <p className="mt-1">{inc.intelligence.replay_hints.counterfactual_note}</p>
+                )}
+              </div>
+            )}
+            {inc.intelligence.learning_loop_hints && inc.intelligence.learning_loop_hints.length > 0 && (
+              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                {inc.intelligence.learning_loop_hints.slice(0, 3).map((h, i) => (
+                  <li key={i}>{h}</li>
+                ))}
+              </ul>
+            )}
             {inc.intelligence.action_outcome_memory && inc.intelligence.action_outcome_memory.length > 0 && (
               <div className="space-y-2">
                 <div className="text-xs uppercase text-muted-foreground">Historical action-outcome memory (association only)</div>
@@ -487,7 +723,7 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             {inc.intelligence.degraded && (
               <div className="space-y-1 text-xs text-amber-700">
                 <p>
-                  Intelligence is limited by available evidence. Treat this as investigative guidance, not causal proof.
+                  Intelligence assembly hit persistence or retrieval limits. Treat guidance cautiously and inspect degraded_reasons — this is not the same as sparse history alone.
                 </p>
                 {inc.intelligence.degraded_reasons && inc.intelligence.degraded_reasons.length > 0 && (
                   <ul className="list-disc pl-4">

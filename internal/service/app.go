@@ -120,6 +120,7 @@ func New(cfg config.Config, debug bool) (*App, error) {
 		app.GetImportedRemoteEvidence,
 	)
 	app.Web.SetIncidentCollaboration(app.IncidentHandoff, app.IncidentByID)
+	app.Web.SetIncidentMoatExtensions(app.PatchIncidentWorkflow, app.RecordRecommendationOutcome, app.IncidentReplayView, app.BuildEscalationBundle)
 	app.Web.SetRecentIncidents(app.RecentIncidentsWithLinkedActions)
 	app.Web.SetProofpackAssembler(app.AssembleProofpack)
 	app.Web.SetOperatorControlQueue(app.QueueOperatorControlAction)

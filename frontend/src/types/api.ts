@@ -238,6 +238,13 @@ export interface Incident {
   recent_actions?: string[]
   linked_evidence?: Record<string, unknown>[]
   risks?: string[]
+  review_state?: string
+  investigation_notes?: string
+  resolution_summary?: string
+  closeout_reason?: string
+  lessons_learned?: string
+  reopened_from_incident_id?: string
+  reopened_at?: string
   /** Canonical FK-linked control actions (when backend enriches list/detail) */
   linked_control_actions?: ControlActionRecord[]
   intelligence?: IncidentIntelligence
@@ -259,7 +266,64 @@ export interface IncidentIntelligence {
   action_outcome_trace?: IncidentActionOutcomeTrace
   degraded?: boolean
   degraded_reasons?: string[]
+  sparsity_markers?: string[]
+  runbook_recommendations?: IncidentRunbookRecommendation[]
+  policy_governance_hints?: IncidentPolicyGovernanceHint[]
+  drift_fingerprints?: IncidentDriftFingerprint[]
+  correlation_groups?: IncidentCorrelationGroup[]
+  replay_hints?: IncidentReplayHints
+  learning_loop_hints?: string[]
   generated_at?: string
+}
+
+export interface IncidentRunbookRecommendation {
+  id: string
+  title: string
+  action_type?: string
+  rationale: string
+  evidence_refs?: string[]
+  strength: 'proven_historically' | 'plausible' | 'weakly_supported' | 'unsupported'
+  requires_approval: boolean
+  blast_radius_class?: string
+  reversibility: 'high' | 'medium' | 'low' | 'unknown'
+  prior_outcome_framing?: string
+  prior_sample_size?: number
+  is_command: boolean
+}
+
+export interface IncidentPolicyGovernanceHint {
+  summary: string
+  evidence_refs?: string[]
+  posture: string
+}
+
+export interface IncidentDriftFingerprint {
+  kind: string
+  transport_name?: string
+  reason?: string
+  statement: string
+  current_bucket_hits: number
+  prior_bucket_hits: number
+  supports_only?: string
+}
+
+export interface IncidentCorrelationGroup {
+  group_id: string
+  correlation_key: string
+  basis: string
+  created_at?: string
+  updated_at?: string
+  rationale?: string[]
+  evidence_refs?: string[]
+  uncertainty_note?: string
+  member_count?: number
+  other_incident_ids?: string[]
+}
+
+export interface IncidentReplayHints {
+  statement: string
+  evidence_at_time_refs?: string[]
+  counterfactual_note?: string
 }
 
 export interface IncidentActionOutcomeTrace {
