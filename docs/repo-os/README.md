@@ -9,6 +9,7 @@ Use these artifacts for every change that touches ingest, health, incidents, con
 - `AGENTS.md` (root): default operating contract for contributors/agents.
 - `verification-matrix.md`: required checks by change type.
 - `release-readiness.md`: merge/release reality gate.
+- `terminology.md`: canonical terminology + language rules for operator truth.
 
 ## Audit modules
 - `operator-truth-audit.md`

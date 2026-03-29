@@ -116,7 +116,7 @@ Versioned readiness for probes and automation. **Semantically identical** to `GE
 ## Metrics Endpoints
 
 ### GET /metrics
-Prometheus-compatible JSON metrics endpoint.
+JSON metrics endpoint (not Prometheus text exposition format).
 
 **Response:**
 ```json
