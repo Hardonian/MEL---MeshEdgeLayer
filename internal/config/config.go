@@ -31,6 +31,7 @@ type Config struct {
 	Control      ControlConfig      `json:"control"`
 	Federation   FederationConfig   `json:"federation"`
 	Integration  IntegrationConfig  `json:"integration"`
+	Platform     PlatformConfig     `json:"platform"`
 	Topology     TopologyConfig     `json:"topology"`
 	Scope        ScopeConfig        `json:"scope"`
 	StrictMode   bool               `json:"strict_mode"`
@@ -309,6 +310,7 @@ func Default() Config {
 		},
 		Federation:  defaultFederationConfig(),
 		Integration: IntegrationConfig{MinIntervalSeconds: 60},
+		Platform:    defaultPlatformConfig(),
 		Topology: TopologyConfig{
 			Enabled:                 true,
 			NodeStaleMinutes:        30,
@@ -422,6 +424,7 @@ func normalize(cfg *Config) error {
 	normalizeControl(cfg)
 	normalizeFederation(cfg)
 	normalizeIntegration(cfg)
+	normalizePlatform(cfg)
 	normalizeScope(cfg)
 	if cfg.Bind.API != "" && !cfg.Bind.AllowRemote {
 		host, _, err := net.SplitHostPort(cfg.Bind.API)
@@ -542,6 +545,7 @@ func Validate(cfg Config) error {
 	errs = append(errs, validateIntelligence(cfg)...)
 	errs = append(errs, validateControl(cfg)...)
 	errs = append(errs, validateIntegration(cfg)...)
+	errs = append(errs, validatePlatform(cfg)...)
 	errs = append(errs, validateScope(cfg)...)
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
@@ -762,6 +766,12 @@ func applyEnv(cfg *Config) {
 	setBool("MEL_CONTROL_ALLOW_TRANSPORT_RESTART", &cfg.Control.AllowTransportRestart)
 	setBool("MEL_CONTROL_ALLOW_SOURCE_SUPPRESSION", &cfg.Control.AllowSourceSuppression)
 	setInt("MEL_CONTROL_MAX_QUEUE", &cfg.Control.MaxQueue)
+	setBool("MEL_PLATFORM_TELEMETRY_ENABLED", &cfg.Platform.Telemetry.Enabled)
+	setBool("MEL_PLATFORM_TELEMETRY_ALLOW_OUTBOUND", &cfg.Platform.Telemetry.AllowOutbound)
+	setBool("MEL_PLATFORM_INFERENCE_ENABLED", &cfg.Platform.Inference.Enabled)
+	setString("MEL_PLATFORM_INFERENCE_DEFAULT_PROVIDER", &cfg.Platform.Inference.DefaultProvider)
+	setBool("MEL_PLATFORM_INFERENCE_OLLAMA_ENABLED", &cfg.Platform.Inference.Ollama.Enabled)
+	setBool("MEL_PLATFORM_INFERENCE_LLAMA_CPP_ENABLED", &cfg.Platform.Inference.LlamaCPP.Enabled)
 	setBool("MEL_STRICT_MODE", &cfg.StrictMode)
 	setBool("MEL_PRODUCTION_DEPLOY", &cfg.ProductionDeploy)
 	loadOperatorAPIKeys(cfg)

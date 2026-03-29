@@ -34,3 +34,19 @@ When `auth.enabled` is true, set comma-separated keys in `MEL_AUTH_API_KEYS` or 
 | `docker-compose.yml` | Optional container layout; requires local image build. |
 | `Dockerfile` | Minimal build from repo root. |
 | `reverse-proxy.md` | Notes for TLS termination in front of MEL. |
+
+## Comms-hub compose profiles
+
+The compose stack is intentionally split so base MEL works without paid APIs or cloud dependencies:
+
+- default: `mel` + `nats` (core local mode)
+- `comms` profile: adds MinIO + coturn
+- `ai` profile: adds Ollama
+
+Examples:
+
+```bash
+docker compose up -d
+docker compose --profile comms up -d
+docker compose --profile comms --profile ai up -d
+```

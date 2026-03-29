@@ -23,6 +23,8 @@ Use these artifacts for every change that touches ingest, health, incidents, con
 - `incident-learning-loop.md`
 - `prompt-headers.md`
 - `architecture-trust-boundaries.md`
+- `../architecture/communications-hub-blueprint.md`
+- `../privacy/platform-policy.md`
 
 ## How to use (minimal workflow)
 1. Classify the work (`change-classification.md`).

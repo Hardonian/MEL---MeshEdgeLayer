@@ -56,10 +56,12 @@ For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/ev
 ## Documentation map
 
 - Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
+- Communications hub blueprint: [`docs/architecture/communications-hub-blueprint.md`](docs/architecture/communications-hub-blueprint.md)
 - Operations: [`docs/ops/OPERATIONS_RUNBOOK.md`](docs/ops/OPERATIONS_RUNBOOK.md)
 - Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md)
 - API reference: [`docs/ops/api-reference.md`](docs/ops/api-reference.md)
 - Repo operating system: [`docs/repo-os/README.md`](docs/repo-os/README.md)
+- Privacy platform policy: [`docs/privacy/platform-policy.md`](docs/privacy/platform-policy.md)
 - Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
 
 ## Verification entry points
