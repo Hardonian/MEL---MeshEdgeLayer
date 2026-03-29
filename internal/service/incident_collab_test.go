@@ -233,6 +233,15 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 	if len(got.Intelligence.ActionOutcomeSnapshots) == 0 {
 		t.Fatalf("expected persisted action outcome snapshots")
 	}
+	if got.Intelligence.ActionOutcomeTrace == nil {
+		t.Fatalf("expected action outcome trace metadata")
+	}
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus != "available" {
+		t.Fatalf("snapshot retrieval status=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus)
+	}
+	if got.Intelligence.ActionOutcomeTrace.Completeness != "complete" {
+		t.Fatalf("trace completeness=%q", got.Intelligence.ActionOutcomeTrace.Completeness)
+	}
 	found := false
 	for _, m := range got.Intelligence.ActionOutcomeMemory {
 		if m.ActionType != "trigger_health_recheck" {
@@ -301,5 +310,8 @@ func TestIncidentIntelligence_ActionOutcomeMemory_DegradesOnSparseHistory(t *tes
 	}
 	if got.Intelligence.ActionOutcomeMemory[0].OutcomeFraming != "insufficient_evidence" {
 		t.Fatalf("outcome framing=%q", got.Intelligence.ActionOutcomeMemory[0].OutcomeFraming)
+	}
+	if got.Intelligence.ActionOutcomeTrace == nil {
+		t.Fatalf("expected action outcome trace")
 	}
 }

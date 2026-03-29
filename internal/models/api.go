@@ -74,9 +74,19 @@ type IncidentIntelligence struct {
 	HistoricallyUsedActions []IncidentActionPattern         `json:"historically_used_actions,omitempty"`
 	ActionOutcomeMemory     []IncidentActionOutcomeMemory   `json:"action_outcome_memory,omitempty"`
 	ActionOutcomeSnapshots  []IncidentActionOutcomeSnapshot `json:"action_outcome_snapshots,omitempty"`
+	ActionOutcomeTrace      *IncidentActionOutcomeTrace     `json:"action_outcome_trace,omitempty"`
 	Degraded                bool                            `json:"degraded"`
 	DegradedReasons         []string                        `json:"degraded_reasons,omitempty"`
 	GeneratedAt             string                          `json:"generated_at,omitempty"`
+}
+
+type IncidentActionOutcomeTrace struct {
+	ExpectedSnapshotWrites  int      `json:"expected_snapshot_writes"`
+	SnapshotWriteFailures   int      `json:"snapshot_write_failures"`
+	SnapshotWriteFailureIDs []string `json:"snapshot_write_failure_ids,omitempty"`
+	SnapshotRetrievalStatus string   `json:"snapshot_retrieval_status"` // available, unavailable, error
+	PersistedSnapshotCount  int      `json:"persisted_snapshot_count"`
+	Completeness            string   `json:"completeness"` // complete, partial, unavailable
 }
 
 type IncidentEvidenceItem struct {

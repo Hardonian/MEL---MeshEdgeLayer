@@ -219,6 +219,9 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	if pack.Assembly.ActionOutcomeSnapshotCount != 1 {
 		t.Errorf("assembly.action_outcome_snapshot_count = %d, want 1", pack.Assembly.ActionOutcomeSnapshotCount)
 	}
+	if pack.Assembly.ActionOutcomeSnapshotStatus != "complete" {
+		t.Errorf("assembly.action_outcome_snapshot_status = %q, want complete", pack.Assembly.ActionOutcomeSnapshotStatus)
+	}
 	if pack.Assembly.TimelineCount != 2 {
 		t.Errorf("assembly.timeline_count = %d, want 2", pack.Assembly.TimelineCount)
 	}
@@ -377,6 +380,9 @@ func TestAssemble_PartialFailures_StillProduces(t *testing.T) {
 	if warningCount < 5 {
 		t.Errorf("expected at least 5 warning gaps for partial failures, got %d", warningCount)
 	}
+	if pack.Assembly.ActionOutcomeSnapshotStatus != "unavailable" {
+		t.Errorf("assembly.action_outcome_snapshot_status = %q, want unavailable", pack.Assembly.ActionOutcomeSnapshotStatus)
+	}
 }
 
 func TestAssemble_LimitCapping_RecordsGap(t *testing.T) {
@@ -421,6 +427,39 @@ func TestAssemble_LimitCapping_RecordsGap(t *testing.T) {
 	}
 	if !foundLimitGap {
 		t.Error("expected a warning gap for actions reaching limit")
+	}
+}
+
+func TestAssemble_ActionOutcomeSnapshotRetrievalFailure_MarksPartialStatus(t *testing.T) {
+	now := time.Now().UTC()
+	src := &mockDataSource{
+		incident: models.Incident{
+			ID:         "inc-snapshot-partial",
+			State:      "open",
+			OccurredAt: now.Format(time.RFC3339),
+		},
+		incidentFound:     true,
+		signatureKey:      "sig-partial",
+		actionOutcomesErr: fmt.Errorf("snapshot query failed"),
+	}
+
+	a := NewAssembler(src, DefaultConfig())
+	pack, err := a.Assemble("inc-snapshot-partial")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pack.Assembly.ActionOutcomeSnapshotStatus != "partial" {
+		t.Fatalf("snapshot status=%q, want partial", pack.Assembly.ActionOutcomeSnapshotStatus)
+	}
+	found := false
+	for _, g := range pack.EvidenceGaps {
+		if g.Category == GapCategoryActions && g.Severity == "warning" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected action warning gap for snapshot retrieval failure")
 	}
 }
 

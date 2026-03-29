@@ -81,6 +81,12 @@ function humanizeReasonCode(value: string | undefined): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'warning' | 'outline' {
+  if (value === 'partial') return 'warning'
+  if (value === 'complete') return 'secondary'
+  return 'outline'
+}
+
 function defaultProofpackFilename(incidentId: string): string {
   return `proofpack-${incidentId || 'incident'}.json`
 }
@@ -428,9 +434,44 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                           Inspect before reuse: {m.inspect_before_reuse?.slice(0, 1).join(', ')}
                         </p>
                       )}
+                      {inc.intelligence?.action_outcome_snapshots && inc.intelligence.action_outcome_snapshots.length > 0 && (
+                        <div className="space-y-1 rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+                          <p className="text-[11px] uppercase text-muted-foreground">Snapshot drilldown</p>
+                          <ul className="space-y-1">
+                            {inc.intelligence.action_outcome_snapshots
+                              .filter((s) => s.action_type === m.action_type)
+                              .slice(0, 2)
+                              .map((s) => (
+                                <li key={s.snapshot_id} className="rounded border border-border/70 bg-background px-2 py-1">
+                                  <p className="text-muted-foreground">
+                                    {formatTimestamp(s.window_start)} → {formatTimestamp(s.window_end)} • pre dead letters {s.pre_action_evidence.dead_letters_count} • post dead letters {s.post_action_evidence.dead_letters_count}
+                                  </p>
+                                  {(s.caveats || []).length > 0 && (
+                                    <p className="text-amber-700 dark:text-amber-300">caveat: {s.caveats?.slice(0, 1).join(', ')}</p>
+                                  )}
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {inc.intelligence.action_outcome_trace && (
+              <div className="space-y-1 rounded border border-border/80 bg-background px-2 py-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">Action snapshot traceability</span>
+                  <Badge variant={snapshotCompletenessTone(inc.intelligence.action_outcome_trace.completeness)}>
+                    {toWords(inc.intelligence.action_outcome_trace.completeness)}
+                  </Badge>
+                  <Badge variant="outline">persisted {inc.intelligence.action_outcome_trace.persisted_snapshot_count}</Badge>
+                  <Badge variant="outline">write failures {inc.intelligence.action_outcome_trace.snapshot_write_failures}</Badge>
+                </div>
+                <p className="text-muted-foreground">
+                  Retrieval status: {toWords(inc.intelligence.action_outcome_trace.snapshot_retrieval_status)}. Expected writes: {inc.intelligence.action_outcome_trace.expected_snapshot_writes}.
+                </p>
               </div>
             )}
             {inc.intelligence.degraded && (

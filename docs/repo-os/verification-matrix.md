@@ -66,6 +66,7 @@ This matrix defines minimum verification obligations by work category.
 **Required (release-blocking):**
 - Unit tests for proofpack assembly logic (full, sparse, partial-failure cases).
 - Evidence gap markers present for all degraded/missing evidence paths.
+- Action-outcome snapshot completeness truth asserted (`complete` / `partial` / `unavailable`) when signature lookup or snapshot retrieval is degraded.
 - Audit trail verification (proofpack export logged to RBAC audit + timeline).
 - API contract check (correct HTTP status codes, capability enforcement).
 
