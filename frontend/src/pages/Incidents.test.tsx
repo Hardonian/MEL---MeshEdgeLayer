@@ -36,7 +36,21 @@ function setupFetch() {
                       improvement_observed_count: 2,
                       deterioration_observed_count: 1,
                       inconclusive_count: 1,
+                      caveats: ['Historical association only; check concurrent transport changes.'],
                       inspect_before_reuse: ['Confirm signature match before reuse.'],
+                    },
+                    {
+                      action_type: 'restart_transport',
+                      action_label: 'restart transport',
+                      occurrence_count: 2,
+                      sample_size: 2,
+                      outcome_framing: 'insufficient_evidence',
+                      evidence_strength: 'sparse',
+                      observed_post_action_status: 'inconclusive',
+                      improvement_observed_count: 1,
+                      deterioration_observed_count: 0,
+                      inconclusive_count: 1,
+                      inspect_before_reuse: ['Verify broker disconnect evidence before reuse.'],
                     },
                   ],
                   investigate_next: [
@@ -94,8 +108,14 @@ describe('Incidents intelligence rendering', () => {
     })
     expect(screen.getByText(/seen 3 times/i)).toBeTruthy()
     expect(screen.getByText(/Similar prior incidents: inc-old-1/i)).toBeTruthy()
-    expect(screen.getByText(/Historical action-outcome memory/i)).toBeTruthy()
+    expect(screen.getByText(/Historical action-outcome memory \(association only\)/i)).toBeTruthy()
+    expect(screen.getByText(/does not recommend execution or establish causality/i)).toBeTruthy()
     expect(screen.getByText(/trigger health recheck/i)).toBeTruthy()
+    expect(screen.getByText(/sample n=4/i)).toBeTruthy()
+    expect(screen.getByText(/Observed outcomes: improved 2/i)).toBeTruthy()
+    expect(screen.getByText(/Caveat: Historical association only/i)).toBeTruthy()
+    expect(screen.getByText(/Insufficient historical evidence/i)).toBeTruthy()
+    expect(screen.getByText(/Sparse history/i)).toBeTruthy()
   })
 
   it('renders degraded warning when evidence is sparse', async () => {

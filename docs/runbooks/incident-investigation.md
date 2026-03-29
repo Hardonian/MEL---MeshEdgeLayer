@@ -116,6 +116,15 @@ Read `linked events` and `case evolution` together:
 - case evolution explains how the current case posture was shaped,
 - neither section grants MEL permission to invent a clean incident narrative.
 
+### Reading action-outcome memory (incident intelligence)
+
+When `action_outcome_memory[]` is present on an incident, treat it as historical association only:
+
+- `outcome_framing` summarizes how prior similar incidents trended after that action type; it is not a recommendation or a causal claim.
+- `sample_size` and `evidence_strength` bound confidence; sparse sample counts should be treated as weak context.
+- `mixed_historical_evidence`, `insufficient_evidence`, and `no_clear_post_action_signal` are distinct caution states and should not be collapsed into "healthy" or "safe to execute".
+- `inspect_before_reuse[]` is an operator review requirement before reusing the action pattern in a live incident.
+
 ## Step 4: Control action audit
 
 ```bash
