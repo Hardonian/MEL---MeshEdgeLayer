@@ -29,6 +29,10 @@ type mockDataSource struct {
 	signatureKeyErr   error
 	actionOutcomes    []ActionOutcomeSnapshot
 	actionOutcomesErr error
+	recOutcomes       []RecommendationOutcomeEntry
+	recOutcomesErr    error
+	corrGroups        []CorrelationGroupEntry
+	corrGroupsErr     error
 }
 
 func (m *mockDataSource) IncidentByID(id string) (models.Incident, bool, error) {
@@ -65,6 +69,14 @@ func (m *mockDataSource) OperatorNotesForResource(refType, refID string, limit i
 
 func (m *mockDataSource) AuditEntriesForResource(resourceType, resourceID string, limit int) ([]AuditEntry, error) {
 	return m.auditEntries, m.auditErr
+}
+
+func (m *mockDataSource) RecommendationOutcomesForIncident(incidentID string, limit int) ([]RecommendationOutcomeEntry, error) {
+	return m.recOutcomes, m.recOutcomesErr
+}
+
+func (m *mockDataSource) CorrelationGroupsForIncident(incidentID string) ([]CorrelationGroupEntry, error) {
+	return m.corrGroups, m.corrGroupsErr
 }
 
 func TestAssemble_EmptyIncidentID(t *testing.T) {
@@ -300,12 +312,29 @@ func TestAssemble_FullProofpack(t *testing.T) {
 		t.Fatalf("audit_entries length = %d, want 1", len(pack.AuditEntries))
 	}
 
-	// Evidence gaps: with full data, should only have the "no gaps" marker.
-	if len(pack.EvidenceGaps) != 1 {
-		t.Fatalf("evidence_gaps length = %d, want 1", len(pack.EvidenceGaps))
+	// Evidence gaps: full core sections plus explicit intelligence-section empties.
+	if len(pack.EvidenceGaps) != 3 {
+		t.Fatalf("evidence_gaps length = %d, want 3", len(pack.EvidenceGaps))
 	}
-	if pack.EvidenceGaps[0].Category != "assessment" {
-		t.Errorf("evidence_gap.category = %q, want %q", pack.EvidenceGaps[0].Category, "assessment")
+	intelInfo := 0
+	var assessment *EvidenceGap
+	for i := range pack.EvidenceGaps {
+		g := pack.EvidenceGaps[i]
+		if g.Category == GapCategoryIntelligence && g.Severity == "info" {
+			intelInfo++
+		}
+		if g.Category == "assessment" {
+			assessment = &pack.EvidenceGaps[i]
+		}
+	}
+	if intelInfo != 2 {
+		t.Fatalf("expected 2 intelligence info gaps, got %d", intelInfo)
+	}
+	if assessment == nil || assessment.Severity != "info" {
+		t.Fatalf("expected assessment no-gap marker, got %+v", assessment)
+	}
+	if pack.Assembly.RecommendationOutcomeCount != 0 || pack.Assembly.CorrelationGroupCount != 0 {
+		t.Fatalf("expected zero recommendation/correlation counts in full mock, got rec=%d corr=%d", pack.Assembly.RecommendationOutcomeCount, pack.Assembly.CorrelationGroupCount)
 	}
 }
 

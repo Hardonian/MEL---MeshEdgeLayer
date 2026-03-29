@@ -358,4 +358,16 @@ func TestIncidentIntelligence_ActionOutcomeTrace_NoHistoryReason(t *testing.T) {
 	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "no_similar_incidents" {
 		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
 	}
+	if got.Intelligence.Degraded {
+		t.Fatalf("expected intelligence not degraded for sparse history alone; degraded_reasons=%v", got.Intelligence.DegradedReasons)
+	}
+	hasSparse := false
+	for _, m := range got.Intelligence.SparsityMarkers {
+		if m == "no_similar_incident_history" {
+			hasSparse = true
+		}
+	}
+	if !hasSparse {
+		t.Fatalf("expected sparsity marker no_similar_incident_history, got %v", got.Intelligence.SparsityMarkers)
+	}
 }

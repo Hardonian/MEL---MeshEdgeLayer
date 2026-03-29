@@ -35,17 +35,32 @@ func (a *App) AssembleProofpack(incidentID, actorID string) (map[string]any, err
 	if err != nil {
 		return nil, err
 	}
-	if inc, ok, err := a.IncidentByID(incidentID); err == nil && ok && inc.Intelligence != nil && inc.Intelligence.WirelessContext != nil {
-		w := inc.Intelligence.WirelessContext
-		pack.Incident.WirelessContext = &proofpack.ProofpackWirelessContext{
-			Classification:    w.Classification,
-			PrimaryDomain:     w.PrimaryDomain,
-			ObservedDomains:   append([]string(nil), w.ObservedDomains...),
-			EvidencePosture:   w.EvidencePosture,
-			ConfidencePosture: w.ConfidencePosture,
-			Summary:           w.Summary,
-			EvidenceGaps:      append([]string(nil), w.EvidenceGaps...),
-			InspectNext:       append([]string(nil), w.InspectNext...),
+	inc, ok, err := a.IncidentByID(incidentID)
+	if err == nil && ok {
+		if inc.Intelligence != nil && inc.Intelligence.WirelessContext != nil {
+			w := inc.Intelligence.WirelessContext
+			pack.Incident.WirelessContext = &proofpack.ProofpackWirelessContext{
+				Classification:    w.Classification,
+				PrimaryDomain:     w.PrimaryDomain,
+				ObservedDomains:   append([]string(nil), w.ObservedDomains...),
+				EvidencePosture:   w.EvidencePosture,
+				ConfidencePosture: w.ConfidencePosture,
+				Summary:           w.Summary,
+				EvidenceGaps:      append([]string(nil), w.EvidenceGaps...),
+				InspectNext:       append([]string(nil), w.InspectNext...),
+			}
+		}
+		if inc.Intelligence != nil {
+			intelRaw, _ := json.Marshal(inc.Intelligence)
+			var intelMap map[string]any
+			_ = json.Unmarshal(intelRaw, &intelMap)
+			if intelMap == nil {
+				intelMap = map[string]any{}
+			}
+			intelMap["non_canonical"] = true
+			intelMap["assistive_layer"] = true
+			intelMap["truth_contract"] = "Deterministic persistence and typed evidence remain canonical; this block is derived assistive context at export time."
+			pack.IncidentIntelligenceSnapshot = intelMap
 		}
 	}
 

@@ -32,6 +32,10 @@ type DataSource interface {
 	OperatorNotesForResource(refType, refID string, limit int) ([]OperatorNote, error)
 	// AuditEntriesForResource returns audit log entries for a resource.
 	AuditEntriesForResource(resourceType, resourceID string, limit int) ([]AuditEntry, error)
+	// RecommendationOutcomesForIncident returns operator adjudication rows for assistive recommendations.
+	RecommendationOutcomesForIncident(incidentID string, limit int) ([]RecommendationOutcomeEntry, error)
+	// CorrelationGroupsForIncident returns persisted structural correlation groups.
+	CorrelationGroupsForIncident(incidentID string) ([]CorrelationGroupEntry, error)
 }
 
 // AssemblerConfig controls assembly behavior.
@@ -354,12 +358,70 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 	}
 
-	// If no gaps were found at all, mark explicitly.
-	if len(gaps) == 0 {
+	// Recommendation outcomes (operator adjudication).
+	recOutcomes, err := a.src.RecommendationOutcomesForIncident(incidentID, a.cfg.MaxNotes)
+	recStatus := ProofpackSectionStatus{Section: "recommendation_outcomes", Status: "complete"}
+	if err != nil {
+		recStatus.Status = "partial"
+		recStatus.Reason = "recommendation_outcomes_query_failed"
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryIntelligence,
+			Severity:    "info",
+			Description: fmt.Sprintf("could not load recommendation outcomes: %v", err),
+		})
+		recOutcomes = []RecommendationOutcomeEntry{}
+	}
+	if len(recOutcomes) == 0 && recStatus.Status == "complete" {
+		recStatus.Status = "unavailable"
+		recStatus.Reason = "no_recommendation_outcomes"
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryIntelligence,
+			Severity:    "info",
+			Description: "no operator recommendation adjudication rows recorded for this incident",
+		})
+	}
+
+	// Cross-incident correlation groups.
+	corrGroups, err := a.src.CorrelationGroupsForIncident(incidentID)
+	corrStatus := ProofpackSectionStatus{Section: "correlation_groups", Status: "complete"}
+	if err != nil {
+		corrStatus.Status = "partial"
+		corrStatus.Reason = "correlation_query_failed"
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryIntelligence,
+			Severity:    "warning",
+			Description: fmt.Sprintf("could not load correlation groups: %v", err),
+		})
+		corrGroups = []CorrelationGroupEntry{}
+	}
+	if len(corrGroups) == 0 && corrStatus.Status == "complete" {
+		corrStatus.Status = "unavailable"
+		corrStatus.Reason = "no_correlation_groups"
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryIntelligence,
+			Severity:    "info",
+			Description: "no persisted cross-incident correlation groups for this incident",
+		})
+	}
+
+	// Always end with an assessment marker when none exists yet so consumers can
+	// distinguish "assembly evaluated" from "gaps omitted"; section_statuses carry per-section posture.
+	hasAssessment := false
+	for _, g := range gaps {
+		if g.Category == "assessment" {
+			hasAssessment = true
+			break
+		}
+	}
+	if !hasAssessment {
+		desc := "no evidence gaps detected during assembly"
+		if len(gaps) > 0 {
+			desc = "assembly complete with explicit section-level markers; review evidence_gaps and section_statuses together"
+		}
 		gaps = append(gaps, EvidenceGap{
 			Category:    "assessment",
 			Severity:    "info",
-			Description: "no evidence gaps detected during assembly",
+			Description: desc,
 		})
 	}
 
@@ -372,29 +434,35 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		deadLetterStatus,
 		notesStatus,
 		auditStatus,
+		recStatus,
+		corrStatus,
 	}
 	completeness, reasons := deriveProofpackCompleteness(sectionStatuses)
 
 	pack := &Proofpack{
 		FormatVersion: FormatVersion,
 		Assembly: AssemblyMetadata{
-			AssembledAt:                 time.Now().UTC().Format(time.RFC3339),
-			AssembledBy:                 a.cfg.ActorID,
-			InstanceID:                  a.cfg.InstanceID,
-			IncidentID:                  incidentID,
-			TimeWindowFrom:              windowFrom,
-			TimeWindowTo:                windowTo,
-			ActionCount:                 len(actions),
-			ActionOutcomeSnapshotCount:  len(actionOutcomeSnapshots),
-			ActionOutcomeSnapshotStatus: actionOutcomeSnapshotStatus,
-			ActionOutcomeSnapshotTrace:  snapshotTrace,
-			TimelineCount:               len(timeline),
-			TransportCount:              len(transports),
-			DeadLetterCount:             len(deadLetters),
-			NoteCount:                   len(notes),
-			AuditEntryCount:             len(auditEntries),
-			EvidenceGapCount:            len(gaps),
-			AssemblyDurationMs:          elapsed.Milliseconds(),
+			AssembledAt:                  time.Now().UTC().Format(time.RFC3339),
+			AssembledBy:                  a.cfg.ActorID,
+			InstanceID:                   a.cfg.InstanceID,
+			IncidentID:                   incidentID,
+			TimeWindowFrom:               windowFrom,
+			TimeWindowTo:                 windowTo,
+			ActionCount:                  len(actions),
+			ActionOutcomeSnapshotCount:   len(actionOutcomeSnapshots),
+			ActionOutcomeSnapshotStatus:  actionOutcomeSnapshotStatus,
+			ActionOutcomeSnapshotTrace:   snapshotTrace,
+			TimelineCount:                len(timeline),
+			TransportCount:               len(transports),
+			DeadLetterCount:              len(deadLetters),
+			NoteCount:                    len(notes),
+			AuditEntryCount:              len(auditEntries),
+			RecommendationOutcomeCount:   len(recOutcomes),
+			CorrelationGroupCount:        len(corrGroups),
+			EvidenceGapCount:             len(gaps),
+			ProofpackCompleteness:        completeness,
+			ProofpackCompletenessReasons: reasons,
+			AssemblyDurationMs:           elapsed.Milliseconds(),
 		},
 		Incident:               incEvidence,
 		LinkedActions:          actions,
@@ -404,6 +472,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		DeadLetterEvidence:     deadLetters,
 		OperatorNotes:          notes,
 		AuditEntries:           auditEntries,
+		RecommendationOutcomes: recOutcomes,
+		CorrelationGroups:      corrGroups,
 		EvidenceGaps:           gaps,
 		SectionStatuses:        sectionStatuses,
 	}
@@ -497,24 +567,31 @@ func computeTimeWindow(inc models.Incident) (string, string) {
 // incidentToEvidence maps a models.Incident to the proofpack evidence type.
 func incidentToEvidence(inc models.Incident) IncidentEvidence {
 	return IncidentEvidence{
-		ID:             inc.ID,
-		Category:       inc.Category,
-		Severity:       inc.Severity,
-		Title:          inc.Title,
-		Summary:        inc.Summary,
-		ResourceType:   inc.ResourceType,
-		ResourceID:     inc.ResourceID,
-		State:          inc.State,
-		ActorID:        inc.ActorID,
-		OccurredAt:     inc.OccurredAt,
-		UpdatedAt:      inc.UpdatedAt,
-		ResolvedAt:     inc.ResolvedAt,
-		OwnerActorID:   inc.OwnerActorID,
-		HandoffSummary: inc.HandoffSummary,
-		PendingActions: inc.PendingActions,
-		RecentActions:  inc.RecentActions,
-		LinkedEvidence: inc.LinkedEvidence,
-		Risks:          inc.Risks,
-		Metadata:       inc.Metadata,
+		ID:                     inc.ID,
+		Category:               inc.Category,
+		Severity:               inc.Severity,
+		Title:                  inc.Title,
+		Summary:                inc.Summary,
+		ResourceType:           inc.ResourceType,
+		ResourceID:             inc.ResourceID,
+		State:                  inc.State,
+		ActorID:                inc.ActorID,
+		OccurredAt:             inc.OccurredAt,
+		UpdatedAt:              inc.UpdatedAt,
+		ResolvedAt:             inc.ResolvedAt,
+		OwnerActorID:           inc.OwnerActorID,
+		HandoffSummary:         inc.HandoffSummary,
+		PendingActions:         inc.PendingActions,
+		RecentActions:          inc.RecentActions,
+		LinkedEvidence:         inc.LinkedEvidence,
+		Risks:                  inc.Risks,
+		Metadata:               inc.Metadata,
+		ReviewState:            inc.ReviewState,
+		InvestigationNotes:     inc.InvestigationNotes,
+		ResolutionSummary:      inc.ResolutionSummary,
+		CloseoutReason:         inc.CloseoutReason,
+		LessonsLearned:         inc.LessonsLearned,
+		ReopenedFromIncidentID: inc.ReopenedFromIncidentID,
+		ReopenedAt:             inc.ReopenedAt,
 	}
 }
