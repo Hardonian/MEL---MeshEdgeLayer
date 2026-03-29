@@ -166,6 +166,7 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	}
 	signatureKey = strings.TrimSpace(signatureKey)
 	actionOutcomeSnapshots := []ActionOutcomeSnapshot{}
+	actionOutcomeSnapshotStatus := "unavailable"
 	if signatureKey == "" {
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryActions,
@@ -175,14 +176,20 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	} else {
 		actionOutcomeSnapshots, err = a.src.ActionOutcomeSnapshotsBySignature(signatureKey, incidentID, a.cfg.MaxActionOutcomeSnapshots)
 		if err != nil {
+			actionOutcomeSnapshotStatus = "partial"
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
 				Severity:    "warning",
 				Description: fmt.Sprintf("could not load action outcome snapshots: %v", err),
 			})
 			actionOutcomeSnapshots = []ActionOutcomeSnapshot{}
+		} else if len(actionOutcomeSnapshots) == 0 {
+			actionOutcomeSnapshotStatus = "unavailable"
+		} else {
+			actionOutcomeSnapshotStatus = "complete"
 		}
 		if len(actionOutcomeSnapshots) >= a.cfg.MaxActionOutcomeSnapshots {
+			actionOutcomeSnapshotStatus = "partial"
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
 				Severity:    "warning",
@@ -288,21 +295,22 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	pack := &Proofpack{
 		FormatVersion: FormatVersion,
 		Assembly: AssemblyMetadata{
-			AssembledAt:                time.Now().UTC().Format(time.RFC3339),
-			AssembledBy:                a.cfg.ActorID,
-			InstanceID:                 a.cfg.InstanceID,
-			IncidentID:                 incidentID,
-			TimeWindowFrom:             windowFrom,
-			TimeWindowTo:               windowTo,
-			ActionCount:                len(actions),
-			ActionOutcomeSnapshotCount: len(actionOutcomeSnapshots),
-			TimelineCount:              len(timeline),
-			TransportCount:             len(transports),
-			DeadLetterCount:            len(deadLetters),
-			NoteCount:                  len(notes),
-			AuditEntryCount:            len(auditEntries),
-			EvidenceGapCount:           len(gaps),
-			AssemblyDurationMs:         elapsed.Milliseconds(),
+			AssembledAt:                 time.Now().UTC().Format(time.RFC3339),
+			AssembledBy:                 a.cfg.ActorID,
+			InstanceID:                  a.cfg.InstanceID,
+			IncidentID:                  incidentID,
+			TimeWindowFrom:              windowFrom,
+			TimeWindowTo:                windowTo,
+			ActionCount:                 len(actions),
+			ActionOutcomeSnapshotCount:  len(actionOutcomeSnapshots),
+			ActionOutcomeSnapshotStatus: actionOutcomeSnapshotStatus,
+			TimelineCount:               len(timeline),
+			TransportCount:              len(transports),
+			DeadLetterCount:             len(deadLetters),
+			NoteCount:                   len(notes),
+			AuditEntryCount:             len(auditEntries),
+			EvidenceGapCount:            len(gaps),
+			AssemblyDurationMs:          elapsed.Milliseconds(),
 		},
 		Incident:               incEvidence,
 		LinkedActions:          actions,

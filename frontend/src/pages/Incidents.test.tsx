@@ -65,6 +65,32 @@ function setupFetch() {
                       inspect_before_reuse: ['Verify broker disconnect evidence before reuse.'],
                     },
                   ],
+                  action_outcome_snapshots: [
+                    {
+                      snapshot_id: 'aos-1',
+                      signature_key: 'sig-1',
+                      incident_id: 'inc-old-1',
+                      action_id: 'act-1',
+                      action_type: 'trigger_health_recheck',
+                      derived_classification: 'mixed_historical_evidence',
+                      evidence_sufficiency: 'partial',
+                      window_start: '2026-03-28T22:00:00Z',
+                      window_end: '2026-03-28T23:00:00Z',
+                      pre_action_evidence: { dead_letters_count: 4, transport_alerts_count: 2 },
+                      post_action_evidence: { dead_letters_count: 1, transport_alerts_count: 1 },
+                      observed_signal_count: 2,
+                      caveats: ['partial evidence window'],
+                      association_only: true,
+                      derived_at: '2026-03-28T23:01:00Z',
+                    },
+                  ],
+                  action_outcome_trace: {
+                    expected_snapshot_writes: 2,
+                    snapshot_write_failures: 1,
+                    snapshot_retrieval_status: 'available',
+                    persisted_snapshot_count: 1,
+                    completeness: 'partial',
+                  },
                   investigate_next: [
                     {
                       id: 'g-1',
@@ -126,6 +152,9 @@ describe('Incidents intelligence rendering', () => {
     expect(screen.getByText(/sample n=4/i)).toBeTruthy()
     expect(screen.getByText(/Observed outcomes: improved 2/i)).toBeTruthy()
     expect(screen.getByText(/Caveat: Historical association only/i)).toBeTruthy()
+    expect(screen.getByText(/Action snapshot traceability/i)).toBeTruthy()
+    expect(screen.getByText(/write failures 1/i)).toBeTruthy()
+    expect(screen.getAllByText(/Snapshot drilldown/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Insufficient historical evidence/i)).toBeTruthy()
     expect(screen.getByText(/Sparse history/i)).toBeTruthy()
     expect(screen.getByText(/Mixed wireless context/i)).toBeTruthy()

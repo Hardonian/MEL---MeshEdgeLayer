@@ -213,9 +213,20 @@ export interface IncidentIntelligence {
   similar_incidents?: IncidentSimilarityRecord[]
   historically_used_actions?: IncidentActionPattern[]
   action_outcome_memory?: IncidentActionOutcomeMemory[]
+  action_outcome_snapshots?: IncidentActionOutcomeSnapshot[]
+  action_outcome_trace?: IncidentActionOutcomeTrace
   degraded?: boolean
   degraded_reasons?: string[]
   generated_at?: string
+}
+
+export interface IncidentActionOutcomeTrace {
+  expected_snapshot_writes: number
+  snapshot_write_failures: number
+  snapshot_write_failure_ids?: string[]
+  snapshot_retrieval_status: 'available' | 'unavailable' | 'error'
+  persisted_snapshot_count: number
+  completeness: 'complete' | 'partial' | 'unavailable'
 }
 
 export interface IncidentWirelessContext {
@@ -304,6 +315,39 @@ export interface IncidentActionOutcomeMemory {
   caveats?: string[]
   inspect_before_reuse?: string[]
   evidence_refs?: string[]
+  snapshot_refs?: string[]
+}
+
+export interface IncidentActionOutcomeEvidenceSummary {
+  transport_name?: string
+  dead_letters_count: number
+  transport_alerts_count: number
+  incident_state?: string
+  action_result?: string
+  action_lifecycle?: string
+}
+
+export interface IncidentActionOutcomeSnapshot {
+  snapshot_id: string
+  signature_key: string
+  incident_id: string
+  action_id: string
+  action_type: string
+  action_label?: string
+  derived_classification: string
+  evidence_sufficiency: 'sufficient' | 'partial' | 'insufficient'
+  window_start: string
+  window_end: string
+  pre_action_evidence: IncidentActionOutcomeEvidenceSummary
+  post_action_evidence: IncidentActionOutcomeEvidenceSummary
+  observed_signal_count: number
+  caveats?: string[]
+  inspect_before_reuse?: string[]
+  evidence_refs?: string[]
+  association_only: boolean
+  derivation_version?: string
+  schema_version?: string
+  derived_at: string
 }
 
 /** Control-plane action row (matches backend ActionRecord) */

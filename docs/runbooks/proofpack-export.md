@@ -8,6 +8,7 @@ incident at assembly time:
 
 - The incident record (state, severity, owner, handoff context)
 - Linked control actions (full lifecycle, approval chain, outcomes)
+- Action-outcome snapshots for similar incidents sharing deterministic signature history
 - Timeline events (chronological view of actions, freezes, notes)
 - Transport health context (health snapshots around the incident window)
 - Dead letters (ingest failures in the incident time window)
@@ -81,6 +82,7 @@ If no gaps are detected, the array contains a single entry:
 ```
 
 Consumers must check `evidence_gaps` before treating the proofpack as complete.
+Consumers must also check `assembly.action_outcome_snapshot_status` (`complete`, `partial`, or `unavailable`) before treating historical action-outcome snapshot evidence as complete.
 
 ## Degraded Behavior
 
@@ -111,7 +113,8 @@ assembly:
   instance_id: MEL instance
   incident_id: scoping incident
   time_window_from / time_window_to: evidence window
-  action_count, timeline_count, etc.: item counts
+  action_count, action_outcome_snapshot_count, timeline_count, etc.: item counts
+  action_outcome_snapshot_status: complete|partial|unavailable retrieval posture
   evidence_gap_count: number of gaps
   assembly_duration_ms: wall-clock assembly time
 incident: full incident record at assembly time

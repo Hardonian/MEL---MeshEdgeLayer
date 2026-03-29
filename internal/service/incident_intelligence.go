@@ -117,7 +117,12 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	}
 
 	out.SimilarIncidents = a.similarIncidents(sigKey, inc.ID)
-	out.ActionOutcomeMemory, out.ActionOutcomeSnapshots = a.actionOutcomeMemory(sigKey, inc)
+	var outcomeDegradedReasons []string
+	out.ActionOutcomeMemory, out.ActionOutcomeSnapshots, out.ActionOutcomeTrace, outcomeDegradedReasons = a.actionOutcomeMemory(sigKey, inc)
+	out.DegradedReasons = append(out.DegradedReasons, outcomeDegradedReasons...)
+	if len(outcomeDegradedReasons) > 0 {
+		out.Degraded = true
+	}
 	out.ImplicatedDomains = deriveDomains(out.EvidenceItems, inc)
 	out.WirelessContext = deriveWirelessContext(inc, out)
 	out.InvestigateNext = deriveInvestigationGuidance(out, inc)
@@ -144,13 +149,17 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	return out
 }
 
-func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) ([]models.IncidentActionOutcomeMemory, []models.IncidentActionOutcomeSnapshot) {
+func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) ([]models.IncidentActionOutcomeMemory, []models.IncidentActionOutcomeSnapshot, *models.IncidentActionOutcomeTrace, []string) {
+	trace := &models.IncidentActionOutcomeTrace{
+		SnapshotRetrievalStatus: "unavailable",
+		Completeness:            "unavailable",
+	}
 	if a == nil || a.DB == nil || strings.TrimSpace(signatureKey) == "" {
-		return nil, nil
+		return nil, nil, trace, nil
 	}
 	similar, err := a.DB.SimilarIncidentsBySignature(signatureKey, current.ID, 8)
 	if err != nil || len(similar) == 0 {
-		return nil, nil
+		return nil, nil, trace, nil
 	}
 	ids := make([]string, 0, len(similar))
 	simByID := map[string]models.Incident{}
@@ -160,8 +169,10 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	}
 	actions, err := a.DB.ControlActionsForIncidentIDs(ids, 400)
 	if err != nil || len(actions) == 0 {
-		return nil, nil
+		return nil, nil, trace, nil
 	}
+	trace.ExpectedSnapshotWrites = len(actions)
+	degradedReasons := []string{}
 	type score struct {
 		model      models.IncidentActionOutcomeMemory
 		observed   int
@@ -183,7 +194,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 			continue
 		}
 		eval := evaluatePostActionSignals(a, action, simInc)
-		_ = a.DB.UpsertIncidentActionOutcomeSnapshot(db.IncidentActionOutcomeSnapshotRecord{
+		if err := a.DB.UpsertIncidentActionOutcomeSnapshot(db.IncidentActionOutcomeSnapshotRecord{
 			SignatureKey:          signatureKey,
 			IncidentID:            incidentID,
 			ActionID:              action.ID,
@@ -215,9 +226,19 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 			WindowStart:         eval.windowStart,
 			WindowEnd:           eval.windowEnd,
 			DerivedAt:           time.Now().UTC().Format(time.RFC3339),
-		})
+		}); err != nil {
+			trace.SnapshotWriteFailures++
+			trace.SnapshotWriteFailureIDs = append(trace.SnapshotWriteFailureIDs, action.ID)
+		}
 	}
 	persistedSnapshots, err := a.DB.ActionOutcomeSnapshotsBySignature(signatureKey, current.ID, 400)
+	if err != nil {
+		trace.SnapshotRetrievalStatus = "error"
+		trace.Completeness = "partial"
+		degradedReasons = append(degradedReasons, "action_outcome_snapshot_retrieval_failed")
+	} else {
+		trace.SnapshotRetrievalStatus = "available"
+	}
 	if err == nil {
 		for _, snap := range persistedSnapshots {
 			actionType := strings.TrimSpace(snap.ActionType)
@@ -260,9 +281,23 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 			entry.snapshots = append(entry.snapshots, snap.SnapshotID)
 			allSnapshots = append(allSnapshots, modelSnapshotFromDB(snap))
 		}
+		trace.PersistedSnapshotCount = len(persistedSnapshots)
+	}
+	if trace.SnapshotWriteFailures > 0 {
+		degradedReasons = append(degradedReasons, "action_outcome_snapshot_write_partial_failure")
+	}
+	switch {
+	case trace.SnapshotRetrievalStatus == "error":
+		trace.Completeness = "partial"
+	case trace.PersistedSnapshotCount == 0:
+		trace.Completeness = "unavailable"
+	case trace.SnapshotWriteFailures > 0:
+		trace.Completeness = "partial"
+	default:
+		trace.Completeness = "complete"
 	}
 	if len(perAction) == 0 {
-		return nil, nil
+		return nil, nil, trace, degradedReasons
 	}
 	out := make([]models.IncidentActionOutcomeMemory, 0, len(perAction))
 	for _, mem := range perAction {
@@ -296,7 +331,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	if len(allSnapshots) > 40 {
 		allSnapshots = allSnapshots[:40]
 	}
-	return out, allSnapshots
+	return out, allSnapshots, trace, degradedReasons
 }
 
 func (a *App) similarIncidents(signatureKey, currentID string) []models.IncidentSimilarityRecord {
