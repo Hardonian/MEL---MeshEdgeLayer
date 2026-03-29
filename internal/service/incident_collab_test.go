@@ -260,6 +260,15 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 		if len(m.SnapshotRefs) < 2 {
 			t.Fatalf("expected snapshot refs for traceability, got %v", m.SnapshotRefs)
 		}
+		if m.SnapshotTraceStatus != "complete" {
+			t.Fatalf("snapshot trace status=%q", m.SnapshotTraceStatus)
+		}
+		if m.SnapshotCoveragePosture != "matched" {
+			t.Fatalf("snapshot coverage posture=%q", m.SnapshotCoveragePosture)
+		}
+		if m.SnapshotCoveragePercent < 100 {
+			t.Fatalf("snapshot coverage percent=%v", m.SnapshotCoveragePercent)
+		}
 	}
 	if !found {
 		t.Fatalf("expected trigger_health_recheck memory")

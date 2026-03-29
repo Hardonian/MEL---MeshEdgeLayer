@@ -2,6 +2,7 @@ package proofpack
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -137,7 +138,10 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 
 	// Linked actions.
 	actions, err := a.src.ControlActionsByIncidentID(incidentID, a.cfg.MaxActions)
+	actionStatus := ProofpackSectionStatus{Section: "linked_actions", Status: "complete"}
 	if err != nil {
+		actionStatus.Status = "partial"
+		actionStatus.Reason = "action_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryActions,
 			Severity:    "warning",
@@ -146,6 +150,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		actions = []ActionEvidence{}
 	}
 	if len(actions) == 0 {
+		actionStatus.Status = "unavailable"
+		actionStatus.Reason = "no_linked_actions"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryActions,
 			Severity:    "info",
@@ -153,6 +159,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 	}
 	if len(actions) >= a.cfg.MaxActions {
+		actionStatus.Status = "partial"
+		actionStatus.Reason = "linked_actions_limit_reached"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryActions,
 			Severity:    "warning",
@@ -180,6 +188,7 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	signatureKey = strings.TrimSpace(signatureKey)
 	actionOutcomeSnapshots := []ActionOutcomeSnapshot{}
 	actionOutcomeSnapshotStatus := "unavailable"
+	actionOutcomeStatus := ProofpackSectionStatus{Section: "action_outcome_snapshots", Status: "unavailable", Reason: "no_signature_key"}
 	if signatureKey == "" {
 		if snapshotTrace.RetrievalStatus == "unavailable" {
 			snapshotTrace.StatusReason = "no_signature_key"
@@ -197,6 +206,7 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			snapshotTrace.RetrievalError = err.Error()
 			snapshotTrace.StatusReason = "snapshot_query_failed"
 			actionOutcomeSnapshotStatus = "partial"
+			actionOutcomeStatus = ProofpackSectionStatus{Section: "action_outcome_snapshots", Status: "partial", Reason: "snapshot_query_failed"}
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
 				Severity:    "warning",
@@ -207,15 +217,18 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			snapshotTrace.RetrievalStatus = "available"
 			snapshotTrace.StatusReason = "no_matching_snapshots"
 			actionOutcomeSnapshotStatus = "unavailable"
+			actionOutcomeStatus = ProofpackSectionStatus{Section: "action_outcome_snapshots", Status: "unavailable", Reason: "no_historical_snapshots"}
 		} else {
 			snapshotTrace.RetrievalStatus = "available"
 			snapshotTrace.StatusReason = "snapshots_loaded"
 			actionOutcomeSnapshotStatus = "complete"
+			actionOutcomeStatus = ProofpackSectionStatus{Section: "action_outcome_snapshots", Status: "complete"}
 		}
 		if len(actionOutcomeSnapshots) >= a.cfg.MaxActionOutcomeSnapshots {
 			snapshotTrace.RetrievalLimited = true
 			snapshotTrace.StatusReason = "snapshot_limit_reached"
 			actionOutcomeSnapshotStatus = "partial"
+			actionOutcomeStatus = ProofpackSectionStatus{Section: "action_outcome_snapshots", Status: "partial", Reason: "snapshot_limit_reached"}
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
 				Severity:    "warning",
@@ -223,10 +236,14 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			})
 		}
 	}
+	actions = attachActionSnapshotRefs(actions, actionOutcomeSnapshots)
 
 	// Timeline events.
 	timeline, err := a.src.TimelineEventsForIncident(incidentID, windowFrom, windowTo, a.cfg.MaxTimeline)
+	timelineStatus := ProofpackSectionStatus{Section: "timeline", Status: "complete"}
 	if err != nil {
+		timelineStatus.Status = "partial"
+		timelineStatus.Reason = "timeline_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryTimeline,
 			Severity:    "warning",
@@ -235,6 +252,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		timeline = []TimelineEntry{}
 	}
 	if len(timeline) == 0 {
+		timelineStatus.Status = "unavailable"
+		timelineStatus.Reason = "no_timeline_events"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryTimeline,
 			Severity:    "info",
@@ -242,6 +261,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 	}
 	if len(timeline) >= a.cfg.MaxTimeline {
+		timelineStatus.Status = "partial"
+		timelineStatus.Reason = "timeline_limit_reached"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryTimeline,
 			Severity:    "warning",
@@ -251,7 +272,10 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 
 	// Transport health context.
 	transports, err := a.src.TransportHealthSnapshotsInWindow(windowFrom, windowTo, a.cfg.MaxTransportSnapshots)
+	transportStatus := ProofpackSectionStatus{Section: "transport_context", Status: "complete"}
 	if err != nil {
+		transportStatus.Status = "partial"
+		transportStatus.Reason = "transport_snapshot_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryTransportHealth,
 			Severity:    "warning",
@@ -260,6 +284,8 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		transports = []TransportSnapshot{}
 	}
 	if len(transports) == 0 {
+		transportStatus.Status = "unavailable"
+		transportStatus.Reason = "no_transport_snapshots_in_window"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryTransportHealth,
 			Severity:    "info",
@@ -269,7 +295,10 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 
 	// Dead letters.
 	deadLetters, err := a.src.DeadLettersInWindow(windowFrom, windowTo, a.cfg.MaxDeadLetters)
+	deadLetterStatus := ProofpackSectionStatus{Section: "dead_letter_evidence", Status: "complete"}
 	if err != nil {
+		deadLetterStatus.Status = "partial"
+		deadLetterStatus.Reason = "dead_letter_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryDeadLetters,
 			Severity:    "warning",
@@ -277,10 +306,17 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 		deadLetters = []DeadLetterEntry{}
 	}
+	if len(deadLetters) == 0 && deadLetterStatus.Status == "complete" {
+		deadLetterStatus.Status = "unavailable"
+		deadLetterStatus.Reason = "no_dead_letters_in_window"
+	}
 
 	// Operator notes.
 	notes, err := a.src.OperatorNotesForResource("incident", incidentID, a.cfg.MaxNotes)
+	notesStatus := ProofpackSectionStatus{Section: "operator_notes", Status: "complete"}
 	if err != nil {
+		notesStatus.Status = "partial"
+		notesStatus.Reason = "operator_notes_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryIncident,
 			Severity:    "info",
@@ -288,10 +324,17 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 		notes = []OperatorNote{}
 	}
+	if len(notes) == 0 && notesStatus.Status == "complete" {
+		notesStatus.Status = "unavailable"
+		notesStatus.Reason = "no_operator_notes"
+	}
 
 	// Audit entries.
 	auditEntries, err := a.src.AuditEntriesForResource("incident", incidentID, a.cfg.MaxAuditEntries)
+	auditStatus := ProofpackSectionStatus{Section: "audit_entries", Status: "complete"}
 	if err != nil {
+		auditStatus.Status = "partial"
+		auditStatus.Reason = "audit_query_failed"
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryAudit,
 			Severity:    "warning",
@@ -300,6 +343,10 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		auditEntries = []AuditEntry{}
 	}
 	if len(auditEntries) == 0 {
+		if auditStatus.Status == "complete" {
+			auditStatus.Status = "unavailable"
+			auditStatus.Reason = "no_audit_entries"
+		}
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryAudit,
 			Severity:    "info",
@@ -317,6 +364,16 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	}
 
 	elapsed := time.Since(start)
+	sectionStatuses := []ProofpackSectionStatus{
+		actionStatus,
+		actionOutcomeStatus,
+		timelineStatus,
+		transportStatus,
+		deadLetterStatus,
+		notesStatus,
+		auditStatus,
+	}
+	completeness, reasons := deriveProofpackCompleteness(sectionStatuses)
 
 	pack := &Proofpack{
 		FormatVersion: FormatVersion,
@@ -348,9 +405,68 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		OperatorNotes:          notes,
 		AuditEntries:           auditEntries,
 		EvidenceGaps:           gaps,
+		SectionStatuses:        sectionStatuses,
 	}
 
 	return pack, nil
+}
+
+func attachActionSnapshotRefs(actions []ActionEvidence, snapshots []ActionOutcomeSnapshot) []ActionEvidence {
+	if len(actions) == 0 {
+		return actions
+	}
+	refsByType := map[string]map[string]struct{}{}
+	for _, snap := range snapshots {
+		actionType := strings.TrimSpace(snap.ActionType)
+		if actionType == "" || strings.TrimSpace(snap.SnapshotID) == "" {
+			continue
+		}
+		if refsByType[actionType] == nil {
+			refsByType[actionType] = map[string]struct{}{}
+		}
+		refsByType[actionType][snap.SnapshotID] = struct{}{}
+	}
+	for i := range actions {
+		typed := refsByType[strings.TrimSpace(actions[i].ActionType)]
+		if len(typed) == 0 {
+			continue
+		}
+		refs := make([]string, 0, len(typed))
+		for id := range typed {
+			refs = append(refs, id)
+		}
+		sort.Strings(refs)
+		actions[i].HistoricalActionOutcomeSnapshotRefs = refs
+	}
+	return actions
+}
+
+func deriveProofpackCompleteness(sections []ProofpackSectionStatus) (string, []string) {
+	if len(sections) == 0 {
+		return "unavailable", []string{"no_section_statuses"}
+	}
+	out := "complete"
+	reasons := []string{}
+	for _, sec := range sections {
+		switch sec.Status {
+		case "partial":
+			if out != "unavailable" {
+				out = "partial"
+			}
+			if sec.Reason != "" {
+				reasons = append(reasons, sec.Section+":"+sec.Reason)
+			}
+		case "unavailable":
+			out = "partial"
+			if sec.Reason != "" {
+				reasons = append(reasons, sec.Section+":"+sec.Reason)
+			}
+		}
+	}
+	if len(reasons) == 0 && out == "complete" {
+		reasons = append(reasons, "all_sections_available")
+	}
+	return out, reasons
 }
 
 // computeTimeWindow determines the evidence gathering window based on

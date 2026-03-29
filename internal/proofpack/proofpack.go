@@ -59,6 +59,9 @@ type Proofpack struct {
 	// the assembled evidence is listed here so consumers do not infer
 	// completeness from the absence of gap markers.
 	EvidenceGaps []EvidenceGap `json:"evidence_gaps"`
+	// Per-section completeness status so consumers can reason about partial
+	// assembly without parsing gap text.
+	SectionStatuses []ProofpackSectionStatus `json:"section_statuses,omitempty"`
 }
 
 // AssemblyMetadata records who assembled the proofpack, when, and what
@@ -164,6 +167,9 @@ type ActionEvidence struct {
 	SodBypassReason  string   `json:"sod_bypass_reason,omitempty"`
 	ApprovalBasis    []string `json:"approval_basis,omitempty"`
 	ExecutionSource  string   `json:"execution_source,omitempty"`
+	// HistoricalActionOutcomeSnapshotRefs are historical snapshots for this action type
+	// in incidents with the same deterministic signature key.
+	HistoricalActionOutcomeSnapshotRefs []string `json:"historical_action_outcome_snapshot_refs,omitempty"`
 }
 
 type ActionOutcomeEvidenceSummary struct {

@@ -166,6 +166,9 @@ type IncidentActionOutcomeMemory struct {
 	InspectBeforeReuse         []string `json:"inspect_before_reuse,omitempty"`
 	EvidenceRefs               []string `json:"evidence_refs,omitempty"`
 	SnapshotRefs               []string `json:"snapshot_refs,omitempty"`
+	SnapshotTraceStatus        string   `json:"snapshot_trace_status"`     // complete, partial, unavailable
+	SnapshotCoveragePosture    string   `json:"snapshot_coverage_posture"` // matched, sparse, missing
+	SnapshotCoveragePercent    float64  `json:"snapshot_coverage_percent"` // 0..100
 }
 
 type IncidentActionEvidenceSummary struct {
