@@ -230,6 +230,9 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 	if len(got.Intelligence.ActionOutcomeMemory) == 0 {
 		t.Fatalf("expected action outcome memory")
 	}
+	if len(got.Intelligence.ActionOutcomeSnapshots) == 0 {
+		t.Fatalf("expected persisted action outcome snapshots")
+	}
 	found := false
 	for _, m := range got.Intelligence.ActionOutcomeMemory {
 		if m.ActionType != "trigger_health_recheck" {
@@ -241,6 +244,9 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 		}
 		if m.ImprovementObservedCount == 0 || m.DeteriorationObservedCount == 0 {
 			t.Fatalf("expected mixed counts, got improvement=%d deterioration=%d", m.ImprovementObservedCount, m.DeteriorationObservedCount)
+		}
+		if len(m.SnapshotRefs) < 2 {
+			t.Fatalf("expected snapshot refs for traceability, got %v", m.SnapshotRefs)
 		}
 	}
 	if !found {

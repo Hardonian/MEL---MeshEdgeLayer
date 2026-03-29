@@ -23,6 +23,16 @@ func (d *DBAdapter) IncidentByID(id string) (models.Incident, bool, error) {
 	return d.DB.IncidentByID(id)
 }
 
+func (d *DBAdapter) SignatureKeyForIncident(incidentID string) (string, error) {
+	rows, err := d.DB.QueryRows(fmt.Sprintf(
+		`SELECT signature_key FROM incident_signature_incidents WHERE incident_id='%s' ORDER BY linked_at DESC LIMIT 1;`,
+		db.EscString(incidentID)))
+	if err != nil || len(rows) == 0 {
+		return "", err
+	}
+	return strings.TrimSpace(asString(rows[0]["signature_key"])), nil
+}
+
 func (d *DBAdapter) ControlActionsByIncidentID(incidentID string, limit int) ([]ActionEvidence, error) {
 	rows, err := d.DB.ControlActionsByIncidentID(incidentID, limit)
 	if err != nil {
@@ -61,6 +71,53 @@ func (d *DBAdapter) ControlActionsByIncidentID(incidentID string, limit int) ([]
 			SodBypassReason:  r.SodBypassReason,
 			ApprovalBasis:    basis,
 			ExecutionSource:  r.ExecutionSource,
+		})
+	}
+	return out, nil
+}
+
+func (d *DBAdapter) ActionOutcomeSnapshotsBySignature(signatureKey, excludeIncidentID string, limit int) ([]ActionOutcomeSnapshot, error) {
+	rows, err := d.DB.ActionOutcomeSnapshotsBySignature(signatureKey, excludeIncidentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ActionOutcomeSnapshot, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ActionOutcomeSnapshot{
+			SnapshotID:            row.SnapshotID,
+			SignatureKey:          row.SignatureKey,
+			IncidentID:            row.IncidentID,
+			ActionID:              row.ActionID,
+			ActionType:            row.ActionType,
+			ActionLabel:           row.ActionLabel,
+			DerivedClassification: row.DerivedClassification,
+			EvidenceSufficiency:   row.EvidenceSufficiency,
+			WindowStart:           row.WindowStart,
+			WindowEnd:             row.WindowEnd,
+			PreActionEvidence: ActionOutcomeEvidenceSummary{
+				TransportName:        asMapString(row.PreActionSummary, "transport_name"),
+				DeadLettersCount:     asMapInt(row.PreActionSummary, "dead_letters_count"),
+				TransportAlertsCount: asMapInt(row.PreActionSummary, "transport_alerts_count"),
+				IncidentState:        asMapString(row.PreActionSummary, "incident_state"),
+				ActionResult:         asMapString(row.PreActionSummary, "action_result"),
+				ActionLifecycle:      asMapString(row.PreActionSummary, "action_lifecycle"),
+			},
+			PostActionEvidence: ActionOutcomeEvidenceSummary{
+				TransportName:        asMapString(row.PostActionSummary, "transport_name"),
+				DeadLettersCount:     asMapInt(row.PostActionSummary, "dead_letters_count"),
+				TransportAlertsCount: asMapInt(row.PostActionSummary, "transport_alerts_count"),
+				IncidentState:        asMapString(row.PostActionSummary, "incident_state"),
+				ActionResult:         asMapString(row.PostActionSummary, "action_result"),
+				ActionLifecycle:      asMapString(row.PostActionSummary, "action_lifecycle"),
+			},
+			ObservedSignalCount: row.ObservedSignalCount,
+			Caveats:             append([]string(nil), row.Caveats...),
+			InspectBeforeReuse:  append([]string(nil), row.InspectBeforeReuse...),
+			EvidenceRefs:        append([]string(nil), row.EvidenceRefs...),
+			AssociationOnly:     row.AssociationOnly,
+			DerivationVersion:   row.DerivationVersion,
+			SchemaVersion:       row.SchemaVersion,
+			DerivedAt:           row.DerivedAt,
 		})
 	}
 	return out, nil
@@ -211,4 +268,35 @@ func asString(v interface{}) string {
 		return ""
 	}
 	return fmt.Sprint(v)
+}
+
+func asMapString(in map[string]any, k string) string {
+	if in == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(in[k]))
+}
+
+func asMapInt(in map[string]any, k string) int {
+	if in == nil {
+		return 0
+	}
+	switch v := in[k].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	case string:
+		var out int
+		_, _ = fmt.Sscan(strings.TrimSpace(v), &out)
+		return out
+	default:
+		var out int
+		_, _ = fmt.Sscan(fmt.Sprint(v), &out)
+		return out
+	}
 }

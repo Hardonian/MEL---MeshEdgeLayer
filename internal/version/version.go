@@ -16,7 +16,7 @@ const (
 
 // CurrentSchemaVersion is the numeric prefix of the latest applied migration file
 // (e.g. 0019_foo.sql → 19). Must stay in sync with migrations/.
-const CurrentSchemaVersion = 29
+const CurrentSchemaVersion = 30
 
 // VersionInfo holds all version-related information about the MEL build
 type VersionInfo struct {

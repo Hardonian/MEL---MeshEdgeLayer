@@ -32,6 +32,8 @@ type Proofpack struct {
 
 	// Control actions linked to this incident (canonical FK).
 	LinkedActions []ActionEvidence `json:"linked_actions"`
+	// Per-action historical evaluation snapshots associated with this incident signature.
+	ActionOutcomeSnapshots []ActionOutcomeSnapshot `json:"action_outcome_snapshots,omitempty"`
 
 	// Chronological timeline events related to this incident.
 	// Includes control actions, freezes, notes, handoffs, and other
@@ -71,13 +73,14 @@ type AssemblyMetadata struct {
 	TimeWindowTo   string `json:"time_window_to"`   // latest evidence considered (RFC3339)
 
 	// Counts of evidence items assembled (for quick integrity checks).
-	ActionCount       int `json:"action_count"`
-	TimelineCount     int `json:"timeline_count"`
-	TransportCount    int `json:"transport_count"`
-	DeadLetterCount   int `json:"dead_letter_count"`
-	NoteCount         int `json:"note_count"`
-	AuditEntryCount   int `json:"audit_entry_count"`
-	EvidenceGapCount  int `json:"evidence_gap_count"`
+	ActionCount                int `json:"action_count"`
+	ActionOutcomeSnapshotCount int `json:"action_outcome_snapshot_count"`
+	TimelineCount              int `json:"timeline_count"`
+	TransportCount             int `json:"transport_count"`
+	DeadLetterCount            int `json:"dead_letter_count"`
+	NoteCount                  int `json:"note_count"`
+	AuditEntryCount            int `json:"audit_entry_count"`
+	EvidenceGapCount           int `json:"evidence_gap_count"`
 
 	// AssemblyDurationMs is the wall-clock time spent assembling.
 	AssemblyDurationMs int64 `json:"assembly_duration_ms"`
@@ -109,32 +112,64 @@ type IncidentEvidence struct {
 
 // ActionEvidence is a control action record preserved for the proofpack.
 type ActionEvidence struct {
-	ID                string   `json:"id"`
-	ActionType        string   `json:"action_type"`
-	TransportName     string   `json:"transport_name,omitempty"`
-	TargetNode        string   `json:"target_node,omitempty"`
-	TargetSegment     string   `json:"target_segment,omitempty"`
-	LifecycleState    string   `json:"lifecycle_state"`
-	Result            string   `json:"result"`
-	Reason            string   `json:"reason"`
-	OutcomeDetail     string   `json:"outcome_detail,omitempty"`
-	ExecutionMode     string   `json:"execution_mode,omitempty"`
-	BlastRadiusClass  string   `json:"blast_radius_class,omitempty"`
-	HighBlastRadius   bool     `json:"high_blast_radius,omitempty"`
-	ProposedBy        string   `json:"proposed_by,omitempty"`
-	SubmittedBy       string   `json:"submitted_by,omitempty"`
-	ApprovedBy        string   `json:"approved_by,omitempty"`
-	ApprovedAt        string   `json:"approved_at,omitempty"`
-	RejectedBy        string   `json:"rejected_by,omitempty"`
-	RejectedAt        string   `json:"rejected_at,omitempty"`
-	CreatedAt         string   `json:"created_at"`
-	ExecutedAt        string   `json:"executed_at,omitempty"`
-	CompletedAt       string   `json:"completed_at,omitempty"`
-	IncidentID        string   `json:"incident_id,omitempty"`
-	SodBypass         bool     `json:"sod_bypass,omitempty"`
-	SodBypassReason   string   `json:"sod_bypass_reason,omitempty"`
-	ApprovalBasis     []string `json:"approval_basis,omitempty"`
-	ExecutionSource   string   `json:"execution_source,omitempty"`
+	ID               string   `json:"id"`
+	ActionType       string   `json:"action_type"`
+	TransportName    string   `json:"transport_name,omitempty"`
+	TargetNode       string   `json:"target_node,omitempty"`
+	TargetSegment    string   `json:"target_segment,omitempty"`
+	LifecycleState   string   `json:"lifecycle_state"`
+	Result           string   `json:"result"`
+	Reason           string   `json:"reason"`
+	OutcomeDetail    string   `json:"outcome_detail,omitempty"`
+	ExecutionMode    string   `json:"execution_mode,omitempty"`
+	BlastRadiusClass string   `json:"blast_radius_class,omitempty"`
+	HighBlastRadius  bool     `json:"high_blast_radius,omitempty"`
+	ProposedBy       string   `json:"proposed_by,omitempty"`
+	SubmittedBy      string   `json:"submitted_by,omitempty"`
+	ApprovedBy       string   `json:"approved_by,omitempty"`
+	ApprovedAt       string   `json:"approved_at,omitempty"`
+	RejectedBy       string   `json:"rejected_by,omitempty"`
+	RejectedAt       string   `json:"rejected_at,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+	ExecutedAt       string   `json:"executed_at,omitempty"`
+	CompletedAt      string   `json:"completed_at,omitempty"`
+	IncidentID       string   `json:"incident_id,omitempty"`
+	SodBypass        bool     `json:"sod_bypass,omitempty"`
+	SodBypassReason  string   `json:"sod_bypass_reason,omitempty"`
+	ApprovalBasis    []string `json:"approval_basis,omitempty"`
+	ExecutionSource  string   `json:"execution_source,omitempty"`
+}
+
+type ActionOutcomeEvidenceSummary struct {
+	TransportName        string `json:"transport_name,omitempty"`
+	DeadLettersCount     int    `json:"dead_letters_count"`
+	TransportAlertsCount int    `json:"transport_alerts_count"`
+	IncidentState        string `json:"incident_state,omitempty"`
+	ActionResult         string `json:"action_result,omitempty"`
+	ActionLifecycle      string `json:"action_lifecycle,omitempty"`
+}
+
+type ActionOutcomeSnapshot struct {
+	SnapshotID            string                       `json:"snapshot_id"`
+	SignatureKey          string                       `json:"signature_key"`
+	IncidentID            string                       `json:"incident_id"`
+	ActionID              string                       `json:"action_id"`
+	ActionType            string                       `json:"action_type"`
+	ActionLabel           string                       `json:"action_label,omitempty"`
+	DerivedClassification string                       `json:"derived_classification"`
+	EvidenceSufficiency   string                       `json:"evidence_sufficiency"`
+	WindowStart           string                       `json:"window_start"`
+	WindowEnd             string                       `json:"window_end"`
+	PreActionEvidence     ActionOutcomeEvidenceSummary `json:"pre_action_evidence"`
+	PostActionEvidence    ActionOutcomeEvidenceSummary `json:"post_action_evidence"`
+	ObservedSignalCount   int                          `json:"observed_signal_count"`
+	Caveats               []string                     `json:"caveats,omitempty"`
+	InspectBeforeReuse    []string                     `json:"inspect_before_reuse,omitempty"`
+	EvidenceRefs          []string                     `json:"evidence_refs,omitempty"`
+	AssociationOnly       bool                         `json:"association_only"`
+	DerivationVersion     string                       `json:"derivation_version,omitempty"`
+	SchemaVersion         string                       `json:"schema_version,omitempty"`
+	DerivedAt             string                       `json:"derived_at"`
 }
 
 // TimelineEntry is a single event in the incident-scoped timeline.

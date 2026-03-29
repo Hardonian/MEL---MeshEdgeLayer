@@ -117,7 +117,7 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	}
 
 	out.SimilarIncidents = a.similarIncidents(sigKey, inc.ID)
-	out.ActionOutcomeMemory = a.actionOutcomeMemory(sigKey, inc)
+	out.ActionOutcomeMemory, out.ActionOutcomeSnapshots = a.actionOutcomeMemory(sigKey, inc)
 	out.ImplicatedDomains = deriveDomains(out.EvidenceItems, inc)
 	out.InvestigateNext = deriveInvestigationGuidance(out, inc)
 	switch {
@@ -143,13 +143,13 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	return out
 }
 
-func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) []models.IncidentActionOutcomeMemory {
+func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) ([]models.IncidentActionOutcomeMemory, []models.IncidentActionOutcomeSnapshot) {
 	if a == nil || a.DB == nil || strings.TrimSpace(signatureKey) == "" {
-		return nil
+		return nil, nil
 	}
 	similar, err := a.DB.SimilarIncidentsBySignature(signatureKey, current.ID, 8)
 	if err != nil || len(similar) == 0 {
-		return nil
+		return nil, nil
 	}
 	ids := make([]string, 0, len(similar))
 	simByID := map[string]models.Incident{}
@@ -159,7 +159,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	}
 	actions, err := a.DB.ControlActionsForIncidentIDs(ids, 400)
 	if err != nil || len(actions) == 0 {
-		return nil
+		return nil, nil
 	}
 	type score struct {
 		model      models.IncidentActionOutcomeMemory
@@ -167,8 +167,10 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 		refsSeen   map[string]struct{}
 		caveats    map[string]struct{}
 		preInspect map[string]struct{}
+		snapshots  []string
 	}
 	perAction := map[string]*score{}
+	allSnapshots := make([]models.IncidentActionOutcomeSnapshot, 0, len(actions))
 	for _, action := range actions {
 		actionType := strings.TrimSpace(action.ActionType)
 		incidentID := strings.TrimSpace(action.IncidentID)
@@ -180,49 +182,94 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 			continue
 		}
 		eval := evaluatePostActionSignals(a, action, simInc)
-		entry, ok := perAction[actionType]
-		if !ok {
-			entry = &score{
-				model: models.IncidentActionOutcomeMemory{
-					ActionType:  actionType,
-					ActionLabel: strings.ReplaceAll(actionType, "_", " "),
-				},
-				refsSeen:   map[string]struct{}{},
-				caveats:    map[string]struct{}{},
-				preInspect: map[string]struct{}{},
+		_ = a.DB.UpsertIncidentActionOutcomeSnapshot(db.IncidentActionOutcomeSnapshotRecord{
+			SignatureKey:          signatureKey,
+			IncidentID:            incidentID,
+			ActionID:              action.ID,
+			ActionType:            actionType,
+			ActionLabel:           strings.ReplaceAll(actionType, "_", " "),
+			DerivedClassification: normalizeSnapshotClassification(eval.outcome),
+			EvidenceSufficiency:   eval.evidenceSufficiency,
+			PreActionSummary: map[string]any{
+				"transport_name":         eval.transportName,
+				"dead_letters_count":     eval.preDeadLetters,
+				"transport_alerts_count": eval.preAlerts,
+				"incident_state":         eval.incidentState,
+				"action_result":          eval.actionResult,
+				"action_lifecycle":       eval.actionLifecycle,
+			},
+			PostActionSummary: map[string]any{
+				"transport_name":         eval.transportName,
+				"dead_letters_count":     eval.postDeadLetters,
+				"transport_alerts_count": eval.postAlerts,
+				"incident_state":         eval.incidentState,
+				"action_result":          eval.actionResult,
+				"action_lifecycle":       eval.actionLifecycle,
+			},
+			ObservedSignalCount: eval.observedSignals,
+			Caveats:             eval.caveats,
+			InspectBeforeReuse:  eval.inspectBeforeReuse,
+			EvidenceRefs:        eval.evidenceRefs,
+			AssociationOnly:     true,
+			WindowStart:         eval.windowStart,
+			WindowEnd:           eval.windowEnd,
+			DerivedAt:           time.Now().UTC().Format(time.RFC3339),
+		})
+	}
+	persistedSnapshots, err := a.DB.ActionOutcomeSnapshotsBySignature(signatureKey, current.ID, 400)
+	if err == nil {
+		for _, snap := range persistedSnapshots {
+			actionType := strings.TrimSpace(snap.ActionType)
+			if actionType == "" {
+				continue
 			}
-			perAction[actionType] = entry
-		}
-		entry.model.OccurrenceCount++
-		entry.model.SampleSize++
-		entry.observed += eval.observedSignals
-		entry.model.ObservedPostActionStatus = "inconclusive"
-		switch eval.outcome {
-		case "improvement_observed":
-			entry.model.ImprovementObservedCount++
-		case "deterioration_observed":
-			entry.model.DeteriorationObservedCount++
-		default:
-			entry.model.InconclusiveCount++
-		}
-		for _, caveat := range eval.caveats {
-			entry.caveats[caveat] = struct{}{}
-		}
-		for _, inspect := range eval.inspectBeforeReuse {
-			entry.preInspect[inspect] = struct{}{}
-		}
-		for _, ref := range eval.evidenceRefs {
-			entry.refsSeen[ref] = struct{}{}
+			entry, ok := perAction[actionType]
+			if !ok {
+				entry = &score{
+					model: models.IncidentActionOutcomeMemory{
+						ActionType:  actionType,
+						ActionLabel: strings.ReplaceAll(actionType, "_", " "),
+					},
+					refsSeen:   map[string]struct{}{},
+					caveats:    map[string]struct{}{},
+					preInspect: map[string]struct{}{},
+				}
+				perAction[actionType] = entry
+			}
+			entry.model.OccurrenceCount++
+			entry.model.SampleSize++
+			entry.observed += snap.ObservedSignalCount
+			switch snap.DerivedClassification {
+			case "improvement_observed":
+				entry.model.ImprovementObservedCount++
+			case "deterioration_observed":
+				entry.model.DeteriorationObservedCount++
+			default:
+				entry.model.InconclusiveCount++
+			}
+			for _, caveat := range snap.Caveats {
+				entry.caveats[caveat] = struct{}{}
+			}
+			for _, inspect := range snap.InspectBeforeReuse {
+				entry.preInspect[inspect] = struct{}{}
+			}
+			for _, ref := range snap.EvidenceRefs {
+				entry.refsSeen[ref] = struct{}{}
+			}
+			entry.snapshots = append(entry.snapshots, snap.SnapshotID)
+			allSnapshots = append(allSnapshots, modelSnapshotFromDB(snap))
 		}
 	}
 	if len(perAction) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]models.IncidentActionOutcomeMemory, 0, len(perAction))
 	for _, mem := range perAction {
 		mem.model.Caveats = setToSortedSlice(mem.caveats)
 		mem.model.InspectBeforeReuse = setToSortedSlice(mem.preInspect)
 		mem.model.EvidenceRefs = setToSortedSlice(mem.refsSeen)
+		sort.Strings(mem.snapshots)
+		mem.model.SnapshotRefs = mem.snapshots
 		mem.model.OutcomeFraming, mem.model.ObservedPostActionStatus = classifyOutcome(mem.model)
 		mem.model.EvidenceStrength = evidenceStrengthForSample(mem.model.SampleSize, mem.observed)
 		if mem.model.SampleSize < 2 {
@@ -239,7 +286,16 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	if len(out) > 5 {
 		out = out[:5]
 	}
-	return out
+	sort.Slice(allSnapshots, func(i, j int) bool {
+		if allSnapshots[i].DerivedAt == allSnapshots[j].DerivedAt {
+			return allSnapshots[i].SnapshotID < allSnapshots[j].SnapshotID
+		}
+		return allSnapshots[i].DerivedAt > allSnapshots[j].DerivedAt
+	})
+	if len(allSnapshots) > 40 {
+		allSnapshots = allSnapshots[:40]
+	}
+	return out, allSnapshots
 }
 
 func (a *App) similarIncidents(signatureKey, currentID string) []models.IncidentSimilarityRecord {
@@ -410,27 +466,47 @@ func firstNonEmpty(v ...string) string {
 }
 
 type actionEvaluation struct {
-	outcome            string
-	observedSignals    int
-	caveats            []string
-	inspectBeforeReuse []string
-	evidenceRefs       []string
+	outcome             string
+	evidenceSufficiency string
+	observedSignals     int
+	caveats             []string
+	inspectBeforeReuse  []string
+	evidenceRefs        []string
+	transportName       string
+	preDeadLetters      int
+	postDeadLetters     int
+	preAlerts           int
+	postAlerts          int
+	windowStart         string
+	windowEnd           string
+	incidentState       string
+	actionResult        string
+	actionLifecycle     string
 }
 
 func evaluatePostActionSignals(a *App, action db.ControlActionRecord, incident models.Incident) actionEvaluation {
 	eval := actionEvaluation{
-		outcome:            "inconclusive",
-		caveats:            []string{"Temporal association only; this is not causal proof."},
-		inspectBeforeReuse: []string{"Confirm current incident signature still matches historical context.", "Validate approval/execution lifecycle before repeating action."},
-		evidenceRefs:       []string{"incident:" + incident.ID, "action:" + action.ID},
+		outcome:             "inconclusive",
+		evidenceSufficiency: "insufficient",
+		caveats:             []string{"Temporal association only; this is not causal proof."},
+		inspectBeforeReuse:  []string{"Confirm current incident signature still matches historical context.", "Validate approval/execution lifecycle before repeating action."},
+		evidenceRefs:        []string{"incident:" + incident.ID, "action:" + action.ID},
 	}
 	base := parseRFC3339Fallback(firstNonEmpty(action.CompletedAt, action.ExecutedAt, action.ExecutionStartedAt, action.CreatedAt), parseRFC3339Fallback(firstNonEmpty(incident.OccurredAt, incident.UpdatedAt), time.Now().UTC()))
 	preFrom, preTo := base.Add(-2*time.Hour).Format(time.RFC3339), base.Format(time.RFC3339)
 	postFrom, postTo := base.Format(time.RFC3339), base.Add(2*time.Hour).Format(time.RFC3339)
 	transport := firstNonEmpty(action.TargetTransport, incident.ResourceID)
+	eval.transportName = transport
+	eval.windowStart = preFrom
+	eval.windowEnd = postTo
+	eval.incidentState = incident.State
+	eval.actionResult = strings.TrimSpace(action.Result)
+	eval.actionLifecycle = strings.TrimSpace(action.LifecycleState)
 	if incident.ResourceType == "transport" && transport != "" && a != nil && a.DB != nil {
 		preDL, _ := a.DB.DeadLettersForTransportBetween(transport, preFrom, preTo, 200)
 		postDL, _ := a.DB.DeadLettersForTransportBetween(transport, postFrom, postTo, 200)
+		eval.preDeadLetters = len(preDL)
+		eval.postDeadLetters = len(postDL)
 		if len(preDL) > 0 || len(postDL) > 0 {
 			eval.observedSignals++
 			eval.evidenceRefs = append(eval.evidenceRefs, "dead_letters:"+transport)
@@ -445,6 +521,8 @@ func evaluatePostActionSignals(a *App, action db.ControlActionRecord, incident m
 		}
 		preAlerts, _ := a.DB.TransportAlertsForWindow(transport, preFrom, preTo, 200)
 		postAlerts, _ := a.DB.TransportAlertsForWindow(transport, postFrom, postTo, 200)
+		eval.preAlerts = len(preAlerts)
+		eval.postAlerts = len(postAlerts)
 		if len(preAlerts) > 0 || len(postAlerts) > 0 {
 			eval.observedSignals++
 			eval.evidenceRefs = append(eval.evidenceRefs, "transport_alerts:"+transport)
@@ -472,7 +550,96 @@ func evaluatePostActionSignals(a *App, action db.ControlActionRecord, incident m
 	if eval.observedSignals == 0 {
 		eval.inspectBeforeReuse = append(eval.inspectBeforeReuse, "No clear post-action signal in bounded window; inspect full timeline manually.")
 	}
+	switch {
+	case eval.observedSignals >= 2:
+		eval.evidenceSufficiency = "sufficient"
+	case eval.observedSignals == 1:
+		eval.evidenceSufficiency = "partial"
+	default:
+		eval.evidenceSufficiency = "insufficient"
+	}
 	return eval
+}
+
+func modelSnapshotFromDB(snap db.IncidentActionOutcomeSnapshotRecord) models.IncidentActionOutcomeSnapshot {
+	return models.IncidentActionOutcomeSnapshot{
+		SnapshotID:            snap.SnapshotID,
+		SignatureKey:          snap.SignatureKey,
+		IncidentID:            snap.IncidentID,
+		ActionID:              snap.ActionID,
+		ActionType:            snap.ActionType,
+		ActionLabel:           snap.ActionLabel,
+		DerivedClassification: normalizeSnapshotClassification(snap.DerivedClassification),
+		EvidenceSufficiency:   snap.EvidenceSufficiency,
+		WindowStart:           snap.WindowStart,
+		WindowEnd:             snap.WindowEnd,
+		PreActionEvidence: models.IncidentActionEvidenceSummary{
+			TransportName:        firstNonEmpty(asMapString(snap.PreActionSummary, "transport_name")),
+			DeadLettersCount:     asMapInt(snap.PreActionSummary, "dead_letters_count"),
+			TransportAlertsCount: asMapInt(snap.PreActionSummary, "transport_alerts_count"),
+			IncidentState:        asMapString(snap.PreActionSummary, "incident_state"),
+			ActionResult:         asMapString(snap.PreActionSummary, "action_result"),
+			ActionLifecycle:      asMapString(snap.PreActionSummary, "action_lifecycle"),
+		},
+		PostActionEvidence: models.IncidentActionEvidenceSummary{
+			TransportName:        firstNonEmpty(asMapString(snap.PostActionSummary, "transport_name")),
+			DeadLettersCount:     asMapInt(snap.PostActionSummary, "dead_letters_count"),
+			TransportAlertsCount: asMapInt(snap.PostActionSummary, "transport_alerts_count"),
+			IncidentState:        asMapString(snap.PostActionSummary, "incident_state"),
+			ActionResult:         asMapString(snap.PostActionSummary, "action_result"),
+			ActionLifecycle:      asMapString(snap.PostActionSummary, "action_lifecycle"),
+		},
+		ObservedSignalCount: snap.ObservedSignalCount,
+		Caveats:             append([]string(nil), snap.Caveats...),
+		InspectBeforeReuse:  append([]string(nil), snap.InspectBeforeReuse...),
+		EvidenceRefs:        append([]string(nil), snap.EvidenceRefs...),
+		AssociationOnly:     snap.AssociationOnly,
+		DerivationVersion:   snap.DerivationVersion,
+		SchemaVersion:       snap.SchemaVersion,
+		DerivedAt:           snap.DerivedAt,
+	}
+}
+
+func normalizeSnapshotClassification(v string) string {
+	switch strings.TrimSpace(v) {
+	case "improvement_observed", "deterioration_observed", "mixed_historical_evidence", "inconclusive", "insufficient_evidence":
+		return v
+	case "no_clear_post_action_signal":
+		return "inconclusive"
+	default:
+		return "inconclusive"
+	}
+}
+
+func asMapInt(in map[string]any, k string) int {
+	if in == nil {
+		return 0
+	}
+	switch v := in[k].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	case string:
+		var out int
+		_, _ = fmt.Sscan(strings.TrimSpace(v), &out)
+		return out
+	default:
+		var out int
+		_, _ = fmt.Sscan(fmt.Sprint(v), &out)
+		return out
+	}
+}
+
+func asMapString(in map[string]any, k string) string {
+	if in == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(in[k]))
 }
 
 func classifyOutcome(mem models.IncidentActionOutcomeMemory) (string, string) {
