@@ -1456,7 +1456,7 @@ func (s *Server) incidentRecommendationOutcomeHandler(w http.ResponseWriter, r *
 	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
 }
 
-func (s *Server) incidentReplayHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+func (s *Server) incidentReplayHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
 	if s.incidentReplayView == nil {
 		writeError(w, http.StatusServiceUnavailable, "incident replay not available", "")
 		return

@@ -6,7 +6,8 @@ MEL uses SQLite for its primary persistence. While it's generally low-maintenanc
 
 ## 🚦 Growth Symptoms & Diagnostic Steps
 
-### Symptom
+### Symptom: Database Growth
+
 - Database file (`mel.db`) growing beyond expected size (e.g. > 10GB).
 - Application-level storage alerts firing.
 - Query performance degradation (e.g., slow dashboard load).
@@ -22,6 +23,7 @@ sqlite3 /path/to/mel.db "PRAGMA integrity_check;"
 ```
 
 Review table sizes to find the growth source:
+
 - `messages`: Historical packets.
 - `dead_letters`: Failed packets.
 - `control_actions`: Historical control plane actions.
@@ -32,7 +34,9 @@ Review table sizes to find the growth source:
 ## 🛠️ Resolution Steps
 
 ### 1. Retention Tuning
+
 Adjust your `mel.json` to keep only what's necessary:
+
 ```json
 "storage": {
   "retention_days": 30,
@@ -41,13 +45,17 @@ Adjust your `mel.json` to keep only what's necessary:
 ```
 
 ### 2. Manual Cleanup
+
 Run a cleanup pass to prune records older than your retention policy:
+
 ```bash
 mel db cleanup --all
 ```
 
 ### 3. Database Vacuuming
+
 Reclaim empty space from the database file:
+
 ```bash
 # WARNING: This will lock the database for a duration proportional to its size.
 # Stop the mel service first if on a low-perf host.
@@ -58,10 +66,11 @@ sqlite3 /path/to/mel.db "VACUUM;"
 
 ## 🏥 System Recovery
 
-### Symptom
+### Symptom: Service Refuses to Start
+
 The MEL service refuses to start with persistent database errors (e.g., `disk I/O error`, `malformed file`).
 
-### Resolution Steps
+### Resolution Steps (Recovery)
 
 1. **Verify Mount & Permissions**
    - Ensure the disk is not full: `df -h`
@@ -69,6 +78,7 @@ The MEL service refuses to start with persistent database errors (e.g., `disk I/
 
 2. **Recover from Malformed File** (Last Resort)
    If the file is corrupt:
+
    ```bash
    # Try to recover as much as possible to a new file
    sqlite3 mel.db ".recover" | sqlite3 mel_recovered.db
@@ -77,6 +87,7 @@ The MEL service refuses to start with persistent database errors (e.g., `disk I/
 
 3. **Restoring from Backup**
    If you have a `mel.backup` file:
+
    ```bash
    mel backup restore --file /path/to/backup.mel --config /etc/mel/mel.json
    ```

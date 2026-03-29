@@ -166,7 +166,8 @@ func (d *DB) appliedMigrations() (map[string]bool, error) {
 }
 
 func (d *DB) Exec(sql string) error {
-	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path, sql)
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", d.Path)
+	cmd.Stdin = strings.NewReader(sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return logging.NewSafeError("database operation failed", fmt.Errorf("sqlite exec failed: %w: %s", err, out), "database", isTransientDBError(err))
@@ -185,7 +186,8 @@ func (d *DB) ExecScript(sql string) error {
 }
 
 func (d *DB) QueryRows(sql string) ([]map[string]any, error) {
-	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path, sql)
+	cmd := exec.Command("sqlite3", "-cmd", ".timeout 5000", "-json", d.Path)
+	cmd.Stdin = strings.NewReader(sql)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, logging.NewSafeError("database query failed", fmt.Errorf("sqlite query failed: %w: %s", err, out), "database", isTransientDBError(err))

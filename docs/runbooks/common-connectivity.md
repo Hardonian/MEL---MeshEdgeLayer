@@ -7,6 +7,7 @@ This runbook covers scenarios where transports are failing to connect or are con
 ## 🚦 Transport Down / Reconnect Churn
 
 ### Symptom
+
 Transport remains stuck in `attempting`, `configured_offline`, or `error` state. Logs show repeated connection attempts followed by immediate disconnects.
 
 ### Diagnostic Steps
@@ -23,6 +24,7 @@ mel logs tail --transport <transport-name> --follow
 ```
 
 Check these specific fields in the JSON output:
+
 - `consecutive_timeouts`: Sequential timeout failures.
 - `retry_status`: Current backoff state.
 - `last_error`: Most recent error message.
@@ -33,20 +35,21 @@ Check these specific fields in the JSON output:
    - For MQTT: `telnet <host> 1883`
    - For TCP: `telnet <host> <port>`
    - For Serial: `ls -l /dev/serial/by-id/...`
-
 2. **Check Credential Hashes**
+
    ```bash
    mel inspect transport <name> --show-credentials-hashes
    ```
-   Compare with expected hashes to ensure no configuration drift or corruption.
 
+   Compare with expected hashes to ensure no configuration drift or corruption.
 3. **Adjust Timeout Settings** (if network is latent)
+
    ```bash
    # Increase read/write timeouts if on high-latency links
    mel transport update <name> --read-timeout 30s --write-timeout 10s
    ```
-
 4. **Force Reconnection**
+
    ```bash
    # Cycle the transport state machine
    mel transport disconnect <name>
@@ -57,26 +60,26 @@ Check these specific fields in the JSON output:
 
 ## 📡 MQTT Subscription Issues
 
-### Symptom
+### Symptom: MQTT Subscription
+
 MQTT transport shows `connected` but no messages are being received.
 
-### Diagnostic Steps
+### Diagnostic Steps (MQTT)
 
 ```bash
 # Verify subscription state
 mel status --transport <transport-name>
 ```
 
-### Resolution Steps
+### Resolution Steps (MQTT)
 
 1. **Verify Topic Filter**
    Ensure your `topic` in `mel.json` matches the broker's structure (e.g., `msh/US/2/e/#`).
-
 2. **Review Broker ACLs**
    Ensure the `client_id` used by MEL has `SUBSCRIBE` permissions for the configured topic.
-
 3. **Check QoS Compatibility**
    MEL defaults to **QoS 1** for reliability. If your broker only supports QoS 0, you must update the config:
+
    ```json
    "mqtt_qos": 0
    ```

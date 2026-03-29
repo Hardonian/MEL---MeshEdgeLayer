@@ -267,9 +267,10 @@ func printTrustHealthFromState(state map[string]any) {
 		backlog = int(v)
 	}
 	modeIcon := "✓"
-	if mode == "frozen" {
+	switch mode {
+	case "frozen":
 		modeIcon = "✗"
-	} else if mode == "maintenance" {
+	case "maintenance":
 		modeIcon = "⚠"
 	}
 	backlogIcon := "✓"

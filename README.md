@@ -33,7 +33,7 @@ See the canonical terminology guide: [`docs/repo-os/terminology.md`](docs/repo-o
 ## Transport support matrix (current)
 
 | Surface | State | Contract |
-|---|---|---|
+| --- | --- | --- |
 | Direct ingest (serial/TCP) | Supported | Claim only persisted and timestamped ingest evidence. |
 | MQTT ingest | Supported | Surface disconnects and partial ingest explicitly. |
 | BLE ingest | Unsupported | Label unsupported; no implied partial support. |
@@ -78,6 +78,7 @@ make smoke
 ```
 
 Then apply the repo-os gates:
+<BLANK_LINE>
 - [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
 - [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
 

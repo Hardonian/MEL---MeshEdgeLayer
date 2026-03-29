@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"strings"
 
 	"github.com/mel-project/mel/internal/cliout"
@@ -103,13 +102,6 @@ func init() {
 	cliGlobal = defaultGlobalOpts()
 }
 
-func melDataDir() string {
-	d := strings.TrimSpace(os.Getenv("MEL_DATA_DIR"))
-	if d != "" {
-		return d
-	}
-	return "./data"
-}
 
 // configFlagDefault is the default for per-command --config when the operator did not pass a global --config.
 func configFlagDefault() string {
