@@ -18,6 +18,10 @@ Use for roadmap items, major features, and architecture refactors.
 - [ ] Improves replayability, causality chains, and action attribution.
 - [ ] Preserves truthful degraded semantics under failure.
 
+## Local-first resilience and affordability
+- [ ] Improves private/self-hosted operation without mandatory cloud dependency.
+- [ ] Keeps recurring cost bounded while preserving truth, security, and auditability.
+
 ## Copyability pressure test
 - [ ] Advantage cannot be replicated from UI alone without underlying historical corpus/workflow integration.
 - [ ] Explicitly states why this is Maintenance vs Leverage vs Moat.

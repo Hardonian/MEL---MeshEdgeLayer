@@ -7,6 +7,7 @@ This matrix defines minimum verification obligations by work category.
 - Unit tests for parsing/state transitions.
 - Integration tests for ingest worker behavior (disconnect/reconnect/partial ingest).
 - Degraded-state assertions (stale, no-transport, dead-letter visibility).
+- Mixed-channel posture assertions where applicable (channel/path/support/degraded/unknown).
 - Docs + support-matrix alignment check.
 
 **Advisory:**
@@ -16,6 +17,7 @@ This matrix defines minimum verification obligations by work category.
 **Required (release-blocking):**
 - Unit tests for service handlers and state derivation.
 - Contract tests or endpoint assertions for response fields and status semantics.
+- Explicit assertions for observed/inferred/estimated/unknown fields where applicable.
 - Error semantics checks (truthful 4xx/5xx mapping).
 
 **Advisory:**
@@ -23,7 +25,7 @@ This matrix defines minimum verification obligations by work category.
 
 ## C) UI truth rendering
 **Required (release-blocking):**
-- Component/page tests for live/stale/partial/imported distinctions.
+- Component/page tests for live/stale/partial/imported/degraded/unknown distinctions.
 - Tests for degraded banners/empty states.
 - Verify UI does not infer certainty unavailable in API payload.
 
@@ -35,6 +37,7 @@ This matrix defines minimum verification obligations by work category.
 - Tests for lifecycle transitions and illegal transition rejection.
 - Tests for approval-gated execution and audit events.
 - Tests for failure path visibility (execution failed/cancelled/timeout).
+- Per-action snapshot completeness truth asserted (`complete` / `partial` / `unavailable`) when evidence retrieval is degraded.
 
 **Advisory:**
 - Manual end-to-end action trace in dev environment.
@@ -44,6 +47,7 @@ This matrix defines minimum verification obligations by work category.
 - Tests for authn/authz denial paths.
 - Tests for cross-scope/tenant access rejection where applicable.
 - Validation that exported evidence/redactions match policy.
+- Validation that no new hidden telemetry/export path was introduced.
 
 **Advisory:**
 - Threat model delta note for boundary-affecting changes.
@@ -53,6 +57,7 @@ This matrix defines minimum verification obligations by work category.
 - Migration determinism checks.
 - Config validation tests and startup behavior checks.
 - Upgrade/rollback path notes if compatibility is affected.
+- Runtime fallback truth checks (base functionality remains truthful without optional inference components).
 
 **Advisory:**
 - `sqlite3` schema inspection snippets in PR evidence.
@@ -61,18 +66,28 @@ This matrix defines minimum verification obligations by work category.
 **Required (release-blocking for claim changes):**
 - Cross-check against implementation and support matrix.
 - Update limitations/caveats where wording changed operator expectations.
+- Verify language aligns with terminology policy and no-theatre constraints.
 
 ## H) Evidence export / proofpack
 **Required (release-blocking):**
 - Unit tests for proofpack assembly logic (full, sparse, partial-failure cases).
 - Evidence gap markers present for all degraded/missing evidence paths.
-- Action-outcome snapshot completeness truth asserted (`complete` / `partial` / `unavailable`) when signature lookup or snapshot retrieval is degraded.
+- Proofpack + snapshot completeness truth asserted (`complete` / `partial` / `unavailable`).
 - Audit trail verification (proofpack export logged to RBAC audit + timeline).
 - API contract check (correct HTTP status codes, capability enforcement).
 
 **Advisory:**
 - Manual proofpack download from UI for a real incident.
 - Schema version check in exported JSON.
+
+## I) Local inference integration (when touched)
+**Required (release-blocking when changed):**
+- Tests/checks proving canonical truth does not depend on inference runtime success.
+- Explicit fallback behavior verification (runtime unavailable, timeout, resource exhaustion).
+- Assistive-output labeling checks (non-canonical wording).
+
+**Advisory:**
+- Performance snapshots for foreground vs background routing behavior.
 
 ## Standard command baseline
 Run what is relevant and report failures honestly:

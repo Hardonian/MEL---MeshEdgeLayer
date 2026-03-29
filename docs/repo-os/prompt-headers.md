@@ -1,24 +1,24 @@
 # Reusable Prompt / Execution Headers (MEL)
 
-Use these as short headers for future agent work to avoid repeating context.
+Use these short headers for future agent work so MEL doctrine survives imperfect prompt wording.
 
-## 1) Implementation Pass
-"Implement the smallest safe change that improves operator truth. No fake transport/control claims. Use typed contracts, explicit degraded states, and evidence-backed wording."
+## 1) Canonical Implementation Pass
+"Implement the smallest safe change that improves operator truth for MEL communications OS behavior. Keep deterministic typed evidence canonical, local inference assistive-only, and degraded/unknown states explicit."
 
-## 2) Reality Pass
-"Audit UI/API/docs for overclaiming. Distinguish live vs stale vs historical vs imported vs partial. Downgrade certainty where evidence is missing."
+## 2) Mixed-Channel Truth Pass
+"Audit transport/channel/path claims against implementation evidence. Preserve supported vs unsupported vs degraded vs unknown; do not imply MEL RF routing execution."
 
-## 3) Release Hardening Pass
-"Run release-readiness gate from `docs/repo-os/release-readiness.md`; block readiness if claims exceed implementation or degraded states are implicit."
+## 3) Precision-Layering Pass
+"Reason in layers: semantics, telemetry, frequency/radio context, physical/environment, sensor context, spatial context, calculators, mixed-channel truth. Distinguish observed/inferred/estimated/unknown."
 
-## 4) UI Truth Pass
-"Ensure frontend semantics never exceed backend evidence. Unknown must remain unknown; stale/partial states must be explicit and visible."
+## 4) Privacy + Build-vs-Borrow Pass
+"Preserve no-mandatory-cloud and no-hidden-telemetry defaults. Build MEL differentiators; borrow OSS commodities unless truth/privacy/cost constraints fail."
 
-## 5) Control Governance Pass
-"For any action/approval/execution flow: enforce explicit lifecycle states, approval separation, auditable outcomes, and no hidden bypass paths."
+## 5) Release Hardening Pass
+"Run `docs/repo-os/verification-matrix.md` + `docs/repo-os/release-readiness.md`; block readiness if claims exceed implementation or if canonical truth depends on optional inference runtime."
 
-## 6) Incident-Intelligence Pass
-"Convert incident/dead-letter/action-failure learnings into tests, runbook updates, rule/schema improvements, and better drilldown evidence surfaces."
+## 6) Control Governance Pass
+"For action/approval/execution flow changes: enforce explicit lifecycle states, approval separation, auditable outcomes, and no hidden bypass paths."
 
-## 7) Moat Pressure-Test Header
-"Classify change as Maintenance/Leverage/Moat and explain what compounding advantage (data, workflow, decisioning, evidence trust) this creates beyond UI cloneability."
+## 7) Incident-Intelligence + Moat Pass
+"Classify change as Maintenance/Leverage/Moat and state compounding mechanism: what operational memory, workflow lock-in, evidence trust, or action learning improves beyond UI copyability."
