@@ -83,5 +83,75 @@
   "rate_limits": {
     "http_rps": 20,
     "transport_reconnect_seconds": 10
+  },
+  "platform": {
+    "mode": "self_hosted",
+    "telemetry": {
+      "enabled": false,
+      "allow_outbound": false,
+      "require_explicit_opt_in": true
+    },
+    "retention": {
+      "default_days": 30,
+      "allow_export": true,
+      "allow_delete": true
+    },
+    "crypto": {
+      "provider": "libsignal-compatible",
+      "enabled": true,
+      "required": true
+    },
+    "event_bus": {
+      "provider": "nats-jetstream",
+      "enabled": true,
+      "endpoint": "nats://127.0.0.1:4222",
+      "required": false
+    },
+    "blob_store": {
+      "provider": "s3-compatible",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:9000",
+      "required": false
+    },
+    "relay": {
+      "provider": "coturn",
+      "enabled": false,
+      "endpoint": "turn:127.0.0.1:3478",
+      "required": false
+    },
+    "speech_to_text": {
+      "provider": "whisper.cpp",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:8088",
+      "required": false
+    },
+    "inference": {
+      "enabled": false,
+      "default_provider": "none",
+      "allow_queued_fallback": true,
+      "prefer_gpu": true,
+      "ollama": {
+        "provider": "ollama",
+        "enabled": false,
+        "endpoint": "http://127.0.0.1:11434",
+        "required": false
+      },
+      "llama_cpp": {
+        "provider": "llama.cpp",
+        "enabled": false,
+        "endpoint": "http://127.0.0.1:8089",
+        "required": false
+      },
+      "compression": {
+        "default_strategy": "none",
+        "allow_standard": true,
+        "allow_experimental_turboquant_compatible": false
+      }
+    },
+    "optional_interop": {
+      "provider": "matrix-bridge",
+      "enabled": false,
+      "required": false
+    }
   }
 }

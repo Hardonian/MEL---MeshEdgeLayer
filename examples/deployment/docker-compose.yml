@@ -9,7 +9,54 @@ services:
     volumes:
       - mel-data:/data
       - ./mel.json:/config/mel.json:ro
-    # Optional: add env_file: [./mel.env] after creating mel.env
+    env_file:
+      - ./mel.env
+    depends_on:
+      - nats
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    ports:
+      - "127.0.0.1:4222:4222"
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MEL_MINIO_ROOT_USER:-mel}
+      MINIO_ROOT_PASSWORD: ${MEL_MINIO_ROOT_PASSWORD:-mel-storage-change-me}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    profiles: ["comms"]
+
+  coturn:
+    image: coturn/coturn:latest
+    restart: unless-stopped
+    command: ["-n", "--no-cli", "--fingerprint", "--lt-cred-mech", "--realm=mel.local", "--user=${MEL_TURN_USER:-mel}:${MEL_TURN_PASSWORD:-change-me}"]
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+    profiles: ["comms"]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    profiles: ["ai"]
 
 volumes:
   mel-data:
+  nats-data:
+  minio-data:
+  ollama-data:
