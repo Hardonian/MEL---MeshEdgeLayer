@@ -21,6 +21,7 @@ import (
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/support"
+	"github.com/mel-project/mel/internal/topology"
 	"github.com/mel-project/mel/internal/transport"
 )
 
@@ -587,6 +588,13 @@ func TestFleetImportBatchEndpointsExposeOfflineAuditDetails(t *testing.T) {
 	if item["batch_id"] != batchID {
 		t.Fatalf("expected item to retain batch id, got %#v", item)
 	}
+	pagination, ok := detailPayload["pagination"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected pagination payload, got %#v", detailPayload["pagination"])
+	}
+	if pagination["total"] != float64(1) || pagination["returned"] != float64(1) {
+		t.Fatalf("expected pagination totals for single-item batch, got %#v", pagination)
+	}
 	inspection := detailPayload["inspection"].(map[string]any)
 	inspectionBatch := inspection["batch"].(map[string]any)
 	validation := inspectionBatch["validation"].(map[string]any)
@@ -883,6 +891,9 @@ func TestProofpackDownloadFilename_FallbackWhenTimestampMissing(t *testing.T) {
 
 func TestPlatformPostureEndpoint(t *testing.T) {
 	srv := newTestServer(t, nil, nil)
+	srv.cfg.Platform.Inference.Enabled = true
+	srv.cfg.Platform.Inference.Ollama.Enabled = false
+	srv.cfg.Platform.Inference.LlamaCPP.Enabled = false
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/platform/posture", nil)
 	rec := httptest.NewRecorder()
 	srv.http.Handler.ServeHTTP(rec, req)
@@ -895,6 +906,16 @@ func TestPlatformPostureEndpoint(t *testing.T) {
 	}
 	if payload["platform_posture"] == nil {
 		t.Fatalf("missing platform_posture: %#v", payload)
+	}
+	posture, ok := payload["platform_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("platform_posture wrong type: %T", payload["platform_posture"])
+	}
+	if posture["inference_degraded"] != true {
+		t.Fatalf("expected inference_degraded=true, got %#v", posture["inference_degraded"])
+	}
+	if posture["export_redaction_enabled"] != true {
+		t.Fatalf("expected export_redaction_enabled=true, got %#v", posture["export_redaction_enabled"])
 	}
 }
 
@@ -920,6 +941,105 @@ func TestIncidentProofpackBlockedWhenExportDisabled(t *testing.T) {
 	srv.http.Handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestIncidentProofpackRedactsSensitiveFieldsWhenPrivacyRedactionEnabled(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	srv.cfg.Privacy.RedactExports = true
+	srv.SetProofpackAssembler(func(incidentID, actorID string) (map[string]any, error) {
+		return map[string]any{
+			"incident": map[string]any{"id": incidentID, "actor_id": "operator-a", "owner_actor_id": "operator-b"},
+			"linked_actions": []any{
+				map[string]any{"proposed_by": "operator-a", "approved_by": "operator-b"},
+			},
+			"timeline": []any{
+				map[string]any{"event_type": "control_action", "actor_id": "operator-a"},
+			},
+			"operator_notes": []any{
+				map[string]any{"actor_id": "operator-a", "content": "note"},
+			},
+			"audit_entries": []any{
+				map[string]any{"actor_id": "operator-a", "action_class": "export"},
+			},
+			"dead_letter_evidence": []any{
+				map[string]any{"details": map[string]any{"payload_hex": "deadbeef"}},
+			},
+		}, nil
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/inc-1/proofpack", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["privacy_redacted"] != true {
+		t.Fatalf("expected privacy_redacted=true, got %#v", payload["privacy_redacted"])
+	}
+	inc, _ := payload["incident"].(map[string]any)
+	if inc["actor_id"] != "redacted" || inc["owner_actor_id"] != "redacted" {
+		t.Fatalf("incident actor fields should be redacted: %#v", inc)
+	}
+}
+
+func TestTopologyExportIncludesBoundedLimitsAndRedaction(t *testing.T) {
+	srv := newTestServer(t, nil, func(database *db.DB) {
+		now := time.Now().UTC().Format(time.RFC3339)
+		for i := 1; i <= 2; i++ {
+			if err := database.UpsertNode(map[string]any{
+				"node_num":        int64(i),
+				"node_id":         "n",
+				"long_name":       "Node",
+				"short_name":      "N",
+				"last_seen":       now,
+				"last_gateway_id": "gw",
+				"last_snr":        10.0,
+				"last_rssi":       -90,
+				"lat_redacted":    42.1,
+				"lon_redacted":    -71.2,
+				"altitude":        int64(10),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	srv.cfg.Privacy.RedactExports = true
+	srv.SetTopologyStore(topology.NewStore(srv.db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/export?node_limit=1&link_limit=1", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	limits, ok := payload["export_limits"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing export_limits: %#v", payload)
+	}
+	if limits["node_limit"] != float64(1) || limits["nodes_truncated"] != true {
+		t.Fatalf("expected bounded node export metadata, got %#v", limits)
+	}
+	if limits["bookmarks_truncated"] != false || limits["snapshots_truncated"] != false {
+		t.Fatalf("expected explicit non-truncated bookmark/snapshot flags, got %#v", limits)
+	}
+	if payload["export_partial"] != true {
+		t.Fatalf("expected export_partial=true when node export was truncated, got %#v", payload["export_partial"])
+	}
+	nodes, _ := payload["nodes"].([]any)
+	if len(nodes) != 1 {
+		t.Fatalf("expected node limit applied, got %d", len(nodes))
+	}
+	first, _ := nodes[0].(map[string]any)
+	if first["location_state"] != "redacted" {
+		t.Fatalf("expected redacted location state in export payload, got %#v", first)
 	}
 }
 

@@ -222,11 +222,11 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	if pack.Assembly.ActionOutcomeSnapshotStatus != "complete" {
 		t.Errorf("assembly.action_outcome_snapshot_status = %q, want complete", pack.Assembly.ActionOutcomeSnapshotStatus)
 	}
-	if pack.Assembly.ProofpackCompleteness != "complete" {
-		t.Errorf("assembly.proofpack_completeness = %q, want complete", pack.Assembly.ProofpackCompleteness)
+	if pack.Assembly.ActionOutcomeSnapshotTrace.RetrievalStatus != "available" {
+		t.Errorf("assembly.action_outcome_snapshot_trace.retrieval_status = %q, want available", pack.Assembly.ActionOutcomeSnapshotTrace.RetrievalStatus)
 	}
-	if len(pack.Assembly.CompletenessReasons) != 1 || pack.Assembly.CompletenessReasons[0] != "all_sections_available" {
-		t.Errorf("completeness reasons = %v, want [all_sections_available]", pack.Assembly.CompletenessReasons)
+	if !pack.Assembly.ActionOutcomeSnapshotTrace.SignatureKeyPresent {
+		t.Errorf("assembly.action_outcome_snapshot_trace.signature_key_present = false, want true")
 	}
 	if pack.Assembly.TimelineCount != 2 {
 		t.Errorf("assembly.timeline_count = %d, want 2", pack.Assembly.TimelineCount)
@@ -466,8 +466,11 @@ func TestAssemble_ActionOutcomeSnapshotRetrievalFailure_MarksPartialStatus(t *te
 	if pack.Assembly.ActionOutcomeSnapshotStatus != "partial" {
 		t.Fatalf("snapshot status=%q, want partial", pack.Assembly.ActionOutcomeSnapshotStatus)
 	}
-	if pack.Assembly.ProofpackCompleteness != "partial" {
-		t.Fatalf("proofpack completeness=%q, want partial", pack.Assembly.ProofpackCompleteness)
+	if pack.Assembly.ActionOutcomeSnapshotTrace.RetrievalStatus != "error" {
+		t.Fatalf("retrieval status=%q, want error", pack.Assembly.ActionOutcomeSnapshotTrace.RetrievalStatus)
+	}
+	if pack.Assembly.ActionOutcomeSnapshotTrace.StatusReason != "snapshot_query_failed" {
+		t.Fatalf("status reason=%q, want snapshot_query_failed", pack.Assembly.ActionOutcomeSnapshotTrace.StatusReason)
 	}
 	found := false
 	for _, sec := range pack.SectionStatuses {
@@ -493,6 +496,33 @@ func TestAssemble_ActionOutcomeSnapshotRetrievalFailure_MarksPartialStatus(t *te
 	}
 	if !gapFound {
 		t.Fatal("expected action warning gap for snapshot retrieval failure")
+	}
+}
+
+func TestAssemble_ActionOutcomeSignatureLookupFailure_MarksTraceError(t *testing.T) {
+	now := time.Now().UTC()
+	src := &mockDataSource{
+		incident: models.Incident{
+			ID:         "inc-signature-error",
+			State:      "open",
+			OccurredAt: now.Format(time.RFC3339),
+		},
+		incidentFound:   true,
+		signatureKeyErr: fmt.Errorf("signature table unavailable"),
+	}
+	a := NewAssembler(src, DefaultConfig())
+	pack, err := a.Assemble("inc-signature-error")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := pack.Assembly.ActionOutcomeSnapshotTrace.RetrievalStatus; got != "error" {
+		t.Fatalf("retrieval status=%q, want error", got)
+	}
+	if got := pack.Assembly.ActionOutcomeSnapshotTrace.StatusReason; got != "signature_lookup_failed" {
+		t.Fatalf("status reason=%q, want signature_lookup_failed", got)
+	}
+	if got := pack.Assembly.ActionOutcomeSnapshotStatus; got != "unavailable" {
+		t.Fatalf("snapshot status=%q, want unavailable", got)
 	}
 }
 

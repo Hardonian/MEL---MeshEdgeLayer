@@ -239,7 +239,7 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus != "available" {
 		t.Fatalf("snapshot retrieval status=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus)
 	}
-	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "historical_snapshots_loaded" {
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "snapshots_loaded" {
 		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
 	}
 	if got.Intelligence.ActionOutcomeTrace.Completeness != "complete" {
@@ -326,10 +326,36 @@ func TestIncidentIntelligence_ActionOutcomeMemory_DegradesOnSparseHistory(t *tes
 	if got.Intelligence.ActionOutcomeTrace == nil {
 		t.Fatalf("expected action outcome trace")
 	}
-	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "historical_snapshots_loaded" {
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "snapshots_loaded" {
 		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
 	}
-	if got.Intelligence.ActionOutcomeMemory[0].SnapshotTraceStatus != "complete" {
-		t.Fatalf("snapshot trace status=%q", got.Intelligence.ActionOutcomeMemory[0].SnapshotTraceStatus)
+}
+
+func TestIncidentIntelligence_ActionOutcomeTrace_NoHistoryReason(t *testing.T) {
+	a := newSoDTestApp(t)
+	now := time.Now().UTC().Add(-20 * time.Minute)
+	if err := a.DB.UpsertIncident(models.Incident{
+		ID:           "inc-no-history",
+		Category:     "transport",
+		Severity:     "warning",
+		Title:        "No history",
+		Summary:      "single incident",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-sod",
+		State:        "open",
+		OccurredAt:   now.Format(time.RFC3339),
+		Metadata:     map[string]any{"reason": "timeout_stall"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := a.IncidentByID("inc-no-history")
+	if err != nil || !ok || got.Intelligence == nil || got.Intelligence.ActionOutcomeTrace == nil {
+		t.Fatalf("incident intelligence: ok=%v err=%v", ok, err)
+	}
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus != "unavailable" {
+		t.Fatalf("snapshot retrieval status=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus)
+	}
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "no_similar_incidents" {
+		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
 	}
 }

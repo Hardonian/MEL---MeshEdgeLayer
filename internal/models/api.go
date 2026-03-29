@@ -86,6 +86,7 @@ type IncidentActionOutcomeTrace struct {
 	SnapshotWriteFailureIDs []string `json:"snapshot_write_failure_ids,omitempty"`
 	SnapshotRetrievalStatus string   `json:"snapshot_retrieval_status"` // available, unavailable, error
 	SnapshotRetrievalReason string   `json:"snapshot_retrieval_reason,omitempty"`
+	SnapshotRetrievalError  string   `json:"snapshot_retrieval_error,omitempty"`
 	PersistedSnapshotCount  int      `json:"persisted_snapshot_count"`
 	Completeness            string   `json:"completeness"` // complete, partial, unavailable
 }

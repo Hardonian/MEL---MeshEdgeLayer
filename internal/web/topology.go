@@ -358,11 +358,50 @@ func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return
 	}
-	nodes, _ := topologyStoreGlobal.ListNodes(5000)
-	links, _ := topologyStoreGlobal.ListLinks(10000)
-	trusts, _ := topologyStoreGlobal.ListSourceTrust()
-	bookmarks, _ := topologyStoreGlobal.ListBookmarks("", 1000)
-	snapshots, _ := topologyStoreGlobal.RecentSnapshots(10)
+	const (
+		defaultNodeLimit     = 1000
+		defaultLinkLimit     = 2000
+		defaultBookmarkLimit = 500
+		defaultSnapshotLimit = 20
+		maxNodeLimit         = 5000
+		maxLinkLimit         = 10000
+		maxBookmarkLimit     = 2000
+		maxSnapshotLimit     = 100
+	)
+	requestedNodeLimit := intParam(r, "node_limit", defaultNodeLimit)
+	requestedLinkLimit := intParam(r, "link_limit", defaultLinkLimit)
+	requestedBookmarkLimit := intParam(r, "bookmark_limit", defaultBookmarkLimit)
+	requestedSnapshotLimit := intParam(r, "snapshot_limit", defaultSnapshotLimit)
+	nodeLimit := clampInt(requestedNodeLimit, 1, maxNodeLimit)
+	linkLimit := clampInt(requestedLinkLimit, 1, maxLinkLimit)
+	bookmarkLimit := clampInt(requestedBookmarkLimit, 1, maxBookmarkLimit)
+	snapshotLimit := clampInt(requestedSnapshotLimit, 1, maxSnapshotLimit)
+
+	nodes, err := topologyStoreGlobal.ListNodes(nodeLimit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load topology nodes"})
+		return
+	}
+	links, err := topologyStoreGlobal.ListLinks(linkLimit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load topology links"})
+		return
+	}
+	trusts, err := topologyStoreGlobal.ListSourceTrust()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load topology source trust"})
+		return
+	}
+	bookmarks, err := topologyStoreGlobal.ListBookmarks("", bookmarkLimit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load topology bookmarks"})
+		return
+	}
+	snapshots, err := topologyStoreGlobal.RecentSnapshots(snapshotLimit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to load topology snapshots"})
+		return
+	}
 
 	// Redact coordinates if privacy requires it
 	if s.cfg.Privacy.RedactExports {
@@ -384,11 +423,32 @@ func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
 		"snapshots":        snapshots,
 		"node_count":       len(nodes),
 		"link_count":       len(links),
+		"export_partial":   len(nodes) >= nodeLimit || len(links) >= linkLimit || len(bookmarks) >= bookmarkLimit || len(snapshots) >= snapshotLimit,
+		"export_limits": map[string]any{
+			"node_limit":          nodeLimit,
+			"link_limit":          linkLimit,
+			"bookmark_limit":      bookmarkLimit,
+			"snapshot_limit":      snapshotLimit,
+			"nodes_truncated":     len(nodes) >= nodeLimit,
+			"links_truncated":     len(links) >= linkLimit,
+			"bookmarks_truncated": len(bookmarks) >= bookmarkLimit,
+			"snapshots_truncated": len(snapshots) >= snapshotLimit,
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=mel-topology-%s.json", time.Now().UTC().Format("20060102-150405")))
 	json.NewEncoder(w).Encode(bundle)
+}
+
+func clampInt(v, min, max int) int {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
 
 // intParam parses an integer query parameter with a default.
