@@ -40,9 +40,14 @@ Use this before merging changes that alter capability claims or operator-critica
 - [ ] `GET /api/v1/platform/posture` reflects true telemetry/export/delete/inference policy for this release.
 
 ## 8) Verification evidence package
+- [ ] `make reality-check` passed (repo-os canon + support-matrix anti-drift checks).
 - [ ] Verification commands/results attached.
 - [ ] Tests updated for new truth/control/privacy semantics.
 - [ ] Evidence artifacts linked (logs, screenshots, payload examples) where applicable.
 
 ## Merge gate
 Do not mark “ready” unless all required boxes are checked or explicitly waived with owner + rationale.
+
+## 9) Broad-pass closure accounting (when applicable)
+- [ ] Top-priority items selected for this pass are explicitly listed with closed/deferred status.
+- [ ] Any deferred high-priority item includes concrete boundary + owner/rationale (no implicit deferral).

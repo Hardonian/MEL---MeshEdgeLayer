@@ -8,7 +8,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build reality-check
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
@@ -41,7 +41,7 @@ build-cross:
 	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-amd64 ./cmd/mel
 	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-arm64 ./cmd/mel
 
-verify: lint test build build-cross
+verify: lint test build build-cross reality-check
 
 smoke:
 	./scripts/smoke.sh
@@ -59,3 +59,6 @@ version:
 	@echo "  Schema Version:    28"
 	@echo "  Compatibility:     dev"
 	@$(GO) run -ldflags "$(LDFLAGS)" ./cmd/mel version
+
+reality-check:
+	./scripts/repo-os-reality-check.sh

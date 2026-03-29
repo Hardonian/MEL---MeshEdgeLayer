@@ -98,5 +98,6 @@ Run what is relevant and report failures honestly:
 - `make build`
 - `make smoke`
 - Frontend: `npm run lint`, `npm run typecheck`, `npx vitest run` (from `frontend/`)
+- `make reality-check`
 
 If baseline commands fail due to known pre-existing issues, annotate clearly as residual risk; do not suppress.
