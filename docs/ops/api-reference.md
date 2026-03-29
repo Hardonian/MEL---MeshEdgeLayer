@@ -1176,6 +1176,8 @@ Assembles and returns an incident-scoped evidence proofpack for audit and export
 
 **Query parameters:**
 - `download=true` — sets `Content-Disposition: attachment` for browser download
+  with filename `mel-proofpack-{incident-id}-{assembled-at}.json` (falls back to
+  `...-snapshot.json` when assembly timestamp is unavailable)
 
 **Response:** JSON proofpack (format_version `1.0.0`) containing:
 - `assembly` — assembly metadata (who, when, instance, time window, item counts)
