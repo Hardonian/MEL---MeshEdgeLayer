@@ -152,6 +152,7 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) ([]models.IncidentActionOutcomeMemory, []models.IncidentActionOutcomeSnapshot, *models.IncidentActionOutcomeTrace, []string) {
 	trace := &models.IncidentActionOutcomeTrace{
 		SnapshotRetrievalStatus: "unavailable",
+		SnapshotRetrievalReason: "no_signature_key",
 		Completeness:            "unavailable",
 	}
 	if a == nil || a.DB == nil || strings.TrimSpace(signatureKey) == "" {
@@ -159,6 +160,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	}
 	similar, err := a.DB.SimilarIncidentsBySignature(signatureKey, current.ID, 8)
 	if err != nil || len(similar) == 0 {
+		trace.SnapshotRetrievalReason = "no_similar_incidents"
 		return nil, nil, trace, nil
 	}
 	ids := make([]string, 0, len(similar))
@@ -169,6 +171,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	}
 	actions, err := a.DB.ControlActionsForIncidentIDs(ids, 400)
 	if err != nil || len(actions) == 0 {
+		trace.SnapshotRetrievalReason = "no_historical_actions"
 		return nil, nil, trace, nil
 	}
 	trace.ExpectedSnapshotWrites = len(actions)
@@ -234,10 +237,17 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	persistedSnapshots, err := a.DB.ActionOutcomeSnapshotsBySignature(signatureKey, current.ID, 400)
 	if err != nil {
 		trace.SnapshotRetrievalStatus = "error"
+		trace.SnapshotRetrievalReason = "snapshot_query_failed"
+		trace.SnapshotRetrievalError = err.Error()
 		trace.Completeness = "partial"
 		degradedReasons = append(degradedReasons, "action_outcome_snapshot_retrieval_failed")
 	} else {
 		trace.SnapshotRetrievalStatus = "available"
+		if len(persistedSnapshots) == 0 {
+			trace.SnapshotRetrievalReason = "no_matching_snapshots"
+		} else {
+			trace.SnapshotRetrievalReason = "snapshots_loaded"
+		}
 	}
 	if err == nil {
 		for _, snap := range persistedSnapshots {

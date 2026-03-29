@@ -160,22 +160,42 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 		})
 	}
 
+	snapshotTrace := ActionOutcomeSnapshotTrace{
+		RetrievalStatus: "unavailable",
+		StatusReason:    "no_signature_key",
+		MaxSnapshots:    a.cfg.MaxActionOutcomeSnapshots,
+	}
 	signatureKey, err := a.src.SignatureKeyForIncident(incidentID)
 	if err != nil {
+		snapshotTrace.RetrievalStatus = "error"
+		snapshotTrace.RetrievalError = err.Error()
+		snapshotTrace.StatusReason = "signature_lookup_failed"
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryActions,
+			Severity:    "warning",
+			Description: fmt.Sprintf("could not load incident signature key: %v", err),
+		})
 		signatureKey = ""
 	}
 	signatureKey = strings.TrimSpace(signatureKey)
 	actionOutcomeSnapshots := []ActionOutcomeSnapshot{}
 	actionOutcomeSnapshotStatus := "unavailable"
 	if signatureKey == "" {
+		if snapshotTrace.RetrievalStatus == "unavailable" {
+			snapshotTrace.StatusReason = "no_signature_key"
+		}
 		gaps = append(gaps, EvidenceGap{
 			Category:    GapCategoryActions,
 			Severity:    "info",
 			Description: "no signature key available; action outcome snapshots omitted",
 		})
 	} else {
+		snapshotTrace.SignatureKeyPresent = true
 		actionOutcomeSnapshots, err = a.src.ActionOutcomeSnapshotsBySignature(signatureKey, incidentID, a.cfg.MaxActionOutcomeSnapshots)
 		if err != nil {
+			snapshotTrace.RetrievalStatus = "error"
+			snapshotTrace.RetrievalError = err.Error()
+			snapshotTrace.StatusReason = "snapshot_query_failed"
 			actionOutcomeSnapshotStatus = "partial"
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
@@ -184,11 +204,17 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			})
 			actionOutcomeSnapshots = []ActionOutcomeSnapshot{}
 		} else if len(actionOutcomeSnapshots) == 0 {
+			snapshotTrace.RetrievalStatus = "available"
+			snapshotTrace.StatusReason = "no_matching_snapshots"
 			actionOutcomeSnapshotStatus = "unavailable"
 		} else {
+			snapshotTrace.RetrievalStatus = "available"
+			snapshotTrace.StatusReason = "snapshots_loaded"
 			actionOutcomeSnapshotStatus = "complete"
 		}
 		if len(actionOutcomeSnapshots) >= a.cfg.MaxActionOutcomeSnapshots {
+			snapshotTrace.RetrievalLimited = true
+			snapshotTrace.StatusReason = "snapshot_limit_reached"
 			actionOutcomeSnapshotStatus = "partial"
 			gaps = append(gaps, EvidenceGap{
 				Category:    GapCategoryActions,
@@ -304,6 +330,7 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			ActionCount:                 len(actions),
 			ActionOutcomeSnapshotCount:  len(actionOutcomeSnapshots),
 			ActionOutcomeSnapshotStatus: actionOutcomeSnapshotStatus,
+			ActionOutcomeSnapshotTrace:  snapshotTrace,
 			TimelineCount:               len(timeline),
 			TransportCount:              len(transports),
 			DeadLetterCount:             len(deadLetters),

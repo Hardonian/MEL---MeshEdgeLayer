@@ -472,6 +472,16 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                 <p className="text-muted-foreground">
                   Retrieval status: {toWords(inc.intelligence.action_outcome_trace.snapshot_retrieval_status)}. Expected writes: {inc.intelligence.action_outcome_trace.expected_snapshot_writes}.
                 </p>
+                {inc.intelligence.action_outcome_trace.snapshot_retrieval_reason && (
+                  <p className="text-muted-foreground">
+                    Retrieval reason: {toWords(inc.intelligence.action_outcome_trace.snapshot_retrieval_reason)}.
+                  </p>
+                )}
+                {inc.intelligence.action_outcome_trace.snapshot_retrieval_error && (
+                  <p className="text-amber-700 dark:text-amber-300">
+                    Retrieval error: {inc.intelligence.action_outcome_trace.snapshot_retrieval_error}
+                  </p>
+                )}
               </div>
             )}
             {inc.intelligence.degraded && (

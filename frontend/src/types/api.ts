@@ -267,6 +267,8 @@ export interface IncidentActionOutcomeTrace {
   snapshot_write_failures: number
   snapshot_write_failure_ids?: string[]
   snapshot_retrieval_status: 'available' | 'unavailable' | 'error'
+  snapshot_retrieval_reason?: string
+  snapshot_retrieval_error?: string
   persisted_snapshot_count: number
   completeness: 'complete' | 'partial' | 'unavailable'
 }
