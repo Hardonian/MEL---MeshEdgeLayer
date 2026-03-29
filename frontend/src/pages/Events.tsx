@@ -1,17 +1,33 @@
+import { useState, useMemo } from 'react'
 import { useEvents } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { formatTimestamp, AuditLog } from '@/types/api'
-import { ScrollText, Clock, AlertTriangle, AlertCircle, FileText, HelpCircle } from 'lucide-react'
+import { formatRelativeTime, AuditLog } from '@/types/api'
+import { ScrollText, AlertTriangle, AlertCircle, FileText, Clock, RefreshCw, Filter } from 'lucide-react'
 import { clsx } from 'clsx'
+
+const LEVEL_FILTERS = ['all', 'error', 'warning', 'info', 'debug'] as const
+type LevelFilter = (typeof LEVEL_FILTERS)[number]
 
 export function Events() {
   const { data, loading, error, refresh } = useEvents()
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>('all')
+
+  const events = data || []
+
+  const errorCount = events.filter(e => e.level?.toLowerCase() === 'error').length
+  const warningCount = events.filter(e => e.level?.toLowerCase() === 'warning').length
+  const categories = [...new Set(events.map(e => e.category).filter(Boolean))]
+
+  const filtered = useMemo(() => {
+    if (levelFilter === 'all') return events
+    return events.filter(e => e.level?.toLowerCase() === levelFilter)
+  }, [events, levelFilter])
 
   if (loading && !data) {
     return <Loading message="Loading events..." />
@@ -24,37 +40,28 @@ export function Events() {
           variant="critical"
           title="Unable to load events"
           description={error}
-          action={
-            <button
-              onClick={refresh}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
-            >
-              Retry
-            </button>
-          }
+          action={<button onClick={refresh} className="button-danger">Retry</button>}
         />
       </div>
     )
   }
 
-  const events = data || []
-
-  // Calculate stats
-  const errorCount = events.filter(e => e.level?.toLowerCase() === 'error').length
-  const warningCount = events.filter(e => e.level?.toLowerCase() === 'warning').length
-  const categories = [...new Set(events.map(e => e.category).filter(Boolean))]
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Events"
-        description="System audit logs and events. Track what happens in your MEL instance over time."
-      />
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          title="Events"
+          description="System audit logs. Track what happens in your MEL instance over time."
+        />
+        <button onClick={refresh} className="button-secondary">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </button>
+      </div>
 
-      {/* Summary */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-4">
         <StatCard
-          title="Total Events"
+          title="Total"
           value={events.length}
           description="Events in current view"
           icon={<ScrollText className="h-5 w-5" />}
@@ -83,49 +90,50 @@ export function Events() {
         />
       </div>
 
-      {/* Explanation */}
-      <Card className="bg-muted/30">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">About Events</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <p className="text-sm text-muted-foreground">
-            Events are recorded audit logs of MEL operations. They help you understand:
-          </p>
-          <ul className="mt-2 list-disc pl-4 text-sm text-muted-foreground space-y-1">
-            <li>System startup and shutdown sequences</li>
-            <li>Transport connection state changes</li>
-            <li>Configuration changes</li>
-            <li>Error conditions and recovery actions</li>
-            <li>Message processing milestones</li>
-          </ul>
-        </CardContent>
-      </Card>
+      {/* Level filter */}
+      <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filter by level">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        {LEVEL_FILTERS.map((level) => (
+          <button
+            key={level}
+            type="button"
+            role="radio"
+            aria-checked={levelFilter === level}
+            onClick={() => setLevelFilter(level)}
+            className={clsx(
+              'rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              levelFilter === level
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground hover:bg-muted'
+            )}
+          >
+            {level === 'all' ? `All (${events.length})` : `${level} (${events.filter(e => e.level?.toLowerCase() === level).length})`}
+          </button>
+        ))}
+      </div>
 
-      {/* Events List */}
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="border-b border-border/50 pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle>Recent Events</CardTitle>
-            <Badge variant="outline">{events.length} events</Badge>
+            <CardTitle className="text-[14px]">
+              {levelFilter === 'all' ? 'All events' : `${levelFilter} events`}
+            </CardTitle>
+            <Badge variant="outline">{filtered.length} shown</Badge>
           </div>
-          <CardDescription>
-            Audit logs and system events from MEL operations
-          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {events.length === 0 ? (
+        <CardContent className="pt-3">
+          {filtered.length === 0 ? (
             <EmptyState
               type="no-data"
-              title="No events yet"
-              description="No audit logs have been recorded yet. Events will appear as MEL processes mesh data."
+              title="No events match"
+              description={events.length === 0
+                ? 'No audit logs have been recorded yet. Events appear as MEL processes mesh data.'
+                : `No ${levelFilter}-level events in current data.`
+              }
             />
           ) : (
-            <div className="space-y-3">
-              {events.map((event, i) => (
+            <div className="space-y-1">
+              {filtered.map((event, i) => (
                 <EventRow key={i} event={event} />
               ))}
             </div>
@@ -137,39 +145,40 @@ export function Events() {
 }
 
 function EventRow({ event }: { event: AuditLog }) {
-  const levelColors = {
-    info: 'border-l-primary bg-primary/5',
-    warning: 'border-l-warning bg-warning/10',
-    error: 'border-l-critical bg-critical/10',
-    debug: 'border-l-muted bg-muted/30',
-  }
+  const level = event.level?.toLowerCase() || 'info'
 
-  const levelBadge = {
-    info: 'default',
-    warning: 'warning',
-    error: 'critical',
-    debug: 'secondary',
-  } as const
+  const dotClass = {
+    error: 'bg-critical',
+    warning: 'bg-warning',
+    info: 'bg-info',
+    debug: 'bg-muted-foreground/40',
+  }[level] || 'bg-muted-foreground/40'
+
+  const borderClass = {
+    error: 'border-l-critical/60',
+    warning: 'border-l-warning/60',
+    info: 'border-l-info/40',
+    debug: 'border-l-border/40',
+  }[level] || 'border-l-border/40'
 
   return (
-    <div className={clsx(
-      'rounded-lg border border-l-4 p-4 transition-colors hover:bg-muted/30',
-      levelColors[event.level?.toLowerCase() as keyof typeof levelColors] || levelColors.info
-    )}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <Badge variant={levelBadge[event.level?.toLowerCase() as keyof typeof levelBadge] || 'secondary'}>
-              {event.level || 'unknown'}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{event.category || 'system'}</span>
-          </div>
-          <p className="text-sm break-words">{event.message}</p>
+    <div className={clsx('flex items-start gap-3 rounded-lg border-l-2 px-3 py-2.5 transition-colors hover:bg-accent/40', borderClass)}>
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className={clsx('h-1.5 w-1.5 rounded-full', dotClass)} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <p className="text-[13px] text-foreground">{event.message}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap shrink-0">
-          <Clock className="h-3 w-3" />
-          {formatTimestamp(event.created_at)}
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/70">
+          <span>{event.category || 'system'}</span>
+          <span>&middot;</span>
+          <span>{event.level || 'info'}</span>
         </div>
+      </div>
+      <div className="ml-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/60">
+        <Clock className="h-3 w-3" />
+        {formatRelativeTime(event.created_at)}
       </div>
     </div>
   )

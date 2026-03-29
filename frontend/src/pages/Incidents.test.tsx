@@ -141,31 +141,34 @@ describe('Incidents intelligence rendering', () => {
 
   it('renders signature and similarity summary when incident intelligence is available', async () => {
     render(<Incidents />)
+    // Wait for incident intelligence section to appear (open incidents are expanded by default)
     await waitFor(() => {
       expect(screen.getAllByText(/Incident intelligence/i).length).toBeGreaterThan(0)
     })
-    expect(screen.getByText(/seen 3 times/i)).toBeTruthy()
-    expect(screen.getByText(/Similar prior incidents: inc-old-1/i)).toBeTruthy()
-    expect(screen.getByText(/Historical action-outcome memory \(association only\)/i)).toBeTruthy()
-    expect(screen.getByText(/does not recommend execution or establish causality/i)).toBeTruthy()
+    // "seen Nx" badge in the header
+    expect(screen.getByText(/seen 3x/i)).toBeTruthy()
+    // Similar prior incidents in the intelligence section
+    expect(screen.getByText(/inc-old-1/i)).toBeTruthy()
+    // Historical action outcomes section
+    expect(screen.getByText(/Historical action outcomes/i)).toBeTruthy()
+    expect(screen.getByText(/does not establish causality/i)).toBeTruthy()
     expect(screen.getByText(/trigger health recheck/i)).toBeTruthy()
-    expect(screen.getByText(/sample n=4/i)).toBeTruthy()
-    expect(screen.getByText(/Observed outcomes: improved 2/i)).toBeTruthy()
-    expect(screen.getByText(/Caveat: Historical association only/i)).toBeTruthy()
-    expect(screen.getByText(/Action snapshot traceability/i)).toBeTruthy()
-    expect(screen.getByText(/write failures 1/i)).toBeTruthy()
-    expect(screen.getAllByText(/Snapshot drilldown/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Insufficient historical evidence/i)).toBeTruthy()
-    expect(screen.getByText(/Sparse history/i)).toBeTruthy()
-    expect(screen.getByText(/Mixed wireless context/i)).toBeTruthy()
-    expect(screen.getByText(/Wi-Fi backhaul instability/i)).toBeTruthy()
-    expect(screen.getByText(/Observed domains: wifi, lora./i)).toBeTruthy()
+    expect(screen.getByText(/n=4/i)).toBeTruthy()
+    expect(screen.getByText(/2 improved/i)).toBeTruthy()
+    expect(screen.getByText(/Historical association only/i)).toBeTruthy()
+    // Snapshot traceability
+    expect(screen.getByText(/Snapshot traceability/i)).toBeTruthy()
+    expect(screen.getByText(/write failures: 1/i)).toBeTruthy()
+    // Wireless context
+    expect(screen.getAllByText(/Wireless context/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Wi-Fi backhaul instability/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Observed domains: wifi, lora/i)).toBeTruthy()
   })
 
   it('renders degraded warning when evidence is sparse', async () => {
     render(<Incidents />)
     await waitFor(() => {
-      expect(screen.getByText(/Intelligence is limited by available evidence/i)).toBeTruthy()
+      expect(screen.getByText(/Intelligence limited by available evidence/i)).toBeTruthy()
     })
   })
 })

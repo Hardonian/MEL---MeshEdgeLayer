@@ -1,15 +1,35 @@
 import { useIncidents } from '@/hooks/useIncidents'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { formatTimestamp, type Incident } from '@/types/api'
-import { ClipboardCopy, Download, RefreshCw } from 'lucide-react'
+import { formatTimestamp, formatRelativeTime, type Incident } from '@/types/api'
+import {
+  ClipboardCopy,
+  Download,
+  RefreshCw,
+  AlertTriangle,
+  Clock,
+  User,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Shield,
+  Zap,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Activity,
+  FileText,
+  Link2,
+} from 'lucide-react'
 import { clsx } from 'clsx'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 function isOpenIncident(inc: Incident): boolean {
   const s = (inc.state || '').toLowerCase()
@@ -27,32 +47,17 @@ function toWords(value: string | undefined): string {
 function outcomeFramingLabel(value: string | undefined): string {
   switch (value) {
     case 'improvement_observed':
-      return 'Improvement observed in similar history'
+      return 'Improvement observed'
     case 'deterioration_observed':
-      return 'Deterioration observed in similar history'
+      return 'Deterioration observed'
     case 'mixed_historical_evidence':
-      return 'Mixed historical evidence'
+      return 'Mixed evidence'
     case 'insufficient_evidence':
-      return 'Insufficient historical evidence'
+      return 'Insufficient evidence'
     case 'no_clear_post_action_signal':
-      return 'No clear post-action signal'
+      return 'No clear signal'
     default:
-      return toWords(value) || 'Historical signal unavailable'
-  }
-}
-
-function observedStatusLabel(value: string | undefined): string {
-  switch (value) {
-    case 'mixed_signals':
-      return 'Observed status: mixed signals'
-    case 'inconclusive':
-      return 'Observed status: inconclusive'
-    case 'improvement_observed':
-      return 'Observed status: improvement observed'
-    case 'deterioration_observed':
-      return 'Observed status: deterioration observed'
-    default:
-      return `Observed status: ${toWords(value) || 'unavailable'}`
+      return toWords(value) || 'Unknown'
   }
 }
 
@@ -65,13 +70,13 @@ function wirelessClassificationLabel(value: string | undefined): string {
     case 'mixed_path_degradation':
       return 'Mixed-path degradation'
     case 'sparse_evidence_incident':
-      return 'Sparse evidence incident'
+      return 'Sparse evidence'
     case 'unsupported_wireless_domain_observed':
-      return 'Unsupported wireless domain observed'
+      return 'Unsupported wireless domain'
     case 'recurring_unknown_pattern':
-      return 'Recurring unknown wireless pattern'
+      return 'Recurring unknown pattern'
     default:
-      return toWords(value) || 'Wireless classification unavailable'
+      return toWords(value) || 'Unclassified'
   }
 }
 
@@ -103,13 +108,19 @@ function filenameFromDisposition(contentDisposition: string | null, fallback: st
   }
 }
 
+function evidenceStrengthVariant(strength: string | undefined): 'success' | 'warning' | 'secondary' {
+  if (strength === 'strong') return 'success'
+  if (strength === 'moderate') return 'warning'
+  return 'secondary'
+}
+
 
 export function Incidents() {
   const { data, loading, error, refresh } = useIncidents()
   const ctx = useOperatorContext()
 
   if (loading && !data) {
-    return <Loading message="Loading incidents…" />
+    return <Loading message="Loading incidents..." />
   }
 
   if (error && !data) {
@@ -123,7 +134,7 @@ export function Incidents() {
             <button
               type="button"
               onClick={() => void refresh()}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
+              className="button-danger"
             >
               Retry
             </button>
@@ -135,14 +146,15 @@ export function Incidents() {
 
   const incidents = data || []
   const openIncidents = incidents.filter(isOpenIncident)
+  const closedIncidents = incidents.filter((i) => !isOpenIncident(i))
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
-          description="Mesh / link / transport disruptions with durable handoff context. Pending action IDs are operator references only — approve or reject via mel action or the HTTP API, not by editing this list."
+          description="Mesh / link / transport disruptions with durable handoff context."
         />
         <button
           type="button"
@@ -150,7 +162,7 @@ export function Incidents() {
             void refresh()
             void ctx.refresh()
           }}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
+          className="button-secondary"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh
@@ -162,12 +174,28 @@ export function Incidents() {
       )}
 
       {!canHandoff && !ctx.loading && (
-        <AlertCard
-          variant="info"
-          title="Read-only incident view"
-          description="Your credentials do not include incident_handoff_write. You can list incidents but cannot record handoff via the API from this session."
-        />
+        <div className="flex items-center gap-2 rounded-xl border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
+          <Eye className="h-3.5 w-3.5 text-info" />
+          Read-only view. Your credentials do not include incident_handoff_write.
+        </div>
       )}
+
+      {/* Summary stats */}
+      <div className="flex flex-wrap gap-3">
+        <div className={clsx(
+          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]',
+          openIncidents.length > 0 ? 'border-warning/25 bg-warning/8 text-warning' : 'border-success/20 bg-success/8 text-success'
+        )}>
+          <span className={clsx('h-1.5 w-1.5 rounded-full', openIncidents.length > 0 ? 'bg-warning' : 'bg-success')} />
+          {openIncidents.length} open
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {closedIncidents.length} resolved
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {incidents.length} total
+        </div>
+      </div>
 
       {openIncidents.length === 0 ? (
         <EmptyState
@@ -175,29 +203,28 @@ export function Incidents() {
           title="No open incidents"
           description={
             incidents.length === 0
-              ? 'There are no incidents in the recent list. When transport or system incidents are raised, they appear here with owner and handoff fields when recorded.'
-              : 'All recent incidents are resolved or closed. Expand history below if needed.'
+              ? 'No incidents in the recent list. When transport or system disruptions are detected, they appear here with intelligence and handoff context.'
+              : 'All recent incidents are resolved or closed.'
           }
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {openIncidents.map((inc) => (
             <IncidentCard key={inc.id} incident={inc} />
           ))}
         </div>
       )}
 
-      {incidents.length > openIncidents.length && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Other recent incidents
+      {closedIncidents.length > 0 && (
+        <section className="space-y-3 pt-2">
+          <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Resolved incidents
           </h2>
-          <div className="grid gap-3">
-            {incidents
-              .filter((i) => !isOpenIncident(i))
-              .map((inc) => (
-                <IncidentCard key={inc.id} incident={inc} muted />
-              ))}
+          <div className="space-y-3">
+            {closedIncidents.map((inc) => (
+              <IncidentCard key={inc.id} incident={inc} muted />
+            ))}
           </div>
         </section>
       )}
@@ -246,268 +273,378 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="space-y-1">
-        <button
-          type="button"
-          onClick={() => void download()}
-          disabled={state === 'loading'}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-          title="Download incident evidence proofpack (JSON)"
-        >
-          <Download className="h-3.5 w-3.5" />
-          {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
-        </button>
-        <p className="text-[11px] text-muted-foreground">
-          Snapshot at request-time only; always review <code>evidence_gaps</code>.
-        </p>
-      </div>
-      {state === 'error' && errorMsg && <span className="text-xs text-critical">{errorMsg}</span>}
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void download()}
+        disabled={state === 'loading'}
+        className="button-secondary text-xs"
+        title="Download incident evidence proofpack (JSON)"
+      >
+        <Download className="h-3.5 w-3.5" />
+        {state === 'loading' ? 'Assembling...' : 'Export proofpack'}
+      </button>
+      <span className="text-[10px] text-muted-foreground/60">
+        Snapshot at request-time. Review evidence_gaps.
+      </span>
+      {state === 'error' && errorMsg && (
+        <span className="text-xs text-critical">{errorMsg}</span>
+      )}
     </div>
   )
 }
 
 function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
+  const [expanded, setExpanded] = useState(!muted)
   const pending = inc.pending_actions?.filter(Boolean) ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
   const owner = inc.owner_actor_id?.trim()
+  const intel = inc.intelligence
+  const hasIntel = !!intel
+  const seenBefore = (intel?.signature_match_count ?? 0) > 1
+  const hasSimilar = (intel?.similar_incidents?.length ?? 0) > 0
+
+  const severityVariant = inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'
+  const stateVariant = inc.state === 'resolved' || inc.state === 'closed' ? 'success' : 'outline'
 
   return (
     <Card
       className={clsx(
-        muted && 'border-dashed opacity-90',
-        'transition-shadow hover:shadow-sm'
+        muted && 'opacity-75',
+        'transition-shadow hover:shadow-[0_20px_48px_-28px_hsl(var(--shell-shadow)/0.5)]'
       )}
     >
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-lg font-semibold">{inc.title || inc.id}</CardTitle>
-            <CardDescription className="font-mono text-xs">{inc.id}</CardDescription>
+      {/* Header stripe */}
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className={clsx('h-4 w-4 shrink-0', inc.severity === 'critical' ? 'text-critical' : inc.severity === 'high' ? 'text-warning' : 'text-muted-foreground')} />
+              <CardTitle className="text-base">{inc.title || inc.id}</CardTitle>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 font-mono">
+                <Link2 className="h-3 w-3" />
+                {inc.id.slice(0, 12)}
+              </span>
+              {inc.occurred_at && (
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatRelativeTime(inc.occurred_at)}
+                </span>
+              )}
+              {owner && (
+                <span className="inline-flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {owner}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {inc.state && <Badge variant="outline">{inc.state}</Badge>}
-            {inc.severity && <Badge variant="secondary">{inc.severity}</Badge>}
+          <div className="flex flex-wrap gap-1.5">
+            {inc.state && <Badge variant={stateVariant as 'success' | 'outline'}>{inc.state}</Badge>}
+            {inc.severity && <Badge variant={severityVariant as 'critical' | 'warning' | 'secondary'}>{inc.severity}</Badge>}
+            {hasIntel && (
+              <Badge variant={evidenceStrengthVariant(intel.evidence_strength)}>
+                {intel.evidence_strength} evidence
+              </Badge>
+            )}
+            {seenBefore && (
+              <Badge variant="warning">
+                seen {intel!.signature_match_count}x
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {inc.summary && <p className="text-muted-foreground">{inc.summary}</p>}
-        <dl className="grid gap-1 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs uppercase text-muted-foreground">Owner</dt>
-            <dd className="font-mono text-xs">{owner || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase text-muted-foreground">Updated</dt>
-            <dd>{formatTimestamp(inc.updated_at)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase text-muted-foreground">Created</dt>
-            <dd>{formatTimestamp(inc.occurred_at)}</dd>
-          </div>
-        </dl>
-        <div>
-          <div className="text-xs uppercase text-muted-foreground">Handoff summary</div>
-          <div className="mt-1 rounded-md border border-border bg-muted/30 p-2 text-sm">
-            {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
-          </div>
-        </div>
-        <ProofpackDownloadButton incidentId={inc.id} />
 
-        <div>
-          <div className="mb-1 text-xs uppercase text-muted-foreground">Referenced mesh / node action IDs</div>
-          {pending.length === 0 ? (
-            <p className="text-muted-foreground">None recorded for this incident.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {pending.map((id) => (
-                <li
-                  key={id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-2 py-1.5"
-                >
-                  <code className="text-xs break-all">{id}</code>
-                  <button
-                    type="button"
-                    onClick={() => copyText(id)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-xs hover:bg-muted"
-                    title="Copy action id"
-                  >
-                    <ClipboardCopy className="h-3 w-3" />
-                    Copy
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        {inc.intelligence && (
-          <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs uppercase text-muted-foreground">Incident intelligence</span>
-              {inc.intelligence.signature_label && <Badge variant="outline">{inc.intelligence.signature_label}</Badge>}
-              <Badge variant="secondary">evidence {inc.intelligence.evidence_strength}</Badge>
-              {(inc.intelligence.signature_match_count || 0) > 1 && (
-                <Badge variant="outline">seen {inc.intelligence.signature_match_count} times</Badge>
-              )}
-            </div>
-            {inc.intelligence.similar_incidents && inc.intelligence.similar_incidents.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Similar prior incidents:{' '}
-                {inc.intelligence.similar_incidents
-                  .map((s) => s.incident_id)
-                  .filter(Boolean)
-                  .join(', ')}
-              </p>
+      <CardContent className="space-y-4 pt-0">
+        {inc.summary && (
+          <p className="text-sm leading-relaxed text-muted-foreground">{inc.summary}</p>
+        )}
+
+        {/* Quick intelligence snapshot — always visible */}
+        {hasIntel && (
+          <div className="flex flex-wrap gap-2">
+            {intel.signature_label && (
+              <Badge variant="outline">
+                <Activity className="h-3 w-3" />
+                {intel.signature_label}
+              </Badge>
             )}
-            {inc.intelligence.wireless_context && (
-              <div className="space-y-2 rounded border border-border/80 bg-background px-2 py-2 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-foreground">Mixed wireless context</span>
-                  <Badge variant="outline">{wirelessClassificationLabel(inc.intelligence.wireless_context.classification)}</Badge>
-                  <Badge variant="secondary">confidence {toWords(inc.intelligence.wireless_context.confidence_posture)}</Badge>
-                  <Badge variant="outline">posture {toWords(inc.intelligence.wireless_context.evidence_posture)}</Badge>
-                </div>
-                <p className="text-muted-foreground">{inc.intelligence.wireless_context.summary}</p>
-                {(inc.intelligence.wireless_context.observed_domains || []).length > 0 && (
-                  <p className="text-muted-foreground">
-                    Observed domains: {(inc.intelligence.wireless_context.observed_domains || []).join(', ')}.
-                  </p>
-                )}
-                {(inc.intelligence.wireless_context.reasons || []).length > 0 && (
-                  <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
-                    {inc.intelligence.wireless_context.reasons?.slice(0, 2).map((reason) => (
-                      <li key={reason.code}>{reason.statement}</li>
-                    ))}
-                  </ul>
-                )}
-                {(inc.intelligence.wireless_context.evidence_gaps || []).length > 0 && (
-                  <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-100">
-                    Evidence gaps: {inc.intelligence.wireless_context.evidence_gaps?.slice(0, 3).join(', ')}
-                  </p>
-                )}
-                {(inc.intelligence.wireless_context.unsupported || []).length > 0 && (
-                  <p className="rounded border border-border/80 bg-muted/30 px-2 py-1 text-foreground">
-                    Unsupported scope: {inc.intelligence.wireless_context.unsupported?.map((u) => `${u.domain} ${u.scope}`).join(', ')}.
-                  </p>
-                )}
+            {intel.wireless_context && (
+              <Badge variant="outline">
+                {wirelessClassificationLabel(intel.wireless_context.classification)}
+              </Badge>
+            )}
+            {hasSimilar && (
+              <Badge variant="secondary">
+                {intel.similar_incidents!.length} similar prior
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Expand/collapse toggle */}
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {expanded ? 'Collapse detail' : 'Expand detail'}
+        </button>
+
+        {expanded && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Handoff summary */}
+            <DetailSection title="Handoff summary" icon={<FileText className="h-3.5 w-3.5" />}>
+              <div className={clsx(
+                'rounded-lg border px-3 py-2 text-sm',
+                hasHandoffText ? 'border-border/60 bg-card/50 text-foreground' : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground'
+              )}>
+                {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
               </div>
+            </DetailSection>
+
+            {/* Proofpack export */}
+            <DetailSection title="Evidence proofpack" icon={<Download className="h-3.5 w-3.5" />}>
+              <ProofpackDownloadButton incidentId={inc.id} />
+            </DetailSection>
+
+            {/* Referenced actions */}
+            {pending.length > 0 && (
+              <DetailSection title="Referenced action IDs" icon={<Zap className="h-3.5 w-3.5" />}>
+                <div className="flex flex-wrap gap-2">
+                  {pending.map((id) => (
+                    <div
+                      key={id}
+                      className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5"
+                    >
+                      <code className="text-xs">{id.slice(0, 16)}...</code>
+                      <button
+                        type="button"
+                        onClick={() => copyText(id)}
+                        className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        title="Copy action ID"
+                      >
+                        <ClipboardCopy className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <Link to="/control-actions" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                  View in control actions <ArrowRight className="h-3 w-3" />
+                </Link>
+              </DetailSection>
             )}
-            {inc.intelligence.investigate_next && inc.intelligence.investigate_next.length > 0 && (
-              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                {inc.intelligence.investigate_next.slice(0, 2).map((g) => (
-                  <li key={g.id}>
-                    <span className="font-medium text-foreground">{g.title}:</span> {g.rationale}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {inc.intelligence.action_outcome_memory && inc.intelligence.action_outcome_memory.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs uppercase text-muted-foreground">Historical action-outcome memory (association only)</div>
-                <p className="text-xs text-muted-foreground">
-                  Historical observations from similar incidents. This does not recommend execution or establish causality.
-                </p>
-                <ul className="space-y-2">
-                  {inc.intelligence.action_outcome_memory.map((m) => (
-                    <li key={m.action_type} className="space-y-2 rounded border border-border bg-background px-2 py-2 text-xs">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
-                        <Badge variant="outline">occurrences {m.occurrence_count}</Badge>
-                        <Badge variant="outline">sample n={m.sample_size}</Badge>
-                        <Badge variant="secondary">{outcomeFramingLabel(m.outcome_framing)}</Badge>
-                        {m.sample_size < 3 && <Badge variant="warning">Sparse history</Badge>}
+
+            {/* Intelligence deep dive */}
+            {hasIntel && (
+              <div className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <Eye className="h-3.5 w-3.5" />
+                  Incident intelligence
+                </div>
+
+                {/* Similar incidents */}
+                {hasSimilar && (
+                  <DetailSection title="Similar prior incidents" icon={<Link2 className="h-3.5 w-3.5" />}>
+                    <div className="space-y-1.5">
+                      {intel.similar_incidents!.map((s) => (
+                        <div key={s.incident_id} className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                          <span className="font-mono text-muted-foreground">{s.incident_id.slice(0, 12)}</span>
+                          {s.title && <span className="flex-1 truncate text-foreground">{s.title}</span>}
+                          {s.state && <Badge variant={s.state === 'resolved' ? 'success' : 'secondary'}>{s.state}</Badge>}
+                          {s.occurred_at && <span className="text-muted-foreground/60">{formatRelativeTime(s.occurred_at)}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+
+                {/* Wireless context */}
+                {intel.wireless_context && (
+                  <DetailSection title="Wireless context" icon={<Activity className="h-3.5 w-3.5" />}>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline">{wirelessClassificationLabel(intel.wireless_context.classification)}</Badge>
+                        <Badge variant="secondary">confidence: {toWords(intel.wireless_context.confidence_posture)}</Badge>
+                        <Badge variant="outline">evidence: {toWords(intel.wireless_context.evidence_posture)}</Badge>
                       </div>
-                      <p className="text-muted-foreground">
-                        {observedStatusLabel(m.observed_post_action_status)} • evidence strength {m.evidence_strength}
-                      </p>
-                      <p className="text-muted-foreground">
-                        Observed outcomes: improved {m.improvement_observed_count} • deteriorated {m.deterioration_observed_count} • inconclusive {m.inconclusive_count}
-                      </p>
-                      {(m.caveats || []).length > 0 && (
-                        <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-100">
-                          Caveat: {(m.caveats || []).join('; ')}
+                      {intel.wireless_context.summary && (
+                        <p className="text-muted-foreground">{intel.wireless_context.summary}</p>
+                      )}
+                      {(intel.wireless_context.observed_domains?.length ?? 0) > 0 && (
+                        <p className="text-muted-foreground">
+                          Observed domains: {intel.wireless_context.observed_domains!.join(', ')}
                         </p>
                       )}
-                      {(m.inspect_before_reuse || []).length > 0 && (
-                        <p className="rounded border border-border/80 bg-muted/30 px-2 py-1 text-foreground">
-                          Inspect before reuse: {m.inspect_before_reuse?.slice(0, 1).join(', ')}
-                        </p>
+                      {(intel.wireless_context.reasons?.length ?? 0) > 0 && (
+                        <ul className="space-y-1 pl-4">
+                          {intel.wireless_context.reasons!.slice(0, 3).map((r) => (
+                            <li key={r.code} className="list-disc text-muted-foreground">{r.statement}</li>
+                          ))}
+                        </ul>
                       )}
-                      {inc.intelligence?.action_outcome_snapshots && inc.intelligence.action_outcome_snapshots.length > 0 && (
-                        <div className="space-y-1 rounded border border-border/70 bg-muted/20 px-2 py-1.5">
-                          <p className="text-[11px] uppercase text-muted-foreground">Snapshot drilldown</p>
-                          <ul className="space-y-1">
-                            {inc.intelligence.action_outcome_snapshots
-                              .filter((s) => s.action_type === m.action_type)
-                              .slice(0, 2)
-                              .map((s) => (
-                                <li key={s.snapshot_id} className="rounded border border-border/70 bg-background px-2 py-1">
-                                  <p className="text-muted-foreground">
-                                    {formatTimestamp(s.window_start)} → {formatTimestamp(s.window_end)} • pre dead letters {s.pre_action_evidence.dead_letters_count} • post dead letters {s.post_action_evidence.dead_letters_count}
-                                  </p>
-                                  {(s.caveats || []).length > 0 && (
-                                    <p className="text-amber-700 dark:text-amber-300">caveat: {s.caveats?.slice(0, 1).join(', ')}</p>
-                                  )}
-                                </li>
-                              ))}
-                          </ul>
+                      {(intel.wireless_context.evidence_gaps?.length ?? 0) > 0 && (
+                        <EvidenceGapBanner gaps={intel.wireless_context.evidence_gaps!.slice(0, 3)} />
+                      )}
+                      {(intel.wireless_context.unsupported?.length ?? 0) > 0 && (
+                        <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground">
+                          <span className="font-medium text-foreground">Unsupported scope:</span>{' '}
+                          {intel.wireless_context.unsupported!.map((u) => `${u.domain} ${u.scope}`).join(', ')}
                         </div>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {inc.intelligence.action_outcome_trace && (
-              <div className="space-y-1 rounded border border-border/80 bg-background px-2 py-2 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">Action snapshot traceability</span>
-                  <Badge variant={snapshotCompletenessTone(inc.intelligence.action_outcome_trace.completeness)}>
-                    {toWords(inc.intelligence.action_outcome_trace.completeness)}
-                  </Badge>
-                  <Badge variant="outline">persisted {inc.intelligence.action_outcome_trace.persisted_snapshot_count}</Badge>
-                  <Badge variant="outline">write failures {inc.intelligence.action_outcome_trace.snapshot_write_failures}</Badge>
-                </div>
-                <p className="text-muted-foreground">
-                  Retrieval status: {toWords(inc.intelligence.action_outcome_trace.snapshot_retrieval_status)}. Expected writes: {inc.intelligence.action_outcome_trace.expected_snapshot_writes}.
-                </p>
-                {inc.intelligence.action_outcome_trace.snapshot_retrieval_reason && (
-                  <p className="text-muted-foreground">
-                    Retrieval reason: {toWords(inc.intelligence.action_outcome_trace.snapshot_retrieval_reason)}.
+                    </div>
+                  </DetailSection>
+                )}
+
+                {/* Investigate next */}
+                {(intel.investigate_next?.length ?? 0) > 0 && (
+                  <DetailSection title="Investigate next" icon={<HelpCircle className="h-3.5 w-3.5" />}>
+                    <div className="space-y-1.5">
+                      {intel.investigate_next!.slice(0, 3).map((g) => (
+                        <div key={g.id} className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                          <p className="font-medium text-foreground">{g.title}</p>
+                          <p className="mt-0.5 text-muted-foreground">{g.rationale}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+
+                {/* Action outcome memory */}
+                {(intel.action_outcome_memory?.length ?? 0) > 0 && (
+                  <DetailSection title="Historical action outcomes" icon={<Zap className="h-3.5 w-3.5" />}>
+                    <p className="mb-2 text-[11px] text-muted-foreground">
+                      Historical observations from similar incidents. Association only — does not establish causality.
+                    </p>
+                    <div className="space-y-2">
+                      {intel.action_outcome_memory!.map((m) => (
+                        <div key={m.action_type} className="rounded-lg border border-border/50 bg-card/40 p-3 text-xs">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
+                            <Badge variant="outline">n={m.sample_size}</Badge>
+                            <Badge variant={m.outcome_framing === 'improvement_observed' ? 'success' : m.outcome_framing === 'deterioration_observed' ? 'critical' : 'secondary'}>
+                              {outcomeFramingLabel(m.outcome_framing)}
+                            </Badge>
+                            {m.sample_size < 3 && <Badge variant="warning">sparse</Badge>}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-3 text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-success" /> {m.improvement_observed_count} improved
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <XCircle className="h-3 w-3 text-critical" /> {m.deterioration_observed_count} deteriorated
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <HelpCircle className="h-3 w-3" /> {m.inconclusive_count} inconclusive
+                            </span>
+                          </div>
+                          {(m.caveats?.length ?? 0) > 0 && (
+                            <EvidenceGapBanner gaps={m.caveats!} label="Caveat" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+
+                {/* Action outcome trace */}
+                {intel.action_outcome_trace && (
+                  <DetailSection title="Snapshot traceability" icon={<Shield className="h-3.5 w-3.5" />}>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <Badge variant={snapshotCompletenessTone(intel.action_outcome_trace.completeness)}>
+                        {toWords(intel.action_outcome_trace.completeness)}
+                      </Badge>
+                      <Badge variant="outline">persisted: {intel.action_outcome_trace.persisted_snapshot_count}</Badge>
+                      {intel.action_outcome_trace.snapshot_write_failures > 0 && (
+                        <Badge variant="warning">write failures: {intel.action_outcome_trace.snapshot_write_failures}</Badge>
+                      )}
+                    </div>
+                    {intel.action_outcome_trace.snapshot_retrieval_error && (
+                      <p className="mt-1.5 text-xs text-warning">
+                        Retrieval error: {intel.action_outcome_trace.snapshot_retrieval_error}
+                      </p>
+                    )}
+                  </DetailSection>
+                )}
+
+                {/* Degraded intelligence warning */}
+                {intel.degraded && (
+                  <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                      <div>
+                        <p className="font-medium text-foreground">
+                          Intelligence limited by available evidence
+                        </p>
+                        <p className="mt-0.5 text-muted-foreground">
+                          Treat as investigative guidance, not causal proof.
+                        </p>
+                        {(intel.degraded_reasons?.length ?? 0) > 0 && (
+                          <ul className="mt-1.5 space-y-0.5">
+                            {intel.degraded_reasons!.map((reason) => (
+                              <li key={reason} className="text-muted-foreground">
+                                <code className="rounded bg-muted/60 px-1 py-0.5 text-[10px]">{reason}</code>{' '}
+                                {humanizeReasonCode(reason)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {intel.generated_at && (
+                  <p className="text-[10px] text-muted-foreground/50">
+                    Intelligence generated {formatTimestamp(intel.generated_at)}
                   </p>
                 )}
-                {inc.intelligence.action_outcome_trace.snapshot_retrieval_error && (
-                  <p className="text-amber-700 dark:text-amber-300">
-                    Retrieval error: {inc.intelligence.action_outcome_trace.snapshot_retrieval_error}
-                  </p>
-                )}
               </div>
             )}
-            {inc.intelligence.degraded && (
-              <div className="space-y-1 text-xs text-amber-700">
-                <p>
-                  Intelligence is limited by available evidence. Treat this as investigative guidance, not causal proof.
-                </p>
-                {inc.intelligence.degraded_reasons && inc.intelligence.degraded_reasons.length > 0 && (
-                  <ul className="list-disc pl-4">
-                    {inc.intelligence.degraded_reasons.map((reason) => (
-                      <li key={reason}>
-                        <code>{reason}</code> — {humanizeReasonCode(reason)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-            {inc.intelligence.generated_at && (
-              <p className="text-[11px] text-muted-foreground">
-                Intelligence generated at {formatTimestamp(inc.intelligence.generated_at)}.
-              </p>
-            )}
+
+            {/* Metadata row */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+              <span>Created: {formatTimestamp(inc.occurred_at)}</span>
+              <span>Updated: {formatTimestamp(inc.updated_at)}</span>
+              {inc.resolved_at && <span>Resolved: {formatTimestamp(inc.resolved_at)}</span>}
+              {inc.category && <span>Category: {inc.category}</span>}
+            </div>
           </div>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function DetailSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string
+  icon: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {icon}
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function EvidenceGapBanner({ gaps, label = 'Evidence gap' }: { gaps: string[]; label?: string }) {
+  return (
+    <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground">{label}:</span>{' '}
+      {gaps.join(', ')}
+    </div>
   )
 }

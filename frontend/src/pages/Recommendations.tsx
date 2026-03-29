@@ -1,13 +1,14 @@
 import { useRecommendations } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { SystemHealthy } from '@/components/ui/EmptyState'
+import { CopyButton } from '@/components/ui/CopyButton'
 import { Recommendation } from '@/types/api'
-import { Lightbulb, ArrowRight, Zap, BookOpen, Settings, AlertTriangle } from 'lucide-react'
+import { Lightbulb, ArrowRight, Zap, BookOpen, Settings, AlertTriangle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 
 
@@ -25,14 +26,7 @@ export function Recommendations() {
           variant="critical"
           title="Unable to load recommendations"
           description={error}
-          action={
-            <button
-              onClick={refresh}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
-            >
-              Retry
-            </button>
-          }
+          action={<button onClick={refresh} className="button-danger">Retry</button>}
         />
       </div>
     )
@@ -43,14 +37,19 @@ export function Recommendations() {
   const informational = recommendations.filter(r => !r.actionable)
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Recommendations"
-        description="Suggestions to improve your MEL deployment based on your configuration and system state."
-      />
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          title="Recommendations"
+          description="Suggestions to improve your MEL deployment based on configuration and system state."
+        />
+        <button onClick={refresh} className="button-secondary">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </button>
+      </div>
 
-      {/* Summary */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           title="Total"
           value={recommendations.length}
@@ -74,33 +73,49 @@ export function Recommendations() {
         />
       </div>
 
-      {/* Actionable Alert */}
+      {/* Actionable recommendations — surface first */}
       {actionable.length > 0 && (
-        <AlertCard
-          variant="warning"
-          title={`${actionable.length} actionable recommendation${actionable.length > 1 ? 's' : ''}`}
-          description="These items require your attention to improve your MEL deployment."
-        />
+        <Card>
+          <CardHeader className="border-b border-border/50 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-warning/18 bg-warning/12 text-warning shadow-inset">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-[14px]">Actionable</CardTitle>
+              </div>
+              <Badge variant="warning">{actionable.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <div className="space-y-2">
+              {actionable.map((rec, i) => (
+                <RecommendationCard key={`a-${i}`} recommendation={rec} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Recommendations Categories */}
+      {/* Informational / all */}
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="border-b border-border/50 pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle>All Recommendations</CardTitle>
-            <Badge variant="outline">{recommendations.length} total</Badge>
+            <CardTitle className="text-[14px]">
+              {actionable.length === 0 ? 'All recommendations' : 'Informational'}
+            </CardTitle>
+            <Badge variant="outline">
+              {actionable.length === 0 ? recommendations.length : informational.length}
+            </Badge>
           </div>
-          <CardDescription>
-            Configuration suggestions based on your current setup
-          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {recommendations.length === 0 ? (
+        <CardContent className="pt-3">
+          {(actionable.length === 0 ? recommendations : informational).length === 0 ? (
             <SystemHealthy message="No recommendations at this time" />
           ) : (
-            <div className="space-y-4">
-              {recommendations.map((rec, i) => (
-                <RecommendationCard key={i} recommendation={rec} />
+            <div className="space-y-2">
+              {(actionable.length === 0 ? recommendations : informational).map((rec, i) => (
+                <RecommendationCard key={`i-${i}`} recommendation={rec} />
               ))}
             </div>
           )}
@@ -112,48 +127,43 @@ export function Recommendations() {
 
 function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
   const categoryIcons: Record<string, React.ReactNode> = {
-    configuration: <Settings className="h-4 w-4" />,
-    security: <AlertTriangle className="h-4 w-4" />,
-    performance: <Zap className="h-4 w-4" />,
-    storage: <Lightbulb className="h-4 w-4" />,
-    network: <Lightbulb className="h-4 w-4" />,
+    configuration: <Settings className="h-3.5 w-3.5" />,
+    security: <AlertTriangle className="h-3.5 w-3.5" />,
+    performance: <Zap className="h-3.5 w-3.5" />,
+    storage: <Lightbulb className="h-3.5 w-3.5" />,
+    network: <Lightbulb className="h-3.5 w-3.5" />,
   }
 
-  const defaultIcon = recommendation.actionable ? <ArrowRight className="h-4 w-4" /> : <Lightbulb className="h-4 w-4" />
+  const defaultIcon = recommendation.actionable ? <ArrowRight className="h-3.5 w-3.5" /> : <Lightbulb className="h-3.5 w-3.5" />
 
   return (
     <div className={clsx(
-      'rounded-lg border p-4',
-      recommendation.actionable 
-        ? 'border-warning/30 bg-warning/5' 
-        : 'border-muted bg-muted/30'
+      'rounded-xl border p-3',
+      recommendation.actionable
+        ? 'border-warning/25 bg-warning/5'
+        : 'border-border/50 bg-card/40'
     )}>
       <div className="flex items-start gap-3">
         <div className={clsx(
-          'mt-0.5 shrink-0',
-          recommendation.actionable ? 'text-warning' : 'text-muted-foreground'
+          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border shadow-inset',
+          recommendation.actionable ? 'border-warning/18 bg-warning/12 text-warning' : 'border-border/60 bg-card/60 text-muted-foreground'
         )}>
           {categoryIcons[recommendation.category?.toLowerCase() || ''] || defaultIcon}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
             <Badge variant={recommendation.actionable ? 'warning' : 'outline'}>
               {recommendation.category || 'General'}
             </Badge>
             <Badge variant="secondary">
               {recommendation.priority || 'Normal'}
             </Badge>
-            {recommendation.actionable && (
-              <Badge variant="warning">Actionable</Badge>
-            )}
           </div>
-          <p className="text-sm font-medium">{recommendation.message}</p>
+          <p className="text-[13px] leading-relaxed text-foreground">{recommendation.message}</p>
           {recommendation.action && (
-            <div className="mt-3 p-3 rounded-md bg-muted/50">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Command</p>
-              <code className="text-xs font-mono block text-foreground">
-                {recommendation.action}
-              </code>
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+              <code className="flex-1 text-xs font-mono text-foreground">{recommendation.action}</code>
+              <CopyButton value={recommendation.action} label="Copy command" />
             </div>
           )}
         </div>
