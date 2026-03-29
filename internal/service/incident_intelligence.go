@@ -234,10 +234,12 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	persistedSnapshots, err := a.DB.ActionOutcomeSnapshotsBySignature(signatureKey, current.ID, 400)
 	if err != nil {
 		trace.SnapshotRetrievalStatus = "error"
+		trace.SnapshotRetrievalReason = "snapshot_query_failed"
 		trace.Completeness = "partial"
 		degradedReasons = append(degradedReasons, "action_outcome_snapshot_retrieval_failed")
 	} else {
 		trace.SnapshotRetrievalStatus = "available"
+		trace.SnapshotRetrievalReason = "historical_snapshots_loaded"
 	}
 	if err == nil {
 		for _, snap := range persistedSnapshots {
@@ -290,6 +292,7 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 	case trace.SnapshotRetrievalStatus == "error":
 		trace.Completeness = "partial"
 	case trace.PersistedSnapshotCount == 0:
+		trace.SnapshotRetrievalReason = "no_historical_snapshots"
 		trace.Completeness = "unavailable"
 	case trace.SnapshotWriteFailures > 0:
 		trace.Completeness = "partial"
@@ -306,6 +309,8 @@ func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) 
 		mem.model.EvidenceRefs = setToSortedSlice(mem.refsSeen)
 		sort.Strings(mem.snapshots)
 		mem.model.SnapshotRefs = mem.snapshots
+		mem.model.SnapshotCoveragePercent = snapshotCoveragePercent(mem.model.OccurrenceCount, len(mem.model.SnapshotRefs))
+		mem.model.SnapshotTraceStatus, mem.model.SnapshotCoveragePosture = snapshotTracePosture(mem.model.OccurrenceCount, len(mem.model.SnapshotRefs))
 		mem.model.OutcomeFraming, mem.model.ObservedPostActionStatus = classifyOutcome(mem.model)
 		mem.model.EvidenceStrength = evidenceStrengthForSample(mem.model.SampleSize, mem.observed)
 		if mem.model.SampleSize < 2 {
@@ -949,4 +954,25 @@ func setToSortedSlice(in map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func snapshotCoveragePercent(occurrenceCount, snapshotRefCount int) float64 {
+	if occurrenceCount <= 0 || snapshotRefCount <= 0 {
+		return 0
+	}
+	if snapshotRefCount >= occurrenceCount {
+		return 100
+	}
+	return (float64(snapshotRefCount) / float64(occurrenceCount)) * 100
+}
+
+func snapshotTracePosture(occurrenceCount, snapshotRefCount int) (string, string) {
+	switch {
+	case occurrenceCount <= 0 || snapshotRefCount <= 0:
+		return "unavailable", "missing"
+	case snapshotRefCount >= occurrenceCount:
+		return "complete", "matched"
+	default:
+		return "partial", "sparse"
+	}
 }

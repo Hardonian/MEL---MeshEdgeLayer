@@ -239,6 +239,9 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus != "available" {
 		t.Fatalf("snapshot retrieval status=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalStatus)
 	}
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "historical_snapshots_loaded" {
+		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
+	}
 	if got.Intelligence.ActionOutcomeTrace.Completeness != "complete" {
 		t.Fatalf("trace completeness=%q", got.Intelligence.ActionOutcomeTrace.Completeness)
 	}
@@ -256,6 +259,15 @@ func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(
 		}
 		if len(m.SnapshotRefs) < 2 {
 			t.Fatalf("expected snapshot refs for traceability, got %v", m.SnapshotRefs)
+		}
+		if m.SnapshotTraceStatus != "complete" {
+			t.Fatalf("snapshot trace status=%q", m.SnapshotTraceStatus)
+		}
+		if m.SnapshotCoveragePosture != "matched" {
+			t.Fatalf("snapshot coverage posture=%q", m.SnapshotCoveragePosture)
+		}
+		if m.SnapshotCoveragePercent < 100 {
+			t.Fatalf("snapshot coverage percent=%v", m.SnapshotCoveragePercent)
 		}
 	}
 	if !found {
@@ -313,5 +325,11 @@ func TestIncidentIntelligence_ActionOutcomeMemory_DegradesOnSparseHistory(t *tes
 	}
 	if got.Intelligence.ActionOutcomeTrace == nil {
 		t.Fatalf("expected action outcome trace")
+	}
+	if got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason != "historical_snapshots_loaded" {
+		t.Fatalf("snapshot retrieval reason=%q", got.Intelligence.ActionOutcomeTrace.SnapshotRetrievalReason)
+	}
+	if got.Intelligence.ActionOutcomeMemory[0].SnapshotTraceStatus != "complete" {
+		t.Fatalf("snapshot trace status=%q", got.Intelligence.ActionOutcomeMemory[0].SnapshotTraceStatus)
 	}
 }

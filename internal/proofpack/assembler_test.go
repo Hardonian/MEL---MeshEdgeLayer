@@ -222,6 +222,12 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	if pack.Assembly.ActionOutcomeSnapshotStatus != "complete" {
 		t.Errorf("assembly.action_outcome_snapshot_status = %q, want complete", pack.Assembly.ActionOutcomeSnapshotStatus)
 	}
+	if pack.Assembly.ProofpackCompleteness != "complete" {
+		t.Errorf("assembly.proofpack_completeness = %q, want complete", pack.Assembly.ProofpackCompleteness)
+	}
+	if len(pack.Assembly.CompletenessReasons) != 1 || pack.Assembly.CompletenessReasons[0] != "all_sections_available" {
+		t.Errorf("completeness reasons = %v, want [all_sections_available]", pack.Assembly.CompletenessReasons)
+	}
 	if pack.Assembly.TimelineCount != 2 {
 		t.Errorf("assembly.timeline_count = %d, want 2", pack.Assembly.TimelineCount)
 	}
@@ -256,8 +262,14 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	if pack.LinkedActions[0].ActionType != "restart_transport" {
 		t.Errorf("action.action_type = %q, want %q", pack.LinkedActions[0].ActionType, "restart_transport")
 	}
+	if len(pack.LinkedActions[0].HistoricalActionOutcomeSnapshotRefs) != 1 || pack.LinkedActions[0].HistoricalActionOutcomeSnapshotRefs[0] != "aos-1" {
+		t.Fatalf("historical refs = %v, want [aos-1]", pack.LinkedActions[0].HistoricalActionOutcomeSnapshotRefs)
+	}
 	if len(pack.ActionOutcomeSnapshots) != 1 {
 		t.Fatalf("action_outcome_snapshots length = %d, want 1", len(pack.ActionOutcomeSnapshots))
+	}
+	if len(pack.SectionStatuses) == 0 {
+		t.Fatalf("expected section statuses")
 	}
 
 	// Timeline.
@@ -383,6 +395,9 @@ func TestAssemble_PartialFailures_StillProduces(t *testing.T) {
 	if pack.Assembly.ActionOutcomeSnapshotStatus != "unavailable" {
 		t.Errorf("assembly.action_outcome_snapshot_status = %q, want unavailable", pack.Assembly.ActionOutcomeSnapshotStatus)
 	}
+	if pack.Assembly.ProofpackCompleteness != "partial" {
+		t.Errorf("proofpack completeness=%q, want partial", pack.Assembly.ProofpackCompleteness)
+	}
 }
 
 func TestAssemble_LimitCapping_RecordsGap(t *testing.T) {
@@ -451,14 +466,32 @@ func TestAssemble_ActionOutcomeSnapshotRetrievalFailure_MarksPartialStatus(t *te
 	if pack.Assembly.ActionOutcomeSnapshotStatus != "partial" {
 		t.Fatalf("snapshot status=%q, want partial", pack.Assembly.ActionOutcomeSnapshotStatus)
 	}
+	if pack.Assembly.ProofpackCompleteness != "partial" {
+		t.Fatalf("proofpack completeness=%q, want partial", pack.Assembly.ProofpackCompleteness)
+	}
 	found := false
-	for _, g := range pack.EvidenceGaps {
-		if g.Category == GapCategoryActions && g.Severity == "warning" {
+	for _, sec := range pack.SectionStatuses {
+		if sec.Section == "action_outcome_snapshots" {
 			found = true
-			break
+			if sec.Status != "partial" {
+				t.Fatalf("section action_outcome_snapshots status=%q, want partial", sec.Status)
+			}
+			if sec.Reason != "snapshot_query_failed" {
+				t.Fatalf("section action_outcome_snapshots reason=%q, want snapshot_query_failed", sec.Reason)
+			}
 		}
 	}
 	if !found {
+		t.Fatal("expected action_outcome_snapshots section status")
+	}
+	gapFound := false
+	for _, g := range pack.EvidenceGaps {
+		if g.Category == GapCategoryActions && g.Severity == "warning" {
+			gapFound = true
+			break
+		}
+	}
+	if !gapFound {
 		t.Fatal("expected action warning gap for snapshot retrieval failure")
 	}
 }

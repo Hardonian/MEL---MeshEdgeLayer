@@ -59,6 +59,9 @@ type Proofpack struct {
 	// the assembled evidence is listed here so consumers do not infer
 	// completeness from the absence of gap markers.
 	EvidenceGaps []EvidenceGap `json:"evidence_gaps"`
+	// Per-section completeness status so consumers can reason about partial
+	// assembly without parsing gap text.
+	SectionStatuses []ProofpackSectionStatus `json:"section_statuses,omitempty"`
 }
 
 // AssemblyMetadata records who assembled the proofpack, when, and what
@@ -73,18 +76,26 @@ type AssemblyMetadata struct {
 	TimeWindowTo   string `json:"time_window_to"`   // latest evidence considered (RFC3339)
 
 	// Counts of evidence items assembled (for quick integrity checks).
-	ActionCount                 int    `json:"action_count"`
-	ActionOutcomeSnapshotCount  int    `json:"action_outcome_snapshot_count"`
-	ActionOutcomeSnapshotStatus string `json:"action_outcome_snapshot_status"` // complete, partial, unavailable
-	TimelineCount               int    `json:"timeline_count"`
-	TransportCount              int    `json:"transport_count"`
-	DeadLetterCount             int    `json:"dead_letter_count"`
-	NoteCount                   int    `json:"note_count"`
-	AuditEntryCount             int    `json:"audit_entry_count"`
-	EvidenceGapCount            int    `json:"evidence_gap_count"`
+	ActionCount                 int      `json:"action_count"`
+	ActionOutcomeSnapshotCount  int      `json:"action_outcome_snapshot_count"`
+	ActionOutcomeSnapshotStatus string   `json:"action_outcome_snapshot_status"` // complete, partial, unavailable
+	ProofpackCompleteness       string   `json:"proofpack_completeness"`         // complete, partial, unavailable
+	CompletenessReasons         []string `json:"completeness_reasons,omitempty"`
+	TimelineCount               int      `json:"timeline_count"`
+	TransportCount              int      `json:"transport_count"`
+	DeadLetterCount             int      `json:"dead_letter_count"`
+	NoteCount                   int      `json:"note_count"`
+	AuditEntryCount             int      `json:"audit_entry_count"`
+	EvidenceGapCount            int      `json:"evidence_gap_count"`
 
 	// AssemblyDurationMs is the wall-clock time spent assembling.
 	AssemblyDurationMs int64 `json:"assembly_duration_ms"`
+}
+
+type ProofpackSectionStatus struct {
+	Section string `json:"section"`
+	Status  string `json:"status"` // complete, partial, unavailable
+	Reason  string `json:"reason,omitempty"`
 }
 
 // IncidentEvidence is the incident record at assembly time, preserved
@@ -151,6 +162,9 @@ type ActionEvidence struct {
 	SodBypassReason  string   `json:"sod_bypass_reason,omitempty"`
 	ApprovalBasis    []string `json:"approval_basis,omitempty"`
 	ExecutionSource  string   `json:"execution_source,omitempty"`
+	// HistoricalActionOutcomeSnapshotRefs are historical snapshots for this action type
+	// in incidents with the same deterministic signature key.
+	HistoricalActionOutcomeSnapshotRefs []string `json:"historical_action_outcome_snapshot_refs,omitempty"`
 }
 
 type ActionOutcomeEvidenceSummary struct {

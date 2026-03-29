@@ -85,6 +85,7 @@ type IncidentActionOutcomeTrace struct {
 	SnapshotWriteFailures   int      `json:"snapshot_write_failures"`
 	SnapshotWriteFailureIDs []string `json:"snapshot_write_failure_ids,omitempty"`
 	SnapshotRetrievalStatus string   `json:"snapshot_retrieval_status"` // available, unavailable, error
+	SnapshotRetrievalReason string   `json:"snapshot_retrieval_reason,omitempty"`
 	PersistedSnapshotCount  int      `json:"persisted_snapshot_count"`
 	Completeness            string   `json:"completeness"` // complete, partial, unavailable
 }
@@ -164,6 +165,9 @@ type IncidentActionOutcomeMemory struct {
 	InspectBeforeReuse         []string `json:"inspect_before_reuse,omitempty"`
 	EvidenceRefs               []string `json:"evidence_refs,omitempty"`
 	SnapshotRefs               []string `json:"snapshot_refs,omitempty"`
+	SnapshotTraceStatus        string   `json:"snapshot_trace_status"`     // complete, partial, unavailable
+	SnapshotCoveragePosture    string   `json:"snapshot_coverage_posture"` // matched, sparse, missing
+	SnapshotCoveragePercent    float64  `json:"snapshot_coverage_percent"` // 0..100
 }
 
 type IncidentActionEvidenceSummary struct {
