@@ -881,6 +881,48 @@ func TestProofpackDownloadFilename_FallbackWhenTimestampMissing(t *testing.T) {
 	}
 }
 
+func TestPlatformPostureEndpoint(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/platform/posture", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["platform_posture"] == nil {
+		t.Fatalf("missing platform_posture: %#v", payload)
+	}
+}
+
+func TestSupportBundleBlockedWhenExportDisabled(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	srv.cfg.Platform.Retention.AllowExport = false
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/support-bundle", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestIncidentProofpackBlockedWhenExportDisabled(t *testing.T) {
+	srv := newTestServer(t, nil, nil)
+	srv.cfg.Platform.Retention.AllowExport = false
+	srv.SetProofpackAssembler(func(incidentID, actorID string) (map[string]any, error) {
+		return map[string]any{"incident_id": incidentID}, nil
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/inc-1/proofpack", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTransportHistoryEndpointsAndInspect(t *testing.T) {
 	srv := newTestServer(t, []transport.Health{{Name: "mqtt", Type: "mqtt", State: transport.StateRetrying, EpisodeID: "ep-1", FailureCount: 2, ObservationDrops: 3, LastHeartbeatAt: "2026-03-19T00:00:00Z"}}, func(database *db.DB) {
 		if err := database.InsertTransportHealthSnapshot(db.TransportHealthSnapshot{TransportName: "mqtt", TransportType: "mqtt", Score: 42, State: "unstable", SnapshotTime: "2026-03-19T00:00:00Z", ActiveAlertCount: 1}); err != nil {

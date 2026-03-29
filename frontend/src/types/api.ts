@@ -20,6 +20,48 @@ export interface VersionResponse {
   fleet_truth?: FleetTruthSummary
   process?: { pid: number; started_at: string }
   uptime_seconds?: number
+  platform_posture?: PlatformPosture
+}
+
+export interface PlatformPosture {
+  mode: string
+  telemetry_enabled: boolean
+  telemetry_outbound: boolean
+  telemetry_require_explicit_opt_in: boolean
+  retention_default_days: number
+  retention: {
+    enabled: boolean
+    messages_days: number
+    telemetry_days: number
+    audit_days: number
+    precise_position_days: number
+  }
+  evidence_export_delete: {
+    export_enabled: boolean
+    delete_enabled: boolean
+    delete_scope: string[]
+    delete_caveat?: string
+  }
+  inference_enabled: boolean
+  inference_providers: Array<{
+    name: string
+    enabled: boolean
+    endpoint_configured: boolean
+    available_by_config: boolean
+  }>
+  assist_policies: Array<{
+    task_class: string
+    availability: 'available' | 'queued' | 'partial' | 'unavailable'
+    execution_mode: 'inline' | 'queued' | 'scheduled' | 'disabled'
+    provider: string
+    hardware: 'cpu' | 'gpu'
+    compression: string
+    concurrency: string
+    fallback_reason?: string
+    latency_budget_ms: number
+    context_token_budget: number
+    non_canonical_truth: boolean
+  }>
 }
 
 /** Honest capability envelope for this build (backend internal/runtime). */

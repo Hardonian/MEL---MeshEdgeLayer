@@ -97,6 +97,27 @@ Each entry in the `transports` array defines an ingest source.
 
 ---
 
+### `platform` (Privacy/runtime policy envelope)
+
+These settings hard-bound outbound behavior, assist runtime truth, and export/delete semantics.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `platform.mode` | string | `"self_hosted"` | Must remain `self_hosted` in current MEL contract. |
+| `platform.telemetry.enabled` | bool | `false` | Enables telemetry pipeline only when explicitly set. |
+| `platform.telemetry.allow_outbound` | bool | `false` | Required with `telemetry.enabled=true`; prevents hidden outbound traffic. |
+| `platform.retention.allow_export` | bool | `true` | Governs export APIs/CLI (`support bundle`, proofpack, topology export, `mel export`). |
+| `platform.retention.allow_delete` | bool | `true` | Governs delete APIs for delete-capable artifacts (for example topology bookmarks). |
+| `platform.inference.enabled` | bool | `false` | Enables optional assist runtime policy; base MEL works fully when disabled. |
+| `platform.inference.default_provider` | string | `"none"` | Provider preference (`ollama`, `llama.cpp`, `mixed`) when inference is enabled. |
+| `platform.inference.compression.default_strategy` | string | `"none"` | One of `none`, `standard_quantization`, `experimental_turboquant_compatible`. |
+| `platform.inference.budget.max_context_tokens` | int | `4096` | Upper bound used for assist planning and policy routing. |
+| `platform.inference.budget.realtime_latency_budget_ms` | int | `900` | Inline assist latency target before queue/degraded fallback logic. |
+| `platform.inference.budget.background_timeout_ms` | int | `30000` | Background task timeout budget. |
+| `platform.inference.budget.queue_timeout_ms` | int | `120000` | Queue wait/processing budget (`>= background_timeout_ms`). |
+
+Use `GET /api/v1/platform/posture` for machine-visible policy status and assist availability semantics.
+
 ## Runtime State Definitions
 
 MEL uses a standardized state engine for all transports:

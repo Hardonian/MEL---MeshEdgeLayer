@@ -309,6 +309,10 @@ func (s *Server) bookmarksHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "bookmark": bm})
 
 	case http.MethodDelete:
+		if !s.cfg.Platform.Retention.AllowDelete {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "delete disabled by policy", "detail": "platform.retention.allow_delete=false"})
+			return
+		}
 		nodeNumStr := r.URL.Query().Get("node_num")
 		bmType := r.URL.Query().Get("type")
 		if nodeNumStr == "" || bmType == "" {
@@ -346,6 +350,10 @@ func (s *Server) recoveryStateHandler(w http.ResponseWriter, r *http.Request) {
 // --- Topology export ---
 
 func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.Platform.Retention.AllowExport {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": "export disabled by policy", "detail": "platform.retention.allow_export=false"})
+		return
+	}
 	if topologyStoreGlobal == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "topology store not initialized"})
 		return

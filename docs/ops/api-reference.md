@@ -1193,6 +1193,7 @@ Assembles and returns an incident-scoped evidence proofpack for audit and export
 **Error responses:**
 - `404` — incident not found
 - `503` — proofpack assembly not available (service not wired)
+- `403` — export disabled by policy (`platform.retention.allow_export=false`)
 
 See `docs/runbooks/proofpack-export.md` for full operational guide.
 
@@ -1487,3 +1488,13 @@ When `features.web_ui` is enabled, the root path `/` serves an HTML dashboard wi
 - Event logs
 
 The Web UI uses the same API endpoints and respects authentication settings.
+Export respects `platform.retention.allow_export`. When disabled, API returns `403` with policy detail.
+
+### GET /api/v1/platform/posture
+Machine-visible platform policy posture (privacy/runtime/performance envelope) including:
+- telemetry outbound state,
+- retention/export/delete semantics,
+- optional inference provider config availability,
+- assist task availability/routing (`available`, `queued`, `partial`, `unavailable`).
+
+This endpoint is authoritative for operator/runtime truth claims; assist outputs remain non-canonical by contract.

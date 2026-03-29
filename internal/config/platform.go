@@ -45,12 +45,21 @@ type InferenceConfig struct {
 	Ollama              PlatformProviderConfig `json:"ollama"`
 	LlamaCPP            PlatformProviderConfig `json:"llama_cpp"`
 	Compression         CompressionConfig      `json:"compression"`
+	Budget              InferenceBudgetConfig  `json:"budget"`
 }
 
 type CompressionConfig struct {
 	DefaultStrategy             string `json:"default_strategy"`
 	AllowStandard               bool   `json:"allow_standard"`
 	AllowExperimentalTurboQuant bool   `json:"allow_experimental_turboquant_compatible"`
+}
+
+type InferenceBudgetConfig struct {
+	MaxContextTokens          int `json:"max_context_tokens"`
+	RealtimeLatencyBudgetMs   int `json:"realtime_latency_budget_ms"`
+	BackgroundTimeoutMs       int `json:"background_timeout_ms"`
+	QueueTimeoutMs            int `json:"queue_timeout_ms"`
+	MaxParallelInferenceTasks int `json:"max_parallel_inference_tasks"`
 }
 
 func defaultPlatformConfig() PlatformConfig {
@@ -71,6 +80,13 @@ func defaultPlatformConfig() PlatformConfig {
 			Ollama:              PlatformProviderConfig{Provider: "ollama", Enabled: false, Endpoint: "http://127.0.0.1:11434", Required: false},
 			LlamaCPP:            PlatformProviderConfig{Provider: "llama.cpp", Enabled: false, Endpoint: "http://127.0.0.1:8089", Required: false},
 			Compression:         CompressionConfig{DefaultStrategy: "none", AllowStandard: true, AllowExperimentalTurboQuant: false},
+			Budget: InferenceBudgetConfig{
+				MaxContextTokens:          4096,
+				RealtimeLatencyBudgetMs:   900,
+				BackgroundTimeoutMs:       30000,
+				QueueTimeoutMs:            120000,
+				MaxParallelInferenceTasks: 2,
+			},
 		},
 		OptionalInterop: PlatformProviderConfig{Provider: "matrix-bridge", Enabled: false, Required: false},
 	}
@@ -129,6 +145,21 @@ func normalizePlatform(cfg *Config) {
 	if cfg.Platform.Inference.Compression.DefaultStrategy == "" {
 		cfg.Platform.Inference.Compression.DefaultStrategy = d.Inference.Compression.DefaultStrategy
 	}
+	if cfg.Platform.Inference.Budget.MaxContextTokens <= 0 {
+		cfg.Platform.Inference.Budget.MaxContextTokens = d.Inference.Budget.MaxContextTokens
+	}
+	if cfg.Platform.Inference.Budget.RealtimeLatencyBudgetMs <= 0 {
+		cfg.Platform.Inference.Budget.RealtimeLatencyBudgetMs = d.Inference.Budget.RealtimeLatencyBudgetMs
+	}
+	if cfg.Platform.Inference.Budget.BackgroundTimeoutMs <= 0 {
+		cfg.Platform.Inference.Budget.BackgroundTimeoutMs = d.Inference.Budget.BackgroundTimeoutMs
+	}
+	if cfg.Platform.Inference.Budget.QueueTimeoutMs <= 0 {
+		cfg.Platform.Inference.Budget.QueueTimeoutMs = d.Inference.Budget.QueueTimeoutMs
+	}
+	if cfg.Platform.Inference.Budget.MaxParallelInferenceTasks <= 0 {
+		cfg.Platform.Inference.Budget.MaxParallelInferenceTasks = d.Inference.Budget.MaxParallelInferenceTasks
+	}
 	if cfg.Platform.OptionalInterop.Provider == "" {
 		cfg.Platform.OptionalInterop.Provider = d.OptionalInterop.Provider
 	}
@@ -183,6 +214,21 @@ func validatePlatform(cfg Config) []string {
 	}
 	if strategy == "experimental_turboquant_compatible" && !cfg.Platform.Inference.Compression.AllowExperimentalTurboQuant {
 		errs = append(errs, "experimental turboquant-compatible compression needs platform.inference.compression.allow_experimental_turboquant_compatible=true")
+	}
+	if cfg.Platform.Inference.Budget.MaxContextTokens < 512 || cfg.Platform.Inference.Budget.MaxContextTokens > 32768 {
+		errs = append(errs, "platform.inference.budget.max_context_tokens must be between 512 and 32768")
+	}
+	if cfg.Platform.Inference.Budget.RealtimeLatencyBudgetMs < 100 || cfg.Platform.Inference.Budget.RealtimeLatencyBudgetMs > 30000 {
+		errs = append(errs, "platform.inference.budget.realtime_latency_budget_ms must be between 100 and 30000")
+	}
+	if cfg.Platform.Inference.Budget.BackgroundTimeoutMs < 1000 || cfg.Platform.Inference.Budget.BackgroundTimeoutMs > 300000 {
+		errs = append(errs, "platform.inference.budget.background_timeout_ms must be between 1000 and 300000")
+	}
+	if cfg.Platform.Inference.Budget.QueueTimeoutMs < cfg.Platform.Inference.Budget.BackgroundTimeoutMs {
+		errs = append(errs, "platform.inference.budget.queue_timeout_ms must be >= background_timeout_ms")
+	}
+	if cfg.Platform.Inference.Budget.MaxParallelInferenceTasks < 1 || cfg.Platform.Inference.Budget.MaxParallelInferenceTasks > 16 {
+		errs = append(errs, "platform.inference.budget.max_parallel_inference_tasks must be between 1 and 16")
 	}
 	return errs
 }

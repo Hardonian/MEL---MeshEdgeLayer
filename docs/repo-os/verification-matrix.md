@@ -56,6 +56,7 @@ This matrix defines minimum verification obligations by work category.
 **Required (release-blocking):**
 - Migration determinism checks.
 - Config validation tests and startup behavior checks.
+- Runtime policy posture checks (`/api/v1/platform/posture`) for telemetry/export/delete/inference truth.
 - Upgrade/rollback path notes if compatibility is affected.
 - Runtime fallback truth checks (base functionality remains truthful without optional inference components).
 
@@ -75,6 +76,7 @@ This matrix defines minimum verification obligations by work category.
 - Proofpack + snapshot completeness truth asserted (`complete` / `partial` / `unavailable`).
 - Audit trail verification (proofpack export logged to RBAC audit + timeline).
 - API contract check (correct HTTP status codes, capability enforcement).
+- Policy-gate check for export/delete semantics (`platform.retention.allow_export/allow_delete`).
 
 **Advisory:**
 - Manual proofpack download from UI for a real incident.

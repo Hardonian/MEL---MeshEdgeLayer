@@ -7,12 +7,34 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState, SystemHealthy } from '@/components/ui/EmptyState'
 import { PrivacyFinding } from '@/types/api'
+import type { PlatformPosture } from '@/types/api'
 import { AlertTriangle, Info, CheckCircle2, HelpCircle, Lock, Eye, Server, Database } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 
 export function Privacy() {
   const { data, loading, error, refresh } = usePrivacyFindings()
+  const [posture, setPosture] = useState<PlatformPosture | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/v1/platform/posture')
+        if (!res.ok) return
+        const raw = await res.json()
+        if (!cancelled && raw?.platform_posture) {
+          setPosture(raw.platform_posture as PlatformPosture)
+        }
+      } catch {
+        // Keep page functional even when posture endpoint is not available.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (loading && !data) {
     return <Loading message="Scanning privacy posture..." />
@@ -146,6 +168,20 @@ export function Privacy() {
       </Card>
 
       {/* Findings */}
+      {posture && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle>Runtime & Export Posture</CardTitle>
+            <CardDescription>Machine-visible privacy/runtime controls currently enforced by backend policy.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>Telemetry outbound: <strong>{posture.telemetry_enabled && posture.telemetry_outbound ? 'enabled' : 'disabled'}</strong>.</p>
+            <p>Evidence export: <strong>{posture.evidence_export_delete.export_enabled ? 'enabled' : 'disabled'}</strong>; delete APIs: <strong>{posture.evidence_export_delete.delete_enabled ? 'enabled' : 'disabled'}</strong>.</p>
+            <p>Assist runtime: <strong>{posture.inference_enabled ? 'configured' : 'disabled'}</strong>; outputs remain non-canonical.</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
