@@ -10,21 +10,25 @@ import (
 
 // mockDataSource implements DataSource for testing.
 type mockDataSource struct {
-	incident         models.Incident
-	incidentFound    bool
-	incidentErr      error
-	actions          []ActionEvidence
-	actionsErr       error
-	timeline         []TimelineEntry
-	timelineErr      error
-	transports       []TransportSnapshot
-	transportsErr    error
-	deadLetters      []DeadLetterEntry
-	deadLettersErr   error
-	notes            []OperatorNote
-	notesErr         error
-	auditEntries     []AuditEntry
-	auditErr         error
+	incident          models.Incident
+	incidentFound     bool
+	incidentErr       error
+	actions           []ActionEvidence
+	actionsErr        error
+	timeline          []TimelineEntry
+	timelineErr       error
+	transports        []TransportSnapshot
+	transportsErr     error
+	deadLetters       []DeadLetterEntry
+	deadLettersErr    error
+	notes             []OperatorNote
+	notesErr          error
+	auditEntries      []AuditEntry
+	auditErr          error
+	signatureKey      string
+	signatureKeyErr   error
+	actionOutcomes    []ActionOutcomeSnapshot
+	actionOutcomesErr error
 }
 
 func (m *mockDataSource) IncidentByID(id string) (models.Incident, bool, error) {
@@ -33,6 +37,14 @@ func (m *mockDataSource) IncidentByID(id string) (models.Incident, bool, error) 
 
 func (m *mockDataSource) ControlActionsByIncidentID(incidentID string, limit int) ([]ActionEvidence, error) {
 	return m.actions, m.actionsErr
+}
+
+func (m *mockDataSource) SignatureKeyForIncident(incidentID string) (string, error) {
+	return m.signatureKey, m.signatureKeyErr
+}
+
+func (m *mockDataSource) ActionOutcomeSnapshotsBySignature(signatureKey, excludeIncidentID string, limit int) ([]ActionOutcomeSnapshot, error) {
+	return m.actionOutcomes, m.actionOutcomesErr
 }
 
 func (m *mockDataSource) TimelineEventsForIncident(incidentID, from, to string, limit int) ([]TimelineEntry, error) {
@@ -95,6 +107,7 @@ func TestAssemble_FullProofpack(t *testing.T) {
 			Metadata:   map[string]any{"source": "mesh_intel"},
 		},
 		incidentFound: true,
+		signatureKey:  "sig-abc123",
 		actions: []ActionEvidence{
 			{
 				ID:             "act-001",
@@ -106,6 +119,20 @@ func TestAssemble_FullProofpack(t *testing.T) {
 				ProposedBy:     "system",
 				ApprovedBy:     "operator-1",
 				IncidentID:     "inc-001",
+			},
+		},
+		actionOutcomes: []ActionOutcomeSnapshot{
+			{
+				SnapshotID:            "aos-1",
+				SignatureKey:          "sig-abc123",
+				IncidentID:            "inc-older",
+				ActionID:              "act-old-1",
+				ActionType:            "restart_transport",
+				DerivedClassification: "improvement_observed",
+				EvidenceSufficiency:   "sufficient",
+				WindowStart:           now.Add(-3 * time.Hour).Format(time.RFC3339),
+				WindowEnd:             now.Add(-2 * time.Hour).Format(time.RFC3339),
+				DerivedAt:             now.Add(-2 * time.Hour).Format(time.RFC3339),
 			},
 		},
 		timeline: []TimelineEntry{
@@ -189,6 +216,9 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	if pack.Assembly.ActionCount != 1 {
 		t.Errorf("assembly.action_count = %d, want 1", pack.Assembly.ActionCount)
 	}
+	if pack.Assembly.ActionOutcomeSnapshotCount != 1 {
+		t.Errorf("assembly.action_outcome_snapshot_count = %d, want 1", pack.Assembly.ActionOutcomeSnapshotCount)
+	}
 	if pack.Assembly.TimelineCount != 2 {
 		t.Errorf("assembly.timeline_count = %d, want 2", pack.Assembly.TimelineCount)
 	}
@@ -222,6 +252,9 @@ func TestAssemble_FullProofpack(t *testing.T) {
 	}
 	if pack.LinkedActions[0].ActionType != "restart_transport" {
 		t.Errorf("action.action_type = %q, want %q", pack.LinkedActions[0].ActionType, "restart_transport")
+	}
+	if len(pack.ActionOutcomeSnapshots) != 1 {
+		t.Fatalf("action_outcome_snapshots length = %d, want 1", len(pack.ActionOutcomeSnapshots))
 	}
 
 	// Timeline.
@@ -314,13 +347,13 @@ func TestAssemble_PartialFailures_StillProduces(t *testing.T) {
 			State:      "open",
 			OccurredAt: now.Format(time.RFC3339),
 		},
-		incidentFound: true,
-		actionsErr:    fmt.Errorf("actions table locked"),
-		timelineErr:   fmt.Errorf("timeline query timeout"),
-		transportsErr: fmt.Errorf("transport snapshots unavailable"),
+		incidentFound:  true,
+		actionsErr:     fmt.Errorf("actions table locked"),
+		timelineErr:    fmt.Errorf("timeline query timeout"),
+		transportsErr:  fmt.Errorf("transport snapshots unavailable"),
 		deadLettersErr: fmt.Errorf("dead letters unavailable"),
-		notesErr:      fmt.Errorf("notes unavailable"),
-		auditErr:      fmt.Errorf("audit log corrupt"),
+		notesErr:       fmt.Errorf("notes unavailable"),
+		auditErr:       fmt.Errorf("audit log corrupt"),
 	}
 
 	a := NewAssembler(src, DefaultConfig())

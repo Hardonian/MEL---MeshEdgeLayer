@@ -1,7 +1,10 @@
 package db
 
 import (
+	"crypto/sha1"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mel-project/mel/internal/models"
@@ -18,6 +21,31 @@ type IncidentSignatureRecord struct {
 	MatchCount        int
 	ExampleIncidentID string
 	LastSummary       string
+}
+
+type IncidentActionOutcomeSnapshotRecord struct {
+	SnapshotID            string
+	SignatureKey          string
+	IncidentID            string
+	ActionID              string
+	ActionType            string
+	ActionLabel           string
+	DerivedClassification string
+	EvidenceSufficiency   string
+	PreActionSummary      map[string]any
+	PostActionSummary     map[string]any
+	ObservedSignalCount   int
+	Caveats               []string
+	InspectBeforeReuse    []string
+	EvidenceRefs          []string
+	AssociationOnly       bool
+	WindowStart           string
+	WindowEnd             string
+	DerivationVersion     string
+	SchemaVersion         string
+	DerivedAt             string
+	CreatedAt             string
+	UpdatedAt             string
 }
 
 func (d *DB) UpsertIncidentSignature(sig IncidentSignatureRecord) error {
@@ -134,4 +162,145 @@ func (d *DB) TransportAlertsForWindow(transportName, fromInclusive, toInclusive 
 		out = append(out, alertRecordFromRow(row))
 	}
 	return out, nil
+}
+
+func (d *DB) UpsertIncidentActionOutcomeSnapshot(snapshot IncidentActionOutcomeSnapshotRecord) error {
+	if strings.TrimSpace(snapshot.SignatureKey) == "" {
+		return fmt.Errorf("signature key is required")
+	}
+	if strings.TrimSpace(snapshot.IncidentID) == "" {
+		return fmt.Errorf("incident id is required")
+	}
+	if strings.TrimSpace(snapshot.ActionID) == "" {
+		return fmt.Errorf("action id is required")
+	}
+	if strings.TrimSpace(snapshot.ActionType) == "" {
+		return fmt.Errorf("action type is required")
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if strings.TrimSpace(snapshot.SnapshotID) == "" {
+		sum := sha1.Sum([]byte(snapshot.SignatureKey + "|" + snapshot.IncidentID + "|" + snapshot.ActionID))
+		snapshot.SnapshotID = fmt.Sprintf("aos-%x", sum[:8])
+	}
+	if strings.TrimSpace(snapshot.DerivedClassification) == "" {
+		snapshot.DerivedClassification = "inconclusive"
+	}
+	if strings.TrimSpace(snapshot.EvidenceSufficiency) == "" {
+		snapshot.EvidenceSufficiency = "insufficient"
+	}
+	if strings.TrimSpace(snapshot.DerivationVersion) == "" {
+		snapshot.DerivationVersion = "incident_action_outcome_eval/v1"
+	}
+	if strings.TrimSpace(snapshot.SchemaVersion) == "" {
+		snapshot.SchemaVersion = "1.0.0"
+	}
+	if strings.TrimSpace(snapshot.DerivedAt) == "" {
+		snapshot.DerivedAt = now
+	}
+	if strings.TrimSpace(snapshot.CreatedAt) == "" {
+		snapshot.CreatedAt = now
+	}
+	snapshot.UpdatedAt = now
+	if strings.TrimSpace(snapshot.WindowStart) == "" {
+		snapshot.WindowStart = snapshot.DerivedAt
+	}
+	if strings.TrimSpace(snapshot.WindowEnd) == "" {
+		snapshot.WindowEnd = snapshot.DerivedAt
+	}
+	preJSON, _ := json.Marshal(firstNonNilMap(snapshot.PreActionSummary))
+	postJSON, _ := json.Marshal(firstNonNilMap(snapshot.PostActionSummary))
+	caveatsJSON, _ := json.Marshal(snapshot.Caveats)
+	inspectJSON, _ := json.Marshal(snapshot.InspectBeforeReuse)
+	evidenceRefsJSON, _ := json.Marshal(snapshot.EvidenceRefs)
+
+	sql := fmt.Sprintf(`INSERT INTO incident_action_outcome_snapshots(
+		snapshot_id,signature_key,incident_id,action_id,action_type,action_label,derived_classification,evidence_sufficiency,
+		pre_action_summary_json,post_action_summary_json,observed_signal_count,caveats_json,inspect_before_reuse_json,evidence_refs_json,association_only,
+		derivation_window_start,derivation_window_end,derivation_version,schema_version,derived_at,created_at,updated_at
+	) VALUES (
+		'%s','%s','%s','%s','%s','%s','%s','%s',
+		'%s','%s',%d,'%s','%s','%s',%d,
+		'%s','%s','%s','%s','%s','%s','%s'
+	)
+	ON CONFLICT(signature_key,incident_id,action_id) DO UPDATE SET
+		snapshot_id=excluded.snapshot_id,
+		action_type=excluded.action_type,
+		action_label=excluded.action_label,
+		derived_classification=excluded.derived_classification,
+		evidence_sufficiency=excluded.evidence_sufficiency,
+		pre_action_summary_json=excluded.pre_action_summary_json,
+		post_action_summary_json=excluded.post_action_summary_json,
+		observed_signal_count=excluded.observed_signal_count,
+		caveats_json=excluded.caveats_json,
+		inspect_before_reuse_json=excluded.inspect_before_reuse_json,
+		evidence_refs_json=excluded.evidence_refs_json,
+		association_only=excluded.association_only,
+		derivation_window_start=excluded.derivation_window_start,
+		derivation_window_end=excluded.derivation_window_end,
+		derivation_version=excluded.derivation_version,
+		schema_version=excluded.schema_version,
+		derived_at=excluded.derived_at,
+		updated_at=excluded.updated_at;`,
+		esc(snapshot.SnapshotID), esc(snapshot.SignatureKey), esc(snapshot.IncidentID), esc(snapshot.ActionID), esc(snapshot.ActionType), esc(snapshot.ActionLabel),
+		esc(snapshot.DerivedClassification), esc(snapshot.EvidenceSufficiency), esc(string(preJSON)), esc(string(postJSON)), snapshot.ObservedSignalCount,
+		esc(string(caveatsJSON)), esc(string(inspectJSON)), esc(string(evidenceRefsJSON)), boolInt(snapshot.AssociationOnly),
+		esc(snapshot.WindowStart), esc(snapshot.WindowEnd), esc(snapshot.DerivationVersion), esc(snapshot.SchemaVersion), esc(snapshot.DerivedAt), esc(snapshot.CreatedAt), esc(snapshot.UpdatedAt))
+	return d.Exec(sql)
+}
+
+func (d *DB) ActionOutcomeSnapshotsBySignature(signatureKey, excludeIncidentID string, limit int) ([]IncidentActionOutcomeSnapshotRecord, error) {
+	if strings.TrimSpace(signatureKey) == "" {
+		return nil, nil
+	}
+	limit = clampLimit(limit)
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT snapshot_id, signature_key, incident_id, action_id, action_type, COALESCE(action_label,'') AS action_label,
+		derived_classification, evidence_sufficiency, COALESCE(pre_action_summary_json,'{}') AS pre_action_summary_json,
+		COALESCE(post_action_summary_json,'{}') AS post_action_summary_json, COALESCE(observed_signal_count,0) AS observed_signal_count,
+		COALESCE(caveats_json,'[]') AS caveats_json, COALESCE(inspect_before_reuse_json,'[]') AS inspect_before_reuse_json,
+		COALESCE(evidence_refs_json,'[]') AS evidence_refs_json, COALESCE(association_only,1) AS association_only,
+		derivation_window_start, derivation_window_end, COALESCE(derivation_version,'incident_action_outcome_eval/v1') AS derivation_version,
+		COALESCE(schema_version,'1.0.0') AS schema_version, derived_at, created_at, updated_at
+		FROM incident_action_outcome_snapshots
+		WHERE signature_key='%s' AND incident_id!='%s'
+		ORDER BY derived_at DESC
+		LIMIT %d;`, esc(signatureKey), esc(excludeIncidentID), limit))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]IncidentActionOutcomeSnapshotRecord, 0, len(rows))
+	for _, row := range rows {
+		record := IncidentActionOutcomeSnapshotRecord{
+			SnapshotID:            asString(row["snapshot_id"]),
+			SignatureKey:          asString(row["signature_key"]),
+			IncidentID:            asString(row["incident_id"]),
+			ActionID:              asString(row["action_id"]),
+			ActionType:            asString(row["action_type"]),
+			ActionLabel:           asString(row["action_label"]),
+			DerivedClassification: asString(row["derived_classification"]),
+			EvidenceSufficiency:   asString(row["evidence_sufficiency"]),
+			ObservedSignalCount:   int(asInt(row["observed_signal_count"])),
+			AssociationOnly:       asInt(row["association_only"]) != 0,
+			WindowStart:           asString(row["derivation_window_start"]),
+			WindowEnd:             asString(row["derivation_window_end"]),
+			DerivationVersion:     asString(row["derivation_version"]),
+			SchemaVersion:         asString(row["schema_version"]),
+			DerivedAt:             asString(row["derived_at"]),
+			CreatedAt:             asString(row["created_at"]),
+			UpdatedAt:             asString(row["updated_at"]),
+		}
+		_ = json.Unmarshal([]byte(asString(row["pre_action_summary_json"])), &record.PreActionSummary)
+		_ = json.Unmarshal([]byte(asString(row["post_action_summary_json"])), &record.PostActionSummary)
+		_ = json.Unmarshal([]byte(asString(row["caveats_json"])), &record.Caveats)
+		_ = json.Unmarshal([]byte(asString(row["inspect_before_reuse_json"])), &record.InspectBeforeReuse)
+		_ = json.Unmarshal([]byte(asString(row["evidence_refs_json"])), &record.EvidenceRefs)
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func firstNonNilMap(in map[string]any) map[string]any {
+	if in == nil {
+		return map[string]any{}
+	}
+	return in
 }

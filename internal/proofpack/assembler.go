@@ -15,6 +15,11 @@ type DataSource interface {
 	IncidentByID(id string) (models.Incident, bool, error)
 	// ControlActionsByIncidentID returns control actions linked to the incident.
 	ControlActionsByIncidentID(incidentID string, limit int) ([]ActionEvidence, error)
+	// SignatureKeyForIncident returns the deterministic incident signature key.
+	SignatureKeyForIncident(incidentID string) (string, error)
+	// ActionOutcomeSnapshotsBySignature returns per-action historical evaluation snapshots
+	// for incidents sharing the same deterministic signature as the scoped incident.
+	ActionOutcomeSnapshotsBySignature(signatureKey, excludeIncidentID string, limit int) ([]ActionOutcomeSnapshot, error)
 	// TimelineEventsForIncident returns timeline events whose resource_id
 	// matches the incident ID, or that fall within the time window.
 	TimelineEventsForIncident(incidentID, from, to string, limit int) ([]TimelineEntry, error)
@@ -36,6 +41,8 @@ type AssemblerConfig struct {
 	InstanceID string
 	// MaxActions caps the number of linked actions included.
 	MaxActions int
+	// MaxActionOutcomeSnapshots caps per-action outcome snapshots.
+	MaxActionOutcomeSnapshots int
 	// MaxTimeline caps the number of timeline entries.
 	MaxTimeline int
 	// MaxDeadLetters caps dead letter entries.
@@ -51,13 +58,14 @@ type AssemblerConfig struct {
 // DefaultConfig returns a sensible default assembler configuration.
 func DefaultConfig() AssemblerConfig {
 	return AssemblerConfig{
-		ActorID:               "system",
-		MaxActions:            200,
-		MaxTimeline:           500,
-		MaxDeadLetters:        200,
-		MaxNotes:              100,
-		MaxAuditEntries:       200,
-		MaxTransportSnapshots: 50,
+		ActorID:                   "system",
+		MaxActions:                200,
+		MaxActionOutcomeSnapshots: 400,
+		MaxTimeline:               500,
+		MaxDeadLetters:            200,
+		MaxNotes:                  100,
+		MaxAuditEntries:           200,
+		MaxTransportSnapshots:     50,
 	}
 }
 
@@ -71,6 +79,9 @@ type Assembler struct {
 func NewAssembler(src DataSource, cfg AssemblerConfig) *Assembler {
 	if cfg.MaxActions <= 0 {
 		cfg.MaxActions = 200
+	}
+	if cfg.MaxActionOutcomeSnapshots <= 0 {
+		cfg.MaxActionOutcomeSnapshots = 400
 	}
 	if cfg.MaxTimeline <= 0 {
 		cfg.MaxTimeline = 500
@@ -147,6 +158,37 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 			Severity:    "warning",
 			Description: fmt.Sprintf("action count reached limit (%d); additional actions may exist", a.cfg.MaxActions),
 		})
+	}
+
+	signatureKey, err := a.src.SignatureKeyForIncident(incidentID)
+	if err != nil {
+		signatureKey = ""
+	}
+	signatureKey = strings.TrimSpace(signatureKey)
+	actionOutcomeSnapshots := []ActionOutcomeSnapshot{}
+	if signatureKey == "" {
+		gaps = append(gaps, EvidenceGap{
+			Category:    GapCategoryActions,
+			Severity:    "info",
+			Description: "no signature key available; action outcome snapshots omitted",
+		})
+	} else {
+		actionOutcomeSnapshots, err = a.src.ActionOutcomeSnapshotsBySignature(signatureKey, incidentID, a.cfg.MaxActionOutcomeSnapshots)
+		if err != nil {
+			gaps = append(gaps, EvidenceGap{
+				Category:    GapCategoryActions,
+				Severity:    "warning",
+				Description: fmt.Sprintf("could not load action outcome snapshots: %v", err),
+			})
+			actionOutcomeSnapshots = []ActionOutcomeSnapshot{}
+		}
+		if len(actionOutcomeSnapshots) >= a.cfg.MaxActionOutcomeSnapshots {
+			gaps = append(gaps, EvidenceGap{
+				Category:    GapCategoryActions,
+				Severity:    "warning",
+				Description: fmt.Sprintf("action outcome snapshot count reached limit (%d); additional snapshots may exist", a.cfg.MaxActionOutcomeSnapshots),
+			})
+		}
 	}
 
 	// Timeline events.
@@ -246,29 +288,31 @@ func (a *Assembler) Assemble(incidentID string) (*Proofpack, error) {
 	pack := &Proofpack{
 		FormatVersion: FormatVersion,
 		Assembly: AssemblyMetadata{
-			AssembledAt:        time.Now().UTC().Format(time.RFC3339),
-			AssembledBy:        a.cfg.ActorID,
-			InstanceID:         a.cfg.InstanceID,
-			IncidentID:         incidentID,
-			TimeWindowFrom:     windowFrom,
-			TimeWindowTo:       windowTo,
-			ActionCount:        len(actions),
-			TimelineCount:      len(timeline),
-			TransportCount:     len(transports),
-			DeadLetterCount:    len(deadLetters),
-			NoteCount:          len(notes),
-			AuditEntryCount:    len(auditEntries),
-			EvidenceGapCount:   len(gaps),
-			AssemblyDurationMs: elapsed.Milliseconds(),
+			AssembledAt:                time.Now().UTC().Format(time.RFC3339),
+			AssembledBy:                a.cfg.ActorID,
+			InstanceID:                 a.cfg.InstanceID,
+			IncidentID:                 incidentID,
+			TimeWindowFrom:             windowFrom,
+			TimeWindowTo:               windowTo,
+			ActionCount:                len(actions),
+			ActionOutcomeSnapshotCount: len(actionOutcomeSnapshots),
+			TimelineCount:              len(timeline),
+			TransportCount:             len(transports),
+			DeadLetterCount:            len(deadLetters),
+			NoteCount:                  len(notes),
+			AuditEntryCount:            len(auditEntries),
+			EvidenceGapCount:           len(gaps),
+			AssemblyDurationMs:         elapsed.Milliseconds(),
 		},
-		Incident:           incEvidence,
-		LinkedActions:      actions,
-		Timeline:           timeline,
-		TransportContext:    transports,
-		DeadLetterEvidence: deadLetters,
-		OperatorNotes:      notes,
-		AuditEntries:       auditEntries,
-		EvidenceGaps:       gaps,
+		Incident:               incEvidence,
+		LinkedActions:          actions,
+		ActionOutcomeSnapshots: actionOutcomeSnapshots,
+		Timeline:               timeline,
+		TransportContext:       transports,
+		DeadLetterEvidence:     deadLetters,
+		OperatorNotes:          notes,
+		AuditEntries:           auditEntries,
+		EvidenceGaps:           gaps,
 	}
 
 	return pack, nil
