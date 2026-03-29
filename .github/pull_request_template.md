@@ -4,6 +4,7 @@
 
 - What change is being made and why?
 - How does this reduce entropy or increase structural coherence?
+- Work classification: **Maintenance / Leverage / Moat** (see `docs/repo-os/change-classification.md`).
 
 ## Operator Impact
 
@@ -25,3 +26,11 @@
 ## Risks & Remaining Limitations
 
 - Describe any residual risk or explicitly say "none beyond documented scope".
+
+## Repo-OS Audits
+
+- [ ] Operator Truth Audit (`docs/repo-os/operator-truth-audit.md`)
+- [ ] Transport Truth & Degraded-State Audit (`docs/repo-os/transport-truth-audit.md`)
+- [ ] Trusted Control Governance Checklist (if control paths touched) (`docs/repo-os/trusted-control-governance.md`)
+- [ ] Security / Trust-Boundary Audit (`docs/repo-os/security-trust-boundary-audit.md`)
+- [ ] Moat Evaluation completed for major feature/refactor (`docs/repo-os/moat-evaluation.md`)
