@@ -211,6 +211,7 @@ export interface IncidentIntelligence {
   investigate_next?: IncidentGuidanceItem[]
   similar_incidents?: IncidentSimilarityRecord[]
   historically_used_actions?: IncidentActionPattern[]
+  action_outcome_memory?: IncidentActionOutcomeMemory[]
   degraded?: boolean
   degraded_reasons?: string[]
   generated_at?: string
@@ -249,6 +250,27 @@ export interface IncidentSimilarityRecord {
 export interface IncidentActionPattern {
   action_type: string
   count: number
+}
+
+export interface IncidentActionOutcomeMemory {
+  action_type: string
+  action_label?: string
+  occurrence_count: number
+  sample_size: number
+  outcome_framing:
+    | 'improvement_observed'
+    | 'deterioration_observed'
+    | 'mixed_historical_evidence'
+    | 'insufficient_evidence'
+    | 'no_clear_post_action_signal'
+  evidence_strength: 'sparse' | 'moderate' | 'strong'
+  observed_post_action_status: string
+  improvement_observed_count: number
+  deterioration_observed_count: number
+  inconclusive_count: number
+  caveats?: string[]
+  inspect_before_reuse?: string[]
+  evidence_refs?: string[]
 }
 
 /** Control-plane action row (matches backend ActionRecord) */

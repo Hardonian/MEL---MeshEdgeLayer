@@ -117,6 +117,7 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	}
 
 	out.SimilarIncidents = a.similarIncidents(sigKey, inc.ID)
+	out.ActionOutcomeMemory = a.actionOutcomeMemory(sigKey, inc)
 	out.ImplicatedDomains = deriveDomains(out.EvidenceItems, inc)
 	out.InvestigateNext = deriveInvestigationGuidance(out, inc)
 	switch {
@@ -131,9 +132,112 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 		out.Degraded = true
 		out.DegradedReasons = append(out.DegradedReasons, "no_similar_incident_history")
 	}
+	if len(out.ActionOutcomeMemory) == 0 {
+		out.Degraded = true
+		out.DegradedReasons = append(out.DegradedReasons, "insufficient_action_outcome_history")
+	}
 	if len(out.EvidenceItems) < 2 {
 		out.Degraded = true
 		out.DegradedReasons = append(out.DegradedReasons, "limited_correlated_evidence")
+	}
+	return out
+}
+
+func (a *App) actionOutcomeMemory(signatureKey string, current models.Incident) []models.IncidentActionOutcomeMemory {
+	if a == nil || a.DB == nil || strings.TrimSpace(signatureKey) == "" {
+		return nil
+	}
+	similar, err := a.DB.SimilarIncidentsBySignature(signatureKey, current.ID, 8)
+	if err != nil || len(similar) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(similar))
+	simByID := map[string]models.Incident{}
+	for _, inc := range similar {
+		ids = append(ids, inc.ID)
+		simByID[inc.ID] = inc
+	}
+	actions, err := a.DB.ControlActionsForIncidentIDs(ids, 400)
+	if err != nil || len(actions) == 0 {
+		return nil
+	}
+	type score struct {
+		model      models.IncidentActionOutcomeMemory
+		observed   int
+		refsSeen   map[string]struct{}
+		caveats    map[string]struct{}
+		preInspect map[string]struct{}
+	}
+	perAction := map[string]*score{}
+	for _, action := range actions {
+		actionType := strings.TrimSpace(action.ActionType)
+		incidentID := strings.TrimSpace(action.IncidentID)
+		if actionType == "" || incidentID == "" {
+			continue
+		}
+		simInc, ok := simByID[incidentID]
+		if !ok {
+			continue
+		}
+		eval := evaluatePostActionSignals(a, action, simInc)
+		entry, ok := perAction[actionType]
+		if !ok {
+			entry = &score{
+				model: models.IncidentActionOutcomeMemory{
+					ActionType:  actionType,
+					ActionLabel: strings.ReplaceAll(actionType, "_", " "),
+				},
+				refsSeen:   map[string]struct{}{},
+				caveats:    map[string]struct{}{},
+				preInspect: map[string]struct{}{},
+			}
+			perAction[actionType] = entry
+		}
+		entry.model.OccurrenceCount++
+		entry.model.SampleSize++
+		entry.observed += eval.observedSignals
+		entry.model.ObservedPostActionStatus = "inconclusive"
+		switch eval.outcome {
+		case "improvement_observed":
+			entry.model.ImprovementObservedCount++
+		case "deterioration_observed":
+			entry.model.DeteriorationObservedCount++
+		default:
+			entry.model.InconclusiveCount++
+		}
+		for _, caveat := range eval.caveats {
+			entry.caveats[caveat] = struct{}{}
+		}
+		for _, inspect := range eval.inspectBeforeReuse {
+			entry.preInspect[inspect] = struct{}{}
+		}
+		for _, ref := range eval.evidenceRefs {
+			entry.refsSeen[ref] = struct{}{}
+		}
+	}
+	if len(perAction) == 0 {
+		return nil
+	}
+	out := make([]models.IncidentActionOutcomeMemory, 0, len(perAction))
+	for _, mem := range perAction {
+		mem.model.Caveats = setToSortedSlice(mem.caveats)
+		mem.model.InspectBeforeReuse = setToSortedSlice(mem.preInspect)
+		mem.model.EvidenceRefs = setToSortedSlice(mem.refsSeen)
+		mem.model.OutcomeFraming, mem.model.ObservedPostActionStatus = classifyOutcome(mem.model)
+		mem.model.EvidenceStrength = evidenceStrengthForSample(mem.model.SampleSize, mem.observed)
+		if mem.model.SampleSize < 2 {
+			mem.model.Caveats = append(mem.model.Caveats, "Single historical sample; treat as weak association only.")
+		}
+		out = append(out, mem.model)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].OccurrenceCount == out[j].OccurrenceCount {
+			return out[i].ActionType < out[j].ActionType
+		}
+		return out[i].OccurrenceCount > out[j].OccurrenceCount
+	})
+	if len(out) > 5 {
+		out = out[:5]
 	}
 	return out
 }
@@ -303,4 +407,117 @@ func firstNonEmpty(v ...string) string {
 		}
 	}
 	return ""
+}
+
+type actionEvaluation struct {
+	outcome            string
+	observedSignals    int
+	caveats            []string
+	inspectBeforeReuse []string
+	evidenceRefs       []string
+}
+
+func evaluatePostActionSignals(a *App, action db.ControlActionRecord, incident models.Incident) actionEvaluation {
+	eval := actionEvaluation{
+		outcome:            "inconclusive",
+		caveats:            []string{"Temporal association only; this is not causal proof."},
+		inspectBeforeReuse: []string{"Confirm current incident signature still matches historical context.", "Validate approval/execution lifecycle before repeating action."},
+		evidenceRefs:       []string{"incident:" + incident.ID, "action:" + action.ID},
+	}
+	base := parseRFC3339Fallback(firstNonEmpty(action.CompletedAt, action.ExecutedAt, action.ExecutionStartedAt, action.CreatedAt), parseRFC3339Fallback(firstNonEmpty(incident.OccurredAt, incident.UpdatedAt), time.Now().UTC()))
+	preFrom, preTo := base.Add(-2*time.Hour).Format(time.RFC3339), base.Format(time.RFC3339)
+	postFrom, postTo := base.Format(time.RFC3339), base.Add(2*time.Hour).Format(time.RFC3339)
+	transport := firstNonEmpty(action.TargetTransport, incident.ResourceID)
+	if incident.ResourceType == "transport" && transport != "" && a != nil && a.DB != nil {
+		preDL, _ := a.DB.DeadLettersForTransportBetween(transport, preFrom, preTo, 200)
+		postDL, _ := a.DB.DeadLettersForTransportBetween(transport, postFrom, postTo, 200)
+		if len(preDL) > 0 || len(postDL) > 0 {
+			eval.observedSignals++
+			eval.evidenceRefs = append(eval.evidenceRefs, "dead_letters:"+transport)
+			switch {
+			case len(postDL) < len(preDL):
+				eval.outcome = "improvement_observed"
+				eval.inspectBeforeReuse = append(eval.inspectBeforeReuse, "Check dead-letter reasons and ensure reduction persisted beyond 2h.")
+			case len(postDL) > len(preDL):
+				eval.outcome = "deterioration_observed"
+				eval.inspectBeforeReuse = append(eval.inspectBeforeReuse, "Dead letters increased after prior use; inspect transport runtime before retry.")
+			}
+		}
+		preAlerts, _ := a.DB.TransportAlertsForWindow(transport, preFrom, preTo, 200)
+		postAlerts, _ := a.DB.TransportAlertsForWindow(transport, postFrom, postTo, 200)
+		if len(preAlerts) > 0 || len(postAlerts) > 0 {
+			eval.observedSignals++
+			eval.evidenceRefs = append(eval.evidenceRefs, "transport_alerts:"+transport)
+			switch {
+			case len(postAlerts) < len(preAlerts) && eval.outcome != "deterioration_observed":
+				eval.outcome = "improvement_observed"
+			case len(postAlerts) > len(preAlerts):
+				eval.outcome = "deterioration_observed"
+			}
+		}
+	}
+	if isResolvedState(incident.State) {
+		eval.observedSignals++
+		eval.evidenceRefs = append(eval.evidenceRefs, "incident_state:"+incident.State)
+		if eval.outcome != "deterioration_observed" {
+			eval.outcome = "improvement_observed"
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(action.Result), "failed") || strings.EqualFold(strings.TrimSpace(action.LifecycleState), "failed") {
+		eval.observedSignals++
+		eval.evidenceRefs = append(eval.evidenceRefs, "action_result:failed")
+		eval.outcome = "deterioration_observed"
+		eval.inspectBeforeReuse = append(eval.inspectBeforeReuse, "Prior execution recorded failed lifecycle/result; inspect action preconditions first.")
+	}
+	if eval.observedSignals == 0 {
+		eval.inspectBeforeReuse = append(eval.inspectBeforeReuse, "No clear post-action signal in bounded window; inspect full timeline manually.")
+	}
+	return eval
+}
+
+func classifyOutcome(mem models.IncidentActionOutcomeMemory) (string, string) {
+	if mem.SampleSize < 2 {
+		return "insufficient_evidence", "insufficient_history"
+	}
+	if mem.ImprovementObservedCount > 0 && mem.DeteriorationObservedCount > 0 {
+		return "mixed_historical_evidence", "mixed_signals"
+	}
+	if mem.ImprovementObservedCount > 0 {
+		return "improvement_observed", "subsequent_improvement_observed"
+	}
+	if mem.DeteriorationObservedCount > 0 {
+		return "deterioration_observed", "subsequent_deterioration_observed"
+	}
+	return "no_clear_post_action_signal", "inconclusive"
+}
+
+func evidenceStrengthForSample(sampleSize, observedSignals int) string {
+	switch {
+	case sampleSize >= 5 && observedSignals >= 5:
+		return "strong"
+	case sampleSize >= 3 && observedSignals >= 2:
+		return "moderate"
+	default:
+		return "sparse"
+	}
+}
+
+func isResolvedState(state string) bool {
+	s := strings.ToLower(strings.TrimSpace(state))
+	return s == "resolved" || s == "closed"
+}
+
+func setToSortedSlice(in map[string]struct{}) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for k := range in {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

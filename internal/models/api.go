@@ -62,18 +62,19 @@ type Incident struct {
 
 // IncidentIntelligence is an evidence-bounded operator aid for recurring signatures and investigation flow.
 type IncidentIntelligence struct {
-	SignatureKey            string                     `json:"signature_key,omitempty"`
-	SignatureLabel          string                     `json:"signature_label,omitempty"`
-	SignatureMatchCount     int                        `json:"signature_match_count,omitempty"`
-	EvidenceStrength        string                     `json:"evidence_strength"` // sparse, moderate, strong
-	EvidenceItems           []IncidentEvidenceItem     `json:"evidence_items,omitempty"`
-	ImplicatedDomains       []IncidentDomainHint       `json:"implicated_domains,omitempty"`
-	InvestigateNext         []IncidentGuidanceItem     `json:"investigate_next,omitempty"`
-	SimilarIncidents        []IncidentSimilarityRecord `json:"similar_incidents,omitempty"`
-	HistoricallyUsedActions []IncidentActionPattern    `json:"historically_used_actions,omitempty"`
-	Degraded                bool                       `json:"degraded"`
-	DegradedReasons         []string                   `json:"degraded_reasons,omitempty"`
-	GeneratedAt             string                     `json:"generated_at,omitempty"`
+	SignatureKey            string                        `json:"signature_key,omitempty"`
+	SignatureLabel          string                        `json:"signature_label,omitempty"`
+	SignatureMatchCount     int                           `json:"signature_match_count,omitempty"`
+	EvidenceStrength        string                        `json:"evidence_strength"` // sparse, moderate, strong
+	EvidenceItems           []IncidentEvidenceItem        `json:"evidence_items,omitempty"`
+	ImplicatedDomains       []IncidentDomainHint          `json:"implicated_domains,omitempty"`
+	InvestigateNext         []IncidentGuidanceItem        `json:"investigate_next,omitempty"`
+	SimilarIncidents        []IncidentSimilarityRecord    `json:"similar_incidents,omitempty"`
+	HistoricallyUsedActions []IncidentActionPattern       `json:"historically_used_actions,omitempty"`
+	ActionOutcomeMemory     []IncidentActionOutcomeMemory `json:"action_outcome_memory,omitempty"`
+	Degraded                bool                          `json:"degraded"`
+	DegradedReasons         []string                      `json:"degraded_reasons,omitempty"`
+	GeneratedAt             string                        `json:"generated_at,omitempty"`
 }
 
 type IncidentEvidenceItem struct {
@@ -109,6 +110,22 @@ type IncidentSimilarityRecord struct {
 type IncidentActionPattern struct {
 	ActionType string `json:"action_type"`
 	Count      int    `json:"count"`
+}
+
+type IncidentActionOutcomeMemory struct {
+	ActionType                 string   `json:"action_type"`
+	ActionLabel                string   `json:"action_label,omitempty"`
+	OccurrenceCount            int      `json:"occurrence_count"`
+	SampleSize                 int      `json:"sample_size"`
+	OutcomeFraming             string   `json:"outcome_framing"`   // improvement_observed, deterioration_observed, mixed_historical_evidence, insufficient_evidence, no_clear_post_action_signal
+	EvidenceStrength           string   `json:"evidence_strength"` // sparse, moderate, strong
+	ObservedPostActionStatus   string   `json:"observed_post_action_status"`
+	ImprovementObservedCount   int      `json:"improvement_observed_count"`
+	DeteriorationObservedCount int      `json:"deterioration_observed_count"`
+	InconclusiveCount          int      `json:"inconclusive_count"`
+	Caveats                    []string `json:"caveats,omitempty"`
+	InspectBeforeReuse         []string `json:"inspect_before_reuse,omitempty"`
+	EvidenceRefs               []string `json:"evidence_refs,omitempty"`
 }
 
 // SupportManifest defines the inventory of a support bundle
