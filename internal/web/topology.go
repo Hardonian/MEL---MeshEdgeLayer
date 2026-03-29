@@ -423,13 +423,16 @@ func (s *Server) topologyExportHandler(w http.ResponseWriter, r *http.Request) {
 		"snapshots":        snapshots,
 		"node_count":       len(nodes),
 		"link_count":       len(links),
+		"export_partial":   len(nodes) >= nodeLimit || len(links) >= linkLimit || len(bookmarks) >= bookmarkLimit || len(snapshots) >= snapshotLimit,
 		"export_limits": map[string]any{
-			"node_limit":      nodeLimit,
-			"link_limit":      linkLimit,
-			"bookmark_limit":  bookmarkLimit,
-			"snapshot_limit":  snapshotLimit,
-			"nodes_truncated": len(nodes) >= nodeLimit,
-			"links_truncated": len(links) >= linkLimit,
+			"node_limit":          nodeLimit,
+			"link_limit":          linkLimit,
+			"bookmark_limit":      bookmarkLimit,
+			"snapshot_limit":      snapshotLimit,
+			"nodes_truncated":     len(nodes) >= nodeLimit,
+			"links_truncated":     len(links) >= linkLimit,
+			"bookmarks_truncated": len(bookmarks) >= bookmarkLimit,
+			"snapshots_truncated": len(snapshots) >= snapshotLimit,
 		},
 	}
 

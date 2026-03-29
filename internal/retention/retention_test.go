@@ -123,3 +123,77 @@ func TestRunPrunesTimelineAndActionOutcomeSnapshots(t *testing.T) {
 		t.Fatalf("expected action outcome snapshots capped/pruned to 2 rows, got %s", snapshotCount)
 	}
 }
+
+func TestRunPrunesImportedRemoteEvidenceByAgeAndCap(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Retention.AuditDays = 2
+	cfg.Intelligence.Retention.HealthSnapshotMaxRows = 2
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	localID, err := database.EnsureInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	insertBatch := func(id string, importedAt time.Time, seq int) {
+		t.Helper()
+		if err := database.PersistRemoteImportBatch(
+			db.RemoteImportBatchRecord{
+				ID:              id,
+				ImportedAt:      importedAt.Format(time.RFC3339),
+				LocalInstanceID: localID,
+				FormatKind:      "mel_remote_evidence_batch",
+				SchemaVersion:   "1.0",
+				Validation:      []byte(`{"outcome":"accepted_with_caveats"}`),
+				RawPayload:      []byte(`{"kind":"mel_remote_evidence_batch"}`),
+				ItemCount:       1,
+				AcceptedCount:   1,
+			},
+			[]db.ImportedRemoteEvidenceRecord{
+				{
+					ID:               "imp-" + id,
+					BatchID:          id,
+					ItemID:           id + ":001",
+					SequenceNo:       seq,
+					ImportedAt:       importedAt.Format(time.RFC3339),
+					LocalInstanceID:  localID,
+					ValidationStatus: "accepted",
+					Validation:       []byte(`{"outcome":"accepted"}`),
+					Bundle:           []byte(`{"kind":"mel_remote_evidence_bundle"}`),
+					Evidence:         []byte(`{"evidence_class":"other","origin_instance_id":"remote-a","observation_origin_class":"remote_reported","physical_uncertainty_posture":"partial_observation_clock_skew_duplication_delay"}`),
+					OriginInstanceID: "remote-a",
+					EvidenceClass:    "other",
+				},
+			},
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insertBatch("batch-old", now.AddDate(0, 0, -5), 1)
+	insertBatch("batch-new-1", now.Add(-2*time.Hour), 2)
+	insertBatch("batch-new-2", now.Add(-1*time.Hour), 3)
+	insertBatch("batch-new-3", now.Add(-30*time.Minute), 4)
+
+	if err := Run(database, cfg); err != nil {
+		t.Fatal(err)
+	}
+	itemCount, err := database.Scalar("SELECT COUNT(*) FROM imported_remote_evidence;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if itemCount != "2" {
+		t.Fatalf("expected imported evidence bounded to 2 rows, got %s", itemCount)
+	}
+	batchCount, err := database.Scalar("SELECT COUNT(*) FROM remote_import_batches;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batchCount != "2" {
+		t.Fatalf("expected remote import batches bounded to 2 rows, got %s", batchCount)
+	}
+}

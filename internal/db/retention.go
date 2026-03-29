@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mel-project/mel/internal/selfobs"
@@ -52,6 +53,44 @@ DELETE FROM control_decisions WHERE id IN (
 );
 COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows)
 	return d.Exec(sql)
+}
+
+// PruneImportedRemoteEvidence removes stale imported remote-evidence rows and enforces
+// bounded storage on import batches and item rows.
+func (d *DB) PruneImportedRemoteEvidence(cutoff time.Time, maxRows int) error {
+	if d == nil {
+		return nil
+	}
+	if maxRows <= 0 {
+		maxRows = 50000
+	}
+	cutoffSQL := cutoff.UTC().Format(time.RFC3339)
+	sql := fmt.Sprintf(`BEGIN IMMEDIATE;
+DELETE FROM imported_remote_evidence WHERE imported_at < '%s';
+DELETE FROM imported_remote_evidence WHERE id IN (
+	SELECT id FROM imported_remote_evidence ORDER BY imported_at DESC, id DESC LIMIT -1 OFFSET %d
+);
+DELETE FROM remote_import_batches WHERE imported_at < '%s' AND id NOT IN (
+	SELECT DISTINCT batch_id FROM imported_remote_evidence
+);
+DELETE FROM remote_import_batches WHERE id IN (
+	SELECT id FROM remote_import_batches ORDER BY imported_at DESC, id DESC LIMIT -1 OFFSET %d
+) AND id NOT IN (
+	SELECT DISTINCT batch_id FROM imported_remote_evidence
+);
+DELETE FROM timeline_events
+WHERE import_id != ''
+  AND event_time < '%s'
+  AND import_id NOT IN (SELECT id FROM imported_remote_evidence)
+  AND import_id NOT IN (SELECT id FROM remote_import_batches);
+COMMIT;`, esc(cutoffSQL), maxRows, esc(cutoffSQL), maxRows, esc(cutoffSQL))
+	if err := d.Exec(sql); err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 func (d *DB) PruneAuditLogs(cutoff time.Time) error {
 	if d == nil {

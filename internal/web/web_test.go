@@ -588,6 +588,13 @@ func TestFleetImportBatchEndpointsExposeOfflineAuditDetails(t *testing.T) {
 	if item["batch_id"] != batchID {
 		t.Fatalf("expected item to retain batch id, got %#v", item)
 	}
+	pagination, ok := detailPayload["pagination"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected pagination payload, got %#v", detailPayload["pagination"])
+	}
+	if pagination["total"] != float64(1) || pagination["returned"] != float64(1) {
+		t.Fatalf("expected pagination totals for single-item batch, got %#v", pagination)
+	}
 	inspection := detailPayload["inspection"].(map[string]any)
 	inspectionBatch := inspection["batch"].(map[string]any)
 	validation := inspectionBatch["validation"].(map[string]any)
@@ -1019,6 +1026,12 @@ func TestTopologyExportIncludesBoundedLimitsAndRedaction(t *testing.T) {
 	}
 	if limits["node_limit"] != float64(1) || limits["nodes_truncated"] != true {
 		t.Fatalf("expected bounded node export metadata, got %#v", limits)
+	}
+	if limits["bookmarks_truncated"] != false || limits["snapshots_truncated"] != false {
+		t.Fatalf("expected explicit non-truncated bookmark/snapshot flags, got %#v", limits)
+	}
+	if payload["export_partial"] != true {
+		t.Fatalf("expected export_partial=true when node export was truncated, got %#v", payload["export_partial"])
 	}
 	nodes, _ := payload["nodes"].([]any)
 	if len(nodes) != 1 {

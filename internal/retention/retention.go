@@ -30,6 +30,9 @@ func Run(database *db.DB, cfg config.Config) error {
 	if err := database.Exec(fmt.Sprintf("DELETE FROM timeline_events WHERE event_time < '%s';", timelineCutoff)); err != nil {
 		return err
 	}
+	if err := database.PruneImportedRemoteEvidence(now.AddDate(0, 0, -cfg.Retention.AuditDays), cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
+		return err
+	}
 	if err := database.PruneTransportIntelligence(time.Now().UTC().AddDate(0, 0, -cfg.Intelligence.Retention.HealthSnapshotDays), cfg.Intelligence.Retention.HealthSnapshotMaxRows); err != nil {
 		return err
 	}
