@@ -398,3 +398,33 @@ func TestCreateBuildsInvestigationCaseDetails(t *testing.T) {
 		t.Fatalf("expected case timing note in support bundle detail, got %+v", first.Case.Timing)
 	}
 }
+
+func TestCreateRedactsImportedEvidencePayloadsWhenExportRedactionEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Scope.SiteID = "site-a"
+	cfg.Privacy.RedactExports = true
+	d, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedSupportRemoteImportFixture(t, cfg, d, "batch-support-redaction")
+
+	b, err := Create(cfg, d, "v-test", "", time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.ImportedRemoteEvidence) != 1 {
+		t.Fatalf("expected imported remote evidence row, got %d", len(b.ImportedRemoteEvidence))
+	}
+	if string(b.ImportedRemoteEvidence[0].Bundle) != `{"redacted":true,"reason":"platform.privacy.redact_exports=true"}` {
+		t.Fatalf("expected bundle payload redacted, got %s", string(b.ImportedRemoteEvidence[0].Bundle))
+	}
+	if b.RemoteEvidenceExchange == nil || len(b.RemoteEvidenceExchange.Items) != 1 {
+		t.Fatalf("expected remote evidence exchange item for redaction test, got %+v", b.RemoteEvidenceExchange)
+	}
+	if b.RemoteEvidenceExchange.Items[0].Evidence.Details == nil || b.RemoteEvidenceExchange.Items[0].Evidence.Details["redacted"] != true {
+		t.Fatalf("expected exchange evidence details redacted, got %+v", b.RemoteEvidenceExchange.Items[0].Evidence.Details)
+	}
+}

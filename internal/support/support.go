@@ -215,6 +215,8 @@ func Create(cfg config.Config, d *db.DB, version string, cfgPath string, process
 
 	if cfg.Privacy.RedactExports {
 		bundle.Messages = redactMessages(messages)
+		bundle.ImportedRemoteEvidence = redactImportedEvidenceRows(bundle.ImportedRemoteEvidence)
+		bundle.RemoteEvidenceExchange = redactRemoteEvidenceExchange(bundle.RemoteEvidenceExchange)
 	}
 
 	return bundle, nil
@@ -410,4 +412,48 @@ func redactMessages(rows []map[string]any) []map[string]any {
 		out = append(out, cloned)
 	}
 	return out
+}
+
+func redactImportedEvidenceRows(rows []db.ImportedRemoteEvidenceRecord) []db.ImportedRemoteEvidenceRecord {
+	if len(rows) == 0 {
+		return rows
+	}
+	out := make([]db.ImportedRemoteEvidenceRecord, 0, len(rows))
+	redactedJSON := json.RawMessage(`{"redacted":true,"reason":"platform.privacy.redact_exports=true"}`)
+	for _, row := range rows {
+		cloned := row
+		cloned.Bundle = append(json.RawMessage(nil), redactedJSON...)
+		cloned.Evidence = append(json.RawMessage(nil), redactedJSON...)
+		cloned.Event = append(json.RawMessage(nil), redactedJSON...)
+		cloned.Normalized = append(json.RawMessage(nil), redactedJSON...)
+		out = append(out, cloned)
+	}
+	return out
+}
+
+func redactRemoteEvidenceExchange(batch *fleet.RemoteEvidenceBatch) *fleet.RemoteEvidenceBatch {
+	if batch == nil {
+		return nil
+	}
+	out := *batch
+	items := make([]fleet.RemoteEvidenceBundle, 0, len(batch.Items))
+	for _, item := range batch.Items {
+		cloned := item
+		cloned.ImportContext = fleet.RemoteEvidenceImportContext{}
+		cloned.Evidence.Details = map[string]any{
+			"redacted": true,
+			"reason":   "platform.privacy.redact_exports=true",
+		}
+		if cloned.Event != nil {
+			ev := *cloned.Event
+			ev.Details = map[string]any{
+				"redacted": true,
+				"reason":   "platform.privacy.redact_exports=true",
+			}
+			cloned.Event = &ev
+		}
+		items = append(items, cloned)
+	}
+	out.Items = items
+	return &out
 }

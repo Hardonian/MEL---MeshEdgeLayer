@@ -224,12 +224,33 @@ func (s *Server) fleetImportBatchGetHandler(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusNotFound, "import batch not found", "")
 		return
 	}
+	limit := parseIntOr(r.URL.Query().Get("limit"), 100)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	offset := parseIntOr(r.URL.Query().Get("offset"), 0)
+	if offset < 0 {
+		offset = 0
+	}
 	batchItems, err := s.db.ImportedRemoteEvidenceByBatch(id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load batch items", err.Error())
 		return
 	}
-	allItems, err := s.db.ListImportedRemoteEvidence(1000)
+	totalItems := len(batchItems)
+	start := offset
+	if start > totalItems {
+		start = totalItems
+	}
+	end := start + limit
+	if end > totalItems {
+		end = totalItems
+	}
+	pagedItems := batchItems[start:end]
+	allItems, err := s.db.ListImportedRemoteEvidence(500)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load related import items", err.Error())
 		return
@@ -246,9 +267,18 @@ func (s *Server) fleetImportBatchGetHandler(w http.ResponseWriter, r *http.Reque
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"batch":         batch,
-		"items":         batchItems,
+		"items":         pagedItems,
 		"inspection":    inspection,
 		"truth_posture": truth,
+		"pagination": map[string]any{
+			"limit":          limit,
+			"offset":         offset,
+			"returned":       len(pagedItems),
+			"total":          totalItems,
+			"truncated":      end < totalItems,
+			"max_limit":      500,
+			"related_capped": len(allItems) >= 500,
+		},
 	})
 }
 
