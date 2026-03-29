@@ -32,6 +32,17 @@ func TestPlatformValidationRejectsHiddenTelemetry(t *testing.T) {
 	}
 }
 
+func TestPlatformValidationRequiresExplicitTelemetryOptIn(t *testing.T) {
+	cfg := Default()
+	cfg.Platform.Telemetry.Enabled = true
+	cfg.Platform.Telemetry.AllowOutbound = true
+	cfg.Platform.Telemetry.RequireExplicit = false
+	err := Validate(cfg)
+	if err == nil || !strings.Contains(err.Error(), "require_explicit_opt_in") {
+		t.Fatalf("expected explicit opt-in validation error, got %v", err)
+	}
+}
+
 func TestPlatformValidationRequiresInferenceProvider(t *testing.T) {
 	cfg := Default()
 	cfg.Platform.Inference.Enabled = true
@@ -40,6 +51,18 @@ func TestPlatformValidationRequiresInferenceProvider(t *testing.T) {
 	err := Validate(cfg)
 	if err == nil || !strings.Contains(err.Error(), "default_provider=ollama") {
 		t.Fatalf("expected ollama provider validation error, got %v", err)
+	}
+}
+
+func TestPlatformValidationRequiresConfiguredInferenceRuntimeWhenEnabled(t *testing.T) {
+	cfg := Default()
+	cfg.Platform.Inference.Enabled = true
+	cfg.Platform.Inference.DefaultProvider = "mixed"
+	cfg.Platform.Inference.Ollama.Enabled = false
+	cfg.Platform.Inference.LlamaCPP.Enabled = false
+	err := Validate(cfg)
+	if err == nil || !strings.Contains(err.Error(), "at least one configured runtime provider") {
+		t.Fatalf("expected configured inference provider validation error, got %v", err)
 	}
 }
 

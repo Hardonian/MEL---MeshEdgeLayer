@@ -174,6 +174,12 @@ func validatePlatform(cfg Config) []string {
 	if cfg.Platform.Telemetry.Enabled && !cfg.Platform.Telemetry.AllowOutbound {
 		errs = append(errs, "platform.telemetry.enabled=true requires platform.telemetry.allow_outbound=true")
 	}
+	if cfg.Platform.Telemetry.AllowOutbound && !cfg.Platform.Telemetry.RequireExplicit {
+		errs = append(errs, "platform.telemetry.allow_outbound=true requires platform.telemetry.require_explicit_opt_in=true")
+	}
+	if cfg.Platform.Telemetry.Enabled && !cfg.Platform.Telemetry.RequireExplicit {
+		errs = append(errs, "platform.telemetry.enabled=true requires platform.telemetry.require_explicit_opt_in=true")
+	}
 	if cfg.Platform.Retention.DefaultDays < 1 || cfg.Platform.Retention.DefaultDays > 365 {
 		errs = append(errs, "platform.retention.default_days must be between 1 and 365")
 	}
@@ -205,6 +211,11 @@ func validatePlatform(cfg Config) []string {
 		}
 		if cfg.Platform.Inference.DefaultProvider == "llama.cpp" && !cfg.Platform.Inference.LlamaCPP.Enabled {
 			errs = append(errs, "platform.inference.default_provider=llama.cpp requires platform.inference.llama_cpp.enabled=true")
+		}
+		ollamaReady := cfg.Platform.Inference.Ollama.Enabled && strings.TrimSpace(cfg.Platform.Inference.Ollama.Endpoint) != ""
+		llamaReady := cfg.Platform.Inference.LlamaCPP.Enabled && strings.TrimSpace(cfg.Platform.Inference.LlamaCPP.Endpoint) != ""
+		if !ollamaReady && !llamaReady {
+			errs = append(errs, "platform.inference.enabled=true requires at least one configured runtime provider (ollama or llama.cpp)")
 		}
 	}
 	strategy := cfg.Platform.Inference.Compression.DefaultStrategy

@@ -883,6 +883,9 @@ func TestProofpackDownloadFilename_FallbackWhenTimestampMissing(t *testing.T) {
 
 func TestPlatformPostureEndpoint(t *testing.T) {
 	srv := newTestServer(t, nil, nil)
+	srv.cfg.Platform.Inference.Enabled = true
+	srv.cfg.Platform.Inference.Ollama.Enabled = false
+	srv.cfg.Platform.Inference.LlamaCPP.Enabled = false
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/platform/posture", nil)
 	rec := httptest.NewRecorder()
 	srv.http.Handler.ServeHTTP(rec, req)
@@ -895,6 +898,16 @@ func TestPlatformPostureEndpoint(t *testing.T) {
 	}
 	if payload["platform_posture"] == nil {
 		t.Fatalf("missing platform_posture: %#v", payload)
+	}
+	posture, ok := payload["platform_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("platform_posture wrong type: %T", payload["platform_posture"])
+	}
+	if posture["inference_degraded"] != true {
+		t.Fatalf("expected inference_degraded=true, got %#v", posture["inference_degraded"])
+	}
+	if posture["export_redaction_enabled"] != true {
+		t.Fatalf("expected export_redaction_enabled=true, got %#v", posture["export_redaction_enabled"])
 	}
 }
 

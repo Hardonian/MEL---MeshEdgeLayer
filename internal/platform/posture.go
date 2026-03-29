@@ -39,10 +39,15 @@ type PlatformPosture struct {
 	TelemetryEnabled       bool                   `json:"telemetry_enabled"`
 	TelemetryOutbound      bool                   `json:"telemetry_outbound"`
 	TelemetryExplicitOptIn bool                   `json:"telemetry_require_explicit_opt_in"`
+	TelemetryStatus        string                 `json:"telemetry_status"`
 	RetentionDefaultDays   int                    `json:"retention_default_days"`
 	Retention              config.RetentionConfig `json:"retention"`
 	EvidenceExportDelete   ExportDeleteSemantics  `json:"evidence_export_delete"`
+	ExportRedactionEnabled bool                   `json:"export_redaction_enabled"`
 	InferenceEnabled       bool                   `json:"inference_enabled"`
+	InferenceRuntimeReady  bool                   `json:"inference_runtime_ready"`
+	InferenceDegraded      bool                   `json:"inference_degraded"`
+	InferenceCaveat        string                 `json:"inference_caveat,omitempty"`
 	InferenceProviders     []ProviderPosture      `json:"inference_providers"`
 	AssistPolicies         []AssistTaskPolicy     `json:"assist_policies"`
 }
@@ -107,12 +112,34 @@ func BuildPosture(cfg config.Config) PlatformPosture {
 		providerFromConfig("ollama", cfg.Platform.Inference.Ollama),
 		providerFromConfig("llama.cpp", cfg.Platform.Inference.LlamaCPP),
 	}
+	runtimeReady := false
+	for _, p := range providers {
+		if p.AvailableByConfig {
+			runtimeReady = true
+			break
+		}
+	}
+	inferenceDegraded := cfg.Platform.Inference.Enabled && !runtimeReady
+	inferenceCaveat := ""
+	if inferenceDegraded {
+		inferenceCaveat = "Inference is enabled but no runtime provider is available by config; assistive output is unavailable and canonical MEL truth remains deterministic."
+	}
+	telemetryStatus := "disabled"
+	switch {
+	case cfg.Platform.Telemetry.Enabled && cfg.Platform.Telemetry.AllowOutbound:
+		telemetryStatus = "enabled"
+	case !cfg.Platform.Telemetry.Enabled && cfg.Platform.Telemetry.AllowOutbound:
+		telemetryStatus = "degraded"
+	case cfg.Platform.Telemetry.Enabled && !cfg.Platform.Telemetry.AllowOutbound:
+		telemetryStatus = "degraded"
+	}
 
 	return PlatformPosture{
 		Mode:                   cfg.Platform.Mode,
 		TelemetryEnabled:       cfg.Platform.Telemetry.Enabled,
 		TelemetryOutbound:      cfg.Platform.Telemetry.AllowOutbound,
 		TelemetryExplicitOptIn: cfg.Platform.Telemetry.RequireExplicit,
+		TelemetryStatus:        telemetryStatus,
 		RetentionDefaultDays:   cfg.Platform.Retention.DefaultDays,
 		Retention:              cfg.Retention,
 		EvidenceExportDelete: ExportDeleteSemantics{
@@ -121,9 +148,13 @@ func BuildPosture(cfg config.Config) PlatformPosture {
 			DeleteScope:   deleteScope,
 			DeleteCaveat:  deleteCaveat,
 		},
-		InferenceEnabled:   cfg.Platform.Inference.Enabled,
-		InferenceProviders: providers,
-		AssistPolicies:     assist,
+		ExportRedactionEnabled: cfg.Privacy.RedactExports,
+		InferenceEnabled:       cfg.Platform.Inference.Enabled,
+		InferenceRuntimeReady:  runtimeReady,
+		InferenceDegraded:      inferenceDegraded,
+		InferenceCaveat:        inferenceCaveat,
+		InferenceProviders:     providers,
+		AssistPolicies:         assist,
 	}
 }
 
