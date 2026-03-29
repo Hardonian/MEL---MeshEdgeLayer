@@ -35,6 +35,19 @@ func (a *App) AssembleProofpack(incidentID, actorID string) (map[string]any, err
 	if err != nil {
 		return nil, err
 	}
+	if inc, ok, err := a.IncidentByID(incidentID); err == nil && ok && inc.Intelligence != nil && inc.Intelligence.WirelessContext != nil {
+		w := inc.Intelligence.WirelessContext
+		pack.Incident.WirelessContext = &proofpack.ProofpackWirelessContext{
+			Classification:    w.Classification,
+			PrimaryDomain:     w.PrimaryDomain,
+			ObservedDomains:   append([]string(nil), w.ObservedDomains...),
+			EvidencePosture:   w.EvidencePosture,
+			ConfidencePosture: w.ConfidencePosture,
+			Summary:           w.Summary,
+			EvidenceGaps:      append([]string(nil), w.EvidenceGaps...),
+			InspectNext:       append([]string(nil), w.InspectNext...),
+		}
+	}
 
 	// Serialize to map for JSON response (avoids double-encoding).
 	raw, err := json.Marshal(pack)
@@ -66,10 +79,10 @@ func (a *App) AssembleProofpack(incidentID, actorID string) (map[string]any, err
 		ActorID:    actorID,
 		ResourceID: incidentID,
 		Details: map[string]any{
-			"incident_id":   incidentID,
-			"action_count":  pack.Assembly.ActionCount,
+			"incident_id":    incidentID,
+			"action_count":   pack.Assembly.ActionCount,
 			"timeline_count": pack.Assembly.TimelineCount,
-			"gap_count":     pack.Assembly.EvidenceGapCount,
+			"gap_count":      pack.Assembly.EvidenceGapCount,
 		},
 	})
 

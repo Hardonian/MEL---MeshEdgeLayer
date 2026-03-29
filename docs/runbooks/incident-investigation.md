@@ -125,6 +125,16 @@ When `action_outcome_memory[]` is present on an incident, treat it as historical
 - `mixed_historical_evidence`, `insufficient_evidence`, and `no_clear_post_action_signal` are distinct caution states and should not be collapsed into "healthy" or "safe to execute".
 - `inspect_before_reuse[]` is an operator review requirement before reusing the action pattern in a live incident.
 
+### Reading mixed wireless context (incident intelligence)
+
+When `wireless_context` is present on an incident, treat it as a deterministic context summary — not RF root-cause proof.
+
+- `classification` is bounded to operator-facing categories (`lora_mesh_pressure`, `wifi_backhaul_instability`, `mixed_path_degradation`, `sparse_evidence_incident`, `unsupported_wireless_domain_observed`, `recurring_unknown_pattern`).
+- `observed_domains[]` is term/evidence linked context, not a claim that MEL has full telemetry for every domain.
+- `confidence_posture` and `evidence_posture` must be read together; `sparse`/`unsupported` means MEL is preserving evidence without strong diagnosis.
+- `unsupported[]` explicitly marks domains MEL cannot currently diagnose directly (for example BLE ingest).
+- `evidence_gaps[]` carries machine-visible uncertainty markers; do not collapse these to "healthy" or "known cause."
+
 ## Step 4: Control action audit
 
 ```bash
