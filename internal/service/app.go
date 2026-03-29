@@ -912,6 +912,10 @@ func findTransport(cfg config.Config, name string) config.TransportConfig {
 }
 
 func (a *App) ingest(t transport.Transport, topic string, payload []byte) error {
+	if st := a.transportControls[t.Name()]; st != nil {
+		st.deprioritizeSleep()
+	}
+	now := time.Now().UTC()
 	env, err := meshtastic.ParseEnvelope(payload)
 	if err != nil {
 		a.Log.Error("ingest_dropped", "failed to parse packet", map[string]any{"transport": t.Name(), "error": err.Error()})
@@ -920,6 +924,14 @@ func (a *App) ingest(t transport.Transport, topic string, payload []byte) error 
 		a.emitTransportObservation(cfgTransport, transport.NewObservation(t.Name(), cfgTransport.Type, topic, transport.ReasonDecodeFailure, payload, true, "failed to parse packet", map[string]any{"error": err.Error(), "stage": "parse_envelope", "unrecoverable": true}))
 		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
 		return err
+	}
+	if st := a.transportControls[t.Name()]; st != nil && st.shouldDropSuppressed(int64(env.Packet.From), now) {
+		a.Log.Info("ingest_suppressed", "dropped packet under active source suppression window", map[string]any{"transport": t.Name(), "from_node": env.Packet.From})
+		t.MarkDrop("source suppressed by guarded control")
+		cfgTransport := findTransport(a.Cfg, t.Name())
+		a.emitTransportObservation(cfgTransport, transport.NewObservation(t.Name(), cfgTransport.Type, topic, transport.ReasonHandlerRejection, payload, false, "ingest suppressed for attributed noisy source", map[string]any{"from_node": env.Packet.From, "control": "temporarily_suppress_noisy_source"}))
+		a.syncTransportRuntime(findTransport(a.Cfg, t.Name()), t)
+		return nil
 	}
 	rxAt := time.Now().UTC()
 	rxTime := time.Unix(int64(env.Packet.RXTime), 0).UTC().Format(time.RFC3339)
@@ -1046,8 +1058,6 @@ func buildPayloadEnvelope(transportName, topic string, env meshtastic.Envelope) 
 	}
 	return messageType, payloadJSON, telemetryType, telemetryValue
 }
-
-
 
 func enabledTransportConfigs(cfg config.Config) []config.TransportConfig {
 	out := make([]config.TransportConfig, 0, len(cfg.Transports))

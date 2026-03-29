@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,148 @@ func DefaultThresholds() DiagnosticThresholds {
 	}
 }
 
+func maxUint64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func parseRFC3339OrZero(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+func pickNewerRFC3339(a, b string) string {
+	ta, tb := parseRFC3339OrZero(a), parseRFC3339OrZero(b)
+	switch {
+	case ta.IsZero() && tb.IsZero():
+		return ""
+	case ta.IsZero():
+		return b
+	case tb.IsZero():
+		return a
+	case tb.After(ta):
+		return b
+	default:
+		return a
+	}
+}
+
+func pickNonEmpty(preferred, fallback string) string {
+	if strings.TrimSpace(preferred) != "" {
+		return preferred
+	}
+	return fallback
+}
+
+// runtimeTransportFromHealth maps in-process transport health into the shared TransportRuntime shape.
+func runtimeTransportFromHealth(h transport.Health) db.TransportRuntime {
+	return db.TransportRuntime{
+		Name:                h.Name,
+		Type:                h.Type,
+		Source:              h.Source,
+		State:               h.State,
+		Detail:              h.Detail,
+		LastAttemptAt:       h.LastAttemptAt,
+		LastConnectedAt:     h.LastConnectedAt,
+		LastSuccessAt:       h.LastSuccessAt,
+		LastMessageAt:       h.LastIngestAt,
+		LastHeartbeatAt:     h.LastHeartbeatAt,
+		LastFailureAt:       h.LastFailureAt,
+		LastObservationDrop: h.LastObservationDropAt,
+		LastError:           h.LastError,
+		EpisodeID:           h.EpisodeID,
+		TotalMessages:       h.TotalMessages,
+		PacketsDropped:      h.PacketsDropped,
+		Reconnects:          h.ReconnectAttempts,
+		Timeouts:            h.ConsecutiveTimeouts,
+		FailureCount:        h.FailureCount,
+		ObservationDrops:    h.ObservationDrops,
+	}
+}
+
+// mergeTransportRuntimeEvidence prefers live connection fields from the process while taking the
+// maximum of cumulative counters and the newest RFC3339 timestamps across DB and runtime.
+func mergeTransportRuntimeEvidence(live, persisted db.TransportRuntime) db.TransportRuntime {
+	out := persisted
+	if strings.TrimSpace(live.Name) != "" {
+		out.Name = live.Name
+	}
+	out.Type = pickNonEmpty(live.Type, out.Type)
+	out.Source = pickNonEmpty(live.Source, out.Source)
+	out.State = pickNonEmpty(live.State, out.State)
+	out.Detail = pickNonEmpty(live.Detail, out.Detail)
+	out.LastAttemptAt = pickNewerRFC3339(live.LastAttemptAt, out.LastAttemptAt)
+	out.LastConnectedAt = pickNewerRFC3339(live.LastConnectedAt, out.LastConnectedAt)
+	out.LastSuccessAt = pickNewerRFC3339(live.LastSuccessAt, out.LastSuccessAt)
+	out.LastMessageAt = pickNewerRFC3339(live.LastMessageAt, out.LastMessageAt)
+	out.LastHeartbeatAt = pickNewerRFC3339(live.LastHeartbeatAt, out.LastHeartbeatAt)
+	out.LastFailureAt = pickNewerRFC3339(live.LastFailureAt, out.LastFailureAt)
+	out.LastObservationDrop = pickNewerRFC3339(live.LastObservationDrop, out.LastObservationDrop)
+	out.LastError = pickNonEmpty(live.LastError, out.LastError)
+	out.EpisodeID = pickNonEmpty(live.EpisodeID, out.EpisodeID)
+	out.TotalMessages = maxUint64(live.TotalMessages, out.TotalMessages)
+	out.PacketsDropped = maxUint64(live.PacketsDropped, out.PacketsDropped)
+	out.Reconnects = maxUint64(live.Reconnects, out.Reconnects)
+	out.Timeouts = maxUint64(live.Timeouts, out.Timeouts)
+	out.FailureCount = maxUint64(live.FailureCount, out.FailureCount)
+	out.ObservationDrops = maxUint64(live.ObservationDrops, out.ObservationDrops)
+	out.UpdatedAt = pickNewerRFC3339(live.UpdatedAt, out.UpdatedAt)
+	if persisted.Name == "" && strings.TrimSpace(live.Name) != "" {
+		out.Enabled = true
+	} else {
+		out.Enabled = persisted.Enabled
+	}
+	return out
+}
+
+// mergeResolvedTransportStates combines live transport.Health with persisted sqlite rows so checks
+// see both process truth and cumulative counters (dead letters, observation drops, reconnects).
+func mergeResolvedTransportStates(live []transport.Health, persisted []db.TransportRuntime) []db.TransportRuntime {
+	byName := make(map[string]db.TransportRuntime)
+	for _, p := range persisted {
+		if strings.TrimSpace(p.Name) == "" {
+			continue
+		}
+		byName[p.Name] = p
+	}
+	merged := make(map[string]db.TransportRuntime)
+	order := make([]string, 0, len(byName)+len(live))
+	seen := make(map[string]struct{})
+	for _, h := range live {
+		name := strings.TrimSpace(h.Name)
+		if name == "" {
+			continue
+		}
+		liveRow := runtimeTransportFromHealth(h)
+		combined := mergeTransportRuntimeEvidence(liveRow, byName[name])
+		merged[name] = combined
+		seen[name] = struct{}{}
+		order = append(order, name)
+	}
+	for name, p := range byName {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		merged[name] = p
+		order = append(order, name)
+	}
+	sort.Strings(order)
+	out := make([]db.TransportRuntime, 0, len(merged))
+	for _, name := range order {
+		out = append(out, merged[name])
+	}
+	return out
+}
+
 // RunAllChecks runs all diagnostic checks and returns a diagnostic report
 func RunAllChecks(
 	cfg config.Config,
@@ -64,8 +207,16 @@ func RunAllChecks(
 	thresholds := DefaultThresholds()
 	diagnostics := []Diagnostic{}
 
+	persisted := transportStates
+	if len(persisted) == 0 && database != nil {
+		if rows, err := database.TransportRuntimeStatuses(); err == nil {
+			persisted = rows
+		}
+	}
+	resolvedTransport := mergeResolvedTransportStates(runtimeTransports, persisted)
+
 	// Run transport checks
-	diagnostics = append(diagnostics, checkTransports(cfg, runtimeTransports, transportStates, thresholds, now)...)
+	diagnostics = append(diagnostics, checkTransports(cfg, runtimeTransports, resolvedTransport, thresholds, now)...)
 
 	// Run database checks
 	diagnostics = append(diagnostics, checkDatabase(cfg, database, thresholds, now)...)
@@ -89,7 +240,7 @@ func RunAllChecks(
 	rawEvidence := map[string]any{
 		"thresholds":      thresholds,
 		"config_mode":     cfg.Control.Mode,
-		"transport_count": len(transportStates),
+		"transport_count": len(resolvedTransport),
 	}
 
 	return DiagnosticReport{

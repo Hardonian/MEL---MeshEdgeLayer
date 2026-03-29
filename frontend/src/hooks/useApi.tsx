@@ -7,13 +7,13 @@ import type {
   Recommendation,
   AuditLog,
   NodeInfo,
-  Finding,
   ControlStatusResponse,
   ControlHistoryResponse,
   ControlOperationalStateResponse,
   ControlRealityMatrixItem,
   MeshNodeControlAction,
 } from '@/types/api'
+import { parseDiagnosticsFindingsFromApi, type DiagnosticsApiFinding } from '@/utils/apiResilience'
 
 // API Base URL - uses relative path for proxy
 const API_BASE = '/api'
@@ -164,7 +164,7 @@ interface ApiContextValue {
   refreshEvents: () => Promise<void>
 
   // Diagnostics
-  diagnostics: ApiState<Finding[]>
+  diagnostics: ApiState<DiagnosticsApiFinding[]>
   refreshDiagnostics: () => Promise<void>
   
   // Global refresh
@@ -181,7 +181,12 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   const [privacyFindings, setPrivacyFindings] = useState<ApiState<PrivacyFinding[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [recommendations, setRecommendations] = useState<ApiState<Recommendation[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [events, setEvents] = useState<ApiState<AuditLog[]>>({ data: null, loading: true, error: null, lastUpdated: null })
-  const [diagnostics, setDiagnostics] = useState<ApiState<Finding[]>>({ data: null, loading: true, error: null, lastUpdated: null })
+  const [diagnostics, setDiagnostics] = useState<ApiState<DiagnosticsApiFinding[]>>({
+    data: null,
+    loading: true,
+    error: null,
+    lastUpdated: null,
+  })
 
   const refreshStatus = useCallback(async () => {
     setStatus(s => ({ ...s, loading: true, error: null }))
@@ -276,8 +281,9 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_BASE}/v1/diagnostics`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      setDiagnostics({ data: data || [], loading: false, error: null, lastUpdated: new Date() })
+      const raw = await res.json()
+      const list = parseDiagnosticsFindingsFromApi(raw)
+      setDiagnostics({ data: list, loading: false, error: null, lastUpdated: new Date() })
     } catch (e) {
       setDiagnostics(s => ({ ...s, loading: false, error: e instanceof Error ? e.message : 'Failed to fetch diagnostics' }))
     }

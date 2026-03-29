@@ -160,16 +160,13 @@ func TestEvaluateAdvisoryDeniesAutomationOnManualOnlyTransport(t *testing.T) {
 
 func TestDefaultActionRealityMatrixKeepsOnlySafeActuatorsExecutable(t *testing.T) {
 	matrix := ActionRealityByType()
-	for _, actionType := range []string{ActionRestartTransport, ActionResubscribeTransport, ActionBackoffIncrease, ActionBackoffReset, ActionTriggerHealthRecheck} {
+	for _, actionType := range []string{
+		ActionRestartTransport, ActionResubscribeTransport, ActionBackoffIncrease, ActionBackoffReset,
+		ActionTriggerHealthRecheck, ActionTemporarilyDeprioritize, ActionTemporarilySuppressNoisySource, ActionClearSuppression,
+	} {
 		item := matrix[actionType]
 		if !item.ActuatorExists || !item.Reversible || !item.BlastRadiusKnown || !item.SafeForGuardedAuto || item.AdvisoryOnly {
 			t.Fatalf("expected %s to remain executable, got %+v", actionType, item)
-		}
-	}
-	for _, actionType := range []string{ActionTemporarilyDeprioritize, ActionTemporarilySuppressNoisySource, ActionClearSuppression} {
-		item := matrix[actionType]
-		if !item.AdvisoryOnly || item.SafeForGuardedAuto {
-			t.Fatalf("expected %s to remain advisory-only, got %+v", actionType, item)
 		}
 	}
 }

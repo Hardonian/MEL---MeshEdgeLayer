@@ -17,6 +17,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if err := config.ValidateProductionDeploy(cfg); err != nil {
+		panic(err)
+	}
 	app, err := service.New(cfg, false)
 	if err != nil {
 		panic(err)

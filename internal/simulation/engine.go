@@ -528,48 +528,54 @@ func (e *Engine) predictHealthRecheckOutcome(action control.ControlAction, curre
 }
 
 func (e *Engine) predictDeprioritizeOutcome(action control.ControlAction, currentState string, health transport.Health, mesh status.MeshDrilldown) PredictedOutcome {
-	// This is advisory-only in current implementation
 	return PredictedOutcome{
-		SuccessProbability: 0.0,
+		SuccessProbability: 0.85,
 		ExpectedState:      currentState,
 		ExpectedDuration:   0,
-		SideEffects:        []PredictedEffect{},
-		Explanation:        "Deprioritization is advisory-only; no routing changes applied",
+		SideEffects: []PredictedEffect{
+			{Component: "ingest", Effect: "Adds bounded per-packet delay in MEL ingest workers for the target transport until expiry"},
+		},
+		Explanation: "MEL applies ingest-side deprioritization only; Meshtastic RF routing is unchanged",
 		RollbackCapability: RollbackInfo{
-			Reversible: true,
-			Automatic:  true,
-			Notes:      "No changes made, advisory only",
+			Reversible:       true,
+			Automatic:        true,
+			RollbackDuration: 0,
+			Notes:            "Expires automatically; clear_suppression or transport restart also clears state",
 		},
 	}
 }
 
 func (e *Engine) predictSuppressOutcome(action control.ControlAction, currentState string, health transport.Health, mesh status.MeshDrilldown) PredictedOutcome {
-	// This is advisory-only in current implementation
 	return PredictedOutcome{
-		SuccessProbability: 0.0,
+		SuccessProbability: 0.8,
 		ExpectedState:      currentState,
 		ExpectedDuration:   0,
-		SideEffects:        []PredictedEffect{},
-		Explanation:        "Source suppression is advisory-only; no filtering applied",
+		SideEffects: []PredictedEffect{
+			{Component: "ingest", Effect: "Decoded packets from target_node on the named transport are dropped until expiry (no SQLite write)"},
+		},
+		Explanation: "Ingest-level drop for one attributed node; mesh RF and other observers may still see traffic",
 		RollbackCapability: RollbackInfo{
-			Reversible: true,
-			Automatic:  true,
-			Notes:      "No changes made, advisory only",
+			Reversible:       true,
+			Automatic:        true,
+			RollbackDuration: 0,
+			Notes:            "Expires automatically; clear_suppression clears windows",
 		},
 	}
 }
 
 func (e *Engine) predictClearSuppressionOutcome(action control.ControlAction, currentState string, health transport.Health) PredictedOutcome {
 	return PredictedOutcome{
-		SuccessProbability: 0.0,
+		SuccessProbability: 0.95,
 		ExpectedState:      currentState,
 		ExpectedDuration:   0,
-		SideEffects:        []PredictedEffect{},
-		Explanation:        "Clear suppression is advisory-only; suppression not implemented",
+		SideEffects: []PredictedEffect{
+			{Component: "ingest", Effect: "Clears deprioritization and per-node suppression windows for the transport"},
+		},
+		Explanation: "Restores normal ingest timing and stops dropping suppressed node packets",
 		RollbackCapability: RollbackInfo{
 			Reversible: true,
 			Automatic:  true,
-			Notes:      "No changes made, advisory only",
+			Notes:      "Minimal risk; only clears local MEL ingest actuator state",
 		},
 	}
 }

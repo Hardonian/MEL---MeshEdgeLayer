@@ -25,7 +25,10 @@ mkdir -p .tmp/data
 (./bin/mel serve --debug --config "$CFG" >.tmp/agent.log 2>&1 & echo $! >.tmp/agent.pid)
 sleep 2
 curl -fsS http://127.0.0.1:8080/healthz >/dev/null
+curl -fsS http://127.0.0.1:8080/readyz >/dev/null || true
+curl -fsS http://127.0.0.1:8080/api/v1/readyz >/dev/null || true
 curl -fsS http://127.0.0.1:8080/api/v1/status >/dev/null
+curl -fsS http://127.0.0.1:8080/api/v1/diagnostics >/dev/null
 curl -fsS http://127.0.0.1:8080/api/v1/messages >/dev/null
 curl -fsS http://127.0.0.1:8080/metrics >/dev/null
 kill "$(cat .tmp/agent.pid)"

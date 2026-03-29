@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ type transportControlState struct {
 	backoffMultiplier  int
 	backoffUntil       time.Time
 	deprioritizedUntil time.Time
+	suppressedNode     int64
 	suppressedUntil    time.Time
 	interruptCh        chan struct{}
 }
@@ -55,13 +57,61 @@ func (s *transportControlState) clearBackoff() {
 	s.backoffUntil = time.Time{}
 }
 
-
-
 func (s *transportControlState) interrupt() {
 	select {
 	case s.interruptCh <- struct{}{}:
 	default:
 	}
+}
+
+func (s *transportControlState) setDeprioritizeUntil(until time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if until.After(s.deprioritizedUntil) {
+		s.deprioritizedUntil = until
+	}
+}
+
+func (s *transportControlState) setSuppressNode(node int64, until time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if node <= 0 {
+		return
+	}
+	s.suppressedNode = node
+	s.suppressedUntil = until
+}
+
+func (s *transportControlState) clearIngestActuators() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deprioritizedUntil = time.Time{}
+	s.suppressedNode = 0
+	s.suppressedUntil = time.Time{}
+}
+
+// deprioritizeSleep adds a bounded per-packet delay while a deprioritization window is active.
+func (s *transportControlState) deprioritizeSleep() {
+	now := time.Now().UTC()
+	s.mu.Lock()
+	active := !s.deprioritizedUntil.IsZero() && now.Before(s.deprioritizedUntil)
+	s.mu.Unlock()
+	if !active {
+		return
+	}
+	time.Sleep(500 * time.Millisecond)
+}
+
+func (s *transportControlState) shouldDropSuppressed(fromNode int64, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.suppressedNode <= 0 || fromNode <= 0 {
+		return false
+	}
+	if s.suppressedUntil.IsZero() || !now.Before(s.suppressedUntil) {
+		return false
+	}
+	return fromNode == s.suppressedNode
 }
 
 func (a *App) controlExplanation() (map[string]any, error) {
@@ -575,11 +625,41 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 			result, detail = control.ResultFailedTerminal, "target transport not found"
 		}
 	case control.ActionTemporarilyDeprioritize:
-		result, detail = control.ResultDeniedByPolicy, "routing selector is not implemented; deprioritization stays advisory-only"
+		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
+			until, ok := parseRFC3339(action.ExpiresAt)
+			if !ok || until.IsZero() {
+				until = time.Now().UTC().Add(15 * time.Minute)
+				action.ExpiresAt = until.Format(time.RFC3339)
+			}
+			st.setDeprioritizeUntil(until)
+			result, detail = control.ResultExecutedSuccessfully, "MEL ingest deprioritization active until expiry (bounded worker delay per packet; does not change Meshtastic routing)"
+		} else {
+			result, detail = control.ResultFailedTerminal, "target transport not found"
+		}
 	case control.ActionTemporarilySuppressNoisySource:
-		result, detail = control.ResultDeniedByPolicy, "source suppression actuator is not implemented; suppression stays advisory-only"
+		nodeNum, err := strconv.ParseInt(strings.TrimSpace(action.TargetNode), 10, 64)
+		if err != nil || nodeNum <= 0 {
+			result, detail = control.ResultFailedTerminal, "target_node must be a positive Meshtastic node number for ingest-level suppression"
+			break
+		}
+		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
+			until, ok := parseRFC3339(action.ExpiresAt)
+			if !ok || until.IsZero() {
+				until = time.Now().UTC().Add(10 * time.Minute)
+				action.ExpiresAt = until.Format(time.RFC3339)
+			}
+			st.setSuppressNode(nodeNum, until)
+			result, detail = control.ResultExecutedSuccessfully, fmt.Sprintf("ingest from node %d dropped on transport %s until expiry (RF path unchanged)", nodeNum, action.TargetTransport)
+		} else {
+			result, detail = control.ResultFailedTerminal, "target transport not found"
+		}
 	case control.ActionClearSuppression:
-		result, detail = control.ResultDeniedByPolicy, "clear_suppression is unavailable because suppression is not implemented as a real actuator"
+		if _, st := a.findTransportAndControl(action.TargetTransport); st != nil {
+			st.clearIngestActuators()
+			result, detail = control.ResultExecutedSuccessfully, "cleared ingest deprioritization and source suppression for transport"
+		} else {
+			result, detail = control.ResultFailedTerminal, "target transport not found"
+		}
 	case control.ActionTriggerHealthRecheck:
 		go a.evaluateTransportIntelligence(time.Now().UTC())
 		result, detail = control.ResultExecutedSuccessfully, "scheduled asynchronous health recheck outside the ingest hot path"
@@ -599,7 +679,9 @@ func (a *App) executeControlAction(ctx context.Context, action control.ControlAc
 	action.Result = result
 	action.OutcomeDetail = detail
 	switch action.ActionType {
-	case control.ActionBackoffReset, control.ActionTriggerHealthRecheck:
+	case control.ActionBackoffReset, control.ActionTriggerHealthRecheck,
+		control.ActionTemporarilyDeprioritize, control.ActionTemporarilySuppressNoisySource,
+		control.ActionClearSuppression:
 		if result == control.ResultExecutedSuccessfully {
 			action.ClosureState = control.ClosureRecoveredAndClosed
 		}
@@ -667,55 +749,55 @@ func controlActionRecord(action control.ControlAction) db.ControlActionRecord {
 		submittedBy = proposedBy
 	}
 	return db.ControlActionRecord{
-		ID:                       action.ID,
-		DecisionID:               action.DecisionID,
-		ActionType:               action.ActionType,
-		TargetTransport:          action.TargetTransport,
-		TargetSegment:            action.TargetSegment,
-		TargetNode:               action.TargetNode,
-		Reason:                   action.Reason,
-		Confidence:               action.Confidence,
-		TriggerEvidence:          append([]string(nil), action.TriggerEvidence...),
-		EpisodeID:                action.EpisodeID,
-		CreatedAt:                action.CreatedAt,
-		ExecutedAt:               action.ExecutedAt,
-		CompletedAt:              action.CompletedAt,
-		Result:                   action.Result,
-		Reversible:               action.Reversible,
-		ExpiresAt:                action.ExpiresAt,
-		OutcomeDetail:            action.OutcomeDetail,
-		Mode:                     action.Mode,
-		PolicyRule:               action.PolicyRule,
-		LifecycleState:           action.LifecycleState,
-		AdvisoryOnly:             action.AdvisoryOnly,
-		DenialCode:               action.DenialCode,
-		ClosureState:             action.ClosureState,
-		Metadata:                 action.Metadata,
-		ExecutionMode:            execMode,
-		ProposedBy:               proposedBy,
-		ApprovedBy:               action.ApprovedBy,
-		ApprovedAt:               action.ApprovedAt,
-		RejectedBy:               action.RejectedBy,
-		RejectedAt:               action.RejectedAt,
-		ApprovalNote:             action.ApprovalNote,
-		ApprovalExpiresAt:        action.ApprovalExpiresAt,
-		BlastRadiusClass:         blastClass,
-		EvidenceBundleID:         action.EvidenceBundleID,
-		SubmittedBy:              submittedBy,
-		RequiresSeparateApprover: action.RequiresSeparateApprover,
-		IncidentID:               action.IncidentID,
-		ExecutionStartedAt:       action.ExecutionStartedAt,
-		SodBypass:                action.SodBypass,
-		SodBypassActor:           action.SodBypassActor,
-		SodBypassReason:          action.SodBypassReason,
-		ApprovalMode:                     action.ApprovalMode,
-		RequiredApprovals:                action.RequiredApprovals,
-		CollectedApprovals:               action.CollectedApprovals,
-		ApprovalBasis:                    append([]string(nil), action.ApprovalBasis...),
-		ApprovalPolicySource:             action.ApprovalPolicySource,
-		HighBlastRadius:                  action.HighBlastRadius,
+		ID:                                action.ID,
+		DecisionID:                        action.DecisionID,
+		ActionType:                        action.ActionType,
+		TargetTransport:                   action.TargetTransport,
+		TargetSegment:                     action.TargetSegment,
+		TargetNode:                        action.TargetNode,
+		Reason:                            action.Reason,
+		Confidence:                        action.Confidence,
+		TriggerEvidence:                   append([]string(nil), action.TriggerEvidence...),
+		EpisodeID:                         action.EpisodeID,
+		CreatedAt:                         action.CreatedAt,
+		ExecutedAt:                        action.ExecutedAt,
+		CompletedAt:                       action.CompletedAt,
+		Result:                            action.Result,
+		Reversible:                        action.Reversible,
+		ExpiresAt:                         action.ExpiresAt,
+		OutcomeDetail:                     action.OutcomeDetail,
+		Mode:                              action.Mode,
+		PolicyRule:                        action.PolicyRule,
+		LifecycleState:                    action.LifecycleState,
+		AdvisoryOnly:                      action.AdvisoryOnly,
+		DenialCode:                        action.DenialCode,
+		ClosureState:                      action.ClosureState,
+		Metadata:                          action.Metadata,
+		ExecutionMode:                     execMode,
+		ProposedBy:                        proposedBy,
+		ApprovedBy:                        action.ApprovedBy,
+		ApprovedAt:                        action.ApprovedAt,
+		RejectedBy:                        action.RejectedBy,
+		RejectedAt:                        action.RejectedAt,
+		ApprovalNote:                      action.ApprovalNote,
+		ApprovalExpiresAt:                 action.ApprovalExpiresAt,
+		BlastRadiusClass:                  blastClass,
+		EvidenceBundleID:                  action.EvidenceBundleID,
+		SubmittedBy:                       submittedBy,
+		RequiresSeparateApprover:          action.RequiresSeparateApprover,
+		IncidentID:                        action.IncidentID,
+		ExecutionStartedAt:                action.ExecutionStartedAt,
+		SodBypass:                         action.SodBypass,
+		SodBypassActor:                    action.SodBypassActor,
+		SodBypassReason:                   action.SodBypassReason,
+		ApprovalMode:                      action.ApprovalMode,
+		RequiredApprovals:                 action.RequiredApprovals,
+		CollectedApprovals:                action.CollectedApprovals,
+		ApprovalBasis:                     append([]string(nil), action.ApprovalBasis...),
+		ApprovalPolicySource:              action.ApprovalPolicySource,
+		HighBlastRadius:                   action.HighBlastRadius,
 		ApprovalEscalatedDueToBlastRadius: action.ApprovalEscalatedDueToBlastRadius,
-		ExecutionSource:                  action.ExecutionSource,
+		ExecutionSource:                   action.ExecutionSource,
 	}
 }
 
