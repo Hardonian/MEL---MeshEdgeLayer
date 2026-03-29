@@ -111,6 +111,7 @@ func (a *App) IncidentByID(id string) (models.Incident, bool, error) {
 			inc.LinkedControlActions = append(inc.LinkedControlActions, ActionRecordFromDB(r))
 		}
 	}
+	inc.Intelligence = a.buildIncidentIntelligence(inc)
 	return inc, true, nil
 }
 
@@ -145,6 +146,7 @@ func (a *App) RecentIncidentsWithLinkedActions(limit int) ([]models.Incident, er
 		if linked, ok := byInc[incs[i].ID]; ok && len(linked) > 0 {
 			incs[i].LinkedControlActions = linked
 		}
+		incs[i].Intelligence = a.buildIncidentIntelligence(incs[i])
 	}
 	return incs, nil
 }
