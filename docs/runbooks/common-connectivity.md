@@ -48,6 +48,7 @@ Check these specific fields in the JSON output:
    # Increase read/write timeouts if on high-latency links
    mel transport update <name> --read-timeout 30s --write-timeout 10s
    ```
+
 4. **Force Reconnection**
 
    ```bash

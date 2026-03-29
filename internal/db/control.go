@@ -491,16 +491,6 @@ func controlDecisionFromRow(row map[string]any) ControlDecisionRecord {
 	return record
 }
 
-func copyMap(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return map[string]any{}
-	}
-	out := make(map[string]any, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
 
 // ControlDecisionByID returns the control decision with the given ID, or
 // (zero, false, nil) if not found.
