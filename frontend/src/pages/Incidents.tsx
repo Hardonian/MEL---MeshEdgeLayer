@@ -92,24 +92,6 @@ function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'war
   return 'outline'
 }
 
-function strengthLabel(s: string | undefined): string {
-  switch (s) {
-    case 'historically_proven':
-    case 'proven_historically':
-      return 'Historically observed (still association-only)'
-    case 'historically_promising':
-      return 'Historically promising (bounded evidence)'
-    case 'plausible':
-      return 'Plausible from history'
-    case 'weakly_supported':
-      return 'Weakly supported'
-    case 'unsupported':
-      return 'Unsupported by history'
-    default:
-      return toWords(s) || 'Unknown strength'
-  }
-}
-
 function defaultProofpackFilename(incidentId: string): string {
   return `proofpack-${incidentId || 'incident'}.json`
 }
@@ -229,7 +211,7 @@ export function Incidents() {
       ) : (
         <div className="space-y-4">
           {openIncidents.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} onRefresh={() => void refresh()} />
+            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} />
           ))}
         </div>
       )}
@@ -313,7 +295,8 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
   )
 }
 
-function IncidentCard({ incident: inc, muted = false }: { incident: Incident; muted?: boolean }) {
+function IncidentCard({ incident: inc, muted = false, canMutate = false }: { incident: Incident; muted?: boolean; canMutate?: boolean }) {
+  void canMutate // reserved for future mutation controls
   const [expanded, setExpanded] = useState(!muted)
   const pending = inc.pending_actions?.filter(Boolean) ?? []
   const hasHandoffText = !!(inc.handoff_summary && inc.handoff_summary.trim())
@@ -360,7 +343,7 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {inc.state && <Badge variant={stateVariant as 'success' | 'outline'}>{inc.state}</Badge>}
             {inc.severity && <Badge variant={severityVariant as 'critical' | 'warning' | 'secondary'}>{inc.severity}</Badge>}
             {hasIntel && (
@@ -373,6 +356,14 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
                 seen {intel!.signature_match_count}x
               </Badge>
             )}
+            <Link
+              to={`/incidents/${inc.id}`}
+              className="ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+              title="Open incident detail page"
+            >
+              <ArrowRight className="h-3 w-3" />
+              Detail
+            </Link>
           </div>
         </div>
       </CardHeader>

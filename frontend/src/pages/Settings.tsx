@@ -7,6 +7,7 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { KeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { useConsoleThemePreference } from '@/hooks/useConsoleThemePreference'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
+import type { PlatformPosture } from '@/types/api'
 import {
   Server,
   Info,
@@ -19,6 +20,8 @@ import {
   BookOpen,
   Wrench,
   Monitor,
+  Cpu,
+  Radio,
 } from 'lucide-react'
 
 export function SettingsPage() {
@@ -295,6 +298,9 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Platform posture — effective running truth */}
+      {v?.platform_posture && <PlatformPostureCard posture={v.platform_posture} />}
+
       {/* Note about config editing */}
       <AlertCard
         variant="info"
@@ -421,5 +427,181 @@ function DocLink({
         <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
       </span>
     </a>
+  )
+}
+
+function availabilityVariant(a: string): 'success' | 'warning' | 'secondary' | 'outline' {
+  if (a === 'available') return 'success'
+  if (a === 'partial' || a === 'queued') return 'warning'
+  if (a === 'unavailable') return 'secondary'
+  return 'outline'
+}
+
+function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
+  const ret = posture.retention
+  const exp = posture.evidence_export_delete
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cpu className="h-5 w-5" />
+          Effective running posture
+        </CardTitle>
+        <CardDescription>
+          Read from <code className="rounded bg-muted px-1 font-mono text-xs">GET /api/v1/version → platform_posture</code>.
+          These are the effective values for the running process — not documented defaults.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Mode + telemetry */}
+        <section aria-labelledby="posture-mode-heading">
+          <h3 id="posture-mode-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Radio className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Mode &amp; telemetry
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem
+              name="Platform mode"
+              value={posture.mode || '—'}
+              source="platform_posture.mode"
+              note="Operating mode for this instance"
+            />
+            <RunningItem
+              name="Telemetry enabled"
+              value={posture.telemetry_enabled ? 'yes' : 'no'}
+              source="platform_posture.telemetry_enabled"
+              note="Whether telemetry collection is active"
+              variant={posture.telemetry_enabled ? 'warning' : 'success'}
+            />
+            <RunningItem
+              name="Telemetry outbound"
+              value={posture.telemetry_outbound ? 'yes' : 'no'}
+              source="platform_posture.telemetry_outbound"
+              note="Whether telemetry is sent externally"
+              variant={posture.telemetry_outbound ? 'warning' : 'success'}
+            />
+          </div>
+        </section>
+
+        {/* Retention */}
+        <section aria-labelledby="posture-retention-heading">
+          <h3 id="posture-retention-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Database className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Effective retention
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem name="Retention active" value={ret.enabled ? 'yes' : 'no'} source="retention.enabled" note="Automatic data pruning on/off" />
+            <RunningItem name="Messages" value={`${ret.messages_days}d`} source="retention.messages_days" note="Message retention window" />
+            <RunningItem name="Audit logs" value={`${ret.audit_days}d`} source="retention.audit_days" note="Audit log retention window" />
+            <RunningItem name="Telemetry" value={`${ret.telemetry_days}d`} source="retention.telemetry_days" note="Telemetry retention window" />
+            <RunningItem name="Precise positions" value={`${ret.precise_position_days}d`} source="retention.precise_position_days" note="GPS coordinate retention" />
+          </div>
+        </section>
+
+        {/* Export / delete */}
+        <section aria-labelledby="posture-export-heading">
+          <h3 id="posture-export-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Shield className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Export &amp; delete policy
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem name="Export enabled" value={exp.export_enabled ? 'yes' : 'no'} source="evidence_export_delete.export_enabled" note="Proofpack / bundle export allowed" />
+            <RunningItem name="Delete enabled" value={exp.delete_enabled ? 'yes' : 'no'} source="evidence_export_delete.delete_enabled" note="Operator-triggered data deletion" />
+            {exp.delete_scope.length > 0 && (
+              <RunningItem name="Delete scope" value={exp.delete_scope.join(', ')} source="evidence_export_delete.delete_scope" note="What can be deleted" />
+            )}
+            {exp.delete_caveat && (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Caveat: </span>{exp.delete_caveat}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Inference */}
+        <section aria-labelledby="posture-inference-heading">
+          <h3 id="posture-inference-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Cpu className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Local inference
+          </h3>
+          <div className="mb-3">
+            <RunningItem
+              name="Inference enabled"
+              value={posture.inference_enabled ? 'yes' : 'no'}
+              source="inference_enabled"
+              note="Assistive inference runtime active"
+              variant={posture.inference_enabled ? 'success' : 'secondary'}
+            />
+          </div>
+          {posture.inference_providers.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">Providers</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {posture.inference_providers.map((p) => (
+                  <div key={p.name} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 text-xs">
+                    <div>
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      <span className="ml-2 text-muted-foreground">{p.endpoint_configured ? 'endpoint configured' : 'no endpoint'}</span>
+                    </div>
+                    <Badge variant={p.enabled && p.available_by_config ? 'success' : 'secondary'}>
+                      {p.enabled ? (p.available_by_config ? 'available' : 'config-limited') : 'disabled'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {posture.assist_policies.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">Assist policies</p>
+              <div className="space-y-1.5">
+                {posture.assist_policies.map((p) => (
+                  <div key={p.task_class} className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-xs">
+                    <span className="font-mono text-foreground">{p.task_class.replace(/_/g, ' ')}</span>
+                    <Badge variant={availabilityVariant(p.availability)}>{p.availability}</Badge>
+                    <span className="text-muted-foreground">{p.execution_mode}</span>
+                    <span className="text-muted-foreground">{p.provider}</span>
+                    <span className="text-muted-foreground">{p.hardware}</span>
+                    {p.non_canonical_truth && (
+                      <Badge variant="outline" className="text-[10px]">non-canonical</Badge>
+                    )}
+                    {p.fallback_reason && (
+                      <span className="text-warning text-[10px]">{p.fallback_reason}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RunningItem({
+  name,
+  value,
+  source,
+  note,
+  variant,
+}: {
+  name: string
+  value: string
+  source: string
+  note: string
+  variant?: 'success' | 'warning' | 'secondary' | 'outline'
+}) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">{name}</span>
+        {variant && <Badge variant={variant} className="shrink-0 text-xs">{value}</Badge>}
+      </div>
+      {!variant && <p className="text-base font-semibold text-foreground">{value}</p>}
+      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+      <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">{source}</p>
+    </div>
   )
 }
