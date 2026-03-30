@@ -11,6 +11,7 @@ import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
 import { Incidents } from './pages/Incidents'
+import { IncidentDetail } from './pages/IncidentDetail'
 import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
 import { Planning } from './pages/Planning'
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/dead-letters" element={<DeadLetters />} />
               <Route path="/incidents" element={<Incidents />} />
+              <Route path="/incidents/:id" element={<IncidentDetail />} />
               <Route path="/control-actions" element={<ControlActions />} />
               <Route path="/recommendations" element={<Recommendations />} />
               <Route path="/events" element={<Events />} />

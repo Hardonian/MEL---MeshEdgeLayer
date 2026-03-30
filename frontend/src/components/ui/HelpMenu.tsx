@@ -375,6 +375,9 @@ export function KeyboardShortcuts() {
   const shortcuts: { keys: string; description: string }[] = [
     { keys: '?', description: 'Open this shortcuts panel (when focus is not in an input)' },
     { keys: 'Escape', description: 'Close open menus or this panel' },
+    { keys: 'Ctrl/Cmd + K', description: 'Open command palette' },
+    { keys: 'r', description: 'Refresh current console data (non-destructive)' },
+    { keys: 'g then i/t/p/s', description: 'Jump to Incidents / Topology / Planning / Status' },
   ]
 
   return (
