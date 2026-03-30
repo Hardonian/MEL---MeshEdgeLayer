@@ -24,6 +24,15 @@ type TopoLink = {
   quality_score: number
   relay_dependent: boolean
   transport_path?: string
+  contradiction?: boolean
+  contradiction_detail?: string
+}
+type TopologySnapshot = {
+  snapshot_id: string
+  created_at: string
+  graph_hash?: string
+  node_count: number
+  edge_count: number
 }
 
 type MeshIntelBootstrap = {
@@ -115,23 +124,26 @@ export function Topology() {
   const [err, setErr] = useState<string | null>(null)
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
+  const [snapshots, setSnapshots] = useState<TopologySnapshot[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setErr(null)
     try {
-      const [ri, rn, rl] = await Promise.all([
+      const [ri, rn, rl, rs] = await Promise.all([
         fetch(`${API}`),
         fetch(`${API}/nodes?limit=500`),
         fetch(`${API}/links?limit=500`),
+        fetch(`${API}/snapshots?limit=6`),
       ])
-      if (!ri.ok || !rn.ok || !rl.ok) {
-        throw new Error(`topology API error (${ri.status}/${rn.status}/${rl.status})`)
+      if (!ri.ok || !rn.ok || !rl.ok || !rs.ok) {
+        throw new Error(`topology API error (${ri.status}/${rn.status}/${rl.status}/${rs.status})`)
       }
-      const [ji, jn, jl] = await Promise.all([ri.json(), rn.json(), rl.json()])
+      const [ji, jn, jl, js] = await Promise.all([ri.json(), rn.json(), rl.json(), rs.json()])
       setIntel(ji as Intelligence)
       setNodes(jn.nodes || [])
       setLinks(jl.links || [])
+      setSnapshots((js.snapshots as TopologySnapshot[]) || [])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'load failed')
     } finally {
@@ -154,8 +166,41 @@ export function Topology() {
       const ang = (2 * Math.PI * i) / n - Math.PI / 2
       pos.set(id, { x: cx + r * Math.cos(ang), y: cy + r * Math.sin(ang) })
     })
+    const edges = links
+      .map((l) => [l.src_node_num, l.dst_node_num] as const)
+      .filter(([a, b]) => pos.has(a) && pos.has(b))
+
+    for (let step = 0; step < 80; step += 1) {
+      for (const [a, b] of edges) {
+        const pa = pos.get(a)
+        const pb = pos.get(b)
+        if (!pa || !pb) continue
+        const dx = pb.x - pa.x
+        const dy = pb.y - pa.y
+        const dist = Math.max(1, Math.hypot(dx, dy))
+        const target = 90
+        const pull = (dist - target) * 0.012
+        pa.x += dx * pull
+        pa.y += dy * pull
+        pb.x -= dx * pull
+        pb.y -= dy * pull
+      }
+    }
+
     return { pos, cx, cy, r }
-  }, [nodes])
+  }, [nodes, links])
+
+  const driftSummary = useMemo(() => {
+    if (snapshots.length < 2) return null
+    const latest = snapshots[0]
+    const previous = snapshots[1]
+    return {
+      changed: latest.graph_hash !== '' && previous.graph_hash !== '' && latest.graph_hash !== previous.graph_hash,
+      nodeDelta: latest.node_count - previous.node_count,
+      edgeDelta: latest.edge_count - previous.edge_count,
+      latestAt: latest.created_at,
+    }
+  }, [snapshots])
 
   const selectNode = async (num: number) => {
     setSelLoading(true)
@@ -326,8 +371,17 @@ export function Topology() {
           <div className="rounded-xl border bg-card p-4">
             <h2 className="text-sm font-medium mb-2">Topology graph</h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Inferred or unobserved edges use dashed strokes. Click a node for drilldown.
+              Relaxed graph layout from stored links. Inferred edges are dashed; stale or contradicted links are visually de-emphasized. Click a node for drilldown.
             </p>
+            {driftSummary && (
+              <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                <span className="rounded border px-2 py-1">
+                  drift {driftSummary.changed ? 'detected' : 'not-detected'} since {new Date(driftSummary.latestAt).toLocaleTimeString()}
+                </span>
+                <span className="rounded border px-2 py-1">Δnodes {driftSummary.nodeDelta >= 0 ? '+' : ''}{driftSummary.nodeDelta}</span>
+                <span className="rounded border px-2 py-1">Δlinks {driftSummary.edgeDelta >= 0 ? '+' : ''}{driftSummary.edgeDelta}</span>
+              </div>
+            )}
             {nodes.length === 0 ? (
               <p className="text-sm text-muted-foreground">No nodes in topology store yet.</p>
             ) : (
@@ -345,9 +399,10 @@ export function Topology() {
                       x2={b.x}
                       y2={b.y}
                       stroke="currentColor"
-                      strokeOpacity={weak ? 0.35 : 0.55}
+                      strokeOpacity={weak ? 0.22 : 0.55}
                       strokeWidth={l.relay_dependent ? 1 : 1.5}
                       strokeDasharray={l.observed ? undefined : '4 3'}
+                      className={l.contradiction ? 'text-warning' : undefined}
                     />
                   )
                 })}

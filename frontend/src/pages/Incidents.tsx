@@ -92,24 +92,6 @@ function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'war
   return 'outline'
 }
 
-function strengthLabel(s: string | undefined): string {
-  switch (s) {
-    case 'historically_proven':
-    case 'proven_historically':
-      return 'Historically observed (still association-only)'
-    case 'historically_promising':
-      return 'Historically promising (bounded evidence)'
-    case 'plausible':
-      return 'Plausible from history'
-    case 'weakly_supported':
-      return 'Weakly supported'
-    case 'unsupported':
-      return 'Unsupported by history'
-    default:
-      return toWords(s) || 'Unknown strength'
-  }
-}
-
 function defaultProofpackFilename(incidentId: string): string {
   return `proofpack-${incidentId || 'incident'}.json`
 }
@@ -166,7 +148,6 @@ export function Incidents() {
   const openIncidents = incidents.filter(isOpenIncident)
   const closedIncidents = incidents.filter((i) => !isOpenIncident(i))
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
-  const canMutate = ctx.trustUI?.incident_mutate === true
 
   return (
     <div className="space-y-5">
@@ -229,7 +210,7 @@ export function Incidents() {
       ) : (
         <div className="space-y-4">
           {openIncidents.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} onRefresh={() => void refresh()} />
+            <IncidentCard key={inc.id} incident={inc} />
           ))}
         </div>
       )}
@@ -344,7 +325,9 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1 font-mono">
                 <Link2 className="h-3 w-3" />
-                {inc.id.slice(0, 12)}
+                <a href={`/incidents/${encodeURIComponent(inc.id)}`} className="hover:underline">
+                  {inc.id.slice(0, 12)}
+                </a>
               </span>
               {inc.occurred_at && (
                 <span className="inline-flex items-center gap-1">
@@ -429,6 +412,9 @@ function IncidentCard({ incident: inc, muted = false }: { incident: Incident; mu
             {/* Proofpack export */}
             <DetailSection title="Evidence proofpack" icon={<Download className="h-3.5 w-3.5" />}>
               <ProofpackDownloadButton incidentId={inc.id} />
+              <a href={`/incidents/${encodeURIComponent(inc.id)}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                Open full incident review <ArrowRight className="h-3 w-3" />
+              </a>
             </DetailSection>
 
             {/* Referenced actions */}
