@@ -18,7 +18,8 @@ func TestRollupRecentMessagesHistograms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := time.Date(2026, 3, 26, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	// Anchor to wall clock so the 24h rollup window always includes these rows.
+	base := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
 	for i := 0; i < 20; i++ {
 		_, err := d.InsertMessage(map[string]any{
 			"transport_name": "t",
