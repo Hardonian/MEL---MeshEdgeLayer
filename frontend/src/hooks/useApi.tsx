@@ -169,6 +169,11 @@ interface ApiContextValue {
   
   // Global refresh
   refreshAll: () => Promise<void>
+  refreshMeta: {
+    mode: 'near_live_polling' | 'background_paused'
+    intervalMs: number
+    lastAttemptAt: Date | null
+  }
 }
 
 const ApiContext = createContext<ApiContextValue | null>(null)
@@ -187,6 +192,12 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     error: null,
     lastUpdated: null,
   })
+  const [refreshMode, setRefreshMode] = useState<'near_live_polling' | 'background_paused'>(
+    typeof document !== 'undefined' && document.visibilityState === 'visible'
+      ? 'near_live_polling'
+      : 'background_paused'
+  )
+  const [lastAttemptAt, setLastAttemptAt] = useState<Date | null>(null)
 
   const refreshStatus = useCallback(async () => {
     setStatus(s => ({ ...s, loading: true, error: null }))
@@ -290,6 +301,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refreshAll = useCallback(async () => {
+    setLastAttemptAt(new Date())
     await Promise.all([
       refreshStatus(),
       refreshNodes(),
@@ -307,10 +319,36 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     refreshAll()
   }, [refreshAll])
 
-  // Auto-refresh every 30 seconds
+  // Visibility-aware polling cadence.
   useEffect(() => {
-    const interval = setInterval(refreshAll, 30000)
-    return () => clearInterval(interval)
+    const computeInterval = () => (document.visibilityState === 'visible' ? 10000 : 60000)
+    setRefreshMode(document.visibilityState === 'visible' ? 'near_live_polling' : 'background_paused')
+
+    let intervalMs = computeInterval()
+    let interval = setInterval(refreshAll, intervalMs)
+
+    const onVisibilityChange = () => {
+      setRefreshMode(document.visibilityState === 'visible' ? 'near_live_polling' : 'background_paused')
+      const next = computeInterval()
+      if (next === intervalMs) return
+      intervalMs = next
+      clearInterval(interval)
+      interval = setInterval(refreshAll, intervalMs)
+      if (document.visibilityState === 'visible') {
+        void refreshAll()
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', onVisibilityChange)
+    window.addEventListener('online', onVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onVisibilityChange)
+      window.removeEventListener('online', onVisibilityChange)
+    }
   }, [refreshAll])
 
   return (
@@ -332,6 +370,11 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       diagnostics,
       refreshDiagnostics,
       refreshAll,
+      refreshMeta: {
+        mode: refreshMode,
+        intervalMs: refreshMode === 'near_live_polling' ? 10000 : 60000,
+        lastAttemptAt,
+      },
     }}>
       {children}
     </ApiContext.Provider>

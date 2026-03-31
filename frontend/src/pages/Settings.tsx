@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -24,9 +25,68 @@ import {
   Radio,
 } from 'lucide-react'
 
+function nested(root: Record<string, unknown> | undefined, path: string): unknown {
+  if (!root) return undefined
+  return path.split('.').reduce<unknown>((acc, part) => {
+    if (!acc || typeof acc !== 'object' || Array.isArray(acc)) return undefined
+    return (acc as Record<string, unknown>)[part]
+  }, root)
+}
+
+function stringifyValue(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '[unserializable]'
+  }
+}
+
 export function SettingsPage() {
   const version = useVersionInfo()
   const { preference, setPreference } = useConsoleThemePreference()
+  const [configInspect, setConfigInspect] = useState<{ values?: Record<string, unknown>; fingerprint?: string } | null>(null)
+  const [configError, setConfigError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/v1/config/inspect')
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`)
+        }
+        const data = (await res.json()) as { values?: Record<string, unknown>; fingerprint?: string }
+        if (!cancelled) {
+          setConfigInspect(data)
+          setConfigError(null)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setConfigError(e instanceof Error ? e.message : 'config inspect unavailable')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const effectiveRows = useMemo<Array<{ key: string; defaultValue: string; effective: string | null }>>(
+    () => [
+      { key: 'bind.api', defaultValue: '"127.0.0.1:8080"', effective: stringifyValue(nested(configInspect?.values, 'bind.api')) },
+      { key: 'bind.metrics', defaultValue: '""', effective: stringifyValue(nested(configInspect?.values, 'bind.metrics')) },
+      { key: 'auth.enabled', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'auth.enabled')) },
+      { key: 'auth.ui_user', defaultValue: '"admin"', effective: stringifyValue(nested(configInspect?.values, 'auth.ui_user')) },
+      { key: 'storage.database_path', defaultValue: '"./data/mel.db"', effective: stringifyValue(nested(configInspect?.values, 'storage.database_path')) },
+      { key: 'privacy.redact_exports', defaultValue: 'true', effective: stringifyValue(nested(configInspect?.values, 'privacy.redact_exports')) },
+      { key: 'privacy.map_reporting_allowed', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'privacy.map_reporting_allowed')) },
+      { key: 'features.metrics', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.metrics')) },
+    ],
+    [configInspect?.values]
+  )
 
   const v = version.data
   const versionLine = v?.version ?? null
@@ -124,6 +184,55 @@ export function SettingsPage() {
       </Card>
 
       {/* Configuration Reference */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Server className="h-5 w-5" />
+            Effective running configuration
+          </CardTitle>
+          <CardDescription>
+            Values from <code className="rounded bg-muted px-1 font-mono text-xs">GET /api/v1/config/inspect</code>. This reflects runtime-loaded config with redaction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {configError ? (
+            <AlertCard
+              variant="warning"
+              title="Effective config unavailable"
+              description={`Could not read /api/v1/config/inspect (${configError}). Showing documented defaults only.`}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="py-2 pr-3">Key</th>
+                    <th className="py-2 pr-3">Documented default</th>
+                    <th className="py-2 pr-3">Effective value</th>
+                    <th className="py-2">Truth source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {effectiveRows.map(({ key, defaultValue, effective }) => (
+                    <tr key={key} className="border-t border-border/60">
+                      <td className="py-2 pr-3 font-mono">{key}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{defaultValue}</td>
+                      <td className="py-2 pr-3 font-mono">{effective ?? 'unavailable'}</td>
+                      <td className="py-2">
+                        {effective == null ? <Badge variant="warning">unreadable</Badge> : <Badge variant="success">runtime loaded</Badge>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {configInspect?.fingerprint && (
+            <p className="text-xs text-muted-foreground">Config fingerprint: <code>{configInspect.fingerprint}</code></p>
+          )}
+        </CardContent>
+      </Card>
+
       <Card id="config">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { HelpMenu, useGlobalKeyboardShortcuts } from '@/components/ui/HelpMenu'
@@ -41,6 +41,7 @@ interface NavGroup {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const status = useStatus()
   const api = useApi()
   const { refreshAll } = api
@@ -162,6 +163,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const inEditable =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+
       if (e.key === 'Escape') {
         setIsMobileMenuOpen(false)
         setCommandOpen(false)
@@ -171,10 +180,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
         e.preventDefault()
         setCommandOpen((prev) => !prev)
       }
+      if (inEditable) return
+      if (e.key === 'g') {
+        const onSecond = (ev: KeyboardEvent) => {
+          if (ev.key === 'i') navigate('/incidents')
+          if (ev.key === 't') navigate('/topology')
+          if (ev.key === 'p') navigate('/planning')
+          if (ev.key === 's') navigate('/status')
+          document.removeEventListener('keydown', onSecond)
+        }
+        document.addEventListener('keydown', onSecond, { once: true })
+      }
+      if (e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        void handleRefresh()
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [navigate, handleRefresh])
 
   const transportStatusLabel = status.loading
     ? 'Loading transport state'
@@ -242,6 +266,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className={transportStatusClasses}>
               <span className={transportDotClasses} aria-hidden />
               {transportStatusLabel}
+            </div>
+            <div className="status-pill hidden lg:inline-flex">
+              {api.refreshMeta.mode === 'near_live_polling' ? 'Near-live polling (10s)' : 'Background polling (60s)'}
             </div>
 
             <button

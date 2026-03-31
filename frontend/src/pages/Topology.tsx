@@ -26,6 +26,15 @@ type TopoLink = {
   quality_score: number
   relay_dependent: boolean
   transport_path?: string
+  contradiction?: boolean
+  contradiction_detail?: string
+}
+type TopologySnapshot = {
+  snapshot_id: string
+  created_at: string
+  graph_hash?: string
+  node_count: number
+  edge_count: number
 }
 
 type MeshIntelBootstrap = {
@@ -222,6 +231,7 @@ export function Topology() {
   const [err, setErr] = useState<string | null>(null)
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
+  const [snapshots, setSnapshots] = useState<TopologySnapshot[]>([])
 
   // Graph pan/zoom via SVG viewBox
   const [vb, setVb] = useState({ x: 0, y: 0, w: 600, h: 480 })
@@ -236,12 +246,14 @@ export function Topology() {
         fetch(API),
         fetch(`${API}/nodes?limit=500`),
         fetch(`${API}/links?limit=500`),
+        fetch(`${API}/snapshots?limit=6`),
       ])
       if (!ri.ok || !rn.ok || !rl.ok) throw new Error(`topology API error (${ri.status}/${rn.status}/${rl.status})`)
       const [ji, jn, jl] = await Promise.all([ri.json(), rn.json(), rl.json()])
       setIntel(ji as Intelligence)
       setNodes(jn.nodes || [])
       setLinks(jl.links || [])
+      setSnapshots((js.snapshots as TopologySnapshot[]) || [])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'load failed')
     } finally {
@@ -444,6 +456,7 @@ export function Topology() {
                       strokeOpacity={opacity}
                       strokeWidth={width}
                       strokeDasharray={l.observed ? undefined : '4 3'}
+                      className={l.contradiction ? 'text-warning' : undefined}
                     />
                   )
                 })}
