@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,14 @@ func (s *Server) topologyIntelligenceHandler(w http.ResponseWriter, r *http.Requ
 	ar := topology.Analyze(nodes, links, th, time.Now().UTC())
 	now := time.Now().UTC()
 	view := topology.BuildIntelligenceView(s.cfg, ar, s.topologyTransportConnected(), now)
+	if ga, _ := view["google_maps_basemap_available"].(bool); ga {
+		envName := s.cfg.Features.GoogleMapsAPIKeyEnv
+		if envName != "" {
+			// Key is sent to the browser for Google Maps JS loader. Only enable on trusted networks
+			// or with auth; anyone who can GET /api/v1/topology receives it when this flag is on.
+			view["google_maps_api_key"] = strings.TrimSpace(os.Getenv(envName))
+		}
+	}
 	mi := s.meshIntelBundle(now)
 	if mi.AssessmentID != "" {
 		view["mesh_intelligence"] = mi

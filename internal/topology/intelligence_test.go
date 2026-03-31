@@ -21,6 +21,9 @@ func TestBuildIntelligenceViewMapModes(t *testing.T) {
 	if v["view_mode"] != "graph" {
 		t.Fatalf("expected graph when map reporting disallowed, got %v", v["view_mode"])
 	}
+	if ga, _ := v["google_maps_basemap_available"].(bool); ga {
+		t.Fatalf("expected google_maps_basemap_available false by default, got %v", v["google_maps_basemap_available"])
+	}
 
 	cfg.Privacy.MapReportingAllowed = true
 	v2 := BuildIntelligenceView(cfg, ar, true, now)

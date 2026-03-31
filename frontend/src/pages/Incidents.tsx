@@ -86,6 +86,15 @@ function humanizeReasonCode(value: string | undefined): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+function sparsityMarkerLabel(code: string): string {
+  switch (code) {
+    case 'limited_correlated_evidence':
+      return 'Limited correlated evidence in the observation window'
+    default:
+      return humanizeReasonCode(code)
+  }
+}
+
 function snapshotCompletenessTone(value: string | undefined): 'secondary' | 'warning' | 'outline' {
   if (value === 'partial') return 'warning'
   if (value === 'complete') return 'secondary'
@@ -98,9 +107,9 @@ function defaultProofpackFilename(incidentId: string): string {
 
 function filenameFromDisposition(contentDisposition: string | null, fallback: string): string {
   if (!contentDisposition) return fallback
-  const match = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i)
+  const match = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
   if (!match || !match[1]) return fallback
-  const value = match[1].replace(/\"/g, '').trim()
+  const value = match[1].replace(/"/g, '').trim()
   try {
     return decodeURIComponent(value)
   } catch {
@@ -148,6 +157,7 @@ export function Incidents() {
   const openIncidents = incidents.filter(isOpenIncident)
   const closedIncidents = incidents.filter((i) => !isOpenIncident(i))
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
+  const canMutate = ctx.trustUI?.incident_mutate === true
 
   return (
     <div className="space-y-5">
@@ -376,22 +386,37 @@ function IncidentCard({ incident: inc, muted = false, canMutate = false }: { inc
 
         {/* Quick intelligence snapshot — always visible */}
         {hasIntel && (
-          <div className="flex flex-wrap gap-2">
-            {intel.signature_label && (
-              <Badge variant="outline">
-                <Activity className="h-3 w-3" />
-                {intel.signature_label}
-              </Badge>
-            )}
-            {intel.wireless_context && (
-              <Badge variant="outline">
-                {wirelessClassificationLabel(intel.wireless_context.classification)}
-              </Badge>
-            )}
-            {hasSimilar && (
-              <Badge variant="secondary">
-                {intel.similar_incidents!.length} similar prior
-              </Badge>
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {intel.signature_label && (
+                <Badge variant="outline">
+                  <Activity className="h-3 w-3" />
+                  {intel.signature_label}
+                </Badge>
+              )}
+              {intel.wireless_context && (
+                <Badge variant="outline">
+                  {wirelessClassificationLabel(intel.wireless_context.classification)}
+                </Badge>
+              )}
+              {hasSimilar && (
+                <Badge variant="secondary">
+                  {intel.similar_incidents!.length} similar prior
+                </Badge>
+              )}
+            </div>
+            {(intel.sparsity_markers?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs">
+                <p className="font-medium text-foreground">Intelligence limited by available evidence</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  Sparse signals — treat similarity and outcome memory as weakly supported until more evidence arrives.
+                </p>
+                <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                  {intel.sparsity_markers!.map((m) => (
+                    <li key={m}>{sparsityMarkerLabel(m)}</li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}

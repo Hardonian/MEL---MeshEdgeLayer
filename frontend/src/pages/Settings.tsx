@@ -83,6 +83,8 @@ export function SettingsPage() {
       { key: 'storage.database_path', defaultValue: '"./data/mel.db"', effective: stringifyValue(nested(configInspect?.values, 'storage.database_path')) },
       { key: 'privacy.redact_exports', defaultValue: 'true', effective: stringifyValue(nested(configInspect?.values, 'privacy.redact_exports')) },
       { key: 'privacy.map_reporting_allowed', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'privacy.map_reporting_allowed')) },
+      { key: 'features.google_maps_in_topology_ui', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_in_topology_ui')) },
+      { key: 'features.google_maps_api_key_env', defaultValue: '""', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_api_key_env')) },
       { key: 'features.metrics', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.metrics')) },
     ],
     [configInspect?.values]

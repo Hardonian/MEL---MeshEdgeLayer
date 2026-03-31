@@ -78,7 +78,9 @@
   "features": {
     "web_ui": true,
     "metrics": false,
-    "ble_experimental": false
+    "ble_experimental": false,
+    "google_maps_in_topology_ui": false,
+    "google_maps_api_key_env": ""
   },
   "rate_limits": {
     "http_rps": 20,

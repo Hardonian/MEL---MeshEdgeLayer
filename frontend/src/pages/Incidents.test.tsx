@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
 import { Incidents } from './Incidents'
+
+function renderIncidents() {
+  return render(
+    <BrowserRouter>
+      <Incidents />
+    </BrowserRouter>,
+  )
+}
 
 function setupFetch() {
   vi.stubGlobal(
@@ -141,7 +150,7 @@ describe('Incidents intelligence rendering', () => {
   })
 
   it('renders signature and similarity summary when incident intelligence is available', async () => {
-    render(<Incidents />)
+    renderIncidents()
     // Wait for incident intelligence section to appear (open incidents are expanded by default)
     await waitFor(() => {
       expect(screen.getAllByText(/Incident intelligence/i).length).toBeGreaterThan(0)
@@ -167,7 +176,7 @@ describe('Incidents intelligence rendering', () => {
   })
 
   it('shows sparsity markers without falsely marking intelligence degraded', async () => {
-    render(<Incidents />)
+    renderIncidents()
     await waitFor(() => {
       expect(screen.getByText(/Intelligence limited by available evidence/i)).toBeTruthy()
     })
