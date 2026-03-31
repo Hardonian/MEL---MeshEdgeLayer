@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
-import { HelpMenu } from '@/components/ui/HelpMenu'
+import { HelpMenu, useGlobalKeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { truncateMiddle } from '@/utils/presentation'
 import {
   LayoutDashboard,
@@ -145,6 +145,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
     } finally {
       setRefreshBusy(false)
     }
+  }, [refreshAll])
+
+  // Global keyboard shortcuts: g+letter nav, r=refresh
+  useGlobalKeyboardShortcuts(handleRefresh)
+
+  // Page Visibility API: refresh when tab becomes visible after being hidden
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAll()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refreshAll])
 
   useEffect(() => {
