@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GitBranch, RefreshCw, AlertCircle } from 'lucide-react'
 
 type TopoNode = {
@@ -116,6 +116,18 @@ type NodeDrill = {
 
 const API = '/api/v1/topology'
 
+async function fetchTopologyJson<T>(
+  path: string,
+  signal: AbortSignal,
+  label: string,
+): Promise<T> {
+  const res = await fetch(path, { signal })
+  if (!res.ok) {
+    throw new Error(`${label}: HTTP ${res.status}`)
+  }
+  return (await res.json()) as T
+}
+
 export function Topology() {
   const [intel, setIntel] = useState<Intelligence | null>(null)
   const [nodes, setNodes] = useState<TopoNode[]>([])
@@ -125,34 +137,42 @@ export function Topology() {
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
   const [snapshots, setSnapshots] = useState<TopologySnapshot[]>([])
+  const loadAbortRef = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
+    loadAbortRef.current?.abort()
+    const ac = new AbortController()
+    loadAbortRef.current = ac
+    const { signal } = ac
     setLoading(true)
     setErr(null)
     try {
-      const [ri, rn, rl, rs] = await Promise.all([
-        fetch(`${API}`),
-        fetch(`${API}/nodes?limit=500`),
-        fetch(`${API}/links?limit=500`),
-        fetch(`${API}/snapshots?limit=6`),
+      const [ji, jn, jl, js] = await Promise.all([
+        fetchTopologyJson<Intelligence>(`${API}`, signal, 'topology summary'),
+        fetchTopologyJson<{ nodes?: TopoNode[] }>(`${API}/nodes?limit=500`, signal, 'topology nodes'),
+        fetchTopologyJson<{ links?: TopoLink[] }>(`${API}/links?limit=500`, signal, 'topology links'),
+        fetchTopologyJson<{ snapshots?: TopologySnapshot[] }>(`${API}/snapshots?limit=6`, signal, 'topology snapshots'),
       ])
-      if (!ri.ok || !rn.ok || !rl.ok || !rs.ok) {
-        throw new Error(`topology API error (${ri.status}/${rn.status}/${rl.status}/${rs.status})`)
-      }
-      const [ji, jn, jl, js] = await Promise.all([ri.json(), rn.json(), rl.json(), rs.json()])
-      setIntel(ji as Intelligence)
+      if (signal.aborted) return
+      setIntel(ji)
       setNodes(jn.nodes || [])
       setLinks(jl.links || [])
-      setSnapshots((js.snapshots as TopologySnapshot[]) || [])
+      setSnapshots(js.snapshots || [])
     } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return
       setErr(e instanceof Error ? e.message : 'load failed')
     } finally {
-      setLoading(false)
+      if (!signal.aborted) {
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    load()
+    void load()
+    return () => {
+      loadAbortRef.current?.abort()
+    }
   }, [load])
 
   const graphLayout = useMemo(() => {
@@ -215,6 +235,8 @@ export function Topology() {
       setSelLoading(false)
     }
   }
+
+  const selectedNodeNum = selected?.node?.node_num ?? null
 
   const mapPoints = useMemo(() => {
     return nodes.filter(
@@ -385,7 +407,12 @@ export function Topology() {
             {nodes.length === 0 ? (
               <p className="text-sm text-muted-foreground">No nodes in topology store yet.</p>
             ) : (
-              <svg viewBox="0 0 480 480" className="w-full max-h-[480px] text-foreground">
+              <svg
+                viewBox="0 0 480 480"
+                className="w-full max-h-[480px] text-foreground"
+                role="img"
+                aria-label="Topology graph: nodes and inferred links from ingest"
+              >
                 {links.map((l) => {
                   const a = graphLayout.pos.get(l.src_node_num)
                   const b = graphLayout.pos.get(l.dst_node_num)
@@ -417,11 +444,35 @@ export function Topology() {
                         : n.health_state === 'isolated'
                           ? 'hsl(280 50% 50%)'
                           : 'hsl(210 70% 45%)'
+                  const isSel = selectedNodeNum === n.node_num
+                  const label = n.short_name || String(n.node_num)
                   return (
-                    <g key={n.node_num} className="cursor-pointer" onClick={() => selectNode(n.node_num)}>
-                      <circle cx={p.x} cy={p.y} r={10} fill={fill} stroke="currentColor" strokeWidth={1} />
-                      <text x={p.x + 14} y={p.y + 4} fontSize="10" fill="currentColor" className="select-none">
-                        {n.short_name || n.node_num}
+                    <g
+                      key={n.node_num}
+                      className="cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Node ${label}, open drilldown`}
+                      aria-pressed={isSel}
+                      onClick={() => void selectNode(n.node_num)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === 'Enter' || ev.key === ' ') {
+                          ev.preventDefault()
+                          void selectNode(n.node_num)
+                        }
+                      }}
+                    >
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r={isSel ? 12 : 10}
+                        fill={fill}
+                        stroke="currentColor"
+                        strokeWidth={isSel ? 2 : 1}
+                        className="outline-none focus:ring-0"
+                      />
+                      <text x={p.x + 14} y={p.y + 4} fontSize="10" fill="currentColor" className="select-none pointer-events-none">
+                        {label}
                       </text>
                     </g>
                   )
@@ -436,7 +487,11 @@ export function Topology() {
               <p className="text-xs text-muted-foreground mb-4">
                 Normalized plot of lat_redacted/lon_redacted — not a surveyed map. Stale or unknown locations are excluded.
               </p>
-              <MapScatter nodes={mapPoints} />
+              <MapScatter
+                nodes={mapPoints}
+                selectedNodeNum={selectedNodeNum}
+                onSelectNode={(num) => void selectNode(num)}
+              />
             </div>
           )}
         </div>
@@ -551,7 +606,15 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   )
 }
 
-function MapScatter({ nodes }: { nodes: TopoNode[] }) {
+function MapScatter({
+  nodes,
+  selectedNodeNum,
+  onSelectNode,
+}: {
+  nodes: TopoNode[]
+  selectedNodeNum: number | null
+  onSelectNode: (nodeNum: number) => void
+}) {
   const lats = nodes.map((n) => n.lat_redacted ?? 0)
   const lons = nodes.map((n) => n.lon_redacted ?? 0)
   const minLat = Math.min(...lats)
@@ -570,19 +633,48 @@ function MapScatter({ nodes }: { nodes: TopoNode[] }) {
     return pad + (1 - t) * (h - 2 * pad)
   }
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-h-[300px]">
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="w-full max-h-[300px]"
+      role="img"
+      aria-label="Redacted coordinate scatter plot; click a point to open node drilldown"
+    >
       <rect width={w} height={h} fill="none" stroke="currentColor" strokeOpacity={0.15} />
-      {nodes.map((n) => (
-        <circle
-          key={n.node_num}
-          cx={xLon(n.lon_redacted ?? 0)}
-          cy={yLat(n.lat_redacted ?? 0)}
-          r={6}
-          fill={n.stale ? 'hsl(38 90% 45%)' : 'hsl(142 70% 40%)'}
-          stroke="currentColor"
-          strokeWidth={1}
-        />
-      ))}
+      {nodes.map((n) => {
+        const cx = xLon(n.lon_redacted ?? 0)
+        const cy = yLat(n.lat_redacted ?? 0)
+        const isSel = selectedNodeNum === n.node_num
+        const name = n.short_name || n.long_name || `node ${n.node_num}`
+        return (
+          <g
+            key={n.node_num}
+            className="cursor-pointer"
+            role="button"
+            tabIndex={0}
+            aria-label={`${name}, redacted position, open drilldown`}
+            aria-pressed={isSel}
+            onClick={() => onSelectNode(n.node_num)}
+            onKeyDown={(ev) => {
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault()
+                onSelectNode(n.node_num)
+              }
+            }}
+          >
+            <title>
+              {name} · redacted lat/lon · {n.stale ? 'stale' : 'recent'}
+            </title>
+            <circle
+              cx={cx}
+              cy={cy}
+              r={isSel ? 8 : 6}
+              fill={n.stale ? 'hsl(38 90% 45%)' : 'hsl(142 70% 40%)'}
+              stroke="currentColor"
+              strokeWidth={isSel ? 2 : 1}
+            />
+          </g>
+        )
+      })}
     </svg>
   )
 }
