@@ -150,3 +150,46 @@ export function buildShiftStartAttentionRows(args: {
 
   return rows
 }
+
+/** Open incidents with the strongest deterministic recurrence / memory signals for operator home. */
+export interface RecurrenceHomeTeaser {
+  id: string
+  title: string
+  why: string
+}
+
+export function buildRecurrenceHomeTeasers(incidents: Incident[], limit = 4): RecurrenceHomeTeaser[] {
+  const open = incidents.filter((i) => {
+    const s = (i.state || '').toLowerCase()
+    return s !== 'resolved' && s !== 'closed'
+  })
+  const scored = open
+    .map((i) => {
+      const intel = i.intelligence
+      const sig = intel?.signature_match_count ?? 0
+      const sim = intel?.similar_incidents?.length ?? 0
+      const mem = intel?.action_outcome_memory?.length ?? 0
+      const gov = intel?.governance_memory?.length ?? 0
+      const score = (sig > 1 ? sig * 1000 : 0) + sim * 50 + mem * 30 + gov * 20
+      return { i, score, sig, sim, mem }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      return ts(b.i.updated_at) - ts(a.i.updated_at)
+    })
+
+  const out: RecurrenceHomeTeaser[] = []
+  for (const { i, sig, sim, mem } of scored.slice(0, limit)) {
+    const parts: string[] = []
+    if (sig > 1) parts.push(`signature seen ${sig}× on this instance (bucket, not root cause)`)
+    if (sim > 0) parts.push(`${sim} similar prior case${sim > 1 ? 's' : ''} linked in intelligence`)
+    if (mem > 0) parts.push(`${mem} historical action outcome row${mem > 1 ? 's' : ''}`)
+    out.push({
+      id: i.id,
+      title: i.title || i.id.slice(0, 12),
+      why: parts.join(' · ') || 'Pattern memory surfaced — open detail for rationale.',
+    })
+  }
+  return out
+}

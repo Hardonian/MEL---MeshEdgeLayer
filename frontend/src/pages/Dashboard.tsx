@@ -40,6 +40,7 @@ import {
   writeShiftSnapshot,
 } from '@/utils/shiftSnapshot'
 import {
+  buildRecurrenceHomeTeasers,
   buildShiftStartAttentionRows,
   countOpenIncidentsExplicitFollowUp,
   sortOpenIncidentsForShiftStart,
@@ -228,6 +229,11 @@ export function Dashboard() {
   const explicitFollowUpOpenCount = useMemo(
     () => countOpenIncidentsExplicitFollowUp(openIncidents),
     [openIncidents],
+  )
+
+  const recurrenceTeasers = useMemo(
+    () => buildRecurrenceHomeTeasers(incidents.data ?? [], 5),
+    [incidents.data],
   )
 
   if (isLoading && !status.data) {
@@ -497,6 +503,36 @@ export function Dashboard() {
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
       {/* Shift order — ranked attention with honest “why now” */}
+      {recurrenceTeasers.length > 0 && (
+        <section
+          className="rounded-2xl border border-border/60 bg-card/30 p-4"
+          aria-label="Open incidents with pattern or case memory"
+        >
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <TrendingUp className="h-4 w-4 text-warning shrink-0" />
+            <h2 className="text-sm font-semibold text-foreground">Case memory on open work</h2>
+            <span className="text-[10px] text-muted-foreground/80">
+              Deterministic signals from this instance — not ML or causal proof.
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {recurrenceTeasers.map((t) => (
+              <li key={t.id} className="text-sm">
+                <Link
+                  to={`/incidents/${encodeURIComponent(t.id)}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {t.title}
+                </Link>
+                <span className="text-muted-foreground text-xs block sm:inline sm:ml-1 sm:before:content-['—_'] sm:before:text-muted-foreground/50">
+                  {t.why}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {shiftAttentionRows.length > 0 && (
         <section
           className="rounded-2xl border border-border/60 bg-card/35 p-4"

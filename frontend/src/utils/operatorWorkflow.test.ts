@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Incident } from '@/types/api'
 import {
+  buildRecurrenceHomeTeasers,
   buildShiftStartAttentionRows,
   countOpenIncidentsExplicitFollowUp,
   openIncidentShiftPriority,
@@ -62,6 +63,27 @@ describe('operatorWorkflow', () => {
       inc({ id: 'b', review_state: 'investigating' }),
     ])
     expect(n).toBe(1)
+  })
+
+  it('buildRecurrenceHomeTeasers ranks signature and similar cases', () => {
+    const a = inc({
+      id: 'a',
+      intelligence: {
+        evidence_strength: 'moderate',
+        signature_match_count: 2,
+        similar_incidents: [{ incident_id: 'x' }],
+      } as Incident['intelligence'],
+    })
+    const b = inc({
+      id: 'b',
+      intelligence: {
+        evidence_strength: 'strong',
+        signature_match_count: 5,
+      } as Incident['intelligence'],
+    })
+    const teasers = buildRecurrenceHomeTeasers([a, b], 2)
+    expect(teasers[0]?.id).toBe('b')
+    expect(teasers[0]?.why).toContain('signature')
   })
 
   it('buildShiftStartAttentionRows surfaces transports before incidents', () => {
