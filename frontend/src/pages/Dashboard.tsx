@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -14,6 +15,9 @@ import {
   Inbox,
   FileText,
   Compass,
+  ClipboardList,
+  Clock,
+  HelpCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -25,9 +29,16 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
-import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters, useEvents, useDiagnostics } from '@/hooks/useApi'
+import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters, useEvents, useDiagnostics, useOperationalState } from '@/hooks/useApi'
 import { useIncidents } from '@/hooks/useIncidents'
 import { getHealthState, formatRelativeTime, TransportHealth, NodeInfo } from '@/types/api'
+import type { ShiftSnapshot } from '@/utils/shiftSnapshot'
+import {
+  buildShiftSnapshotFromConsole,
+  computeShiftDelta,
+  readShiftSnapshot,
+  writeShiftSnapshot,
+} from '@/utils/shiftSnapshot'
 
 export function Dashboard() {
   const status = useStatus()
@@ -39,6 +50,11 @@ export function Dashboard() {
   const events = useEvents()
   const diagnostics = useDiagnostics()
   const incidents = useIncidents()
+  const operational = useOperationalState()
+
+  const [refreshCount, setRefreshCount] = useState(0)
+  const prevAttemptRef = useRef<Date | null>(null)
+  const [shiftBaseline, setShiftBaseline] = useState<ShiftSnapshot | null>(() => readShiftSnapshot())
 
   const isLoading = status.loading || nodes.loading || messagesLoading
   const hasError = status.error || nodes.error || messagesError
@@ -87,6 +103,75 @@ export function Dashboard() {
     }
   )
 
+  const pendingApprovals = operational.data?.pending_approvals ?? []
+
+  const sparseIncidents = useMemo(() => {
+    const list = incidents.data ?? []
+    return list.filter((i) => {
+      const s = (i.state || '').toLowerCase()
+      if (s === 'resolved' || s === 'closed') return false
+      return (
+        i.intelligence?.evidence_strength === 'sparse' ||
+        (i.intelligence?.degraded === true && (i.intelligence?.sparsity_markers?.length ?? 0) > 0)
+      )
+    })
+  }, [incidents.data])
+
+  const shiftDelta = useMemo(() => {
+    const incList = incidents.data ?? []
+    const nodeList = nodes.data ?? []
+    const ev = events.data ?? []
+    const msgCount =
+      typeof status.data?.messages === 'number'
+        ? status.data.messages
+        : messagesData?.length ?? 0
+    return computeShiftDelta(shiftBaseline, {
+      incidents: incList,
+      nodes: nodeList,
+      transports,
+      events: ev,
+      messageCount: msgCount,
+      deadLetterCount: deadLetters.data?.length ?? 0,
+    })
+  }, [
+    shiftBaseline,
+    incidents.data,
+    nodes.data,
+    transports,
+    events.data,
+    status.data?.messages,
+    messagesData?.length,
+    deadLetters.data?.length,
+  ])
+
+  useEffect(() => {
+    const t = status.lastUpdated
+    if (!t) return
+    if (prevAttemptRef.current && t.getTime() === prevAttemptRef.current.getTime()) return
+    prevAttemptRef.current = t
+    setRefreshCount((c) => c + 1)
+  }, [status.lastUpdated])
+
+  function markShiftBaseline() {
+    const incList = incidents.data ?? []
+    const nodeList = nodes.data ?? []
+    const ev = events.data ?? []
+    const msgCount =
+      typeof status.data?.messages === 'number'
+        ? status.data.messages
+        : messagesData?.length ?? 0
+    const snap = buildShiftSnapshotFromConsole({
+      incidents: incList,
+      nodes: nodeList,
+      transports,
+      events: ev,
+      messageCount: msgCount,
+      deadLetterCount: deadLetters.data?.length ?? 0,
+    })
+    writeShiftSnapshot(snap)
+    setShiftBaseline(snap)
+  }
+
   const newestHeartbeat = transports.reduce((max, t) => {
     if (!t.last_heartbeat_at) return max
     const ts = new Date(t.last_heartbeat_at).getTime()
@@ -104,7 +189,7 @@ export function Dashboard() {
       title: inc.title || `Incident ${inc.id.slice(0, 8)}`,
       detail: inc.summary,
       timestamp: inc.occurred_at ?? inc.updated_at ?? '',
-      href: '/incidents',
+      href: `/incidents/${encodeURIComponent(inc.id)}`,
       category: inc.category,
     }))),
     ...(deadLetters.data ?? []).slice(0, 5).map((dl, i) => ({
@@ -123,22 +208,79 @@ export function Dashboard() {
     openIncidents.length +
     activePrivacyFindings.length +
     criticalDiags.length +
-    (unhealthyTransports > 0 ? 1 : 0)
+    (unhealthyTransports > 0 ? 1 : 0) +
+    pendingApprovals.length
+
+  const hasShiftBaseline = shiftBaseline !== null
+  const deltaSummaryParts: string[] = []
+  if (shiftDelta.incidentsTouchedSince.length > 0) {
+    deltaSummaryParts.push(`${shiftDelta.incidentsTouchedSince.length} incident update(s)`)
+  }
+  if (shiftDelta.nodesWithNewerLastSeen.length > 0) {
+    deltaSummaryParts.push(`${shiftDelta.nodesWithNewerLastSeen.length} node(s) with newer last_seen`)
+  }
+  if (shiftDelta.newAuditEvents > 0) {
+    deltaSummaryParts.push(`${shiftDelta.newAuditEvents} new audit event(s)`)
+  }
+  if (shiftDelta.transportHeartbeatAdvanced) deltaSummaryParts.push('transport heartbeat advanced')
+  if (shiftDelta.messagesIncreased) deltaSummaryParts.push('message counter increased')
+  if (shiftDelta.deadLettersIncreased) deltaSummaryParts.push('dead letter count increased')
 
   return (
     <div className="space-y-5 pb-10 md:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
-          title="Dashboard"
-          description="Operational snapshot. Auto-refreshes every 30 seconds."
+          title="Command surface"
+          description="Shift-start overview: attention, evidence posture, and where to go next. Data refreshes on a short poll while this tab is visible."
         />
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="uppercase tracking-[0.18em]">Auto refresh 30s</Badge>
-          {status.lastUpdated && (
-            <span className="text-[11px] text-muted-foreground/60">
-              {formatRelativeTime(status.lastUpdated.toISOString())}
-            </span>
-          )}
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="uppercase tracking-[0.18em]">Near-live poll</Badge>
+            {status.lastUpdated && (
+              <span className="text-[11px] text-muted-foreground/60">
+                {formatRelativeTime(status.lastUpdated.toISOString())}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] text-muted-foreground/70 max-w-[280px] text-right">
+            Refreshed {refreshCount} time{refreshCount === 1 ? '' : 's'} this session (browser tab).
+          </span>
+        </div>
+      </div>
+
+      {/* Shift baseline — local browser only */}
+      <div className="rounded-2xl border border-border/60 bg-card/40 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 text-muted-foreground">
+              <ClipboardList className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Since last visit (this browser)</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {hasShiftBaseline && shiftBaseline
+                  ? `Baseline saved ${formatRelativeTime(shiftBaseline.savedAt)}. Comparison is local to this profile — not shared across operators or devices.`
+                  : 'No baseline yet. Mark baseline after you have reviewed the console so “what changed” has a truthful anchor.'}
+              </p>
+              {hasShiftBaseline && deltaSummaryParts.length > 0 && (
+                <ul className="mt-2 text-xs text-foreground space-y-1 list-disc list-inside">
+                  {deltaSummaryParts.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              )}
+              {hasShiftBaseline && deltaSummaryParts.length === 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">No deltas detected against your saved baseline on this load.</p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={markShiftBaseline}
+            className="shrink-0 rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
+          >
+            Mark “caught up” baseline
+          </button>
         </div>
       </div>
 
@@ -180,6 +322,12 @@ export function Dashboard() {
                     {activePrivacyFindings.length} privacy finding{activePrivacyFindings.length > 1 ? 's' : ''}
                   </Link>
                 )}
+                {pendingApprovals.length > 0 && (
+                  <Link to="/control-actions" className="inline-flex items-center gap-1 text-xs text-warning hover:text-foreground transition-colors">
+                    <Zap className="h-3 w-3" />
+                    {pendingApprovals.length} control action{pendingApprovals.length > 1 ? 's' : ''} awaiting approval
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -194,14 +342,90 @@ export function Dashboard() {
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">System operating normally</p>
+              <p className="text-sm font-semibold text-foreground">Nothing queued in the attention strip</p>
               <p className="text-xs text-muted-foreground">
-                No open incidents, transports healthy
+                No open incidents, transports healthy, no pending approvals in operational state
                 {pendingRecommendations.length > 0 && (
                   <> &middot; <Link to="/recommendations" className="text-primary hover:underline">{pendingRecommendations.length} recommendation{pendingRecommendations.length > 1 ? 's' : ''} available</Link></>
                 )}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Evidence gaps + next steps */}
+      {(sparseIncidents.length > 0 || !connectedTransport || pendingApprovals.length > 0) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {sparseIncidents.length > 0 && (
+            <div className="rounded-2xl border border-warning/25 bg-warning/5 p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-warning mb-2">
+                <HelpCircle className="h-3.5 w-3.5" />
+                Sparse or degraded incident evidence
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Open incidents where intelligence is sparse or explicitly degraded — treat conclusions as bounded.
+              </p>
+              <ul className="space-y-1.5">
+                {sparseIncidents.slice(0, 4).map((inc) => (
+                  <li key={inc.id}>
+                    <Link
+                      to={`/incidents/${encodeURIComponent(inc.id)}`}
+                      className="text-sm text-foreground hover:underline font-medium truncate block"
+                    >
+                      {inc.title || inc.id.slice(0, 12)}
+                    </Link>
+                    <span className="text-[11px] text-muted-foreground">
+                      {inc.intelligence?.evidence_strength ?? 'unknown'} evidence
+                      {inc.intelligence?.degraded ? ' · degraded intel' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {sparseIncidents.length > 4 && (
+                <Link to="/incidents" className="text-xs font-semibold text-primary mt-2 inline-block hover:underline">
+                  View all incidents →
+                </Link>
+              )}
+            </div>
+          )}
+          <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+              <Clock className="h-3.5 w-3.5" />
+              Suggested next checks
+            </div>
+            <ul className="text-sm text-muted-foreground space-y-2">
+              {!connectedTransport && (
+                <li>
+                  <Link to="/status" className="text-foreground font-medium hover:underline">Status</Link>
+                  {' — '}no active transport; ingest may be idle.
+                </li>
+              )}
+              {pendingApprovals.length > 0 && (
+                <li>
+                  <Link to="/control-actions" className="text-foreground font-medium hover:underline">Control actions</Link>
+                  {' — '}
+                  {pendingApprovals.length} pending approval{pendingApprovals.length > 1 ? 's' : ''}.
+                </li>
+              )}
+              {openIncidents.length > 0 && (
+                <li>
+                  <Link to={`/incidents/${encodeURIComponent(openIncidents[0].id)}`} className="text-foreground font-medium hover:underline">
+                    Newest open incident
+                  </Link>
+                  {' — '}
+                  {openIncidents[0].title || openIncidents[0].id.slice(0, 12)}
+                </li>
+              )}
+              <li>
+                <Link to="/topology" className="text-foreground font-medium hover:underline">Topology</Link>
+                {' — '}compare stale vs healthy nodes from stored graph evidence.
+              </li>
+              <li>
+                <Link to="/planning" className="text-foreground font-medium hover:underline">Planning</Link>
+                {' — '}resilience posture from topology bounds (not RF simulation).
+              </li>
+            </ul>
           </div>
         </div>
       )}
@@ -297,7 +521,7 @@ export function Dashboard() {
                   {openIncidents.slice(0, 3).map((inc) => (
                     <Link
                       key={inc.id}
-                      to="/incidents"
+                      to={`/incidents/${encodeURIComponent(inc.id)}`}
                       className="block rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:bg-accent/50"
                     >
                       <div className="flex items-start justify-between gap-2">

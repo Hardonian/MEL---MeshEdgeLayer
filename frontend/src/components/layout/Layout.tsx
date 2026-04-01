@@ -67,7 +67,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'Overview',
       icon: Eye,
       items: [
-        { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { label: 'Command surface', href: '/', icon: LayoutDashboard },
         { label: 'Status', href: '/status', icon: Activity },
         { label: 'Events', href: '/events', icon: FileText },
       ],
