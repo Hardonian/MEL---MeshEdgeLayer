@@ -670,7 +670,7 @@ ORDER BY event_time DESC LIMIT %d;`, where, limit)
 
 // TimelineEventsForIncidentResource returns timeline-union events scoped to an incident:
 // explicit timeline_events rows referencing the incident, control_actions with incident_id FK,
-// and the incident row itself when it falls in the window.
+// the incident row itself when it falls in the window, and operator_notes with ref_type=incident.
 func (d *DB) TimelineEventsForIncidentResource(incidentID, fromInclusive, toInclusive string, limit int) ([]TimelineEvent, error) {
 	incidentID = strings.TrimSpace(incidentID)
 	if incidentID == "" {
@@ -705,9 +705,17 @@ FROM (
     summary, severity, actor_id, resource_id, COALESCE(details_json,'{}') AS details_json,
     COALESCE(scope_posture,'local'), COALESCE(origin_instance_id,''), COALESCE(timing_posture,'local_ordered'), COALESCE(merge_disposition,'raw_only'), COALESCE(merge_correlation_id,''), COALESCE(import_id,'')
   FROM timeline_events WHERE resource_id='%s'
+
+  UNION ALL
+
+  SELECT created_at AS event_time, 'operator_note' AS event_type, id AS event_id,
+    'note on '||ref_type||': '||SUBSTR(content,1,120) AS summary, 'info' AS severity,
+    actor_id, ref_id AS resource_id, '{}' AS details_json,
+    'local' AS scope_posture, '' AS origin_instance_id, 'local_ordered' AS timing_posture, 'raw_only' AS merge_disposition, '' AS merge_correlation_id, '' AS import_id
+  FROM operator_notes WHERE ref_type='incident' AND ref_id='%s'
 ) AS tl
 %s
-ORDER BY event_time ASC LIMIT %d;`, esc(incidentID), esc(incidentID), esc(incidentID), whereTime, limit)
+ORDER BY event_time ASC LIMIT %d;`, esc(incidentID), esc(incidentID), esc(incidentID), esc(incidentID), whereTime, limit)
 
 	rows, err := d.QueryRowsScript(sql)
 	if err != nil {

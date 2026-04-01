@@ -488,7 +488,9 @@ func signatureLabel(inc models.Incident, reason string) string {
 
 func incidentEvidenceWindow(inc models.Incident) (string, string) {
 	base := parseRFC3339Fallback(firstNonEmpty(inc.OccurredAt, inc.UpdatedAt), time.Now().UTC())
-	return base.Add(-2 * time.Hour).Format(time.RFC3339), base.Add(4 * time.Hour).Format(time.RFC3339)
+	// Wider window for replay: captures workflow, handoff, and linked actions that may trail the incident row;
+	// still bounded — not an unbounded history claim.
+	return base.Add(-48 * time.Hour).Format(time.RFC3339), base.Add(48 * time.Hour).Format(time.RFC3339)
 }
 
 func parseRFC3339Fallback(v string, fallback time.Time) time.Time {
