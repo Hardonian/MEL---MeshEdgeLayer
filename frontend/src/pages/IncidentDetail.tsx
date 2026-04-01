@@ -21,6 +21,7 @@ import {
   BookOpen,
   GitBranch,
   Circle,
+  History,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -30,6 +31,7 @@ import { Loading } from '@/components/ui/StateViews'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
+import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
 import { useControlStatus } from '@/hooks/useApi'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
 import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident } from '@/types/api'
@@ -205,6 +207,144 @@ type InvestigationPathStep = {
   href: string
   samePage: boolean
   emphasize?: boolean
+}
+
+function OperationalMemoryPanel({ inc }: { inc: Incident }) {
+  const intel = inc.intelligence
+  if (!intel) return null
+
+  const sig = intel.signature_match_count ?? 0
+  const sim = intel.similar_incidents ?? []
+  const mem = intel.action_outcome_memory ?? []
+  const gov = intel.governance_memory ?? []
+  const hist = intel.historically_used_actions ?? []
+  const drift = intel.drift_fingerprints ?? []
+  const corr = intel.correlation_groups ?? []
+
+  const hasBody =
+    sig > 1 ||
+    sim.length > 0 ||
+    mem.length > 0 ||
+    gov.length > 0 ||
+    hist.length > 0 ||
+    drift.length > 0 ||
+    corr.length > 0 ||
+    !!inc.reopened_from_incident_id
+
+  if (!hasBody) return null
+
+  return (
+    <Card data-testid="incident-operational-memory">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base inline-flex items-center gap-2">
+          <History className="h-4 w-4 text-muted-foreground" aria-hidden />
+          Operational memory (this instance)
+        </CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Counts and links from stored history — bounded, explainable, not causal proof. Weak matches stay labeled in similar cases.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0 text-xs">
+        {inc.reopened_from_incident_id && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2">
+            <span className="font-semibold text-foreground">Reopened from </span>
+            <Link
+              to={`/incidents/${encodeURIComponent(inc.reopened_from_incident_id)}`}
+              className="font-mono text-primary hover:underline"
+            >
+              {inc.reopened_from_incident_id.slice(0, 14)}…
+            </Link>
+            {inc.reopened_at && (
+              <span className="text-muted-foreground"> · {formatRelativeTime(inc.reopened_at)}</span>
+            )}
+          </div>
+        )}
+        {sig > 1 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2">
+            <p className="font-semibold text-foreground">Signature recurrence</p>
+            <p className="text-muted-foreground mt-0.5">
+              Same signature bucket seen <span className="text-foreground font-medium">{sig}</span> times — structural repeat, not verified root-cause repeat.
+              {intel.signature_label && (
+                <>
+                  {' '}
+                  <span className="text-foreground/90">({intel.signature_label})</span>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+        {sim.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2">
+            <p className="font-semibold text-foreground">Similar prior incidents</p>
+            <p className="text-muted-foreground mt-0.5">
+              {sim.length} linked row{sim.length > 1 ? 's' : ''} in intelligence — open each for rationale and weak-match flags.
+            </p>
+            <a href="#similar-prior-incidents" className="mt-1.5 inline-block text-[11px] font-semibold text-primary hover:underline">
+              Jump to list →
+            </a>
+          </div>
+        )}
+        {mem.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 space-y-1.5">
+            <p className="font-semibold text-foreground">Historical action outcomes (association)</p>
+            {mem.slice(0, 4).map((m) => (
+              <div key={m.action_type} className="text-muted-foreground border-t border-border/30 pt-1.5 first:border-0 first:pt-0">
+                <span className="text-foreground font-medium">{m.action_label || toWords(m.action_type)}</span>
+                {' — '}
+                {toWords(m.outcome_framing)} · evidence {m.evidence_strength} · n={m.sample_size}
+                {m.caveats?.length ? (
+                  <span className="block mt-0.5 text-[10px]">{m.caveats!.slice(0, 2).join(' · ')}</span>
+                ) : null}
+              </div>
+            ))}
+            {mem.length > 4 && (
+              <p className="text-[10px] text-muted-foreground/80">+{mem.length - 4} more in detailed section below.</p>
+            )}
+          </div>
+        )}
+        {gov.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 space-y-1">
+            <p className="font-semibold text-foreground">Governance memory (control plane)</p>
+            {gov.slice(0, 3).map((g) => (
+              <p key={g.action_type} className="text-muted-foreground">
+                <span className="text-foreground font-medium">{toWords(g.action_type)}</span>: {g.summary}
+                <span className="text-[10px] text-muted-foreground/80">
+                  {' '}
+                  ({g.linked_action_count} linked, {g.approved_or_passed_count} approved/passed, {g.rejected_count} rejected)
+                </span>
+              </p>
+            ))}
+          </div>
+        )}
+        {hist.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2">
+            <p className="font-semibold text-foreground">Historically used action types (this signature family)</p>
+            <ul className="mt-1 list-disc pl-4 text-muted-foreground space-y-0.5">
+              {hist.slice(0, 6).map((h) => (
+                <li key={h.action_type}>
+                  {toWords(h.action_type)} — count {h.count}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {(drift.length > 0 || corr.length > 0) && (
+          <p className="text-[11px] text-muted-foreground border-t border-border/40 pt-2">
+            {drift.length > 0 && (
+              <span>
+                {drift.length} topology drift fingerprint{drift.length > 1 ? 's' : ''} on record (graph / observation bounds, not RF proof).{' '}
+              </span>
+            )}
+            {corr.length > 0 && (
+              <span>
+                {corr.length} correlation group{corr.length > 1 ? 's' : ''} — see intelligence payload for membership.
+              </span>
+            )}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 function InvestigationPathPanel({ inc }: { inc: Incident }) {
@@ -451,11 +591,20 @@ function filenameFromDisposition(cd: string | null, fallback: string): string {
 
 // ─── Proofpack download button ────────────────────────────────────────────────
 
-function ProofpackButton({ incidentId }: { incidentId: string }) {
+function ProofpackButton({
+  incidentId,
+  exportBlocked,
+  exportBlockedReason,
+}: {
+  incidentId: string
+  exportBlocked?: boolean
+  exportBlockedReason?: string
+}) {
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [err, setErr] = useState('')
 
   async function download() {
+    if (exportBlocked) return
     setState('loading')
     setErr('')
     try {
@@ -480,13 +629,25 @@ function ProofpackButton({ incidentId }: { incidentId: string }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" onClick={() => void download()} disabled={state === 'loading'} className="button-secondary text-xs">
-        <Download className="h-3.5 w-3.5" />
-        {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
-      </button>
-      <span className="text-[10px] text-muted-foreground/60">Snapshot at request-time. Review evidence_gaps.</span>
-      {state === 'error' && <span className="text-xs text-critical">{err}</span>}
+    <div className="flex flex-col gap-1.5">
+      {exportBlocked && (
+        <p className="text-xs text-warning border border-warning/25 rounded-lg px-2 py-1.5 bg-warning/5" role="status">
+          {exportBlockedReason || 'Evidence export disabled or unavailable — proofpack request would likely fail.'}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void download()}
+          disabled={state === 'loading' || exportBlocked}
+          className="button-secondary text-xs min-h-[44px] sm:min-h-0 touch-manipulation"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {state === 'loading' ? 'Assembling…' : 'Export proofpack'}
+        </button>
+        <span className="text-[10px] text-muted-foreground/60">Snapshot at request-time. Review evidence_gaps.</span>
+        {state === 'error' && <span className="text-xs text-critical">{err}</span>}
+      </div>
     </div>
   )
 }
@@ -718,6 +879,18 @@ function LinkedActionRow({
 }
 
 function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
+  const versionInfo = useVersionInfo()
+  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+  const exportBlocked =
+    exportPosture?.export_enabled === false ||
+    (!versionInfo.loading && versionInfo.error != null && exportPosture == null)
+  const exportBlockedReason =
+    exportPosture?.export_enabled === false
+      ? 'Incident evidence export disabled by instance policy — proofpack may be blocked; use plain handoff where allowed.'
+      : versionInfo.error != null && exportPosture == null
+        ? `Could not load version / export policy (${versionInfo.error}) — proofpack may fail; confirm in Settings before relying on export.`
+        : undefined
+
   const trace = inc.intelligence?.action_outcome_trace
   const wirelessGaps = inc.intelligence?.wireless_context?.evidence_gaps ?? []
   const sparsityMarkers = inc.intelligence?.sparsity_markers ?? []
@@ -794,7 +967,11 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
         </p>
       )}
 
-      <ProofpackButton incidentId={inc.id} />
+      <ProofpackButton
+        incidentId={inc.id}
+        exportBlocked={exportBlocked}
+        exportBlockedReason={exportBlockedReason}
+      />
       <p className="text-[11px] text-muted-foreground">
         Pair with{' '}
         <a href="#shift-continuity-handoff" className="font-medium text-primary hover:underline">
@@ -1055,6 +1232,28 @@ function buildHandoffStructured(inc: Incident) {
     match_explanation: s.match_explanation?.slice(0, 4),
     matched_dimensions: s.matched_dimensions,
   }))
+  const memoryCompact = intel
+    ? {
+        signature_match_count: intel.signature_match_count,
+        signature_label: intel.signature_label,
+        reopened_from_incident_id: inc.reopened_from_incident_id,
+        reopened_at: inc.reopened_at,
+        action_outcome_framings: (intel.action_outcome_memory ?? []).slice(0, 6).map((m) => ({
+          action_type: m.action_type,
+          outcome_framing: m.outcome_framing,
+          evidence_strength: m.evidence_strength,
+          sample_size: m.sample_size,
+        })),
+        governance_summaries: (intel.governance_memory ?? []).slice(0, 4).map((g) => ({
+          action_type: g.action_type,
+          summary: g.summary,
+          linked_action_count: g.linked_action_count,
+        })),
+        historical_action_types: (intel.historically_used_actions ?? []).slice(0, 8),
+        drift_fingerprint_count: intel.drift_fingerprints?.length ?? 0,
+        correlation_group_count: intel.correlation_groups?.length ?? 0,
+      }
+    : undefined
   return {
     kind: 'mel_handoff_summary/v1',
     generated_note: 'Structured continuity snapshot — not a proofpack; use Export proofpack or escalation bundle for evidence chain.',
@@ -1070,6 +1269,8 @@ function buildHandoffStructured(inc: Incident) {
       updated_at: inc.updated_at,
       resolved_at: inc.resolved_at,
       owner_actor_id: inc.owner_actor_id,
+      reopened_from_incident_id: inc.reopened_from_incident_id,
+      reopened_at: inc.reopened_at,
     },
     narrative: {
       summary: inc.summary,
@@ -1101,6 +1302,7 @@ function buildHandoffStructured(inc: Incident) {
       confidence: g.confidence,
     })),
     similar_incidents_compact: similar,
+    operational_memory_compact: memoryCompact,
     deep_links: {
       incident: `/incidents/${inc.id}`,
       control_actions: `/control-actions?incident=${encodeURIComponent(inc.id)}`,
@@ -1310,8 +1512,12 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
   const [escState, setEscState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [escErr, setEscErr] = useState('')
   const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+  const exportBlockedByPolicy = exportPosture?.export_enabled === false
+  const policyUnknown = !versionInfo.loading && versionInfo.error != null && exportPosture == null
+  const escalationLikelyBlocked = exportBlockedByPolicy || policyUnknown
 
   async function downloadEscalationBundle() {
+    if (escalationLikelyBlocked) return
     setEscState('loading')
     setEscErr('')
     try {
@@ -1353,6 +1559,11 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
         </p>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
+        {versionInfo.error && (
+          <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5" role="alert">
+            Version / policy fetch failed ({versionInfo.error}). Export gates may be unknown — prefer plain handoff until Settings loads.
+          </p>
+        )}
         {!versionInfo.loading && exportPosture && (
           <div
             className="rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground"
@@ -1400,14 +1611,25 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
           <button
             type="button"
             onClick={() => void downloadEscalationBundle()}
-            disabled={escState === 'loading'}
+            disabled={escState === 'loading' || escalationLikelyBlocked}
+            title={
+              escalationLikelyBlocked
+                ? exportBlockedByPolicy
+                  ? 'Disabled: instance policy blocks evidence export'
+                  : 'Disabled: export policy unknown — confirm in Settings first'
+                : undefined
+            }
             className="button-secondary text-xs inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0 touch-manipulation"
           >
             <Download className="h-3.5 w-3.5" />
             {escState === 'loading' ? 'Downloading…' : 'Download escalation bundle'}
           </button>
           <span className="text-[10px] text-muted-foreground/70">
-            Includes proofpack assembly summary + linked control rows when export policy allows.
+            {escalationLikelyBlocked
+              ? exportBlockedByPolicy
+                ? 'Not offered while evidence export is disabled — avoids a predictable 403.'
+                : 'Held back until export policy is known — avoids silent failure.'
+              : 'Includes proofpack assembly summary + linked control rows when export policy allows.'}
           </span>
         </div>
         {escState === 'error' && escErr && <p className="text-xs text-critical">{escErr}</p>}
@@ -1425,6 +1647,7 @@ export function IncidentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { setFocus: setWorkspaceFocus } = useOperatorWorkspaceFocus()
 
   const [inc, setInc] = useState<Incident | null>(null)
   const [replay, setReplay] = useState<ReplayView | null>(null)
@@ -1475,6 +1698,15 @@ export function IncidentDetail() {
   }, [id])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    if (!inc) return
+    setWorkspaceFocus({
+      incidentId: inc.id,
+      incidentTitle: inc.title?.trim() || undefined,
+      savedAt: new Date().toISOString(),
+    })
+  }, [inc, setWorkspaceFocus])
 
   useEffect(() => {
     if (searchParams.get('replay') === '1') {
@@ -1611,6 +1843,8 @@ export function IncidentDetail() {
 
       <InvestigationPathPanel inc={inc} />
 
+      <OperationalMemoryPanel inc={inc} />
+
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
 
@@ -1701,6 +1935,7 @@ export function IncidentDetail() {
               {/* Similar incidents */}
               {(intel.similar_incidents?.length ?? 0) > 0 && (
                 <Section title="Similar prior incidents" icon={<Link2 className="h-3.5 w-3.5" />}>
+                  <div id="similar-prior-incidents" className="-mt-2 mb-2 scroll-mt-24" />
                   <div className="space-y-1.5">
                     {intel.similar_incidents!.map((s) => (
                       <Link
