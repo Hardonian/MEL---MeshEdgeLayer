@@ -44,6 +44,11 @@ import {
 } from '@/utils/evidenceSemantics'
 import { controlActionExecPhase } from '@/utils/controlActionPhase'
 import { incidentTopologyFocusNodeNum } from '@/utils/operatorWorkflow'
+import {
+  incidentActionVisibility,
+  incidentMemoryDecisionCue,
+  operatorCanReadLinkedControlRows,
+} from '@/utils/incidentOperatorTruth'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -214,6 +219,8 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
   const intel = inc.intelligence
   if (!intel) return null
 
+  const memoryDecisionCue = incidentMemoryDecisionCue(inc)
+
   const sig = intel.signature_match_count ?? 0
   const sim = intel.similar_incidents ?? []
   const mem = intel.action_outcome_memory ?? []
@@ -246,6 +253,16 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-3 pt-0 text-xs">
+        {memoryDecisionCue && (
+          <div
+            className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-[11px] text-foreground"
+            role="status"
+            data-testid="incident-memory-decision-cue"
+          >
+            <span className="font-semibold">What history changes next: </span>
+            {memoryDecisionCue}
+          </div>
+        )}
         {inc.reopened_from_incident_id && (
           <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2">
             <span className="font-semibold text-foreground">Reopened from </span>
@@ -394,18 +411,23 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
 }
 
 function InvestigationPathPanel({ inc }: { inc: Incident }) {
+  const ctx = useOperatorContext()
+  const canReadLinked = operatorCanReadLinkedControlRows({
+    loading: ctx.loading,
+    error: ctx.error,
+    trustUI: ctx.trustUI,
+    capabilities: ctx.capabilities ?? [],
+  })
+  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
   const topoNum = incidentTopologyFocusNodeNum(inc)
   const intel = inc.intelligence
-  const linkedCount = inc.linked_control_actions?.length ?? 0
-  const awaiting = (inc.linked_control_actions ?? []).filter(
-    (a) => (a.lifecycle_state || '').toLowerCase() === 'pending_approval',
-  ).length
-  const inFlight = (inc.linked_control_actions ?? []).filter((a) => {
-    const ls = (a.lifecycle_state || '').toLowerCase()
-    return ls === 'pending' || ls === 'running'
-  }).length
   const gaps =
     (intel?.wireless_context?.evidence_gaps?.length ?? 0) + (intel?.sparsity_markers?.length ?? 0) > 0
+
+  const controlStepDetail =
+    actionVis.kind === 'linked_observed'
+      ? `${actionVis.linkedCount} linked — ${actionVis.awaitingApproval} awaiting approval, ${actionVis.inFlight} queued or executing.`
+      : actionVis.explanation
 
   const steps: InvestigationPathStep[] = [
     {
@@ -417,13 +439,16 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
     },
     {
       label: 'Linked control actions',
-      detail:
-        linkedCount === 0
-          ? 'None linked yet — queue still shows all rows; linkage needs incident_id on the action.'
-          : `${linkedCount} linked — ${awaiting} awaiting approval, ${inFlight} queued or executing.`,
+      detail: controlStepDetail,
       href: '#linked-control-actions',
       samePage: true,
-      emphasize: linkedCount > 0 || awaiting > 0,
+      emphasize:
+        actionVis.awaitingApproval > 0 ||
+        actionVis.inFlight > 0 ||
+        actionVis.kind === 'references_only' ||
+        actionVis.kind === 'visibility_limited' ||
+        actionVis.kind === 'action_context_degraded' ||
+        actionVis.kind === 'no_linked_historical_signals',
     },
     {
       label: 'Replay / timeline',
@@ -684,7 +709,12 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
   const ctx = useOperatorContext()
   const { data: ctrlData, refresh: refreshCtrl } = useControlStatus()
   const linked = useMemo(() => inc.linked_control_actions ?? [], [inc.linked_control_actions])
-  const canReadActions = ctx.trustUI?.read_actions === true || ctx.capabilities?.includes('read_actions')
+  const canReadActions = operatorCanReadLinkedControlRows({
+    loading: ctx.loading,
+    error: ctx.error,
+    trustUI: ctx.trustUI,
+    capabilities: ctx.capabilities ?? [],
+  })
   const emergencyOff = ctrlData?.emergency_disable === true
   const matrix = ctrlData?.reality_matrix ?? []
 
@@ -740,7 +770,9 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
           Linked control actions
         </div>
         <p className="text-xs text-muted-foreground">
-          Your session may lack read_actions — open the control queue with appropriate credentials to see incident-linked rows.
+          {ctx.error
+            ? `Operator context failed to load (${ctx.error}) — cannot confirm read_actions; open the control queue to verify linkage.`
+            : 'Your session may lack read_actions — open the control queue with appropriate credentials to see incident-linked rows.'}
         </p>
         <Link
           to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
@@ -751,6 +783,8 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
       </div>
     )
   }
+
+  const showLinkedDespiteGate = !canReadActions && linked.length > 0
 
   return (
     <div
@@ -773,6 +807,13 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
         Rows where <code className="font-mono text-[10px]">incident_id</code> matches this incident. Approval, queue, and execution remain
         separate states — see lifecycle on each row.
       </p>
+      {showLinkedDespiteGate && (
+        <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5" role="status">
+          {ctx.error
+            ? `Operator context unavailable (${ctx.error}) — rows below came with the incident payload; capability to open the full queue may still be limited.`
+            : 'read_actions is off for this session — rows below came with the incident payload; verify sensitive actions in the queue with appropriate credentials.'}
+        </p>
+      )}
       {emergencyOff && (
         <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5">
           Control emergency disable is on for this instance — new execution may be blocked regardless of approval state.
@@ -1242,8 +1283,11 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   )
 }
 
-function buildHandoffStructured(inc: Incident) {
+function buildHandoffStructured(inc: Incident, opts?: { canReadLinkedActions?: boolean }) {
   const intel = inc.intelligence
+  const canReadLinked = opts?.canReadLinkedActions !== false
+  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
+  const memoryDecisionCueCompact = incidentMemoryDecisionCue(inc)
   const gaps = [
     ...(intel?.wireless_context?.evidence_gaps ?? []),
     ...(intel?.sparsity_markers ?? []),
@@ -1318,6 +1362,11 @@ function buildHandoffStructured(inc: Incident) {
     uncertainty: {
       evidence_and_sparsity_gaps: gaps,
     },
+    operator_truth_compact: {
+      action_visibility_kind: actionVis.kind,
+      action_context_explanation: actionVis.explanation,
+      memory_decision_cue: memoryDecisionCueCompact ?? undefined,
+    },
     pending: {
       pending_action_ids: inc.pending_actions?.filter(Boolean) ?? [],
     },
@@ -1371,6 +1420,12 @@ function buildHandoffExportText(inc: Incident): string {
   }
   if ((intel?.sparsity_markers?.length ?? 0) > 0) {
     lines.push(`Sparsity markers: ${intel!.sparsity_markers!.join('; ')}`)
+  }
+  const memCue = incidentMemoryDecisionCue(inc)
+  if (memCue) {
+    lines.push('')
+    lines.push('What history changes next (deterministic cue):')
+    lines.push(memCue)
   }
   lines.push('')
   lines.push('Recorded handoff narrative:')
@@ -1532,8 +1587,16 @@ function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void })
 
 function HandoffExportPanel({ inc }: { inc: Incident }) {
   const versionInfo = useVersionInfo()
+  const opCtx = useOperatorContext()
+  const canReadLinked = operatorCanReadLinkedControlRows({
+    loading: opCtx.loading,
+    error: opCtx.error,
+    trustUI: opCtx.trustUI,
+    capabilities: opCtx.capabilities ?? [],
+  })
+  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
   const text = buildHandoffExportText(inc)
-  const structured = buildHandoffStructured(inc)
+  const structured = buildHandoffStructured(inc, { canReadLinkedActions: canReadLinked })
   const jsonText = JSON.stringify(structured, null, 2)
   const [escState, setEscState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [escErr, setEscErr] = useState('')
@@ -1613,6 +1676,17 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
           <p className="font-semibold text-foreground">Decision ladder (under pressure)</p>
           <ol className="list-decimal pl-4 space-y-1.5">
             <li>
+              <span className="text-foreground">Runtime, broker, or version unclear?</span>{' '}
+              <Link to="/settings" className="text-primary font-medium hover:underline">
+                Settings
+              </Link>{' '}
+              and{' '}
+              <Link to="/diagnostics" className="text-primary font-medium hover:underline">
+                Diagnostics
+              </Link>{' '}
+              first — handoff text does not fix a broken local posture.
+            </li>
+            <li>
               <span className="text-foreground">Need a human-readable pass-down?</span> Plain summary or handoff JSON — fastest continuity;
               still not proof.
             </li>
@@ -1622,15 +1696,14 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
               <Link to="/diagnostics" className="text-primary font-medium hover:underline">
                 host/runtime diagnostics
               </Link>{' '}
-              when the problem is the runtime itself.
+              when the problem is the runtime itself.{' '}
+              <span className="text-warning/90">
+                Avoid leaning on it as “proof” when evidence is sparse — label gaps in your ticket.
+              </span>
             </li>
             <li>
               <span className="text-foreground">Need strongest incident evidence MEL can bundle?</span> Proofpack (below in this page) —
-              skip if policy blocks export or version metadata is unknown; use handoff +{' '}
-              <Link to="/settings" className="text-primary font-medium hover:underline">
-                Settings
-              </Link>{' '}
-              to confirm gates first.
+              skip if policy blocks export or version metadata is unknown; use handoff + Settings to confirm gates first.
             </li>
             <li>
               <span className="text-foreground">Need process, build, disk, or broker truth?</span>{' '}
@@ -1640,7 +1713,30 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
               — does not replace proofpack for incident evidence chain.
             </li>
           </ol>
+          <ul className="list-disc pl-4 space-y-1 border-t border-border/30 pt-2 mt-2 text-[10px]">
+            <li>
+              <span className="text-foreground font-medium">Avoid proofpack / escalation</span> when export is disabled or policy is unknown
+              — you get predictable failure or empty legal scope; use plain handoff + runtime truth.
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Avoid handoff-only</span> when the blocker is clearly local runtime or broker
+              health — diagnostics and Settings carry the failing fact, not the incident narrative.
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Control / action context partial?</span>{' '}
+              <a href="#linked-control-actions" className="text-primary font-medium hover:underline">
+                Linked actions panel
+              </a>{' '}
+              and filtered queue — {actionVis.explanation}
+            </li>
+          </ul>
         </div>
+        {inc.intelligence?.evidence_strength === 'sparse' && (
+          <p className="text-[11px] text-warning border border-warning/20 rounded-lg px-3 py-2 bg-warning/5" role="status">
+            Sparse incident evidence — any bundle is weaker; prefer widening replay/topology/control context before implying completeness to
+            support.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"

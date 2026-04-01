@@ -35,4 +35,19 @@ describe('partitionOpenIncidentsForWorkbench', () => {
     expect(needsAttention.map((x) => x.id)).toEqual(['follow', 'appr', 'sparse'])
     expect(backlog).toHaveLength(0)
   })
+
+  it('treats visibility-limited sessions as needs-attention', () => {
+    const plain = mk({
+      id: 'plain',
+      updated_at: '2026-01-02T00:00:00Z',
+      review_state: 'investigating',
+    })
+    const limited = mk({
+      id: 'lim',
+      updated_at: '2019-01-01T00:00:00Z',
+      review_state: 'investigating',
+    })
+    const { needsAttention } = partitionOpenIncidentsForWorkbench([plain, limited], { canReadLinkedActions: false })
+    expect(needsAttention.map((x) => x.id)).toContain('lim')
+  })
 })

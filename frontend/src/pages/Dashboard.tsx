@@ -46,6 +46,9 @@ import {
   sortOpenIncidentsForShiftStart,
 } from '@/utils/operatorWorkflow'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
+import { useOperatorContext } from '@/hooks/useOperatorContext'
+import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
+import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 
 export function Dashboard() {
   const status = useStatus()
@@ -59,6 +62,7 @@ export function Dashboard() {
   const incidents = useIncidents()
   const operational = useOperationalState()
   const versionInfo = useVersionInfo()
+  const operatorCtx = useOperatorContext()
 
   const [refreshCount, setRefreshCount] = useState(0)
   const prevAttemptRef = useRef<Date | null>(null)
@@ -188,14 +192,28 @@ export function Dashboard() {
   )
   const deadLetterCount = deadLetters.data?.length ?? 0
 
-  const openIncidentsShiftOrder = useMemo(
-    () => sortOpenIncidentsForShiftStart(openIncidents),
-    [openIncidents],
-  )
-
   const pendingApprovals = operational.data?.pending_approvals ?? []
 
   const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+
+  const incidentQueueCtx: IncidentWorkQueueWhyContext = useMemo(
+    () => ({
+      exportEnabled: exportPosture?.export_enabled,
+      exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
+      canReadLinkedActions: operatorCanReadLinkedControlRows({
+        loading: operatorCtx.loading,
+        error: operatorCtx.error,
+        trustUI: operatorCtx.trustUI,
+        capabilities: operatorCtx.capabilities ?? [],
+      }),
+    }),
+    [exportPosture, versionInfo.loading, versionInfo.error, operatorCtx.trustUI, operatorCtx.capabilities, operatorCtx.loading, operatorCtx.error],
+  )
+
+  const openIncidentsShiftOrder = useMemo(
+    () => sortOpenIncidentsForShiftStart(openIncidents, incidentQueueCtx),
+    [openIncidents, incidentQueueCtx],
+  )
 
   const shiftAttentionRows = useMemo(
     () =>
@@ -209,10 +227,7 @@ export function Dashboard() {
         deadLetterCount,
         deadLettersIncreasedSinceBaseline: shiftDelta.deadLettersIncreased,
         sparseOpenCount: sparseIncidents.length,
-        incidentWhyContext: {
-          exportEnabled: exportPosture?.export_enabled,
-          exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
-        },
+        incidentWhyContext: incidentQueueCtx,
       }),
     [
       openIncidentsShiftOrder,
@@ -224,9 +239,7 @@ export function Dashboard() {
       deadLetterCount,
       shiftDelta.deadLettersIncreased,
       sparseIncidents.length,
-      exportPosture,
-      versionInfo.loading,
-      versionInfo.error,
+      incidentQueueCtx,
     ],
   )
 

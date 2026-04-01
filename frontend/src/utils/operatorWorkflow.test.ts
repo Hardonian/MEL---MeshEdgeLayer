@@ -78,6 +78,30 @@ describe('operatorWorkflow', () => {
     expect(openIncidentShiftWhyLine(i, { exportEnabled: false })).toMatch(/policy disables evidence export/i)
   })
 
+  it('openIncidentShiftWhyLine explains visibility when read_actions is off', () => {
+    const i = inc({ id: 'v' })
+    expect(openIncidentShiftWhyLine(i, { canReadLinkedActions: false })).toMatch(/not shown for this session/i)
+  })
+
+  it('sortOpenIncidentsForShiftStart elevates history-without-linkage before plain backlog', () => {
+    const plain = inc({
+      id: 'plain',
+      updated_at: '2026-01-02T00:00:00Z',
+      review_state: 'investigating',
+    })
+    const histOnly = inc({
+      id: 'hist',
+      updated_at: '2020-01-01T00:00:00Z',
+      review_state: 'investigating',
+      intelligence: {
+        evidence_strength: 'strong',
+        historically_used_actions: [{ action_type: 'restart', count: 2 }],
+      } as Incident['intelligence'],
+    })
+    const sorted = sortOpenIncidentsForShiftStart([plain, histOnly])
+    expect(sorted[0]?.id).toBe('hist')
+  })
+
   it('countOpenIncidentsExplicitFollowUp counts review workflow states', () => {
     const n = countOpenIncidentsExplicitFollowUp([
       inc({ id: 'a', review_state: 'follow_up_needed' }),

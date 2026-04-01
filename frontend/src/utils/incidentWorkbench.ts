@@ -2,10 +2,17 @@
  * Incident list / workbench grouping — aligns sort with Command surface (operatorWorkflow).
  */
 import type { Incident } from '@/types/api'
-import { openIncidentShiftPriority, sortOpenIncidentsForShiftStart } from './operatorWorkflow'
+import {
+  openIncidentShiftPriority,
+  sortOpenIncidentsForShiftStart,
+  type IncidentWorkQueueWhyContext,
+} from './operatorWorkflow'
 
 /** Open incidents that should surface before the rest (follow-up, control gates, sparse/degraded). */
-export function partitionOpenIncidentsForWorkbench(incidents: Incident[]): {
+export function partitionOpenIncidentsForWorkbench(
+  incidents: Incident[],
+  ctx?: IncidentWorkQueueWhyContext,
+): {
   needsAttention: Incident[]
   backlog: Incident[]
 } {
@@ -13,11 +20,11 @@ export function partitionOpenIncidentsForWorkbench(incidents: Incident[]): {
     const s = (i.state || '').toLowerCase()
     return s !== 'resolved' && s !== 'closed'
   })
-  const sorted = sortOpenIncidentsForShiftStart(open)
+  const sorted = sortOpenIncidentsForShiftStart(open, ctx)
   const needsAttention: Incident[] = []
   const backlog: Incident[] = []
   for (const inc of sorted) {
-    if (openIncidentShiftPriority(inc) <= 2) needsAttention.push(inc)
+    if (openIncidentShiftPriority(inc, ctx) <= 2) needsAttention.push(inc)
     else backlog.push(inc)
   }
   return { needsAttention, backlog }
