@@ -59,51 +59,7 @@ export function Dashboard() {
   const isLoading = status.loading || nodes.loading || messagesLoading
   const hasError = status.error || nodes.error || messagesError
 
-  if (isLoading && !status.data) {
-    return <Loading message="Loading system status..." />
-  }
-
-  if (hasError && !status.data) {
-    return (
-      <div className="p-8 animate-fade-in">
-        <AlertCard
-          variant="critical"
-          title="Unable to connect to MEL backend"
-          description={status.error || 'Failed to connect to MEL backend. Please ensure MEL is running.'}
-          action={
-            <button
-              onClick={() => window.location.reload()}
-              className="button-danger"
-            >
-              Retry connection
-            </button>
-          }
-        />
-      </div>
-    )
-  }
-
-  const transports = status.data?.transports || []
-  const connectedTransport = transports.find((t) => t.effective_state === 'connected')
-  const healthyTransports = transports.filter((t) => getHealthState(t.health) === 'healthy').length
-  const totalTransports = transports.length
-  const hasTransports = totalTransports > 0
-  const degradedTransports = transports.filter((t) => getHealthState(t.health) === 'degraded').length
-  const unhealthyTransports = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
-
-  const activePrivacyFindings = privacy.data?.filter((p) => p.severity === 'critical' || p.severity === 'high') || []
-  const pendingRecommendations = recommendations.data?.filter((r) => r.actionable) || []
-  const criticalDiags = diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high') || []
-  const deadLetterCount = deadLetters.data?.length ?? 0
-
-  const openIncidents = (incidents.data ?? []).filter(
-    (inc) => {
-      const s = (inc.state || '').toLowerCase()
-      return s !== 'resolved' && s !== 'closed'
-    }
-  )
-
-  const pendingApprovals = operational.data?.pending_approvals ?? []
+  const transports = useMemo(() => status.data?.transports ?? [], [status.data?.transports])
 
   const sparseIncidents = useMemo(() => {
     const list = incidents.data ?? []
@@ -114,6 +70,14 @@ export function Dashboard() {
         i.intelligence?.evidence_strength === 'sparse' ||
         (i.intelligence?.degraded === true && (i.intelligence?.sparsity_markers?.length ?? 0) > 0)
       )
+    })
+  }, [incidents.data])
+
+  const recurringOpenIncidents = useMemo(() => {
+    return (incidents.data ?? []).filter((i) => {
+      const s = (i.state || '').toLowerCase()
+      if (s === 'resolved' || s === 'closed') return false
+      return (i.intelligence?.signature_match_count ?? 0) > 1
     })
   }, [incidents.data])
 
@@ -151,6 +115,51 @@ export function Dashboard() {
     prevAttemptRef.current = t
     setRefreshCount((c) => c + 1)
   }, [status.lastUpdated])
+
+  if (isLoading && !status.data) {
+    return <Loading message="Loading system status..." />
+  }
+
+  if (hasError && !status.data) {
+    return (
+      <div className="p-8 animate-fade-in">
+        <AlertCard
+          variant="critical"
+          title="Unable to connect to MEL backend"
+          description={status.error || 'Failed to connect to MEL backend. Please ensure MEL is running.'}
+          action={
+            <button
+              onClick={() => window.location.reload()}
+              className="button-danger"
+            >
+              Retry connection
+            </button>
+          }
+        />
+      </div>
+    )
+  }
+
+  const connectedTransport = transports.find((t) => t.effective_state === 'connected')
+  const healthyTransports = transports.filter((t) => getHealthState(t.health) === 'healthy').length
+  const totalTransports = transports.length
+  const hasTransports = totalTransports > 0
+  const degradedTransports = transports.filter((t) => getHealthState(t.health) === 'degraded').length
+  const unhealthyTransports = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
+
+  const activePrivacyFindings = privacy.data?.filter((p) => p.severity === 'critical' || p.severity === 'high') || []
+  const pendingRecommendations = recommendations.data?.filter((r) => r.actionable) || []
+  const criticalDiags = diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high') || []
+  const deadLetterCount = deadLetters.data?.length ?? 0
+
+  const openIncidents = (incidents.data ?? []).filter(
+    (inc) => {
+      const s = (inc.state || '').toLowerCase()
+      return s !== 'resolved' && s !== 'closed'
+    }
+  )
+
+  const pendingApprovals = operational.data?.pending_approvals ?? []
 
   function markShiftBaseline() {
     const incList = incidents.data ?? []
@@ -303,6 +312,13 @@ export function Dashboard() {
                     <AlertTriangle className="h-3 w-3" />
                     {openIncidents.length} open incident{openIncidents.length > 1 ? 's' : ''}
                   </Link>
+                )}
+                {recurringOpenIncidents.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Same signature bucket seen before on this instance — not causal proof">
+                    <TrendingUp className="h-3 w-3 text-warning" />
+                    {recurringOpenIncidents.length} recurring pattern
+                    {recurringOpenIncidents.length > 1 ? 's' : ''} (open)
+                  </span>
                 )}
                 {unhealthyTransports > 0 && (
                   <Link to="/status" className="inline-flex items-center gap-1 text-xs text-critical hover:text-foreground transition-colors">

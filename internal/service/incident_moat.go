@@ -753,7 +753,9 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 	}
 	from, to := incidentEvidenceWindow(inc)
 	timeline, _ := a.DB.TimelineEventsForIncidentResource(incidentID, from, to, 200)
-	segments := replaySegmentsFromTimeline(timeline, inc)
+	timelineSegs := replaySegmentsFromTimeline(timeline, inc)
+	outcomeSegs := replaySegmentsFromRecommendationOutcomes(outcomes, inc)
+	segments := mergeReplaySegmentsChronologically(timelineSegs, outcomeSegs)
 	knowledge := []map[string]any{}
 	for _, seg := range segments {
 		knowledge = append(knowledge, map[string]any{
@@ -762,6 +764,12 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 			"summary":           seg.Summary,
 			"knowledge_posture": seg.Posture,
 			"evidence_refs":     seg.EvidenceRefs,
+			"event_class":       seg.EventClass,
+			"actor_id":          seg.ActorID,
+			"severity":          seg.Severity,
+			"scope_posture":     seg.ScopePosture,
+			"timing_posture":    seg.TimingPosture,
+			"resource_id":       seg.ResourceID,
 		})
 	}
 	var counterfactual map[string]any
@@ -774,26 +782,134 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 			"second":    []map[string]any{{"id": second.ID, "rank_score": second.RankScore, "strength": second.Strength}},
 		}
 	}
+	replayMeta := map[string]any{
+		"schema_version":                  "incident_replay_view/v3",
+		"window_from":                     from,
+		"window_to":                       to,
+		"timeline_event_count":            len(timeline),
+		"recommendation_outcome_count":    len(outcomes),
+		"combined_segment_count":          len(segments),
+		"ordering":                        "ascending_event_time",
+		"sparse_timeline":                 len(timeline) == 0,
+		"ordering_posture_note":           "Sequence is instance-local persisted time ordering only; imported or federated rows keep their declared timing_posture — not a claim of global causality.",
+	}
 	return map[string]any{
-		"kind":                           "incident_replay_view/v2",
+		"kind":                           "incident_replay_view/v3",
 		"incident_id":                    inc.ID,
 		"incident":                       inc,
 		"recommendation_outcomes":        omo,
 		"replay_segments":                segments,
 		"knowledge_timeline":             knowledge,
+		"replay_meta":                    replayMeta,
 		"bounded_counterfactual_ranking": counterfactual,
-		"truth_note":                     "Derived from persisted rows at query time; not a live simulation. Segment posture labels what MEL could observe vs derive vs operator-adjudicated assistive layers.",
+		"truth_note":                     "Derived from persisted rows at query time; not a live simulation. event_class groups rows for filtering; knowledge_posture describes observation vs control-plane vs operator-recorded layers — not root cause.",
 		"generated_at":                   time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }
 
 type replaySegment struct {
-	EventTime    string   `json:"event_time"`
-	EventType    string   `json:"event_type"`
-	EventID      string   `json:"event_id,omitempty"`
-	Summary      string   `json:"summary"`
-	Posture      string   `json:"knowledge_posture"`
-	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	EventTime     string         `json:"event_time"`
+	EventType     string         `json:"event_type"`
+	EventID       string         `json:"event_id,omitempty"`
+	Summary       string         `json:"summary"`
+	Posture       string         `json:"knowledge_posture"`
+	EventClass    string         `json:"event_class,omitempty"`
+	ActorID       string         `json:"actor_id,omitempty"`
+	Severity      string         `json:"severity,omitempty"`
+	ScopePosture  string         `json:"scope_posture,omitempty"`
+	TimingPosture string         `json:"timing_posture,omitempty"`
+	ResourceID    string         `json:"resource_id,omitempty"`
+	Details       map[string]any `json:"details,omitempty"`
+	EvidenceRefs  []string       `json:"evidence_refs,omitempty"`
+}
+
+func replayEventClass(eventType string) string {
+	switch eventType {
+	case "incident":
+		return "incident_record"
+	case "control_action":
+		return "control_action"
+	case "operator_note":
+		return "operator_annotation"
+	case "incident_workflow":
+		return "workflow"
+	case "incident_handoff":
+		return "handoff"
+	case "proofpack_export":
+		return "evidence_export"
+	case "recommendation_outcome":
+		return "operator_adjudication"
+	case "remote_evidence_import", "remote_evidence_item", "remote_materialized_event":
+		return "imported_evidence"
+	default:
+		if strings.HasPrefix(eventType, "action_") {
+			return "control_lifecycle"
+		}
+		return "timeline_event"
+	}
+}
+
+func replaySegmentsFromRecommendationOutcomes(rows []db.IncidentRecommendationOutcomeRecord, inc models.Incident) []replaySegment {
+	out := make([]replaySegment, 0, len(rows))
+	for _, o := range rows {
+		if strings.TrimSpace(o.ID) == "" {
+			continue
+		}
+		summary := fmt.Sprintf("Runbook / guidance outcome %q for recommendation %s", strings.TrimSpace(o.Outcome), strings.TrimSpace(o.RecommendationID))
+		if strings.TrimSpace(o.Note) != "" {
+			summary += " — " + strings.TrimSpace(o.Note)
+		}
+		out = append(out, replaySegment{
+			EventTime:    o.CreatedAt,
+			EventType:    "recommendation_outcome",
+			EventID:      o.ID,
+			Summary:      summary,
+			Posture:      "observed_operator_or_system_event",
+			EventClass:   "operator_adjudication",
+			ActorID:      o.ActorID,
+			EvidenceRefs: []string{"recommendation_outcome:" + o.ID, "incident:" + inc.ID},
+			ResourceID:   inc.ID,
+			Details: map[string]any{
+				"recommendation_id": o.RecommendationID,
+				"outcome":           o.Outcome,
+			},
+		})
+	}
+	return out
+}
+
+func mergeReplaySegmentsChronologically(a, b []replaySegment) []replaySegment {
+	n := len(a) + len(b)
+	if n == 0 {
+		return nil
+	}
+	out := make([]replaySegment, 0, n)
+	out = append(out, a...)
+	out = append(out, b...)
+	sort.SliceStable(out, func(i, j int) bool {
+		ti := parseReplayTime(out[i].EventTime)
+		tj := parseReplayTime(out[j].EventTime)
+		if ti.Equal(tj) {
+			if out[i].EventType == out[j].EventType {
+				return out[i].EventID < out[j].EventID
+			}
+			return out[i].EventType < out[j].EventType
+		}
+		return ti.Before(tj)
+	})
+	return out
+}
+
+func parseReplayTime(v string) time.Time {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.UTC()
 }
 
 func replaySegmentsFromTimeline(events []db.TimelineEvent, inc models.Incident) []replaySegment {
@@ -805,22 +921,39 @@ func replaySegmentsFromTimeline(events []db.TimelineEvent, inc models.Incident) 
 			posture = "observed_operator_or_system_event"
 		case "control_action":
 			posture = "observed_control_plane_event"
+		case "operator_note":
+			posture = "observed_operator_or_system_event"
 		default:
 			if strings.HasPrefix(ev.EventType, "action_") {
 				posture = "observed_control_lifecycle_event"
 			}
 		}
 		refs := []string{"timeline_event:" + ev.EventID}
-		if strings.TrimSpace(ev.ResourceID) != "" && ev.ResourceID == inc.ID {
+		rid := strings.TrimSpace(ev.ResourceID)
+		if rid != "" && rid == inc.ID {
 			refs = append(refs, "incident:"+inc.ID)
 		}
+		if ev.EventType == "control_action" && rid != "" && rid != inc.ID {
+			refs = append(refs, "control_action:"+ev.EventID)
+		}
+		details := ev.Details
+		if details == nil {
+			details = map[string]any{}
+		}
 		out = append(out, replaySegment{
-			EventTime:    ev.EventTime,
-			EventType:    ev.EventType,
-			EventID:      ev.EventID,
-			Summary:      ev.Summary,
-			Posture:      posture,
-			EvidenceRefs: refs,
+			EventTime:     ev.EventTime,
+			EventType:     ev.EventType,
+			EventID:       ev.EventID,
+			Summary:       ev.Summary,
+			Posture:       posture,
+			EventClass:    replayEventClass(ev.EventType),
+			ActorID:       ev.ActorID,
+			Severity:      ev.Severity,
+			ScopePosture:  ev.ScopePosture,
+			TimingPosture: ev.TimingPosture,
+			ResourceID:    ev.ResourceID,
+			Details:       details,
+			EvidenceRefs:  refs,
 		})
 	}
 	return out
@@ -865,13 +998,28 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 		"closeout":      inc.CloseoutReason,
 		"lessons":       inc.LessonsLearned,
 	}
+	actions, _ := a.DB.ControlActionsByIncidentID(incidentID, 50)
+	linked := make([]map[string]any, 0, len(actions))
+	for _, act := range actions {
+		linked = append(linked, map[string]any{
+			"id":               act.ID,
+			"action_type":      act.ActionType,
+			"lifecycle_state":  act.LifecycleState,
+			"target_transport": act.TargetTransport,
+			"result":           act.Result,
+			"created_at":       act.CreatedAt,
+			"reversible":       act.Reversible,
+		})
+	}
 	return map[string]any{
 		"kind":               "escalation_bundle/v1",
 		"incident_id":        inc.ID,
 		"narrative":          narrative,
+		"linked_control_actions": linked,
 		"proofpack_summary":  pack["assembly"],
 		"section_statuses":   pack["section_statuses"],
 		"evidence_gap_count": gapCount,
+		"continuity_note":    "linked_control_actions are incident_id-linked rows only; use proofpack for full evidence chain.",
 		"privacy_note":       "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 	}, nil

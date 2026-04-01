@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   AlertTriangle,
@@ -40,6 +40,13 @@ interface ReplaySegment {
   event_id?: string
   summary: string
   knowledge_posture: string
+  event_class?: string
+  actor_id?: string
+  severity?: string
+  scope_posture?: string
+  timing_posture?: string
+  resource_id?: string
+  details?: Record<string, unknown>
   evidence_refs?: string[]
 }
 
@@ -49,6 +56,16 @@ interface ReplayView {
   incident: Incident
   replay_segments?: ReplaySegment[]
   knowledge_timeline?: ReplaySegment[]
+  replay_meta?: {
+    schema_version?: string
+    window_from?: string
+    window_to?: string
+    timeline_event_count?: number
+    recommendation_outcome_count?: number
+    combined_segment_count?: number
+    sparse_timeline?: boolean
+    ordering_posture_note?: string
+  }
   recommendation_outcomes?: Array<{
     id: string
     recommendation_id: string
@@ -87,6 +104,44 @@ function postureLabel(posture: string): string {
     case 'observed_control_lifecycle_event': return 'Control lifecycle'
     default: return toWords(posture) || 'Unknown'
   }
+}
+
+/** Groups segments for replay filter chips (driven by backend event_class when present). */
+function replayFilterBucket(seg: ReplaySegment): 'incident' | 'control' | 'workflow' | 'operator' | 'evidence' {
+  const c = (seg.event_class || '').trim()
+  switch (c) {
+    case 'control_action':
+    case 'control_lifecycle':
+      return 'control'
+    case 'workflow':
+    case 'handoff':
+      return 'workflow'
+    case 'operator_annotation':
+    case 'operator_adjudication':
+      return 'operator'
+    case 'evidence_export':
+    case 'imported_evidence':
+      return 'evidence'
+    default:
+      return 'incident'
+  }
+}
+
+const REPLAY_FILTER_OPTIONS = [
+  { id: 'all' as const, label: 'All' },
+  { id: 'incident' as const, label: 'Incident' },
+  { id: 'control' as const, label: 'Control' },
+  { id: 'workflow' as const, label: 'Workflow / handoff' },
+  { id: 'operator' as const, label: 'Notes / outcomes' },
+  { id: 'evidence' as const, label: 'Evidence / import' },
+]
+
+type ReplayFilterId = typeof REPLAY_FILTER_OPTIONS[number]['id']
+
+function eventClassShortLabel(seg: ReplaySegment): string {
+  const c = (seg.event_class || '').trim()
+  if (!c) return toWords(seg.event_type)
+  return toWords(c)
 }
 
 function severityVariant(s?: string): 'critical' | 'warning' | 'secondary' {
@@ -269,12 +324,39 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
 
 // ─── Replay timeline ──────────────────────────────────────────────────────────
 
-function ReplayTimeline({ segments, truthNote, generatedAt }: {
+function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
   segments: ReplaySegment[]
   truthNote?: string
   generatedAt?: string
+  replayMeta?: ReplayView['replay_meta']
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [filter, setFilter] = useState<ReplayFilterId>('all')
+  const [newestFirst, setNewestFirst] = useState(false)
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return segments
+    return segments.filter((s) => replayFilterBucket(s) === filter)
+  }, [segments, filter])
+
+  const ordered = useMemo(() => {
+    if (!newestFirst) return filtered
+    return [...filtered].reverse()
+  }, [filtered, newestFirst])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+      if (!e.altKey) return
+      const n = Number.parseInt(e.key, 10)
+      if (n >= 0 && n < REPLAY_FILTER_OPTIONS.length) {
+        e.preventDefault()
+        setFilter(REPLAY_FILTER_OPTIONS[n]!.id)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   function toggle(i: number) {
     setExpanded((prev) => {
@@ -292,18 +374,64 @@ function ReplayTimeline({ segments, truthNote, generatedAt }: {
           Incident replay / timeline
         </div>
         <p className="text-sm text-muted-foreground">
-          No timeline events found for this incident window. Evidence may have been pruned or the incident is too recent.
+          No timeline events in the replay window ({replayMeta?.window_from ?? '—'} → {replayMeta?.window_to ?? '—'}). Evidence may have been pruned, notes may use a different ref, or the incident is outside the bounded window.
         </p>
+        {replayMeta?.ordering_posture_note && (
+          <p className="mt-2 text-[11px] text-muted-foreground/70 border-l-2 border-muted pl-2.5">{replayMeta.ordering_posture_note}</p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+    <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3" role="region" aria-label="Incident replay timeline">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         <GitBranch className="h-3.5 w-3.5" />
         Incident replay / timeline
-        <span className="ml-auto font-normal normal-case tracking-normal">{segments.length} events</span>
+        <span className="ml-auto font-normal normal-case tracking-normal">
+          {ordered.length}{filter !== 'all' ? ` / ${segments.length}` : ''} events
+        </span>
+      </div>
+
+      {replayMeta && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground/80 font-mono">
+          {replayMeta.window_from && replayMeta.window_to && (
+            <span>Window: {replayMeta.window_from.slice(0, 16)}… → {replayMeta.window_to.slice(0, 16)}…</span>
+          )}
+          {replayMeta.timeline_event_count != null && (
+            <span>DB timeline rows: {replayMeta.timeline_event_count}</span>
+          )}
+          {replayMeta.sparse_timeline && (
+            <span className="text-warning">Sparse timeline</span>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Replay filters">
+        {REPLAY_FILTER_OPTIONS.map((o, idx) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => setFilter(o.id)}
+            title={`Alt+${idx}`}
+            className={clsx(
+              'rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors',
+              filter === o.id
+                ? 'border-primary/50 bg-primary/10 text-foreground'
+                : 'border-border/50 bg-card/40 text-muted-foreground hover:border-border/80',
+            )}
+          >
+            {o.label}
+            <span className="ml-1 font-mono text-muted-foreground/50">{idx}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setNewestFirst((v) => !v)}
+          className="ml-auto rounded-md border border-border/50 bg-card/40 px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:border-border/80"
+        >
+          {newestFirst ? 'Order: newest first' : 'Order: oldest first'}
+        </button>
       </div>
 
       {truthNote && (
@@ -311,41 +439,65 @@ function ReplayTimeline({ segments, truthNote, generatedAt }: {
           {truthNote}
         </p>
       )}
+      {replayMeta?.ordering_posture_note && (
+        <p className="text-[10px] text-muted-foreground/60 border-l-2 border-border/40 pl-2.5 leading-snug">
+          {replayMeta.ordering_posture_note}
+        </p>
+      )}
+
+      {filter !== 'all' && ordered.length === 0 && (
+        <p className="text-xs text-muted-foreground">No events in this filter; try &quot;All&quot;.</p>
+      )}
 
       <div className="relative">
-        {/* Vertical line */}
-        <div className="absolute left-[6px] top-0 bottom-0 w-px bg-border/60" />
+        <div className="absolute left-[6px] top-0 bottom-0 w-px bg-border/60" aria-hidden />
 
         <ol className="space-y-0">
-          {segments.map((seg, i) => {
+          {ordered.map((seg, i) => {
             const isExp = expanded.has(i)
             const hasRefs = (seg.evidence_refs?.length ?? 0) > 0
+            const hasDetails = seg.details != null && Object.keys(seg.details).length > 0
             return (
-              <li key={seg.event_id ?? i} className="relative flex gap-3 pl-6 pb-4 last:pb-0">
-                {/* Dot */}
+              <li key={`${seg.event_id ?? 'ev'}-${i}`} className="relative flex gap-3 pl-6 pb-4 last:pb-0">
                 <Circle className={clsx('absolute left-0 h-3.5 w-3.5 shrink-0 fill-current top-0.5', postureColor(seg.knowledge_posture))} />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-start gap-x-3 gap-y-0.5">
                     <span className="text-xs font-medium text-foreground leading-snug">{seg.summary || toWords(seg.event_type)}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono normal-case tracking-normal">
+                      {eventClassShortLabel(seg)}
+                    </Badge>
                     <span className={clsx('text-[10px] font-semibold uppercase tracking-wide shrink-0', postureColor(seg.knowledge_posture))}>
                       {postureLabel(seg.knowledge_posture)}
                     </span>
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1" title={seg.event_time ? formatTimestamp(seg.event_time) : undefined}>
                       <Clock className="h-3 w-3" />
-                      {seg.event_time ? formatRelativeTime(seg.event_time) : '—'}
+                      {seg.event_time ? (
+                        <>
+                          <span>{formatRelativeTime(seg.event_time)}</span>
+                          <span className="text-muted-foreground/50 hidden sm:inline">· {formatTimestamp(seg.event_time)}</span>
+                        </>
+                      ) : '—'}
                     </span>
+                    {seg.actor_id && <span className="text-muted-foreground/70">actor {seg.actor_id}</span>}
+                    {seg.timing_posture && seg.timing_posture !== 'local_ordered' && (
+                      <span className="text-warning/80 text-[10px]">timing: {seg.timing_posture}</span>
+                    )}
+                    {seg.scope_posture && seg.scope_posture !== 'local' && (
+                      <span className="text-[10px] text-muted-foreground/70">scope: {seg.scope_posture}</span>
+                    )}
                     <code className="text-muted-foreground/60">{toWords(seg.event_type)}</code>
-                    {hasRefs && (
+                    {(hasRefs || hasDetails) && (
                       <button
                         type="button"
                         onClick={() => toggle(i)}
                         className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                        aria-expanded={isExp}
                       >
                         {isExp ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        refs
+                        details
                       </button>
                     )}
                   </div>
@@ -355,6 +507,11 @@ function ReplayTimeline({ segments, truthNote, generatedAt }: {
                         <li key={ref} className="text-[10px] font-mono text-muted-foreground/70">{ref}</li>
                       ))}
                     </ul>
+                  )}
+                  {isExp && hasDetails && (
+                    <pre className="mt-1.5 max-h-32 overflow-auto rounded border border-border/40 bg-muted/20 p-2 text-[10px] font-mono text-muted-foreground/80 whitespace-pre-wrap">
+                      {JSON.stringify(seg.details, null, 2)}
+                    </pre>
                   )}
                 </div>
               </li>
@@ -384,6 +541,77 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   )
 }
 
+function buildHandoffStructured(inc: Incident) {
+  const intel = inc.intelligence
+  const gaps = [
+    ...(intel?.wireless_context?.evidence_gaps ?? []),
+    ...(intel?.sparsity_markers ?? []),
+  ]
+  const similar = (intel?.similar_incidents ?? []).slice(0, 5).map((s) => ({
+    incident_id: s.incident_id,
+    title: s.title,
+    state: s.state,
+    occurred_at: s.occurred_at,
+    weighted_score: s.weighted_score,
+    insufficient_evidence: s.insufficient_evidence,
+    match_explanation: s.match_explanation?.slice(0, 4),
+    matched_dimensions: s.matched_dimensions,
+  }))
+  return {
+    kind: 'mel_handoff_summary/v1',
+    generated_note: 'Structured continuity snapshot — not a proofpack; use Export proofpack or escalation bundle for evidence chain.',
+    incident: {
+      id: inc.id,
+      title: inc.title,
+      state: inc.state,
+      review_state: inc.review_state,
+      severity: inc.severity,
+      category: inc.category,
+      resource: { type: inc.resource_type, id: inc.resource_id },
+      occurred_at: inc.occurred_at,
+      updated_at: inc.updated_at,
+      resolved_at: inc.resolved_at,
+      owner_actor_id: inc.owner_actor_id,
+    },
+    narrative: {
+      summary: inc.summary,
+      handoff_summary: inc.handoff_summary,
+      investigation_notes: inc.investigation_notes,
+      resolution_summary: inc.resolution_summary,
+      lessons_learned: inc.lessons_learned,
+      closeout_reason: inc.closeout_reason,
+    },
+    intelligence_posture: intel
+      ? {
+          evidence_strength: intel.evidence_strength,
+          degraded: intel.degraded,
+          degraded_reasons: intel.degraded_reasons,
+          signature_label: intel.signature_label,
+          signature_match_count: intel.signature_match_count,
+        }
+      : undefined,
+    uncertainty: {
+      evidence_and_sparsity_gaps: gaps,
+    },
+    pending: {
+      pending_action_ids: inc.pending_actions?.filter(Boolean) ?? [],
+    },
+    next_checks: (intel?.investigate_next ?? []).slice(0, 8).map((g) => ({
+      id: g.id,
+      title: g.title,
+      rationale: g.rationale,
+      confidence: g.confidence,
+    })),
+    similar_incidents_compact: similar,
+    deep_links: {
+      incident: `/incidents/${inc.id}`,
+      control_actions: `/control-actions?incident=${encodeURIComponent(inc.id)}`,
+      topology: `/topology?incident=${encodeURIComponent(inc.id)}`,
+      planning: '/planning',
+    },
+  }
+}
+
 function buildHandoffExportText(inc: Incident): string {
   const intel = inc.intelligence
   const lines: string[] = [
@@ -395,6 +623,7 @@ function buildHandoffExportText(inc: Incident): string {
     `Severity: ${inc.severity || '—'}`,
     `Occurred: ${inc.occurred_at || '—'}`,
     `Updated: ${inc.updated_at || '—'}`,
+    `Resource: ${inc.resource_type || '—'} / ${inc.resource_id || '—'}`,
     '',
     'What we know (bounded):',
     inc.summary || '(no summary)',
@@ -402,6 +631,9 @@ function buildHandoffExportText(inc: Incident): string {
   ]
   if (intel?.evidence_strength) {
     lines.push(`Evidence strength (intel): ${intel.evidence_strength}`)
+  }
+  if (intel?.signature_match_count != null && intel.signature_match_count > 1) {
+    lines.push(`Signature recurrence (instance history): ${intel.signature_match_count} matches — structural bucket, not causal.`)
   }
   if (intel?.degraded) {
     lines.push('Intelligence degraded: yes (treat guidance as non-causal)')
@@ -419,6 +651,28 @@ function buildHandoffExportText(inc: Incident): string {
   lines.push('Investigation notes:')
   lines.push(inc.investigation_notes || '(none)')
   lines.push('')
+  lines.push('Resolution / closeout (if any):')
+  lines.push(inc.resolution_summary || '(none)')
+  if (inc.lessons_learned) lines.push(`Lessons: ${inc.lessons_learned}`)
+  if (inc.closeout_reason) lines.push(`Closeout: ${inc.closeout_reason}`)
+  lines.push('')
+  lines.push('Pending action IDs (referenced on incident):')
+  const p = inc.pending_actions?.filter(Boolean) ?? []
+  if (p.length === 0) lines.push('(none listed)')
+  else for (const id of p) lines.push(`- ${id}`)
+  lines.push('')
+  lines.push('Similar prior incidents (deterministic / explainable in UI):')
+  const sim = intel?.similar_incidents ?? []
+  if (sim.length === 0) {
+    lines.push('(none listed — may be sparse history)')
+  } else {
+    for (const s of sim.slice(0, 5)) {
+      const expl = (s.match_explanation?.length ? s.match_explanation.join('; ') : s.similarity_reason?.join('; ')) || 'see incident detail'
+      lines.push(`- ${s.incident_id} state=${s.state ?? '?'} score=${s.weighted_score != null ? s.weighted_score.toFixed(2) : 'n/a'} weak=${s.insufficient_evidence ? 'yes' : 'no'}`)
+      lines.push(`  ${expl}`)
+    }
+  }
+  lines.push('')
   lines.push('What remains uncertain:')
   if ((intel?.wireless_context?.evidence_gaps?.length ?? 0) > 0) {
     for (const g of intel!.wireless_context!.evidence_gaps!) lines.push(`- ${g}`)
@@ -435,7 +689,7 @@ function buildHandoffExportText(inc: Incident): string {
   }
   lines.push('')
   lines.push(`Deep link: /incidents/${inc.id}`)
-  lines.push('Export is a snapshot; canonical evidence lives in MEL proofpack / DB.')
+  lines.push('This paste export is a snapshot; canonical evidence lives in MEL proofpack / DB. Use “Handoff JSON” or escalation bundle for machine-readable continuity.')
   return lines.join('\n')
 }
 
@@ -550,18 +804,68 @@ function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void })
 
 function HandoffExportPanel({ inc }: { inc: Incident }) {
   const text = buildHandoffExportText(inc)
+  const structured = buildHandoffStructured(inc)
+  const jsonText = JSON.stringify(structured, null, 2)
+  const [escState, setEscState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [escErr, setEscErr] = useState('')
+
+  async function downloadEscalationBundle() {
+    setEscState('loading')
+    setEscErr('')
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/escalation-bundle`)
+      if (!res.ok) {
+        setEscErr(res.status === 403 ? 'Export disabled by policy or insufficient permissions.' : `HTTP ${res.status}`)
+        setEscState('error')
+        return
+      }
+      const data = await res.json()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `escalation-bundle-${inc.id.slice(0, 12)}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setEscState('idle')
+    } catch {
+      setEscErr('Network error.')
+      setEscState('error')
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">Handoff export</CardTitle>
-          <CopyButton value={text} label="Copy handoff summary" className="button-secondary text-xs" />
+          <CardTitle className="text-base">Shift continuity / handoff</CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton value={text} label="Copy plain summary" className="button-secondary text-xs" />
+            <CopyButton value={jsonText} label="Copy handoff JSON" className="button-secondary text-xs" />
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Plain-text snapshot for tickets or chat. Does not replace proofpack JSON for evidence chain.
+          Plain text for chat/tickets; JSON is a structured continuity snapshot. Neither replaces the proofpack for canonical evidence.
         </p>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void downloadEscalationBundle()}
+            disabled={escState === 'loading'}
+            className="button-secondary text-xs inline-flex items-center gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {escState === 'loading' ? 'Downloading…' : 'Download escalation bundle'}
+          </button>
+          <span className="text-[10px] text-muted-foreground/70">
+            Includes proofpack assembly summary + linked control rows when export policy allows.
+          </span>
+        </div>
+        {escState === 'error' && escErr && <p className="text-xs text-critical">{escErr}</p>}
         <pre className="max-h-48 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-3 text-[11px] text-muted-foreground whitespace-pre-wrap font-mono">
           {text}
         </pre>
@@ -575,6 +879,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
 export function IncidentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [inc, setInc] = useState<Incident | null>(null)
   const [replay, setReplay] = useState<ReplayView | null>(null)
@@ -582,7 +887,7 @@ export function IncidentDetail() {
   const [replayLoading, setReplayLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [replayError, setReplayError] = useState<string | null>(null)
-  const [replayOpen, setReplayOpen] = useState(false)
+  const [replayOpen, setReplayOpen] = useState(() => searchParams.get('replay') === '1')
 
   const load = useCallback(async () => {
     if (!id) return
@@ -626,9 +931,25 @@ export function IncidentDetail() {
 
   useEffect(() => { void load() }, [load])
 
+  useEffect(() => {
+    if (searchParams.get('replay') === '1') {
+      setReplayOpen(true)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!replayOpen || !id) return
+    if (replay || replayLoading || replayError) return
+    void loadReplay()
+  }, [replayOpen, id, replay, replayLoading, replayError, loadReplay])
+
   function handleReplayOpen() {
     setReplayOpen(true)
-    if (!replay && !replayLoading) void loadReplay()
+    setSearchParams((prev) => {
+      const n = new URLSearchParams(prev)
+      n.set('replay', '1')
+      return n
+    }, { replace: true })
   }
 
   if (loading) return <Loading message="Loading incident…" />
@@ -651,6 +972,8 @@ export function IncidentDetail() {
   const intel = inc.intelligence
   const hasIntel = !!intel
   const seenBefore = (intel?.signature_match_count ?? 0) > 1
+  const replaySegs = replay?.replay_segments ?? replay?.knowledge_timeline ?? []
+  const outcomesInTimeline = replaySegs.some((s) => s.event_type === 'recommendation_outcome')
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
@@ -828,14 +1151,30 @@ export function IncidentDetail() {
                       <Link
                         key={s.incident_id}
                         to={`/incidents/${s.incident_id}`}
-                        className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs hover:border-border/80 hover:bg-card/70 transition-colors"
+                        className="block rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs hover:border-border/80 hover:bg-card/70 transition-colors"
                       >
-                        <span className="font-mono text-muted-foreground shrink-0">{s.incident_id.slice(0, 12)}</span>
-                        {s.title && <span className="flex-1 truncate">{s.title}</span>}
-                        {s.state && <Badge variant={s.state === 'resolved' ? 'success' : 'secondary'}>{s.state}</Badge>}
-                        {s.weighted_score != null && (
-                          <span className="text-muted-foreground/60 shrink-0">{(s.weighted_score * 100).toFixed(0)}%</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-muted-foreground shrink-0">{s.incident_id.slice(0, 12)}</span>
+                          {s.title && <span className="flex-1 min-w-0 truncate font-medium text-foreground">{s.title}</span>}
+                          {s.state && <Badge variant={s.state === 'resolved' ? 'success' : 'secondary'}>{s.state}</Badge>}
+                          {s.insufficient_evidence && <Badge variant="warning">weak match</Badge>}
+                          {s.match_category && <Badge variant="outline">{toWords(s.match_category)}</Badge>}
+                          {s.weighted_score != null && (
+                            <span className="text-muted-foreground/60 shrink-0 font-mono" title="Deterministic fingerprint score; not ML confidence">
+                              {(s.weighted_score * 100).toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        {(s.match_explanation?.length || s.similarity_reason?.length) ? (
+                          <ul className="mt-1.5 space-y-0.5 text-[10px] text-muted-foreground leading-snug border-t border-border/30 pt-1.5">
+                            {(s.match_explanation ?? s.similarity_reason ?? []).slice(0, 4).map((line, i) => (
+                              <li key={i} className="flex gap-1.5">
+                                <span className="text-muted-foreground/40 shrink-0">·</span>
+                                <span>{line}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </Link>
                     ))}
                   </div>
@@ -935,15 +1274,16 @@ export function IncidentDetail() {
           <AlertCard variant="warning" title="Replay unavailable" description={replayError} />
         ) : replay ? (
           <ReplayTimeline
-            segments={replay.replay_segments ?? replay.knowledge_timeline ?? []}
+            segments={replaySegs}
             truthNote={replay.truth_note}
             generatedAt={replay.generated_at}
+            replayMeta={replay.replay_meta}
           />
         ) : null}
       </div>
 
       {/* Recommendation outcomes (from replay) */}
-      {replay && (replay.recommendation_outcomes?.length ?? 0) > 0 && (
+      {replay && (replay.recommendation_outcomes?.length ?? 0) > 0 && !outcomesInTimeline && (
         <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5" />
