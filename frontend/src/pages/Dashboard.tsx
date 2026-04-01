@@ -39,6 +39,12 @@ import {
   readShiftSnapshot,
   writeShiftSnapshot,
 } from '@/utils/shiftSnapshot'
+import {
+  buildShiftStartAttentionRows,
+  countOpenIncidentsExplicitFollowUp,
+  sortOpenIncidentsForShiftStart,
+} from '@/utils/operatorWorkflow'
+import { useVersionInfo } from '@/hooks/useVersionInfo'
 
 export function Dashboard() {
   const status = useStatus()
@@ -51,6 +57,7 @@ export function Dashboard() {
   const diagnostics = useDiagnostics()
   const incidents = useIncidents()
   const operational = useOperationalState()
+  const versionInfo = useVersionInfo()
 
   const [refreshCount, setRefreshCount] = useState(0)
   const prevAttemptRef = useRef<Date | null>(null)
@@ -140,6 +147,89 @@ export function Dashboard() {
     setRefreshCount((c) => c + 1)
   }, [status.lastUpdated])
 
+  const openIncidents = useMemo(
+    () =>
+      (incidents.data ?? []).filter((inc) => {
+        const s = (inc.state || '').toLowerCase()
+        return s !== 'resolved' && s !== 'closed'
+      }),
+    [incidents.data],
+  )
+
+  const transportStats = useMemo(() => {
+    const connectedTransport = transports.find((t) => t.effective_state === 'connected')
+    const healthyTransports = transports.filter((t) => getHealthState(t.health) === 'healthy').length
+    const totalTransports = transports.length
+    const hasTransports = totalTransports > 0
+    const degradedTransports = transports.filter((t) => getHealthState(t.health) === 'degraded').length
+    const unhealthyTransports = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
+    return {
+      connectedTransport,
+      healthyTransports,
+      totalTransports,
+      hasTransports,
+      degradedTransports,
+      unhealthyTransports,
+    }
+  }, [transports])
+
+  const activePrivacyFindings = useMemo(
+    () => privacy.data?.filter((p) => p.severity === 'critical' || p.severity === 'high') || [],
+    [privacy.data],
+  )
+  const pendingRecommendations = useMemo(
+    () => recommendations.data?.filter((r) => r.actionable) || [],
+    [recommendations.data],
+  )
+  const criticalDiags = useMemo(
+    () => diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high') || [],
+    [diagnostics.data],
+  )
+  const deadLetterCount = deadLetters.data?.length ?? 0
+
+  const openIncidentsShiftOrder = useMemo(
+    () => sortOpenIncidentsForShiftStart(openIncidents),
+    [openIncidents],
+  )
+
+  const pendingApprovals = operational.data?.pending_approvals ?? []
+
+  const shiftAttentionRows = useMemo(
+    () =>
+      buildShiftStartAttentionRows({
+        openIncidents: openIncidentsShiftOrder,
+        unhealthyTransportCount: transportStats.unhealthyTransports,
+        degradedTransportCount: transportStats.degradedTransports,
+        criticalDiagCount: criticalDiags.length,
+        criticalPrivacyCount: activePrivacyFindings.length,
+        pendingApprovalCount: pendingApprovals.length,
+        deadLetterCount,
+        deadLettersIncreasedSinceBaseline: shiftDelta.deadLettersIncreased,
+        sparseOpenCount: sparseIncidents.length,
+      }),
+    [
+      openIncidentsShiftOrder,
+      transportStats.unhealthyTransports,
+      transportStats.degradedTransports,
+      criticalDiags.length,
+      activePrivacyFindings.length,
+      pendingApprovals.length,
+      deadLetterCount,
+      shiftDelta.deadLettersIncreased,
+      sparseIncidents.length,
+    ],
+  )
+
+  const retentionDays =
+    versionInfo.data?.platform_posture?.retention?.audit_days ??
+    versionInfo.data?.platform_posture?.retention_default_days
+  const exportEnabled = versionInfo.data?.platform_posture?.evidence_export_delete?.export_enabled
+
+  const explicitFollowUpOpenCount = useMemo(
+    () => countOpenIncidentsExplicitFollowUp(openIncidents),
+    [openIncidents],
+  )
+
   if (isLoading && !status.data) {
     return <Loading message="Loading system status..." />
   }
@@ -164,26 +254,14 @@ export function Dashboard() {
     )
   }
 
-  const connectedTransport = transports.find((t) => t.effective_state === 'connected')
-  const healthyTransports = transports.filter((t) => getHealthState(t.health) === 'healthy').length
-  const totalTransports = transports.length
-  const hasTransports = totalTransports > 0
-  const degradedTransports = transports.filter((t) => getHealthState(t.health) === 'degraded').length
-  const unhealthyTransports = transports.filter((t) => getHealthState(t.health) === 'unhealthy').length
-
-  const activePrivacyFindings = privacy.data?.filter((p) => p.severity === 'critical' || p.severity === 'high') || []
-  const pendingRecommendations = recommendations.data?.filter((r) => r.actionable) || []
-  const criticalDiags = diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high') || []
-  const deadLetterCount = deadLetters.data?.length ?? 0
-
-  const openIncidents = (incidents.data ?? []).filter(
-    (inc) => {
-      const s = (inc.state || '').toLowerCase()
-      return s !== 'resolved' && s !== 'closed'
-    }
-  )
-
-  const pendingApprovals = operational.data?.pending_approvals ?? []
+  const {
+    connectedTransport,
+    healthyTransports,
+    totalTransports,
+    hasTransports,
+    degradedTransports,
+    unhealthyTransports,
+  } = transportStats
 
   function markShiftBaseline() {
     const incList = incidents.data ?? []
@@ -418,6 +496,66 @@ export function Dashboard() {
 
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
+      {/* Shift order — ranked attention with honest “why now” */}
+      {shiftAttentionRows.length > 0 && (
+        <section
+          className="rounded-2xl border border-border/60 bg-card/35 p-4"
+          aria-label="Shift-start attention order"
+        >
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Compass className="h-4 w-4 text-muted-foreground shrink-0" />
+            <h2 className="text-sm font-semibold text-foreground">Shift order (work this pass)</h2>
+            <span className="text-[10px] text-muted-foreground/80">
+              Single-operator ordering from live posture — not a team queue.
+            </span>
+          </div>
+          <ol className="space-y-2 list-decimal list-inside marker:text-[11px] marker:text-muted-foreground/70">
+            {shiftAttentionRows.slice(0, 10).map((row) => (
+              <li key={row.key} className="text-sm">
+                <Link
+                  to={row.href}
+                  className="font-medium text-primary hover:underline align-middle"
+                >
+                  {row.title}
+                </Link>
+                <span className="text-muted-foreground text-xs block sm:inline sm:ml-1 sm:before:content-['—_'] sm:before:text-muted-foreground/50">
+                  {row.why}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {explicitFollowUpOpenCount > 0 && (
+            <p className="mt-3 text-[11px] text-muted-foreground border-t border-border/40 pt-2">
+              {explicitFollowUpOpenCount} open incident{explicitFollowUpOpenCount > 1 ? 's' : ''} in follow-up / review workflow
+              states — see incidents list for full set.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Retention / export posture (instance truth) */}
+      {!versionInfo.loading && versionInfo.data?.platform_posture && (
+        <div
+          className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground"
+          role="region"
+          aria-label="Retention and export policy from this instance"
+        >
+          <span className="font-semibold text-foreground">Instance policy cues: </span>
+          {retentionDays != null && (
+            <span>default retention window ~{retentionDays} day audit horizon (see Settings for full matrix). </span>
+          )}
+          {exportEnabled === false && (
+            <span className="text-warning">Evidence export disabled by policy — handoff text/JSON still works where permitted. </span>
+          )}
+          {exportEnabled !== false && (
+            <span>Proofpack / escalation exports follow instance export policy. </span>
+          )}
+          <Link to="/settings" className="text-primary font-medium hover:underline ml-1">
+            Settings → runtime truth
+          </Link>
+        </div>
+      )}
+
       {/* System Pulse — what needs attention */}
       {attentionCount > 0 && (
         <div className="rounded-2xl border border-warning/25 bg-warning/5 p-4">
@@ -475,16 +613,17 @@ export function Dashboard() {
 
       {/* Calm state — when everything is quiet */}
       {attentionCount === 0 && !isLoading && hasTransports && (
-        <div className="rounded-2xl border border-success/20 bg-success/5 p-4 space-y-3">
+        <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-success/20 bg-success/10 text-success">
-              <CheckCircle2 className="h-4 w-4" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/50 bg-card/60 text-muted-foreground">
+              <Compass className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">Nothing queued in the attention strip</p>
+              <p className="text-sm font-semibold text-foreground">Attention strip is empty — stay watchful</p>
               <p className="text-xs text-muted-foreground">
-                No open incidents, transports healthy, no pending approvals in operational state — not a claim that the mesh is
-                fully observed or risk-free.
+                No open incidents, transports report healthy, and operational state shows no pending approvals. That is{' '}
+                <span className="font-medium text-foreground/90">not</span> proof the mesh is fully observed, stable, or
+                risk-free — only that this console’s current signals are quiet.
                 {pendingRecommendations.length > 0 && (
                   <> &middot;{' '}
                     <Link to="/recommendations" className="text-primary hover:underline">
@@ -495,7 +634,7 @@ export function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="border-t border-success/15 pt-3">
+          <div className="border-t border-border/40 pt-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
               Still worth a pass (quiet console)
             </p>
@@ -505,7 +644,7 @@ export function Dashboard() {
                   to={
                     shiftDelta.topologyNodesWithNewerLastSeen.length > 0
                       ? '/topology?filter=changed_since_visit'
-                      : '/topology'
+                      : '/topology?filter=degraded'
                   }
                   className="font-medium text-foreground hover:underline"
                 >
@@ -513,7 +652,7 @@ export function Dashboard() {
                 </Link>
                 {shiftDelta.topologyNodesWithNewerLastSeen.length > 0
                   ? ` — ${shiftDelta.topologyNodesWithNewerLastSeen.length} node(s) newer than your baseline.`
-                  : ' — compare stale vs active from stored observations.'}
+                  : ' — open degraded/sparse graph view when nothing moved vs baseline.'}
               </li>
               <li>
                 <Link to="/events" className="font-medium text-foreground hover:underline">
@@ -596,13 +735,16 @@ export function Dashboard() {
                   {pendingApprovals.length} pending approval{pendingApprovals.length > 1 ? 's' : ''}.
                 </li>
               )}
-              {openIncidents.length > 0 && (
+              {openIncidentsShiftOrder.length > 0 && (
                 <li>
-                  <Link to={`/incidents/${encodeURIComponent(openIncidents[0].id)}`} className="text-foreground font-medium hover:underline">
-                    Newest open incident
+                  <Link
+                    to={`/incidents/${encodeURIComponent(openIncidentsShiftOrder[0].id)}`}
+                    className="text-foreground font-medium hover:underline"
+                  >
+                    Highest-priority open incident (this pass)
                   </Link>
                   {' — '}
-                  {openIncidents[0].title || openIncidents[0].id.slice(0, 12)}
+                  {openIncidentsShiftOrder[0].title || openIncidentsShiftOrder[0].id.slice(0, 12)}
                 </li>
               )}
               <li>
@@ -713,12 +855,14 @@ export function Dashboard() {
                 <Loading message="Loading..." />
               ) : openIncidents.length === 0 ? (
                 <div className="flex items-center gap-3 py-3">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <p className="text-sm text-muted-foreground">No open incidents</p>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    No open incidents in MEL right now — not proof nothing needs follow-up elsewhere.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {openIncidents.slice(0, 3).map((inc) => (
+                  {openIncidentsShiftOrder.slice(0, 3).map((inc) => (
                     <Link
                       key={inc.id}
                       to={`/incidents/${encodeURIComponent(inc.id)}`}

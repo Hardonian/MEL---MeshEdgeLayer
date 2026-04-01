@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest'
+import type { Incident } from '@/types/api'
+import {
+  buildShiftStartAttentionRows,
+  countOpenIncidentsExplicitFollowUp,
+  openIncidentShiftPriority,
+  openIncidentShiftWhyLine,
+  sortOpenIncidentsForShiftStart,
+} from './operatorWorkflow'
+
+function inc(partial: Partial<Incident> & { id: string }): Incident {
+  return {
+    id: partial.id,
+    title: partial.title,
+    state: partial.state ?? 'open',
+    review_state: partial.review_state,
+    updated_at: partial.updated_at,
+    intelligence: partial.intelligence,
+  } as Incident
+}
+
+describe('operatorWorkflow', () => {
+  it('prioritizes follow-up review states', () => {
+    const a = inc({ id: 'a', review_state: 'follow_up_needed' })
+    const b = inc({ id: 'b', review_state: 'investigating' })
+    expect(openIncidentShiftPriority(a)).toBeLessThan(openIncidentShiftPriority(b))
+  })
+
+  it('sortOpenIncidentsForShiftStart orders by priority then updated_at', () => {
+    const old = inc({
+      id: 'old',
+      review_state: 'investigating',
+      updated_at: '2020-01-01T00:00:00Z',
+    })
+    const newSparse = inc({
+      id: 'newSparse',
+      review_state: 'investigating',
+      updated_at: '2025-01-02T00:00:00Z',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+    })
+    const follow = inc({
+      id: 'follow',
+      review_state: 'follow_up_needed',
+      updated_at: '2019-01-01T00:00:00Z',
+    })
+    const sorted = sortOpenIncidentsForShiftStart([old, newSparse, follow])
+    expect(sorted.map((x) => x.id)).toEqual(['follow', 'newSparse', 'old'])
+  })
+
+  it('openIncidentShiftWhyLine mentions recurring without causal claim', () => {
+    const i = inc({
+      id: 'r',
+      intelligence: { signature_match_count: 3 } as Incident['intelligence'],
+    })
+    expect(openIncidentShiftWhyLine(i)).toContain('Recurring')
+    expect(openIncidentShiftWhyLine(i)).toContain('not proof')
+  })
+
+  it('countOpenIncidentsExplicitFollowUp counts review workflow states', () => {
+    const n = countOpenIncidentsExplicitFollowUp([
+      inc({ id: 'a', review_state: 'follow_up_needed' }),
+      inc({ id: 'b', review_state: 'investigating' }),
+    ])
+    expect(n).toBe(1)
+  })
+
+  it('buildShiftStartAttentionRows surfaces transports before incidents', () => {
+    const rows = buildShiftStartAttentionRows({
+      openIncidents: [inc({ id: 'x', title: 'X' })],
+      unhealthyTransportCount: 1,
+      degradedTransportCount: 0,
+      criticalDiagCount: 0,
+      criticalPrivacyCount: 0,
+      pendingApprovalCount: 0,
+      deadLetterCount: 0,
+      deadLettersIncreasedSinceBaseline: false,
+      sparseOpenCount: 0,
+    })
+    expect(rows[0]?.key).toBe('transport-unhealthy')
+  })
+})
