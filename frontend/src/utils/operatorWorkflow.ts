@@ -3,6 +3,7 @@
  * Single-operator honest: no team queues or implied multi-user coordination.
  */
 import type { Incident } from '@/types/api'
+import { incidentActionVisibility } from './incidentOperatorTruth'
 
 const FOLLOW_UP_REVIEW = new Set(['follow_up_needed', 'pending_review', 'mitigated'])
 
@@ -29,30 +30,38 @@ function referencedPendingActionCount(inc: Incident): number {
   return inc.pending_actions?.filter(Boolean).length ?? 0
 }
 
-/** Lower = more urgent for shift-start and incident workbench ordering among open incidents. */
-export function openIncidentShiftPriority(inc: Incident): number {
-  const rs = (inc.review_state || '').toLowerCase()
-  if (FOLLOW_UP_REVIEW.has(rs)) return 0
-  if (linkedActionsAwaitingApproval(inc) > 0 || referencedPendingActionCount(inc) > 0) return 1
-  if (inc.intelligence?.evidence_strength === 'sparse' || inc.intelligence?.degraded === true) return 2
-  if ((inc.intelligence?.signature_match_count ?? 0) > 1) return 3
-  return 4
-}
-
-export function sortOpenIncidentsForShiftStart(incidents: Incident[]): Incident[] {
-  return [...incidents].sort((a, b) => {
-    const pa = openIncidentShiftPriority(a)
-    const pb = openIncidentShiftPriority(b)
-    if (pa !== pb) return pa - pb
-    return ts(b.updated_at) - ts(a.updated_at)
-  })
-}
-
 export interface IncidentWorkQueueWhyContext {
   /** When false, incident evidence export is disabled by policy — proofpack/escalation likely blocked. */
   exportEnabled?: boolean
   /** Version/policy endpoint failed — export gates unknown. */
   exportPolicyUnknown?: boolean
+  /** When false, FK-linked control rows are not shown — list view may look “empty” while queue has work. */
+  canReadLinkedActions?: boolean
+}
+
+/** Lower = more urgent for shift-start and incident workbench ordering among open incidents. */
+export function openIncidentShiftPriority(inc: Incident, ctx?: IncidentWorkQueueWhyContext): number {
+  const rs = (inc.review_state || '').toLowerCase()
+  if (FOLLOW_UP_REVIEW.has(rs)) return 0
+  const canRead = ctx?.canReadLinkedActions !== false
+  const vis = incidentActionVisibility(inc, { canReadLinkedActions: canRead })
+  const awaiting = canRead ? linkedActionsAwaitingApproval(inc) : 0
+  const pend = referencedPendingActionCount(inc)
+  if (awaiting > 0 || pend > 0) return 1
+  if (vis.kind === 'visibility_limited' || vis.kind === 'action_context_degraded') return 2
+  if (vis.kind === 'no_linked_historical_signals') return 3
+  if (inc.intelligence?.evidence_strength === 'sparse' || inc.intelligence?.degraded === true) return 2
+  if ((inc.intelligence?.signature_match_count ?? 0) > 1) return 3
+  return 4
+}
+
+export function sortOpenIncidentsForShiftStart(incidents: Incident[], ctx?: IncidentWorkQueueWhyContext): Incident[] {
+  return [...incidents].sort((a, b) => {
+    const pa = openIncidentShiftPriority(a, ctx)
+    const pb = openIncidentShiftPriority(b, ctx)
+    if (pa !== pb) return pa - pb
+    return ts(b.updated_at) - ts(a.updated_at)
+  })
 }
 
 export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueWhyContext): string {
@@ -60,7 +69,18 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
   if (FOLLOW_UP_REVIEW.has(rs)) {
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`
   }
-  const awaiting = linkedActionsAwaitingApproval(inc)
+  const canRead = ctx?.canReadLinkedActions !== false
+  const vis = incidentActionVisibility(inc, { canReadLinkedActions: canRead })
+  if (vis.kind === 'visibility_limited') {
+    return vis.explanation
+  }
+  if (vis.kind === 'action_context_degraded') {
+    return vis.explanation
+  }
+  if (vis.kind === 'no_linked_historical_signals') {
+    return vis.explanation
+  }
+  const awaiting = canRead ? linkedActionsAwaitingApproval(inc) : 0
   if (awaiting > 0) {
     return `${awaiting} linked control action${awaiting > 1 ? 's' : ''} awaiting approval — approval ≠ execution; check the control queue.`
   }
@@ -82,6 +102,9 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
   }
   if (ctx?.exportPolicyUnknown) {
     return 'Export policy not loaded — confirm Settings/runtime truth before choosing proofpack or escalation.'
+  }
+  if (vis.kind === 'no_linked_observed') {
+    return `${vis.explanation} Verify replay and topology before stronger claims.`
   }
   return 'Open in workflow — verify state against replay and exports before stronger claims.'
 }
@@ -167,9 +190,9 @@ export function buildShiftStartAttentionRows(args: {
     })
   }
 
-  const sorted = sortOpenIncidentsForShiftStart(args.openIncidents)
+  const sorted = sortOpenIncidentsForShiftStart(args.openIncidents, args.incidentWhyContext)
   for (const inc of sorted.slice(0, 12)) {
-    const pri = 4 + openIncidentShiftPriority(inc)
+    const pri = 4 + openIncidentShiftPriority(inc, args.incidentWhyContext)
     rows.push({
       key: `incident-${inc.id}`,
       priority: pri,
