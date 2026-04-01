@@ -19,6 +19,7 @@ function inc(partial: Partial<Incident> & { id: string }): Incident {
     intelligence: partial.intelligence,
     linked_control_actions: partial.linked_control_actions,
     pending_actions: partial.pending_actions,
+    triage_signals: partial.triage_signals,
   } as Incident
 }
 
@@ -27,6 +28,24 @@ describe('operatorWorkflow', () => {
     const a = inc({ id: 'a', review_state: 'follow_up_needed' })
     const b = inc({ id: 'b', review_state: 'investigating' })
     expect(openIncidentShiftPriority(a)).toBeLessThan(openIncidentShiftPriority(b))
+  })
+
+  it('uses server triage_signals.tier when consistent with review_state', () => {
+    const low = inc({
+      id: 'low',
+      review_state: 'investigating',
+      triage_signals: { tier: 4, codes: ['open_routine'] },
+    } as Incident)
+    const high = inc({
+      id: 'high',
+      review_state: 'investigating',
+      updated_at: '2019-01-01T00:00:00Z',
+      triage_signals: { tier: 2, codes: ['sparse_or_degraded_intel'], rationale_lines: ['Sparse intel in API'] },
+    } as Incident)
+    expect(openIncidentShiftPriority(high)).toBe(2)
+    expect(openIncidentShiftPriority(low)).toBe(4)
+    const sorted = sortOpenIncidentsForShiftStart([low, high])
+    expect(sorted.map((x) => x.id)).toEqual(['high', 'low'])
   })
 
   it('sortOpenIncidentsForShiftStart orders by priority then updated_at', () => {

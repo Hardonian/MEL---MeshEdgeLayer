@@ -62,6 +62,9 @@ type Incident struct {
 	// ActionVisibility is server-computed control/action visibility posture for this API response (capability-aware).
 	ActionVisibility *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
 
+	// TriageSignals are deterministic, inspectable queue-shaping hints (not ranked black-box scoring).
+	TriageSignals *IncidentTriageSignals `json:"triage_signals,omitempty"`
+
 	// Review / workflow (migration 0031); orthogonal to control lifecycle state.
 	ReviewState            string `json:"review_state,omitempty"`
 	InvestigationNotes     string `json:"investigation_notes,omitempty"`
@@ -119,36 +122,57 @@ type IncidentIntelligence struct {
 	MeshRoutingCompanion *MeshRoutingIntelCompanion `json:"mesh_routing_companion,omitempty"`
 	// OperatorSuggestedActions are deterministic, reviewable next checks — not ranked black-box scoring.
 	OperatorSuggestedActions []OperatorSuggestedAction `json:"operator_suggested_actions,omitempty"`
+	// SignatureFamilyResolvedHistory summarizes resolved/reopened peers sharing this incident's signature (local DB only).
+	SignatureFamilyResolvedHistory *IncidentSignatureFamilyResolvedHistory `json:"signature_family_resolved_history,omitempty"`
+}
+
+// IncidentSignatureFamilyResolvedHistory is observational recurrence context from stored incidents — not prediction.
+// IncidentTriageSignals mirrors internal/incidenttriage (JSON-stable for operators).
+type IncidentTriageSignals struct {
+	Tier             int      `json:"tier"`
+	Codes            []string `json:"codes,omitempty"`
+	RationaleLines   []string `json:"rationale_lines,omitempty"`
+	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
+	UncertaintyNotes []string `json:"uncertainty_notes,omitempty"`
+}
+
+type IncidentSignatureFamilyResolvedHistory struct {
+	FamilyMatchTotal     int    `json:"family_match_total"`
+	ResolvedPeerCount    int    `json:"resolved_peer_count"`
+	ReopenedPeerCount    int    `json:"reopened_peer_count"`
+	Basis                string `json:"basis"`
+	Uncertainty          string `json:"uncertainty"`
+	PeerSampleIncidentID string `json:"peer_sample_incident_id,omitempty"`
 }
 
 // MeshRoutingIntelCompanion surfaces bounded mesh routing-pressure diagnostics next to mesh-scoped incidents.
 type MeshRoutingIntelCompanion struct {
-	Applicable                 bool     `json:"applicable"`
-	Reason                     string   `json:"reason,omitempty"`
-	TopologyEnabled            bool     `json:"topology_enabled,omitempty"`
-	TransportConnected         bool     `json:"transport_connected,omitempty"`
-	AssessmentComputedAt       string   `json:"assessment_computed_at,omitempty"`
-	GraphHash                  string   `json:"graph_hash,omitempty"`
-	EvidenceModel              string   `json:"evidence_model,omitempty"`
-	MessageWindowDescription   string   `json:"message_window_description,omitempty"`
-	RoutingSummaryLines        []string `json:"routing_summary_lines,omitempty"`
-	SuspectedRelayHotspot      bool     `json:"suspected_relay_hotspot"`
-	WeakOnwardPropagationSuspected bool `json:"weak_onward_propagation_suspected"`
-	HopBudgetStressSuspected   bool     `json:"hop_budget_stress_suspected"`
+	Applicable                     bool     `json:"applicable"`
+	Reason                         string   `json:"reason,omitempty"`
+	TopologyEnabled                bool     `json:"topology_enabled,omitempty"`
+	TransportConnected             bool     `json:"transport_connected,omitempty"`
+	AssessmentComputedAt           string   `json:"assessment_computed_at,omitempty"`
+	GraphHash                      string   `json:"graph_hash,omitempty"`
+	EvidenceModel                  string   `json:"evidence_model,omitempty"`
+	MessageWindowDescription       string   `json:"message_window_description,omitempty"`
+	RoutingSummaryLines            []string `json:"routing_summary_lines,omitempty"`
+	SuspectedRelayHotspot          bool     `json:"suspected_relay_hotspot"`
+	WeakOnwardPropagationSuspected bool     `json:"weak_onward_propagation_suspected"`
+	HopBudgetStressSuspected       bool     `json:"hop_budget_stress_suspected"`
 	// SuggestedTopologySearch is URL query (no leading ?) for /topology deep link — incident_focus filter when incident id known.
 	SuggestedTopologySearch string `json:"suggested_topology_search,omitempty"`
 }
 
 // OperatorSuggestedAction is a single deterministic operator affordance with explicit evidence basis.
 type OperatorSuggestedAction struct {
-	ID            string   `json:"id"`
-	Title         string   `json:"title"`
-	Rationale     string   `json:"rationale"`
-	EvidenceRefs  []string `json:"evidence_refs,omitempty"`
-	Uncertainty   string   `json:"uncertainty,omitempty"`
-	Href          string   `json:"href,omitempty"`
-	Kind          string   `json:"kind"` // inspect_surface | correlation_memory
-	DisableHint   string   `json:"disable_hint,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Rationale    string   `json:"rationale"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty,omitempty"`
+	Href         string   `json:"href,omitempty"`
+	Kind         string   `json:"kind"` // inspect_surface | correlation_memory
+	DisableHint  string   `json:"disable_hint,omitempty"`
 }
 
 // IncidentFingerprint is a versioned structured fingerprint derived from persisted and correlated evidence.

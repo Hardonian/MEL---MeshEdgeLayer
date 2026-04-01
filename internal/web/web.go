@@ -28,6 +28,7 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
+	"github.com/mel-project/mel/internal/operatorreadiness"
 	"github.com/mel-project/mel/internal/platform"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
@@ -1561,9 +1562,10 @@ func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request
 func (s *Server) platformPostureHandler(w http.ResponseWriter, r *http.Request) {
 	posture := platform.BuildPosture(s.cfg)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"platform_posture": posture,
-		"privacy_summary":  privacy.Summary(privacy.Audit(s.cfg)),
-		"generated_at":     time.Now().UTC().Format(time.RFC3339),
+		"platform_posture":   posture,
+		"operator_readiness": operatorreadiness.FromPlatformPosture(posture),
+		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
+		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 		"notes": []string{
 			"Assistive outputs are non-canonical and cannot mutate control truth without deterministic checks.",
 			"No hidden telemetry path is enabled unless platform.telemetry.enabled and allow_outbound are both true.",

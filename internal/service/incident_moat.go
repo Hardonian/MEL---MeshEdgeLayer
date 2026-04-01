@@ -52,6 +52,29 @@ func (a *App) enrichIncidentIntelligenceMoat(inc models.Incident, intel *models.
 	}
 	intel.ReplayHints = buildReplayHints(inc, intel)
 	intel.LearningLoopHints = buildLearningLoopHints(intel, inc)
+	a.attachSignatureFamilyResolvedHistory(inc, intel)
+}
+
+func (a *App) attachSignatureFamilyResolvedHistory(inc models.Incident, intel *models.IncidentIntelligence) {
+	if a == nil || a.DB == nil || intel == nil {
+		return
+	}
+	key := strings.TrimSpace(intel.SignatureKey)
+	if key == "" {
+		return
+	}
+	total, resolved, reopened, sample, err := a.DB.SignatureFamilyResolvedStats(key, inc.ID)
+	if err != nil || total == 0 {
+		return
+	}
+	intel.SignatureFamilyResolvedHistory = &models.IncidentSignatureFamilyResolvedHistory{
+		FamilyMatchTotal:     total,
+		ResolvedPeerCount:    resolved,
+		ReopenedPeerCount:    reopened,
+		Basis:                "incident_signature_incidents_join_incidents_state",
+		Uncertainty:          "chronology_and_state_only_not_causal",
+		PeerSampleIncidentID: sample,
+	}
 }
 
 func buildLearningLoopHints(intel *models.IncidentIntelligence, inc models.Incident) []string {

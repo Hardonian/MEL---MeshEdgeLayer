@@ -110,6 +110,36 @@ func (d *DB) SignatureByKey(signatureKey string) (IncidentSignatureRecord, bool,
 	}, true, nil
 }
 
+// SignatureFamilyResolvedStats scans other incidents linked to the same signature (excludes current id).
+func (d *DB) SignatureFamilyResolvedStats(signatureKey, excludeIncidentID string) (peerTotal, resolvedPeers, reopenedPeers int, samplePeerID string, err error) {
+	signatureKey = strings.TrimSpace(signatureKey)
+	excludeIncidentID = strings.TrimSpace(excludeIncidentID)
+	if signatureKey == "" || d == nil {
+		return 0, 0, 0, "", nil
+	}
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT i.id, i.state, COALESCE(i.reopened_from_incident_id,'') AS reopened_from
+		FROM incident_signature_incidents s
+		JOIN incidents i ON i.id = s.incident_id
+		WHERE s.signature_key='%s' AND i.id!='%s';`, esc(signatureKey), esc(excludeIncidentID)))
+	if err != nil {
+		return 0, 0, 0, "", err
+	}
+	for _, row := range rows {
+		peerTotal++
+		st := strings.ToLower(strings.TrimSpace(asString(row["state"])))
+		if st == "resolved" || st == "closed" {
+			resolvedPeers++
+		}
+		if strings.TrimSpace(asString(row["reopened_from"])) != "" {
+			reopenedPeers++
+		}
+		if samplePeerID == "" {
+			samplePeerID = asString(row["id"])
+		}
+	}
+	return peerTotal, resolvedPeers, reopenedPeers, samplePeerID, nil
+}
+
 func (d *DB) SimilarIncidentsBySignature(signatureKey, excludeIncidentID string, limit int) ([]models.Incident, error) {
 	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT i.id, i.category, i.severity, i.title, i.summary, i.resource_type, i.resource_id, i.state,

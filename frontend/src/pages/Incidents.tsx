@@ -104,6 +104,18 @@ function humanizeReasonCode(value: string | undefined): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+function triageBadgeLabels(codes: string[] | undefined): string[] {
+  if (!codes?.length) return []
+  const skip = new Set(['open_routine'])
+  const out: string[] = []
+  for (const c of codes) {
+    if (skip.has(c)) continue
+    out.push(c.replace(/_/g, ' '))
+    if (out.length >= 2) break
+  }
+  return out
+}
+
 function sparsityMarkerLabel(code: string): string {
   switch (code) {
     case 'limited_correlated_evidence':
@@ -264,7 +276,9 @@ export function Incidents() {
               ? 'border-success/25 bg-success/5 text-muted-foreground'
               : exportReadiness.semantic === 'policy_limited'
                 ? 'border-critical/30 bg-critical/5 text-foreground'
-                : 'border-warning/25 bg-warning/5 text-foreground',
+                : exportReadiness.semantic === 'degraded'
+                  ? 'border-warning/30 bg-warning/5 text-foreground'
+                  : 'border-warning/25 bg-warning/5 text-foreground',
           )}
           role="status"
           aria-live="polite"
@@ -272,6 +286,16 @@ export function Incidents() {
         >
           <span className="font-semibold text-foreground">Export / bundle readiness: </span>
           {exportReadiness.summary}
+          {exportReadiness.blockers.length > 0 && (
+            <ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+              {exportReadiness.blockers.map((b) => (
+                <li key={b.code}>
+                  <span className="font-mono text-foreground/80">{b.code}</span>
+                  {b.summary ? ` — ${b.summary}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -655,6 +679,14 @@ function IncidentCard({
                 </Badge>
               </span>
             )}
+            {!muted &&
+              triageBadgeLabels(inc.triage_signals?.codes).map((label) => (
+                <span key={label} title="From incident.triage_signals — deterministic API, not hidden scoring">
+                  <Badge variant="outline" className="text-[10px] normal-case">
+                    {label}
+                  </Badge>
+                </span>
+              ))}
             {pending.length > 0 && actionVis.kind !== 'references_only' && (
               <span title="Action IDs referenced on the incident record (verify against queue)">
                 <Badge variant="outline">

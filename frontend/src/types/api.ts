@@ -23,6 +23,8 @@ export interface VersionResponse {
   process?: { pid: number; started_at: string }
   uptime_seconds?: number
   platform_posture?: PlatformPosture
+  /** Canonical operator export/support/proofpack readiness from backend (GET /api/v1/version). */
+  operator_readiness?: OperatorReadinessDTO
 }
 
 export interface OperatorIntelligencePosture {
@@ -31,10 +33,45 @@ export interface OperatorIntelligencePosture {
   telemetry_outbound: boolean
   telemetry_require_explicit_opt_in: boolean
   assistive_inference_layer: string
+  /** Explicit contract for future assist UI — does not imply remote/cloud assist. */
+  assist_capability_strategy?: string
   assist_non_canonical_truth: boolean
   remote_assist_supported: boolean
   review_recommended_for_assist_output: boolean
 }
+
+export interface OperatorReadinessBlocker {
+  code: string
+  summary: string
+}
+
+export interface OperatorReadinessDTO {
+  semantic: OperatorReadinessSemantic
+  summary: string
+  artifact_strength: OperatorArtifactStrengthDTO
+  blockers?: OperatorReadinessBlocker[]
+  evidence_basis?: string[]
+  generated_from_note?: string
+}
+
+export type OperatorReadinessSemantic =
+  | 'available'
+  | 'degraded'
+  | 'gated'
+  | 'unsupported'
+  | 'unavailable'
+  | 'unknown_partial'
+  | 'sparse'
+  | 'partial'
+  | 'capability_limited'
+  | 'policy_limited'
+  | 'stale'
+
+export type OperatorArtifactStrengthDTO =
+  | 'useful_now'
+  | 'usable_degraded'
+  | 'weaker_until_runtime_checked'
+  | 'blocked'
 
 export interface PlatformPosture {
   mode: string
@@ -268,6 +305,8 @@ export interface Incident {
   intelligence?: IncidentIntelligence
   /** Server-computed control visibility for this response (capability-aware); prefer over pure frontend inference when present. */
   action_visibility?: IncidentActionVisibilityPosture
+  /** Server-computed deterministic triage hints (inspectable codes, not opaque ranking). */
+  triage_signals?: IncidentTriageSignals
 }
 
 /** Mirrors GET incident JSON; emitted when backend computes operator control visibility. */
@@ -322,6 +361,24 @@ export interface IncidentIntelligence {
   generated_at?: string
   mesh_routing_companion?: MeshRoutingIntelCompanion
   operator_suggested_actions?: OperatorSuggestedAction[]
+  signature_family_resolved_history?: IncidentSignatureFamilyResolvedHistory
+}
+
+export interface IncidentTriageSignals {
+  tier: number
+  codes?: string[]
+  rationale_lines?: string[]
+  evidence_refs?: string[]
+  uncertainty_notes?: string[]
+}
+
+export interface IncidentSignatureFamilyResolvedHistory {
+  family_match_total: number
+  resolved_peer_count: number
+  reopened_peer_count: number
+  basis: string
+  uncertainty: string
+  peer_sample_incident_id?: string
 }
 
 export interface MeshRoutingIntelCompanion {

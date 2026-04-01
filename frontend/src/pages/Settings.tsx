@@ -808,6 +808,22 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
                 note="LLM / assist when enabled — review output; does not override ingest or audit truth"
                 variant={posture.operator_intelligence_posture.assistive_inference_layer === 'available' ? 'warning' : 'secondary'}
               />
+              {posture.operator_intelligence_posture.assist_capability_strategy && (
+                <RunningItem
+                  name="Assist capability strategy"
+                  value={posture.operator_intelligence_posture.assist_capability_strategy.replace(/_/g, ' ')}
+                  source="operator_intelligence_posture.assist_capability_strategy"
+                  note="Explicit contract for future assist surfaces — local-first; no hidden cloud path"
+                  variant={
+                    posture.operator_intelligence_posture.assist_capability_strategy === 'enabled_bounded_local_assist'
+                      ? 'warning'
+                      : posture.operator_intelligence_posture.assist_capability_strategy === 'unavailable' ||
+                          posture.operator_intelligence_posture.assist_capability_strategy === 'not_configured'
+                        ? 'outline'
+                        : 'secondary'
+                  }
+                />
+              )}
               <RunningItem
                 name="Remote assist supported"
                 value={posture.operator_intelligence_posture.remote_assist_supported ? 'yes' : 'no'}

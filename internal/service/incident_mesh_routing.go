@@ -136,15 +136,23 @@ func operatorSuggestedActions(cfg config.Config, inc models.Incident, intel *mod
 		Rationale:    "Replay orders persisted timeline events for this incident id; use it before reusing control patterns.",
 		EvidenceRefs: []string{"incident:" + inc.ID},
 		Uncertainty:  "Window may truncate or redact by policy; replay completeness is not guaranteed.",
-		Href:         "/incidents/" + inc.ID + "/replay",
-		Kind:         "inspect_surface",
-		DisableHint:  "Replay is always available when you can read incidents; there is no assist toggle for deterministic replay.",
+		Href: fmt.Sprintf("/incidents/%s?return=%s&replay=1",
+			strings.TrimSpace(inc.ID),
+			url.QueryEscape("/incidents?focus="+strings.TrimSpace(inc.ID))),
+		Kind:        "inspect_surface",
+		DisableHint: "Replay is always available when you can read incidents; there is no assist toggle for deterministic replay.",
 	})
 
 	if cfg.Topology.Enabled {
 		href := "/topology"
 		if c := intel.MeshRoutingCompanion; c != nil && c.Applicable && strings.TrimSpace(c.SuggestedTopologySearch) != "" {
 			href = href + "?" + strings.TrimSpace(c.SuggestedTopologySearch)
+		}
+		ret := url.QueryEscape("/incidents/" + strings.TrimSpace(inc.ID))
+		if strings.Contains(href, "?") {
+			href = href + "&return=" + ret
+		} else {
+			href = href + "?return=" + ret
 		}
 		rationale := "Topology shows packet-derived graph and routing-pressure proxies from recent ingest — not RF coverage proof."
 		if c := intel.MeshRoutingCompanion; c != nil && c.Applicable {
