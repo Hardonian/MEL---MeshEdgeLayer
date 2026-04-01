@@ -10,6 +10,7 @@ import (
 	"github.com/mel-project/mel/internal/actionvisibility"
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/db"
+	"github.com/mel-project/mel/internal/incidenttriage"
 	"github.com/mel-project/mel/internal/models"
 )
 
@@ -147,6 +148,8 @@ func (a *App) finishIncidentForAPI(inc *models.Incident, canReadLinked bool) {
 	}
 	vis := actionvisibility.FromIncident(*inc, canReadLinked)
 	inc.ActionVisibility = &vis
+	ts := incidenttriage.ComputeForIncident(*inc)
+	inc.TriageSignals = &ts
 }
 
 // RecentIncidentsWithLinkedActions returns recent incidents with linked_control_actions populated from the canonical FK.
