@@ -53,6 +53,7 @@ func (a *App) enrichIncidentIntelligenceMoat(inc models.Incident, intel *models.
 	intel.ReplayHints = buildReplayHints(inc, intel)
 	intel.LearningLoopHints = buildLearningLoopHints(intel, inc)
 	a.attachSignatureFamilyResolvedHistory(inc, intel)
+	a.attachMitigationDurabilityMemory(inc, intel)
 }
 
 func (a *App) attachSignatureFamilyResolvedHistory(inc models.Incident, intel *models.IncidentIntelligence) {
@@ -63,17 +64,107 @@ func (a *App) attachSignatureFamilyResolvedHistory(inc models.Incident, intel *m
 	if key == "" {
 		return
 	}
-	total, resolved, reopened, sample, err := a.DB.SignatureFamilyResolvedStats(key, inc.ID)
+	total, resolved, reopened, sample, truncated, err := a.DB.SignatureFamilyResolvedStats(key, inc.ID, db.MaxSignatureFamilyPeerScan)
 	if err != nil || total == 0 {
 		return
 	}
 	intel.SignatureFamilyResolvedHistory = &models.IncidentSignatureFamilyResolvedHistory{
-		FamilyMatchTotal:     total,
-		ResolvedPeerCount:    resolved,
-		ReopenedPeerCount:    reopened,
-		Basis:                "incident_signature_incidents_join_incidents_state",
-		Uncertainty:          "chronology_and_state_only_not_causal",
-		PeerSampleIncidentID: sample,
+		FamilyMatchTotal:         total,
+		ResolvedPeerCount:        resolved,
+		ReopenedPeerCount:        reopened,
+		Basis:                    "incident_signature_incidents_join_incidents_state",
+		Uncertainty:              "chronology_and_state_only_not_causal",
+		PeerSampleIncidentID:     sample,
+		PeerHistoryScanTruncated: truncated,
+		PeerScanWindow:           db.MaxSignatureFamilyPeerScan,
+	}
+}
+
+func appendUniqueRef(refs *[]string, s string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return
+	}
+	for _, x := range *refs {
+		if x == s {
+			return
+		}
+	}
+	*refs = append(*refs, s)
+}
+
+func (a *App) attachMitigationDurabilityMemory(inc models.Incident, intel *models.IncidentIntelligence) {
+	if intel == nil {
+		return
+	}
+	var refs []string
+	posture := "insufficient_local_history"
+	summary := "No durable mitigation-durability signal in local outcome or family rows for this view."
+	uncertainty := "absence_here_does_not_prove_clean_history"
+
+	if strings.TrimSpace(inc.ReopenedFromIncidentID) != "" {
+		appendUniqueRef(&refs, "incident.reopened_from_incident_id")
+		posture = "reopened_incident_on_record"
+		summary = "This incident was reopened from a prior case — compare replay and outcomes before repeating the same control pattern."
+		uncertainty = "reopen_fact_on_record_not_root_cause"
+	}
+
+	var outcomeWeak bool
+	for _, m := range intel.ActionOutcomeMemory {
+		if m.OutcomeFraming == "deterioration_observed" && m.SampleSize >= 2 {
+			outcomeWeak = true
+			appendUniqueRef(&refs, "incident.intelligence.action_outcome_memory")
+			break
+		}
+		if m.OutcomeFraming == "mixed_historical_evidence" && m.SampleSize >= 3 {
+			outcomeWeak = true
+			appendUniqueRef(&refs, "incident.intelligence.action_outcome_memory")
+			break
+		}
+	}
+	if outcomeWeak && posture == "insufficient_local_history" {
+		posture = "deterioration_or_mixed_in_outcome_memory"
+		summary = "Outcome memory shows weak or mixed historical framing with sufficient sample on this signature scope — verify before reusing the same mitigation pattern."
+		uncertainty = "historical_association_not_live_proof"
+	}
+
+	h := intel.SignatureFamilyResolvedHistory
+	if h != nil {
+		appendUniqueRef(&refs, "incident.intelligence.signature_family_resolved_history")
+		if h.PeerHistoryScanTruncated {
+			appendUniqueRef(&refs, "incident.intelligence.signature_family_resolved_history.peer_history_scan_truncated")
+		}
+		familyReopenSignal := h.ResolvedPeerCount >= 2 && h.ReopenedPeerCount >= 1
+		switch {
+		case posture == "reopened_incident_on_record":
+			// keep reopen-on-record as primary; family still cited in refs
+		case familyReopenSignal:
+			posture = "reopened_after_resolution_in_family"
+			summary = fmt.Sprintf("Among linked signature peers in the scanned window: %d resolved/closed rows and %d reopened-from-prior rows — association only; not prediction of this incident.",
+				h.ResolvedPeerCount, h.ReopenedPeerCount)
+			uncertainty = "state_chronology_only_not_causal"
+			if h.PeerHistoryScanTruncated {
+				uncertainty = "state_chronology_on_recent_peer_window_only_not_full_family"
+				summary += fmt.Sprintf(" Tallies bounded to the most recent %d peer links (family has %d total).", h.PeerScanWindow, h.FamilyMatchTotal)
+			}
+		case h.PeerHistoryScanTruncated:
+			posture = "family_peer_scan_bounded"
+			summary = fmt.Sprintf("Signature family has %d linked peers; resolved/reopened tallies use the most recent %d rows only — not full-family proof.",
+				h.FamilyMatchTotal, h.PeerScanWindow)
+			uncertainty = "counts_partial_when_scan_truncated"
+		case h.FamilyMatchTotal > 0:
+			posture = "family_peers_present_no_reopen_signal"
+			summary = fmt.Sprintf("Signature family has %d linked peer incidents in DB; scanned window shows no reopen-from-prior signal under current thresholds — does not prove mitigations held.",
+				h.FamilyMatchTotal)
+			uncertainty = "negative_signal_bounded_to_scanned_peers"
+		}
+	}
+
+	intel.MitigationDurabilityMemory = &models.IncidentMitigationDurabilityMemory{
+		Posture:      posture,
+		Summary:      summary,
+		EvidenceRefs: refs,
+		Uncertainty:  uncertainty,
 	}
 }
 

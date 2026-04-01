@@ -14,6 +14,12 @@ type OperatorIntelligencePosture struct {
 	AssistNonCanonicalTruth    bool   `json:"assist_non_canonical_truth"`
 	RemoteAssistSupported      bool   `json:"remote_assist_supported"` // false: no cloud assist path in base product
 	ReviewRecommended          bool   `json:"review_recommended_for_assist_output"`
+	// AssistInputContracts lists stable API/record fields bounded assist may consume; deterministic truth stays primary.
+	AssistInputContracts []string `json:"assist_input_contracts,omitempty"`
+	// AssistDisableSemantics documents behavior when assist is off or degraded (product contract, not runtime toggle).
+	AssistDisableSemantics string `json:"assist_disable_semantics,omitempty"`
+	// AssistAuditExpectation describes how future promptable assist should be attributable (design contract).
+	AssistAuditExpectation string `json:"assist_audit_expectation,omitempty"`
 }
 
 // BuildOperatorIntelligencePosture summarizes consent/capability for operator-facing intelligence surfaces.
@@ -26,6 +32,17 @@ func BuildOperatorIntelligencePosture(cfg config.Config, inferenceDegraded, runt
 		AssistNonCanonicalTruth:    true,
 		RemoteAssistSupported:      false,
 		ReviewRecommended:          true,
+		AssistInputContracts: []string{
+			"incident.triage_signals",
+			"incident.action_visibility",
+			"incident.intelligence.action_outcome_memory",
+			"incident.intelligence.signature_family_resolved_history",
+			"incident.intelligence.mitigation_durability_memory",
+			"operator_readiness",
+			"platform_posture",
+		},
+		AssistDisableSemantics: "When assistive_inference is disabled or unavailable, UI and APIs still emit triage_signals, action_visibility, and intelligence memory; no assist layer overrides deterministic fields.",
+		AssistAuditExpectation: "Future promptable assist should log actor_id, incident_id, input_field_manifest_hash, and output_class; outputs remain non-canonical vs triage_signals and persisted evidence rows.",
 	}
 	if !cfg.Platform.Inference.Enabled {
 		p.AssistiveInferenceLayer = "disabled"

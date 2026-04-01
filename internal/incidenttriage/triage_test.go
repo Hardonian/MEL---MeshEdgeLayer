@@ -50,3 +50,57 @@ func TestComputeForIncident_GovernanceFriction(t *testing.T) {
 		t.Fatalf("expected governance_friction_memory in %#v", sig.Codes)
 	}
 }
+
+func TestComputeForIncident_QueueOrderingFilled(t *testing.T) {
+	inc := models.Incident{
+		ID:          "c",
+		State:       "open",
+		ReviewState: "investigating",
+		UpdatedAt:   "2020-01-01T00:00:00Z",
+	}
+	sig := ComputeForIncident(inc)
+	if sig.QueueOrderingContract != "open_incident_workbench_v1" {
+		t.Fatalf("contract %q", sig.QueueOrderingContract)
+	}
+	if sig.QueueSortPrimary != sig.Tier {
+		t.Fatalf("sort primary %d tier %d", sig.QueueSortPrimary, sig.Tier)
+	}
+	if sig.OrderingUncertainty == "" {
+		t.Fatal("expected ordering uncertainty")
+	}
+}
+
+func TestComputeForIncident_MeshRoutingCompanionStress(t *testing.T) {
+	inc := models.Incident{
+		ID:          "d",
+		State:       "open",
+		ReviewState: "investigating",
+		Intelligence: &models.IncidentIntelligence{
+			EvidenceStrength: "moderate",
+			MeshRoutingCompanion: &models.MeshRoutingIntelCompanion{
+				Applicable:                     true,
+				TopologyEnabled:                true,
+				TransportConnected:             true,
+				EvidenceModel:                  "ingest_graph_v1",
+				AssessmentComputedAt:           "2020-01-01T00:00:00Z",
+				SuspectedRelayHotspot:          true,
+				WeakOnwardPropagationSuspected: false,
+				HopBudgetStressSuspected:       false,
+			},
+		},
+	}
+	sig := ComputeForIncident(inc)
+	found := false
+	for _, c := range sig.Codes {
+		if c == "mesh_routing_pressure_companion" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected mesh_routing_pressure_companion in %#v", sig.Codes)
+	}
+	if sig.Tier > 2 {
+		t.Fatalf("expected tier <=2 for mesh stress, got %d", sig.Tier)
+	}
+}

@@ -26,6 +26,7 @@ func ComputeForIncident(inc models.Incident) models.IncidentTriageSignals {
 		out.Tier = tierFollowUp
 		appendCode(&out, "explicit_follow_up_review", "Review state on record calls for follow-up or review — not proof of live fault.",
 			[]string{"incident.review_state:" + rs})
+		fillQueueOrdering(&out, inc)
 		return out
 	}
 
@@ -107,12 +108,36 @@ func ComputeForIncident(inc models.Incident) models.IncidentTriageSignals {
 		}
 	}
 
+	if intel != nil && intel.MeshRoutingCompanion != nil {
+		mc := intel.MeshRoutingCompanion
+		if mc.Applicable {
+			var meshNotes []string
+			if !mc.TopologyEnabled {
+				meshNotes = append(meshNotes, "Mesh routing companion: topology model disabled — ingest-graph pressure context may be incomplete.")
+			}
+			if !mc.TransportConnected {
+				meshNotes = append(meshNotes, "Mesh routing companion: transport not connected — routing-pressure lines are not live path proof.")
+			}
+			if mc.EvidenceModel == "" || mc.AssessmentComputedAt == "" {
+				meshNotes = append(meshNotes, "Mesh routing companion: assessment metadata sparse — treat companion lines as bounded diagnostics only.")
+			}
+			if mc.SuspectedRelayHotspot || mc.WeakOnwardPropagationSuspected || mc.HopBudgetStressSuspected {
+				out.Tier = minTier(out.Tier, tierEvidenceStress)
+				appendCode(&out, "mesh_routing_pressure_companion",
+					"Ingest-graph routing-pressure flags are raised — bounded diagnostics adjacent to replay/topology; not RF delivery or path certainty.",
+					[]string{"incident.intelligence.mesh_routing_companion"})
+			}
+			out.UncertaintyNotes = append(out.UncertaintyNotes, meshNotes...)
+		}
+	}
+
 	if out.Tier == tierRoutine && len(out.Codes) == 0 {
 		appendCode(&out, "open_routine",
 			"Open incident without elevated deterministic triage flags — still verify against replay and live queue.",
 			[]string{"incident.state"})
 	}
 
+	fillQueueOrdering(&out, inc)
 	return out
 }
 
@@ -132,6 +157,12 @@ func governanceFriction(intel *models.IncidentIntelligence) bool {
 }
 
 func mitigationDidNotHold(intel *models.IncidentIntelligence) bool {
+	if intel.MitigationDurabilityMemory != nil {
+		switch intel.MitigationDurabilityMemory.Posture {
+		case "reopened_after_resolution_in_family", "deterioration_or_mixed_in_outcome_memory", "family_peer_scan_bounded":
+			return true
+		}
+	}
 	for _, m := range intel.ActionOutcomeMemory {
 		if m.OutcomeFraming == "deterioration_observed" && m.SampleSize >= 2 {
 			return true
@@ -147,6 +178,24 @@ func mitigationDidNotHold(intel *models.IncidentIntelligence) bool {
 		}
 	}
 	return false
+}
+
+// fillQueueOrdering attaches explicit sort keys so clients need not re-derive tier semantics for open queues.
+func fillQueueOrdering(out *models.IncidentTriageSignals, inc models.Incident) {
+	if out == nil {
+		return
+	}
+	out.QueueOrderingContract = "open_incident_workbench_v1"
+	out.QueueSortPrimary = out.Tier
+	out.QueueSortSecondary = "updated_at_desc"
+	out.OrderingRationale = "Primary key mirrors triage tier (0=follow-up/review, 1=control gate, 2=evidence stress, 3=recurrence, 4=routine). Secondary is RFC3339 updated_at descending when present."
+	var ev []string
+	ev = append(ev, out.EvidenceRefs...)
+	if inc.UpdatedAt != "" {
+		ev = append(ev, "incident.updated_at")
+	}
+	out.OrderingEvidenceRefs = ev
+	out.OrderingUncertainty = "Tier is deterministic from this API payload; stale updated_at or missing fields weaken recency ordering — not a team queue or hidden score."
 }
 
 func appendCode(out *models.IncidentTriageSignals, code, rationale string, refs []string) {

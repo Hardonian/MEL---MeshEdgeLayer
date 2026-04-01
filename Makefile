@@ -61,7 +61,7 @@ version:
 	@echo "  Version:           $(VERSION)"
 	@echo "  Git Commit:        $(COMMIT)"
 	@echo "  Build Time:        $(BUILD_TIME)"
-	@echo "  Schema Version:    31"
+	@echo "  Schema Version:    33"
 	@echo "  Compatibility:     dev"
 	@$(GO) run -ldflags "$(LDFLAGS)" ./cmd/mel version
 

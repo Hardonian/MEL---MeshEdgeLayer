@@ -40,13 +40,17 @@ export interface IncidentWorkQueueWhyContext {
 }
 
 function triageTierFromIncident(inc: Incident): number | null {
-  const t = inc.triage_signals?.tier
+  const sig = inc.triage_signals
+  const t = sig?.tier
   if (typeof t !== 'number' || Number.isNaN(t)) return null
   if (t < 0 || t > 4) return null
   const rs = (inc.review_state || '').toLowerCase()
   const isFollowUp = FOLLOW_UP_REVIEW.has(rs)
   if (isFollowUp && t !== 0) return null
   if (!isFollowUp && t === 0) return null
+  // When API omits explicit queue keys, keep legacy client validation only.
+  if (!sig?.queue_ordering_contract) return null
+  if (sig.queue_sort_primary !== t) return null
   return t
 }
 
@@ -96,6 +100,10 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
         }
       }
     }
+  }
+  const md = inc.intelligence?.mitigation_durability_memory
+  if (md?.summary && (md.posture === 'reopened_after_resolution_in_family' || md.posture === 'deterioration_or_mixed_in_outcome_memory')) {
+    return `${md.summary} (${md.uncertainty.replace(/_/g, ' ')} — see incident.intelligence.mitigation_durability_memory).`
   }
   const canRead = ctx?.canReadLinkedActions !== false
   const vis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canRead })
@@ -221,12 +229,13 @@ export function buildShiftStartAttentionRows(args: {
   const sorted = sortOpenIncidentsForShiftStart(args.openIncidents, args.incidentWhyContext)
   for (const inc of sorted.slice(0, 12)) {
     const pri = 4 + openIncidentShiftPriority(inc, args.incidentWhyContext)
+    const workbenchReturn = `/incidents?focus=${encodeURIComponent(inc.id)}&section=open`
     rows.push({
       key: `incident-${inc.id}`,
       priority: pri,
       title: inc.title || `Incident ${inc.id.slice(0, 10)}…`,
       why: openIncidentShiftWhyLine(inc, args.incidentWhyContext),
-      href: `/incidents/${encodeURIComponent(inc.id)}`,
+      href: `/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}`,
     })
   }
 
@@ -275,6 +284,10 @@ export function buildRecurrenceHomeTeasers(incidents: Incident[], limit = 4): Re
     if (sig > 1) parts.push(`signature seen ${sig}× on this instance (bucket, not root cause)`)
     if (sim > 0) parts.push(`${sim} similar prior case${sim > 1 ? 's' : ''} linked in intelligence`)
     if (mem > 0) parts.push(`${mem} historical action outcome row${mem > 1 ? 's' : ''}`)
+    const md = i.intelligence?.mitigation_durability_memory
+    if (md?.posture === 'reopened_after_resolution_in_family' || md?.posture === 'deterioration_or_mixed_in_outcome_memory') {
+      parts.push(`mitigation durability: ${md.posture.replace(/_/g, ' ')}`)
+    }
     out.push({
       id: i.id,
       title: i.title || i.id.slice(0, 12),

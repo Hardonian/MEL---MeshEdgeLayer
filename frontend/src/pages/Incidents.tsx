@@ -286,6 +286,11 @@ export function Incidents() {
         >
           <span className="font-semibold text-foreground">Export / bundle readiness: </span>
           {exportReadiness.summary}
+          {exportReadiness.evidenceBasis.length > 0 && (
+            <p className="mt-1 text-[10px] font-mono text-muted-foreground/90 break-all">
+              evidence_basis: {exportReadiness.evidenceBasis.slice(0, 4).join(' · ')}
+            </p>
+          )}
           {exportReadiness.blockers.length > 0 && (
             <ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
               {exportReadiness.blockers.map((b) => (
@@ -297,6 +302,13 @@ export function Incidents() {
             </ul>
           )}
         </div>
+      )}
+
+      {openIncidents.some((i) => i.triage_signals?.queue_ordering_contract) && (
+        <p className="text-[11px] text-muted-foreground border border-border/40 rounded-lg px-3 py-2" data-testid="workbench-queue-contract-note">
+          Open rows sort by server <span className="font-mono">triage_signals.queue_sort_primary</span> then{' '}
+          <span className="font-mono">updated_at</span> — same contract as incident detail; presentation-only toggles stay local.
+        </p>
       )}
 
       {focusIncidentId && (
