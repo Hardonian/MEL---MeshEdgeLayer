@@ -783,6 +783,48 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
             </div>
           )}
         </section>
+
+        {posture.operator_intelligence_posture && (
+          <section aria-labelledby="posture-operator-intel-heading">
+            <h3 id="posture-operator-intel-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Shield className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Operator intelligence posture
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Contract for what the UI may claim: deterministic incident intelligence stays on persisted records; assist is optional and never
+              canonical truth. Remote cloud assist is not a base product path.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <RunningItem
+                name="Deterministic incident intel"
+                value={posture.operator_intelligence_posture.deterministic_incident_intel.replace(/_/g, ' ')}
+                source="operator_intelligence_posture.deterministic_incident_intel"
+                note={posture.operator_intelligence_posture.deterministic_basis.replace(/_/g, ' ')}
+              />
+              <RunningItem
+                name="Assistive inference layer"
+                value={posture.operator_intelligence_posture.assistive_inference_layer.replace(/_/g, ' ')}
+                source="operator_intelligence_posture.assistive_inference_layer"
+                note="LLM / assist when enabled — review output; does not override ingest or audit truth"
+                variant={posture.operator_intelligence_posture.assistive_inference_layer === 'available' ? 'warning' : 'secondary'}
+              />
+              <RunningItem
+                name="Remote assist supported"
+                value={posture.operator_intelligence_posture.remote_assist_supported ? 'yes' : 'no'}
+                source="operator_intelligence_posture.remote_assist_supported"
+                note="Base MEL is local-first; no mandatory cloud assist"
+                variant={posture.operator_intelligence_posture.remote_assist_supported ? 'warning' : 'success'}
+              />
+              <RunningItem
+                name="Telemetry outbound"
+                value={posture.operator_intelligence_posture.telemetry_outbound ? 'yes' : 'no'}
+                source="operator_intelligence_posture.telemetry_outbound"
+                note="Outbound telemetry requires explicit opt-in in validated configs"
+                variant={posture.operator_intelligence_posture.telemetry_outbound ? 'warning' : 'success'}
+              />
+            </div>
+          </section>
+        )}
       </CardContent>
     </Card>
   )
