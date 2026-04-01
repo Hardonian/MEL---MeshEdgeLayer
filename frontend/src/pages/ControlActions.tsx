@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useControlActions } from '@/hooks/useControlActions'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -48,11 +48,20 @@ function execPhase(a: ControlActionRecord): { label: string; variant: 'warning' 
 }
 
 export function ControlActions() {
+  const [searchParams] = useSearchParams()
+  const incidentFromUrl = (searchParams.get('incident') || '').trim()
   const [filter, setFilter] = useState('')
   const { data, loading, error, refresh } = useControlActions(filter)
   const ctx = useOperatorContext()
 
-  const rows = useMemo(() => data ?? [], [data])
+  const rows = useMemo(() => {
+    const list = data ?? []
+    if (!incidentFromUrl) return list
+    return list.filter((a) => {
+      const id = (a.incident_id || '').trim()
+      return id === incidentFromUrl || id.startsWith(incidentFromUrl)
+    })
+  }, [data, incidentFromUrl])
   const canRead = ctx.trustUI?.read_actions === true || ctx.capabilities?.includes('read_actions')
 
   if (loading && !data) {
@@ -100,6 +109,22 @@ export function ControlActions() {
         </div>
       )}
 
+      {incidentFromUrl && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/15 px-4 py-2.5 text-sm">
+          <span className="text-muted-foreground">Filtered to incident</span>
+          <code className="font-mono text-xs bg-muted/40 px-2 py-0.5 rounded">{incidentFromUrl}</code>
+          <Link to="/control-actions" className="text-xs font-semibold text-primary hover:underline">
+            Clear filter
+          </Link>
+          <Link
+            to={`/incidents/${encodeURIComponent(incidentFromUrl)}`}
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground ml-auto"
+          >
+            Open incident →
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filter by lifecycle state">
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Lifecycle</span>
         {LIFECYCLE_FILTERS.map((f) => (
@@ -130,7 +155,7 @@ export function ControlActions() {
       ) : (
         <div className="space-y-3">
           {rows.map((a) => (
-            <ActionCard key={a.id} action={a} />
+            <ActionCard key={a.id} action={a} incidentQuery={incidentFromUrl} />
           ))}
         </div>
       )}
@@ -138,7 +163,7 @@ export function ControlActions() {
   )
 }
 
-function ActionCard({ action: a }: { action: ControlActionRecord }) {
+function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord; incidentQuery?: string }) {
   const [expanded, setExpanded] = useState(false)
   const phase = execPhase(a)
   const isHighBlast = a.high_blast_radius || a.approval_escalated_due_to_blast_radius
@@ -231,14 +256,24 @@ function ActionCard({ action: a }: { action: ControlActionRecord }) {
 
         {/* Cross-link to incident */}
         {a.incident_id && (
-          <Link
-            to="/incidents"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-          >
-            <AlertTriangle className="h-3 w-3" />
-            Linked incident: {a.incident_id.slice(0, 12)}
-            <ArrowRight className="h-3 w-3" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={`/incidents/${encodeURIComponent(a.incident_id)}`}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              Open incident: {a.incident_id.slice(0, 12)}
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+            {(!incidentQuery || incidentQuery !== a.incident_id) && (
+              <Link
+                to={`/control-actions?incident=${encodeURIComponent(a.incident_id)}`}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                Filter list to this incident
+              </Link>
+            )}
+          </div>
         )}
 
         {/* Expand for full metadata */}

@@ -226,6 +226,7 @@ export function Topology() {
   const [err, setErr] = useState<string | null>(null)
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
+  const [nodeFilter, setNodeFilter] = useState<'all' | 'stale' | 'degraded' | 'risky' | 'no_map_coords'>('all')
   const loadAbortRef = useRef<AbortController | null>(null)
 
   const [vb, setVb] = useState({ x: 0, y: 0, w: 600, h: 480 })
@@ -266,19 +267,59 @@ export function Topology() {
     }
   }, [load])
 
+  const riskyNodeNums = useMemo(() => {
+    const s = new Set<number>()
+    for (const l of links) {
+      if (l.contradiction || l.relay_dependent || l.stale || l.quality_score < 0.35) {
+        s.add(l.src_node_num)
+        s.add(l.dst_node_num)
+      }
+    }
+    return s
+  }, [links])
+
+  const filteredNodes = useMemo(() => {
+    if (nodeFilter === 'all') return nodes
+    return nodes.filter((n) => {
+      if (nodeFilter === 'stale') return n.stale || n.health_state === 'stale'
+      if (nodeFilter === 'degraded') return n.health_state === 'degraded' || n.health_state === 'isolated'
+      if (nodeFilter === 'risky') return riskyNodeNums.has(n.node_num)
+      if (nodeFilter === 'no_map_coords') {
+        const lat = n.lat_redacted
+        const lon = n.lon_redacted
+        const noCoords = lat == null || lon == null || (lat === 0 && lon === 0)
+        return noCoords || n.location_state === 'unknown' || !n.location_state
+      }
+      return true
+    })
+  }, [nodes, nodeFilter, riskyNodeNums])
+
+  const filteredNodeSet = useMemo(() => new Set(filteredNodes.map((n) => n.node_num)), [filteredNodes])
+
+  const visibleLinks = useMemo(() => {
+    if (nodeFilter === 'all') return links
+    return links.filter((l) => filteredNodeSet.has(l.src_node_num) && filteredNodeSet.has(l.dst_node_num))
+  }, [links, nodeFilter, filteredNodeSet])
+
   const positions = useMemo(() => {
-    const edges = links.map((l) => ({ src: l.src_node_num, dst: l.dst_node_num }))
+    const edges = visibleLinks.map((l) => ({ src: l.src_node_num, dst: l.dst_node_num }))
     return runSimulation(
-      nodes.map((n) => n.node_num),
+      filteredNodes.map((n) => n.node_num),
       edges,
       600,
       480,
     )
-  }, [nodes, links])
+  }, [filteredNodes, visibleLinks])
 
   useEffect(() => {
     setVb({ x: 0, y: 0, w: 600, h: 480 })
   }, [positions])
+
+  useEffect(() => {
+    if (selected && !filteredNodeSet.has(selected.node.node_num)) {
+      setSelected(null)
+    }
+  }, [selected, filteredNodeSet])
 
   const selectNode = async (num: number) => {
     setSelLoading(true)
@@ -295,17 +336,17 @@ export function Topology() {
 
   const selectedNodeNum = selected?.node?.node_num ?? null
 
-  const mapPoints = useMemo(
-    () =>
-      nodes.filter(
-        (n) =>
-          (n.location_state === 'exact' || n.location_state === 'approximate') &&
-          n.lat_redacted != null &&
-          n.lon_redacted != null &&
-          (n.lat_redacted !== 0 || n.lon_redacted !== 0),
-      ),
-    [nodes],
-  )
+  const mapPoints = useMemo(() => {
+    const allowed = new Set(filteredNodes.map((n) => n.node_num))
+    return nodes.filter(
+      (n) =>
+        allowed.has(n.node_num) &&
+        (n.location_state === 'exact' || n.location_state === 'approximate') &&
+        n.lat_redacted != null &&
+        n.lon_redacted != null &&
+        (n.lat_redacted !== 0 || n.lon_redacted !== 0),
+    )
+  }, [nodes, filteredNodes])
 
   const googleMapsEligible =
     intel?.google_maps_basemap_available === true &&
@@ -362,7 +403,39 @@ export function Topology() {
     dragging.current = null
   }
 
+  const panStep = 56
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSelected(null)
+        return
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        setVb((v) => {
+          if (e.key === 'ArrowLeft') return { ...v, x: v.x - panStep }
+          if (e.key === 'ArrowRight') return { ...v, x: v.x + panStep }
+          if (e.key === 'ArrowUp') return { ...v, y: v.y - panStep }
+          return { ...v, y: v.y + panStep }
+        })
+      }
+    }
+    el.addEventListener('keydown', onKeyDown)
+    return () => el.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const intelDisabled = intel?.topology_enabled === false
+
+  const FILTER_OPTIONS: Array<{ id: typeof nodeFilter; label: string; hint: string }> = [
+    { id: 'all', label: 'All', hint: 'full graph' },
+    { id: 'stale', label: 'Stale', hint: 'last_seen beyond window' },
+    { id: 'degraded', label: 'Degraded / isolated', hint: 'health from evidence' },
+    { id: 'risky', label: 'Link-risky', hint: 'touches relay-dependent, weak, stale, or contradiction edges' },
+    { id: 'no_map_coords', label: 'No map coords', hint: 'no redacted lat/lon for scatter/basemap' },
+  ]
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -473,22 +546,51 @@ export function Topology() {
               </span>
             </div>
 
+            <div
+              className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border/40 bg-card/30"
+              role="toolbar"
+              aria-label="Filter nodes in graph"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
+              {FILTER_OPTIONS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setNodeFilter(f.id)}
+                  title={f.hint}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    nodeFilter === f.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <span className="text-[10px] text-muted-foreground ml-auto">
+                Showing {filteredNodes.length}/{nodes.length} nodes · focus the graph and press arrow keys to pan (Esc clears selection)
+              </span>
+            </div>
+
             {nodes.length === 0 ? (
               <p className="p-6 text-sm text-muted-foreground">No nodes in topology store yet.</p>
+            ) : filteredNodes.length === 0 ? (
+              <p className="p-6 text-sm text-muted-foreground">No nodes match this filter.</p>
             ) : (
               <svg
                 ref={svgRef}
+                tabIndex={0}
                 viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-                className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground"
-                role="img"
-                aria-label="Topology graph: nodes and inferred links from ingest"
+                className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-b-xl"
+                role="application"
+                aria-label="Topology graph: nodes and inferred links from ingest. Use arrow keys to pan when focused."
                 onWheel={onWheel}
                 onMouseDown={onMouseDown}
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 onMouseLeave={onMouseUp}
               >
-                {links.map((l) => {
+                {visibleLinks.map((l) => {
                   const a = positions.get(l.src_node_num)
                   const b = positions.get(l.dst_node_num)
                   if (!a || !b) return null
@@ -511,7 +613,7 @@ export function Topology() {
                   )
                 })}
 
-                {nodes.map((n) => {
+                {filteredNodes.map((n) => {
                   const p = positions.get(n.node_num)
                   if (!p) return null
                   const fill = nodeColor(n)
