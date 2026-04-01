@@ -239,6 +239,24 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
   return deriveEvidenceSignalsFromLegacyText(bundle, advisories)
 }
 
+function planningBestMoveAdvisoryNote(bundle: PlanningBundle, incidentId: string | null): string {
+  const parts: string[] = [
+    'Advisory ranking from the planning bundle — not RF or delivery proof.',
+  ]
+  if (!bundle.transport_connected) {
+    parts.push('Transport disconnected in this snapshot; graph may be stale.')
+  }
+  if (!bundle.topology_enabled) {
+    parts.push('Topology model off — resilience scores are not full graph-backed.')
+  }
+  if (incidentId) {
+    parts.push(`Verify against incident ${incidentId.slice(0, 8)}… replay, topology focus, and control queue before acting.`)
+  } else {
+    parts.push('Verify against incident detail, topology, and diagnostics before acting.')
+  }
+  return parts.join(' ')
+}
+
 function planningDecisionBoard(bundle: PlanningBundle, evidenceSignals: EvidenceSignal[]) {
   const bn = bundle.best_next_move
   const unknowns: string[] = []
@@ -638,6 +656,9 @@ export function Planning() {
                   </span>
                 )}
               </div>
+              <p className="text-xs text-foreground/90 border-l-2 border-warning/35 pl-2 mb-2 leading-snug" role="status">
+                {planningBestMoveAdvisoryNote(bundle, incidentIdParam || null)}
+              </p>
               <p className="text-sm font-medium leading-snug">{bn.title}</p>
               <ul className="mt-2 list-disc list-inside text-xs text-muted-foreground space-y-0.5">
                 {(bn.summary_lines ?? []).slice(0, 4).map((line, i) => (
@@ -734,6 +755,9 @@ export function Planning() {
                   </span>
                 )}
               </div>
+              <p className="text-sm text-foreground/90 border-l-2 border-warning/35 pl-2.5 mb-3 leading-snug" role="status">
+                {planningBestMoveAdvisoryNote(bundle, incidentIdParam || null)}
+              </p>
               <p className="font-medium">{bn.title}</p>
               <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-1">
                 {(bn.summary_lines ?? []).map((line, i) => (

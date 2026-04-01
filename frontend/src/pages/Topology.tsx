@@ -1075,6 +1075,10 @@ function TopologyOperatorAnalysisPanel({
               </span>
             )}
           </p>
+          <p className="text-[11px] text-foreground/85 border-l-2 border-warning/30 pl-2 mt-2 max-w-3xl leading-snug" role="note">
+            Pattern support only: absent edges or quiet clusters do not prove “nothing is nearby” on air; map-like layout is ingest-evidence, not
+            propagation certainty.
+          </p>
         </div>
         {incidentId && (
           <Link

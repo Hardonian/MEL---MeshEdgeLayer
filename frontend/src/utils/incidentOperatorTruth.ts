@@ -3,7 +3,12 @@
  * Single-operator honest: distinguishes observed linkage, references on the record,
  * capability limits, and degraded intelligence — not team workflow or implied certainty.
  */
-import type { Incident, IncidentIntelligence, TrustUIHints } from '@/types/api'
+import type {
+  Incident,
+  IncidentActionVisibilityPosture,
+  IncidentIntelligence,
+  TrustUIHints,
+} from '@/types/api'
 
 /** While panel is loading, assume linked rows are visible to avoid a false “visibility limited” flash. */
 export function operatorCanReadLinkedControlRows(state: {
@@ -75,8 +80,70 @@ function hasHistoricalActionSignals(intel: IncidentIntelligence | undefined): bo
 
 const DEFAULT_CTX: IncidentActionVisibilityContext = { canReadLinkedActions: true }
 
+function shortLabelFromBackendPosture(
+  av: IncidentActionVisibilityPosture,
+  linkedAwaiting: number,
+  linkedInFlight: number,
+  linkedLen: number,
+): string {
+  switch (av.action_visibility_kind) {
+    case 'visibility_limited':
+      return 'Control visibility limited'
+    case 'linked_observed':
+      if (linkedAwaiting > 0) return `${linkedAwaiting} approval wait`
+      if (linkedInFlight > 0) return `${linkedInFlight} in flight`
+      return linkedLen > 0 ? `${linkedLen} linked` : 'Linked (server)'
+    case 'references_only':
+      return 'Action refs only'
+    case 'action_context_degraded':
+      return 'Action memory degraded'
+    case 'no_linked_historical_signals':
+      return 'History without linkage'
+    case 'no_linked_observed':
+    default:
+      return 'No linked actions'
+  }
+}
+
 /**
- * Classifies what the operator can truthfully know about control actions for this incident row.
+ * Prefer server `action_visibility` when present (canonical for this API response); otherwise infer locally.
+ */
+export function resolvedIncidentActionVisibility(
+  inc: Incident,
+  ctx: IncidentActionVisibilityContext = DEFAULT_CTX,
+): IncidentActionVisibility {
+  const av = inc.action_visibility
+  if (av) {
+    const linked = inc.linked_control_actions ?? []
+    let awaitingApproval = 0
+    let inFlight = 0
+    if (ctx.canReadLinkedActions && linked.length > 0) {
+      const c = lifecycleCounts(linked)
+      awaitingApproval = c.awaitingApproval
+      inFlight = c.inFlight
+    }
+    const linkedCount = av.linked_control_row_count ?? linked.length
+    const pendingRefCount =
+      av.pending_action_ref_count ?? inc.pending_actions?.filter(Boolean).length ?? 0
+    const recentActionIdCount =
+      av.recent_action_ref_count ?? inc.recent_actions?.filter(Boolean).length ?? 0
+    return {
+      kind: av.action_visibility_kind as IncidentActionVisibilityKind,
+      shortLabel: shortLabelFromBackendPosture(av, awaitingApproval, inFlight, linked.length),
+      explanation: av.action_visibility_summary,
+      suggestControlQueue: av.action_context_should_open_control_queue,
+      linkedCount,
+      awaitingApproval,
+      inFlight,
+      pendingRefCount,
+      recentActionIdCount,
+    }
+  }
+  return incidentActionVisibility(inc, ctx)
+}
+
+/**
+ * Classifies what the operator can truthfully know about control actions for this incident row (client-side fallback).
  */
 export function incidentActionVisibility(
   inc: Incident,

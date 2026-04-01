@@ -3,7 +3,7 @@
  * Single-operator honest: no team queues or implied multi-user coordination.
  */
 import type { Incident } from '@/types/api'
-import { incidentActionVisibility } from './incidentOperatorTruth'
+import { resolvedIncidentActionVisibility } from './incidentOperatorTruth'
 
 const FOLLOW_UP_REVIEW = new Set(['follow_up_needed', 'pending_review', 'mitigated'])
 
@@ -44,7 +44,7 @@ export function openIncidentShiftPriority(inc: Incident, ctx?: IncidentWorkQueue
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) return 0
   const canRead = ctx?.canReadLinkedActions !== false
-  const vis = incidentActionVisibility(inc, { canReadLinkedActions: canRead })
+  const vis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canRead })
   const awaiting = canRead ? linkedActionsAwaitingApproval(inc) : 0
   const pend = referencedPendingActionCount(inc)
   if (awaiting > 0 || pend > 0) return 1
@@ -70,7 +70,7 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`
   }
   const canRead = ctx?.canReadLinkedActions !== false
-  const vis = incidentActionVisibility(inc, { canReadLinkedActions: canRead })
+  const vis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canRead })
   if (vis.kind === 'visibility_limited') {
     return vis.explanation
   }

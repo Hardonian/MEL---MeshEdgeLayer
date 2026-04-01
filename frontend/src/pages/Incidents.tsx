@@ -9,9 +9,9 @@ import {
 } from '@/utils/operatorWorkflow'
 import { partitionOpenIncidentsForWorkbench } from '@/utils/incidentWorkbench'
 import {
-  incidentActionVisibility,
   incidentMemoryDecisionCue,
   operatorCanReadLinkedControlRows,
+  resolvedIncidentActionVisibility,
 } from '@/utils/incidentOperatorTruth'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -497,7 +497,7 @@ function IncidentCard({
   const hasIntel = !!intel
   const seenBefore = (intel?.signature_match_count ?? 0) > 1
   const hasSimilar = (intel?.similar_incidents?.length ?? 0) > 0
-  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions })
+  const actionVis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions })
   const memoryLine = intel?.action_outcome_memory ? outcomeMemoryScanLine(intel.action_outcome_memory) : null
   const memoryDecisionCue = !muted ? incidentMemoryDecisionCue(inc) : null
   const topoNum = !muted ? incidentTopologyFocusNodeNum(inc) : null
