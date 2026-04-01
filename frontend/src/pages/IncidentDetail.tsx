@@ -1269,6 +1269,8 @@ function buildHandoffStructured(inc: Incident) {
       updated_at: inc.updated_at,
       resolved_at: inc.resolved_at,
       owner_actor_id: inc.owner_actor_id,
+      reopened_from_incident_id: inc.reopened_from_incident_id,
+      reopened_at: inc.reopened_at,
     },
     narrative: {
       summary: inc.summary,
