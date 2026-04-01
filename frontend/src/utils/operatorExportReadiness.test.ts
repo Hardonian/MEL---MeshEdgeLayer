@@ -7,6 +7,7 @@ describe('operatorExportReadinessFromVersion', () => {
     const r = operatorExportReadinessFromVersion(undefined, 'network')
     expect(r.semantic).toBe('unknown_partial')
     expect(r.artifactStrength).toBe('weaker_until_runtime_checked')
+    expect(r.evidenceBasis).toEqual([])
   })
 
   it('flags policy block when export disabled', () => {
@@ -19,6 +20,7 @@ describe('operatorExportReadinessFromVersion', () => {
     const r = operatorExportReadinessFromVersion(v, null)
     expect(r.semantic).toBe('policy_limited')
     expect(r.artifactStrength).toBe('blocked')
+    expect(r.evidenceBasis).toContain('platform_posture.evidence_export_delete')
   })
 
   it('prefers operator_readiness from version when present', () => {
@@ -29,6 +31,7 @@ describe('operatorExportReadinessFromVersion', () => {
         summary: 'Backend canonical summary',
         artifact_strength: 'usable_degraded',
         blockers: [{ code: 'x', summary: 'y' }],
+        evidence_basis: ['platform_posture.evidence_export_delete'],
       },
       platform_posture: {
         evidence_export_delete: { export_enabled: true, delete_enabled: false, delete_scope: [] },
@@ -40,6 +43,7 @@ describe('operatorExportReadinessFromVersion', () => {
     expect(r.semantic).toBe('degraded')
     expect(r.artifactStrength).toBe('usable_but_degraded')
     expect(r.blockers).toHaveLength(1)
+    expect(r.evidenceBasis).toContain('platform_posture.evidence_export_delete')
   })
 
   it('available when export enabled', () => {

@@ -124,6 +124,16 @@ type IncidentIntelligence struct {
 	OperatorSuggestedActions []OperatorSuggestedAction `json:"operator_suggested_actions,omitempty"`
 	// SignatureFamilyResolvedHistory summarizes resolved/reopened peers sharing this incident's signature (local DB only).
 	SignatureFamilyResolvedHistory *IncidentSignatureFamilyResolvedHistory `json:"signature_family_resolved_history,omitempty"`
+	// MitigationDurabilityMemory is deterministic local-history posture for this incident/family — not prediction of success.
+	MitigationDurabilityMemory *IncidentMitigationDurabilityMemory `json:"mitigation_durability_memory,omitempty"`
+}
+
+// IncidentMitigationDurabilityMemory summarizes stored outcome/family rows only — association, not causal proof.
+type IncidentMitigationDurabilityMemory struct {
+	Posture      string   `json:"posture"` // reopened_after_resolution_in_family | deterioration_or_mixed_in_outcome_memory | family_peers_present_no_reopen_signal | insufficient_local_history
+	Summary      string   `json:"summary"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty"`
 }
 
 // IncidentSignatureFamilyResolvedHistory is observational recurrence context from stored incidents — not prediction.
@@ -134,6 +144,13 @@ type IncidentTriageSignals struct {
 	RationaleLines   []string `json:"rationale_lines,omitempty"`
 	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
 	UncertaintyNotes []string `json:"uncertainty_notes,omitempty"`
+	// Queue ordering contract: same semantics as Tier for open-incident work ordering; explicit for cross-surface parity.
+	QueueOrderingContract string   `json:"queue_ordering_contract,omitempty"`
+	QueueSortPrimary      int      `json:"queue_sort_primary,omitempty"`
+	QueueSortSecondary    string   `json:"queue_sort_secondary,omitempty"`
+	OrderingRationale     string   `json:"ordering_rationale,omitempty"`
+	OrderingEvidenceRefs  []string `json:"ordering_evidence_refs,omitempty"`
+	OrderingUncertainty   string   `json:"ordering_uncertainty,omitempty"`
 }
 
 type IncidentSignatureFamilyResolvedHistory struct {
@@ -143,6 +160,9 @@ type IncidentSignatureFamilyResolvedHistory struct {
 	Basis                string `json:"basis"`
 	Uncertainty          string `json:"uncertainty"`
 	PeerSampleIncidentID string `json:"peer_sample_incident_id,omitempty"`
+	// When true, resolved/reopened counts are computed only over the most recent PeerScanWindow linked peers — not the full family. FamilyMatchTotal remains an exact COUNT.
+	PeerHistoryScanTruncated bool `json:"peer_history_scan_truncated,omitempty"`
+	PeerScanWindow           int  `json:"peer_scan_window,omitempty"`
 }
 
 // MeshRoutingIntelCompanion surfaces bounded mesh routing-pressure diagnostics next to mesh-scoped incidents.

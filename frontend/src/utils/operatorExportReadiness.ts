@@ -18,6 +18,8 @@ export interface OperatorExportReadiness {
   artifactStrength: OperatorArtifactStrength
   blockers: Array<{ code: string; summary: string }>
   source: 'operator_readiness' | 'platform_posture_fallback' | 'version_error_fallback'
+  evidenceBasis: string[]
+  generatedFromNote?: string
 }
 
 function mapArtifactStrength(dto: string | undefined): OperatorArtifactStrength {
@@ -47,6 +49,8 @@ export function operatorExportReadinessFromVersion(
       artifactStrength: mapArtifactStrength(or.artifact_strength),
       blockers: or.blockers ?? [],
       source: 'operator_readiness',
+      evidenceBasis: or.evidence_basis ?? [],
+      generatedFromNote: or.generated_from_note,
     }
   }
 
@@ -58,6 +62,7 @@ export function operatorExportReadinessFromVersion(
       artifactStrength: 'weaker_until_runtime_checked',
       blockers: [],
       source: 'version_error_fallback',
+      evidenceBasis: [],
     }
   }
   if (exp?.export_enabled === false) {
@@ -68,6 +73,7 @@ export function operatorExportReadinessFromVersion(
       artifactStrength: 'blocked',
       blockers: [{ code: 'export_disabled_by_policy', summary: 'platform.retention.allow_export=false' }],
       source: 'platform_posture_fallback',
+      evidenceBasis: ['platform_posture.evidence_export_delete'],
     }
   }
   if (exp?.export_enabled === true) {
@@ -82,6 +88,7 @@ export function operatorExportReadinessFromVersion(
         ? [{ code: 'export_redaction_enabled', summary: 'platform.privacy.redact_exports=true' }]
         : [],
       source: 'platform_posture_fallback',
+      evidenceBasis: ['platform_posture.evidence_export_delete', 'platform_posture.export_redaction_enabled'],
     }
   }
   return {
@@ -90,5 +97,6 @@ export function operatorExportReadinessFromVersion(
     artifactStrength: 'weaker_until_runtime_checked',
     blockers: [],
     source: 'platform_posture_fallback',
+    evidenceBasis: [],
   }
 }

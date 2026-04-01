@@ -49,6 +49,7 @@ import { useVersionInfo } from '@/hooks/useVersionInfo'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
+import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 
 export function Dashboard() {
   const status = useStatus()
@@ -195,6 +196,10 @@ export function Dashboard() {
   const pendingApprovals = operational.data?.pending_approvals ?? []
 
   const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+  const exportReadiness = useMemo(
+    () => operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null),
+    [versionInfo.data, versionInfo.error],
+  )
 
   const incidentQueueCtx: IncidentWorkQueueWhyContext = useMemo(
     () => ({
@@ -246,7 +251,6 @@ export function Dashboard() {
   const retentionDays =
     versionInfo.data?.platform_posture?.retention?.audit_days ??
     versionInfo.data?.platform_posture?.retention_default_days
-  const exportEnabled = exportPosture?.export_enabled
 
   const explicitFollowUpOpenCount = useMemo(
     () => countOpenIncidentsExplicitFollowUp(openIncidents),
@@ -602,12 +606,9 @@ export function Dashboard() {
           {retentionDays != null && (
             <span>default retention window ~{retentionDays} day audit horizon (see Settings for full matrix). </span>
           )}
-          {exportEnabled === false && (
-            <span className="text-warning">Evidence export disabled by policy — handoff text/JSON still works where permitted. </span>
-          )}
-          {exportEnabled !== false && (
-            <span>Proofpack / escalation exports follow instance export policy. </span>
-          )}
+          <span className={exportReadiness.semantic === 'policy_limited' ? 'text-warning' : ''}>
+            {exportReadiness.summary}{' '}
+          </span>
           <Link to="/settings" className="text-primary font-medium hover:underline ml-1">
             Settings → runtime truth
           </Link>

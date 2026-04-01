@@ -38,6 +38,10 @@ export interface OperatorIntelligencePosture {
   assist_non_canonical_truth: boolean
   remote_assist_supported: boolean
   review_recommended_for_assist_output: boolean
+  /** Stable field names bounded assist may read; deterministic API remains canonical. */
+  assist_input_contracts?: string[]
+  assist_disable_semantics?: string
+  assist_audit_expectation?: string
 }
 
 export interface OperatorReadinessBlocker {
@@ -362,6 +366,14 @@ export interface IncidentIntelligence {
   mesh_routing_companion?: MeshRoutingIntelCompanion
   operator_suggested_actions?: OperatorSuggestedAction[]
   signature_family_resolved_history?: IncidentSignatureFamilyResolvedHistory
+  mitigation_durability_memory?: IncidentMitigationDurabilityMemory
+}
+
+export interface IncidentMitigationDurabilityMemory {
+  posture: string
+  summary: string
+  evidence_refs?: string[]
+  uncertainty: string
 }
 
 export interface IncidentTriageSignals {
@@ -370,6 +382,12 @@ export interface IncidentTriageSignals {
   rationale_lines?: string[]
   evidence_refs?: string[]
   uncertainty_notes?: string[]
+  queue_ordering_contract?: string
+  queue_sort_primary?: number
+  queue_sort_secondary?: string
+  ordering_rationale?: string
+  ordering_evidence_refs?: string[]
+  ordering_uncertainty?: string
 }
 
 export interface IncidentSignatureFamilyResolvedHistory {
@@ -379,6 +397,8 @@ export interface IncidentSignatureFamilyResolvedHistory {
   basis: string
   uncertainty: string
   peer_sample_incident_id?: string
+  peer_history_scan_truncated?: boolean
+  peer_scan_window?: number
 }
 
 export interface MeshRoutingIntelCompanion {

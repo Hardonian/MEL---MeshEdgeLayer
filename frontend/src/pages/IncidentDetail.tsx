@@ -2169,11 +2169,25 @@ export function IncidentDetail() {
         >
           <p className="font-semibold text-foreground mb-1.5">Deterministic triage (server)</p>
           <p className="text-[11px] text-muted-foreground mb-2">
-            Tier {triage.tier} — inspectable codes, not an opaque priority score. Evidence refs:{' '}
+            Tier {triage.tier}
+            {triage.queue_ordering_contract ? (
+              <>
+                {' '}
+                · queue contract <span className="font-mono">{triage.queue_ordering_contract}</span> (sort primary={triage.queue_sort_primary ?? triage.tier},{' '}
+                secondary={triage.queue_sort_secondary ?? 'updated_at_desc'})
+              </>
+            ) : null}{' '}
+            — inspectable codes, not an opaque priority score. Evidence refs:{' '}
             <span className="font-mono text-[10px] break-all">
               {(triage.evidence_refs ?? []).slice(0, 4).join(' · ') || '—'}
             </span>
           </p>
+          {triage.ordering_rationale && (
+            <p className="text-[11px] text-muted-foreground mb-2 border-l-2 border-border/60 pl-2">{triage.ordering_rationale}</p>
+          )}
+          {triage.ordering_uncertainty && (
+            <p className="text-[11px] text-warning mb-2 border-l-2 border-warning/25 pl-2">{triage.ordering_uncertainty}</p>
+          )}
           <ul className="space-y-1.5">
             {triage.codes.map((code, i) => (
               <li key={code} className="text-[11px] text-muted-foreground border-l-2 border-primary/25 pl-2">

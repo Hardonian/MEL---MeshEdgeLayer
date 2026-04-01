@@ -839,6 +839,22 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
                 variant={posture.operator_intelligence_posture.telemetry_outbound ? 'warning' : 'success'}
               />
             </div>
+            {(posture.operator_intelligence_posture.assist_input_contracts?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground mb-1">Future bounded assist — canonical inputs (design contract)</p>
+                <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px]">
+                  {posture.operator_intelligence_posture.assist_input_contracts!.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+                {posture.operator_intelligence_posture.assist_disable_semantics && (
+                  <p className="mt-2">{posture.operator_intelligence_posture.assist_disable_semantics}</p>
+                )}
+                {posture.operator_intelligence_posture.assist_audit_expectation && (
+                  <p className="mt-2 border-t border-border/40 pt-2">{posture.operator_intelligence_posture.assist_audit_expectation}</p>
+                )}
+              </div>
+            )}
           </section>
         )}
       </CardContent>
