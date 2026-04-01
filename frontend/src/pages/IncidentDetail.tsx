@@ -43,6 +43,7 @@ import {
   wirelessEvidencePostureLabel,
 } from '@/utils/evidenceSemantics'
 import { controlActionExecPhase } from '@/utils/controlActionPhase'
+import { incidentTopologyFocusNodeNum } from '@/utils/operatorWorkflow'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -295,6 +296,11 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
                 {m.caveats?.length ? (
                   <span className="block mt-0.5 text-[10px]">{m.caveats!.slice(0, 2).join(' · ')}</span>
                 ) : null}
+                {(m.inspect_before_reuse?.length ?? 0) > 0 && (
+                  <span className="block mt-1 text-[10px] text-warning/90">
+                    Before reusing: {m.inspect_before_reuse!.slice(0, 2).join(' · ')}
+                  </span>
+                )}
               </div>
             ))}
             {mem.length > 4 && (
@@ -342,6 +348,46 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
             )}
           </p>
         )}
+        <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-[11px] text-muted-foreground space-y-1 border-t border-border/40 pt-3 mt-1">
+          <p className="font-semibold text-foreground">What this changes in your next step</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {sig > 1 && (
+              <li>
+                Treat as a <span className="text-foreground">repeat bucket</span> — compare replay windows and outcomes before assuming the same fix.
+              </li>
+            )}
+            {sim.length > 0 && (
+              <li>
+                Open similar cases for <span className="text-foreground">bounded pattern context</span> — weak matches stay labeled in detail.
+              </li>
+            )}
+            {mem.some((m) => (m.sample_size ?? 0) < 3 || m.evidence_strength === 'sparse') && (
+              <li>
+                Sparse outcome history — <span className="text-foreground">do not treat past association as a reliable predictor</span> for this run.
+              </li>
+            )}
+            {gov.some((g) => g.rejected_count > 0) && (
+              <li>
+                Governance memory shows rejections on this action family — <span className="text-foreground">verify policy / approver posture</span> before re-proposing.
+              </li>
+            )}
+            {inc.reopened_from_incident_id && (
+              <li>
+                Reopened lineage — <span className="text-foreground">re-verify</span> what changed since the prior incident closed or mitigated.
+              </li>
+            )}
+            {sig <= 1 &&
+              sim.length === 0 &&
+              mem.length === 0 &&
+              gov.length === 0 &&
+              hist.length === 0 &&
+              drift.length === 0 &&
+              corr.length === 0 &&
+              !inc.reopened_from_incident_id && (
+              <li>No strong historical signals on this row yet — prioritize live replay, topology, and transport evidence.</li>
+            )}
+          </ul>
+        </div>
       </CardContent>
     </Card>
   )
@@ -413,7 +459,7 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
   ]
 
   return (
-    <Card id="mel-investigation-path" data-testid="incident-investigation-path">
+    <Card id="mel-investigation-path" data-testid="incident-investigation-path" className="scroll-mt-20">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Investigation path (in-product)</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -458,26 +504,6 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
       </CardContent>
     </Card>
   )
-}
-
-function incidentTopologyFocusNodeNum(inc: Incident): number | null {
-  const rt = (inc.resource_type || '').toLowerCase()
-  const rid = (inc.resource_id || '').trim()
-  if (rt === 'mesh_node' || rt === 'node') {
-    const n = parseInt(rid.replace(/\D/g, '') || '0', 10)
-    if (Number.isFinite(n) && n > 0) return n
-  }
-  for (const d of inc.intelligence?.implicated_domains ?? []) {
-    if ((d.domain || '').toLowerCase() !== 'mesh_topology') continue
-    for (const ref of d.evidence_refs ?? []) {
-      const m = /^node[:_]?(\d+)$/i.exec(ref.trim())
-      if (m) {
-        const n = parseInt(m[1], 10)
-        if (Number.isFinite(n) && n > 0) return n
-      }
-    }
-  }
-  return null
 }
 
 function InvestigationGuidePanel({ inc }: { inc: Incident }) {
@@ -1584,28 +1610,36 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
           </div>
         )}
         <div className="rounded-lg border border-border/50 bg-muted/15 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
-          <p className="font-semibold text-foreground">What to export when</p>
-          <ul className="list-disc pl-4 space-y-1">
+          <p className="font-semibold text-foreground">Decision ladder (under pressure)</p>
+          <ol className="list-decimal pl-4 space-y-1.5">
             <li>
-              <span className="text-foreground">Plain / JSON handoff</span> — human or machine-readable{' '}
-              <em className="not-italic text-muted-foreground">continuity</em>; not canonical proof.
+              <span className="text-foreground">Need a human-readable pass-down?</span> Plain summary or handoff JSON — fastest continuity;
+              still not proof.
             </li>
             <li>
-              <span className="text-foreground">Escalation bundle</span> — support-oriented package when policy allows (may include proof
-              assembly summary).
-            </li>
-            <li>
-              <span className="text-foreground">Proofpack</span> — strongest bundled evidence export MEL assembles for this incident (still
-              review gaps in-file).
-            </li>
-            <li>
-              <span className="text-foreground">Diagnostics support bundle</span> —{' '}
+              <span className="text-foreground">Need support / vendor with incident-shaped context?</span> Escalation bundle when policy
+              allows — heavier than handoff; not a substitute for{' '}
               <Link to="/diagnostics" className="text-primary font-medium hover:underline">
-                host/runtime
+                host/runtime diagnostics
               </Link>{' '}
-              continuity; separate from incident proof.
+              when the problem is the runtime itself.
             </li>
-          </ul>
+            <li>
+              <span className="text-foreground">Need strongest incident evidence MEL can bundle?</span> Proofpack (below in this page) —
+              skip if policy blocks export or version metadata is unknown; use handoff +{' '}
+              <Link to="/settings" className="text-primary font-medium hover:underline">
+                Settings
+              </Link>{' '}
+              to confirm gates first.
+            </li>
+            <li>
+              <span className="text-foreground">Need process, build, disk, or broker truth?</span>{' '}
+              <Link to="/diagnostics" className="text-primary font-medium hover:underline">
+                Diagnostics → support bundle
+              </Link>{' '}
+              — does not replace proofpack for incident evidence chain.
+            </li>
+          </ol>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
