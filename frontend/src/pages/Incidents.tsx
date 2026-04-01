@@ -8,6 +8,11 @@ import {
   type IncidentWorkQueueWhyContext,
 } from '@/utils/operatorWorkflow'
 import { partitionOpenIncidentsForWorkbench } from '@/utils/incidentWorkbench'
+import {
+  incidentActionVisibility,
+  incidentMemoryDecisionCue,
+  operatorCanReadLinkedControlRows,
+} from '@/utils/incidentOperatorTruth'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -180,9 +185,16 @@ export function Incidents() {
   const canMutate = ctx.trustUI?.incident_mutate === true
 
   const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+  const canReadLinkedActions = operatorCanReadLinkedControlRows({
+    loading: ctx.loading,
+    error: ctx.error,
+    trustUI: ctx.trustUI,
+    capabilities: ctx.capabilities ?? [],
+  })
   const workbenchWhyCtx: IncidentWorkQueueWhyContext = {
     exportEnabled: exportPosture?.export_enabled,
     exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
+    canReadLinkedActions,
   }
   const proofpackExportBlocked =
     exportPosture?.export_enabled === false ||
@@ -194,8 +206,8 @@ export function Incidents() {
         ? `Export policy unknown (${versionInfo.error}) — confirm Settings before proofpack.`
         : undefined
 
-  const { needsAttention, backlog } = partitionOpenIncidentsForWorkbench(incidents)
-  const openSortedFull = sortOpenIncidentsForShiftStart(openIncidents)
+  const { needsAttention, backlog } = partitionOpenIncidentsForWorkbench(incidents, workbenchWhyCtx)
+  const openSortedFull = sortOpenIncidentsForShiftStart(openIncidents, workbenchWhyCtx)
 
   return (
     <div className="space-y-5">
@@ -279,10 +291,17 @@ export function Incidents() {
             </div>
             <p className="mt-1.5 text-[11px] leading-snug">
               <span className="text-foreground font-medium">{needsAttention.length}</span> row{needsAttention.length === 1 ? '' : 's'} in
-              “needs attention” (explicit review, linked approval wait, or sparse/degraded).{' '}
+              “needs attention” (explicit review, control gates, partial action visibility / degraded action trace, sparse or degraded
+              intel, or history-without-linkage signals).{' '}
               <span className="text-foreground font-medium">{backlog.length}</span> in backlog — still open, lower immediate pressure by the
               same deterministic rules.
             </p>
+            {!canReadLinkedActions && !ctx.loading && ctx.error == null && (
+              <p className="mt-2 text-[11px] text-warning border border-warning/20 rounded-lg px-2 py-1.5 bg-warning/5" role="status">
+                Linked control rows are hidden without read_actions — ordering still uses refs on the record; open the control queue to see
+                FK-linked work.
+              </p>
+            )}
           </div>
 
           {needsAttention.length > 0 && (
@@ -300,6 +319,7 @@ export function Incidents() {
                     key={inc.id}
                     incident={inc}
                     canMutate={canMutate}
+                    canReadLinkedActions={canReadLinkedActions}
                     workbenchWhyContext={workbenchWhyCtx}
                     proofpackExportBlocked={proofpackExportBlocked}
                     proofpackExportBlockedReason={proofpackExportBlockedReason}
@@ -324,6 +344,7 @@ export function Incidents() {
                     key={inc.id}
                     incident={inc}
                     canMutate={canMutate}
+                    canReadLinkedActions={canReadLinkedActions}
                     workbenchWhyContext={workbenchWhyCtx}
                     proofpackExportBlocked={proofpackExportBlocked}
                     proofpackExportBlockedReason={proofpackExportBlockedReason}
@@ -340,6 +361,7 @@ export function Incidents() {
                   key={inc.id}
                   incident={inc}
                   canMutate={canMutate}
+                  canReadLinkedActions={canReadLinkedActions}
                   workbenchWhyContext={workbenchWhyCtx}
                   proofpackExportBlocked={proofpackExportBlocked}
                   proofpackExportBlockedReason={proofpackExportBlockedReason}
@@ -449,26 +471,11 @@ function ProofpackDownloadButton({
   )
 }
 
-function linkedControlLifecycleSummary(inc: Incident): {
-  total: number
-  awaitingApproval: number
-  inFlight: number
-} {
-  const linked = inc.linked_control_actions ?? []
-  let awaitingApproval = 0
-  let inFlight = 0
-  for (const a of linked) {
-    const ls = (a.lifecycle_state || '').toLowerCase()
-    if (ls === 'pending_approval') awaitingApproval++
-    else if (ls === 'pending' || ls === 'running') inFlight++
-  }
-  return { total: linked.length, awaitingApproval, inFlight }
-}
-
 function IncidentCard({
   incident: inc,
   muted = false,
   canMutate = false,
+  canReadLinkedActions = true,
   workbenchWhyContext,
   proofpackExportBlocked,
   proofpackExportBlockedReason,
@@ -476,6 +483,7 @@ function IncidentCard({
   incident: Incident
   muted?: boolean
   canMutate?: boolean
+  canReadLinkedActions?: boolean
   workbenchWhyContext?: IncidentWorkQueueWhyContext
   proofpackExportBlocked?: boolean
   proofpackExportBlockedReason?: string
@@ -489,8 +497,9 @@ function IncidentCard({
   const hasIntel = !!intel
   const seenBefore = (intel?.signature_match_count ?? 0) > 1
   const hasSimilar = (intel?.similar_incidents?.length ?? 0) > 0
-  const linkedSum = linkedControlLifecycleSummary(inc)
+  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions })
   const memoryLine = intel?.action_outcome_memory ? outcomeMemoryScanLine(intel.action_outcome_memory) : null
+  const memoryDecisionCue = !muted ? incidentMemoryDecisionCue(inc) : null
   const topoNum = !muted ? incidentTopologyFocusNodeNum(inc) : null
   const priorityWhy = !muted ? openIncidentShiftWhyLine(inc, workbenchWhyContext) : ''
 
@@ -546,21 +555,42 @@ function IncidentCard({
                 seen {intel!.signature_match_count}x
               </Badge>
             )}
-            {linkedSum.awaitingApproval > 0 && (
-              <span title="Linked control rows awaiting approval on this incident">
-                <Badge variant="warning">
-                  {linkedSum.awaitingApproval} approval wait
+            {actionVis.kind === 'visibility_limited' && (
+              <span title={actionVis.explanation}>
+                <Badge variant="warning">{actionVis.shortLabel}</Badge>
+              </span>
+            )}
+            {actionVis.kind === 'action_context_degraded' && (
+              <span title={actionVis.explanation}>
+                <Badge variant="warning">{actionVis.shortLabel}</Badge>
+              </span>
+            )}
+            {actionVis.kind === 'no_linked_historical_signals' && (
+              <span title={actionVis.explanation}>
+                <Badge variant="secondary">{actionVis.shortLabel}</Badge>
+              </span>
+            )}
+            {actionVis.kind === 'linked_observed' && actionVis.awaitingApproval > 0 && (
+              <span title={actionVis.explanation}>
+                <Badge variant="warning">{actionVis.awaitingApproval} approval wait</Badge>
+              </span>
+            )}
+            {actionVis.kind === 'linked_observed' &&
+              actionVis.linkedCount > 0 &&
+              actionVis.awaitingApproval === 0 && (
+                <span title={actionVis.explanation}>
+                  <Badge variant="secondary">{actionVis.linkedCount} linked control</Badge>
+                </span>
+              )}
+            {actionVis.kind === 'references_only' && (
+              <span title={actionVis.explanation}>
+                <Badge variant="outline">
+                  {actionVis.pendingRefCount + actionVis.recentActionIdCount} action ref
+                  {actionVis.pendingRefCount + actionVis.recentActionIdCount > 1 ? 's' : ''}
                 </Badge>
               </span>
             )}
-            {linkedSum.total > 0 && linkedSum.awaitingApproval === 0 && (
-              <span title="FK-linked control actions on this incident">
-                <Badge variant="secondary">
-                  {linkedSum.total} linked control
-                </Badge>
-              </span>
-            )}
-            {pending.length > 0 && (
+            {pending.length > 0 && actionVis.kind !== 'references_only' && (
               <span title="Action IDs referenced on the incident record (verify against queue)">
                 <Badge variant="outline">
                   {pending.length} ref ID{pending.length > 1 ? 's' : ''}
@@ -587,6 +617,28 @@ function IncidentCard({
           >
             <span className="font-semibold text-foreground">Why this order: </span>
             {priorityWhy}
+          </div>
+        )}
+
+        {!muted && actionVis.explanation && actionVis.kind !== 'linked_observed' && (
+          <div
+            className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[11px] text-muted-foreground"
+            data-testid="incident-workbench-action-visibility"
+            role="status"
+          >
+            <span className="font-semibold text-foreground">Control / action context: </span>
+            {actionVis.explanation}
+            {actionVis.suggestControlQueue && (
+              <>
+                {' '}
+                <Link
+                  to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+                  className="font-semibold text-primary hover:underline whitespace-nowrap"
+                >
+                  Open control queue →
+                </Link>
+              </>
+            )}
           </div>
         )}
 
@@ -646,6 +698,16 @@ function IncidentCard({
             <span className="font-semibold text-foreground">Outcome memory (scan): </span>
             {memoryLine}
             <span className="text-muted-foreground/70"> — association only; open detail for caveats.</span>
+          </p>
+        )}
+
+        {memoryDecisionCue && (
+          <p
+            className="text-[11px] text-foreground border-l-2 border-warning/40 pl-2.5"
+            data-testid="incident-workbench-memory-decision"
+          >
+            <span className="font-semibold">What history changes next: </span>
+            {memoryDecisionCue}
           </p>
         )}
 
