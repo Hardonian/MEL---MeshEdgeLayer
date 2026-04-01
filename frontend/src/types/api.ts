@@ -250,7 +250,31 @@ export interface Incident {
   /** Canonical FK-linked control actions (when backend enriches list/detail) */
   linked_control_actions?: ControlActionRecord[]
   intelligence?: IncidentIntelligence
+  /** Server-computed control visibility for this response (capability-aware); prefer over pure frontend inference when present. */
+  action_visibility?: IncidentActionVisibilityPosture
 }
+
+/** Mirrors GET incident JSON; emitted when backend computes operator control visibility. */
+export interface IncidentActionVisibilityPosture {
+  action_visibility_kind: IncidentActionVisibilityKindAPI
+  action_visibility_reason?: string
+  action_visibility_summary: string
+  action_context_should_open_control_queue: boolean
+  action_context_has_material_prior_attempts: boolean
+  action_context_has_pending_related_work: boolean
+  action_context_is_partial: boolean
+  linked_control_row_count?: number
+  pending_action_ref_count?: number
+  recent_action_ref_count?: number
+}
+
+export type IncidentActionVisibilityKindAPI =
+  | 'visibility_limited'
+  | 'linked_observed'
+  | 'references_only'
+  | 'action_context_degraded'
+  | 'no_linked_historical_signals'
+  | 'no_linked_observed'
 
 export interface IncidentIntelligence {
   signature_key?: string

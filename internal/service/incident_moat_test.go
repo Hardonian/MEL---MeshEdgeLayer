@@ -108,14 +108,14 @@ func TestIncidentReplayView_MergesOutcomesAndTypedSegments(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := a.DB.UpsertControlAction(db.ControlActionRecord{
-		ID:             "act-replay-1",
-		ActionType:     "restart_transport",
+		ID:              "act-replay-1",
+		ActionType:      "restart_transport",
 		TargetTransport: "mqtt-sod",
-		LifecycleState: "completed",
-		IncidentID:     id,
-		Reason:         "test",
-		Confidence:     0.5,
-		CreatedAt:      ts,
+		LifecycleState:  "completed",
+		IncidentID:      id,
+		Reason:          "test",
+		Confidence:      0.5,
+		CreatedAt:       ts,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestIncidentReplayView_MergesOutcomesAndTypedSegments(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	view, err := a.IncidentReplayView(id)
+	view, err := a.IncidentReplayView(id, true)
 	if err != nil {
 		t.Fatal(err)
 	}

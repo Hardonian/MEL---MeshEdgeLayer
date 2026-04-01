@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mel-project/mel/internal/actionvisibility"
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/models"
@@ -92,12 +93,20 @@ func (a *App) IncidentHandoff(incidentID, fromActorID string, req models.Inciden
 	return nil
 }
 
-// IncidentByID returns a full incident row for API/CLI, including canonical linked control actions.
+// IncidentByID returns a full incident row with linked actions and intelligence (internal / proof / CLI).
+// JSON emitted to operators should use IncidentByIDForAPI so capability-limited identities do not receive linked rows.
 func (a *App) IncidentByID(id string) (models.Incident, bool, error) {
+	return a.loadIncidentWithIntelligence(strings.TrimSpace(id))
+}
+
+func (a *App) loadIncidentWithIntelligence(id string) (models.Incident, bool, error) {
 	if a == nil || a.DB == nil {
 		return models.Incident{}, false, fmt.Errorf("service not available")
 	}
-	inc, ok, err := a.DB.IncidentByID(strings.TrimSpace(id))
+	if id == "" {
+		return models.Incident{}, false, nil
+	}
+	inc, ok, err := a.DB.IncidentByID(id)
 	if err != nil || !ok {
 		return inc, ok, err
 	}
@@ -113,6 +122,31 @@ func (a *App) IncidentByID(id string) (models.Incident, bool, error) {
 	}
 	inc.Intelligence = a.buildIncidentIntelligence(inc)
 	return inc, true, nil
+}
+
+// IncidentByIDForAPI applies operator visibility: strips linked_control_actions when canReadLinked is false,
+// rebuilds intelligence without those rows, and sets action_visibility.
+func (a *App) IncidentByIDForAPI(id string, canReadLinked bool) (models.Incident, bool, error) {
+	inc, ok, err := a.loadIncidentWithIntelligence(strings.TrimSpace(id))
+	if err != nil || !ok {
+		return inc, ok, err
+	}
+	a.finishIncidentForAPI(&inc, canReadLinked)
+	return inc, true, nil
+}
+
+// finishIncidentForAPI mutates inc for HTTP responses. When canReadLinked is false, linked rows are cleared
+// and intelligence is recomputed so governance/outcome hints do not imply observed linkage.
+func (a *App) finishIncidentForAPI(inc *models.Incident, canReadLinked bool) {
+	if inc == nil {
+		return
+	}
+	if !canReadLinked {
+		inc.LinkedControlActions = nil
+		inc.Intelligence = a.buildIncidentIntelligence(*inc)
+	}
+	vis := actionvisibility.FromIncident(*inc, canReadLinked)
+	inc.ActionVisibility = &vis
 }
 
 // RecentIncidentsWithLinkedActions returns recent incidents with linked_control_actions populated from the canonical FK.
@@ -147,6 +181,18 @@ func (a *App) RecentIncidentsWithLinkedActions(limit int) ([]models.Incident, er
 			incs[i].LinkedControlActions = linked
 		}
 		incs[i].Intelligence = a.buildIncidentIntelligence(incs[i])
+	}
+	return incs, nil
+}
+
+// RecentIncidentsForAPI enriches recent rows and applies per-request visibility (same rules as IncidentByIDForAPI).
+func (a *App) RecentIncidentsForAPI(limit int, canReadLinked bool) ([]models.Incident, error) {
+	incs, err := a.RecentIncidentsWithLinkedActions(limit)
+	if err != nil {
+		return nil, err
+	}
+	for i := range incs {
+		a.finishIncidentForAPI(&incs[i], canReadLinked)
 	}
 	return incs, nil
 }

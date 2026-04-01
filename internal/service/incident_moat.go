@@ -724,7 +724,8 @@ func validReviewState(s string) bool {
 }
 
 // IncidentReplayView returns a static reconstruction payload for post-incident learning (no simulation).
-func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
+// When canReadLinked is false (identity lacks read_actions), the nested incident matches GET detail: linked rows omitted and intelligence rebuilt.
+func (a *App) IncidentReplayView(incidentID string, canReadLinked bool) (map[string]any, error) {
 	if a == nil || a.DB == nil {
 		return nil, fmt.Errorf("service not available")
 	}
@@ -732,7 +733,7 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 	if incidentID == "" {
 		return nil, fmt.Errorf("incident id is required")
 	}
-	inc, ok, err := a.IncidentByID(incidentID)
+	inc, ok, err := a.IncidentByIDForAPI(incidentID, canReadLinked)
 	if err != nil {
 		return nil, err
 	}
@@ -783,15 +784,21 @@ func (a *App) IncidentReplayView(incidentID string) (map[string]any, error) {
 		}
 	}
 	replayMeta := map[string]any{
-		"schema_version":                  "incident_replay_view/v3",
-		"window_from":                     from,
-		"window_to":                       to,
-		"timeline_event_count":            len(timeline),
-		"recommendation_outcome_count":    len(outcomes),
-		"combined_segment_count":          len(segments),
-		"ordering":                        "ascending_event_time",
-		"sparse_timeline":                 len(timeline) == 0,
-		"ordering_posture_note":           "Sequence is instance-local persisted time ordering only; imported or federated rows keep their declared timing_posture — not a claim of global causality.",
+		"schema_version":               "incident_replay_view/v3",
+		"window_from":                  from,
+		"window_to":                    to,
+		"timeline_event_count":         len(timeline),
+		"recommendation_outcome_count": len(outcomes),
+		"combined_segment_count":       len(segments),
+		"ordering":                     "ascending_event_time",
+		"sparse_timeline":              len(timeline) == 0,
+		"ordering_posture_note":        "Sequence is instance-local persisted time ordering only; imported or federated rows keep their declared timing_posture — not a claim of global causality.",
+		"window_truncated":             len(timeline) >= 200,
+		"interpretation_posture":       replayInterpretationPosture(len(timeline), len(segments)),
+	}
+	if !canReadLinked {
+		replayMeta["linked_control_redacted"] = true
+		replayMeta["visibility_note"] = "Incident object omits FK-linked control rows for this identity (read_actions). Timeline rows are bounded by window and retention; filtered views are not globally representative."
 	}
 	return map[string]any{
 		"kind":                           "incident_replay_view/v3",
@@ -898,6 +905,20 @@ func mergeReplaySegmentsChronologically(a, b []replaySegment) []replaySegment {
 		return ti.Before(tj)
 	})
 	return out
+}
+
+// replayInterpretationPosture is a deterministic hint for operators; not a completeness proof.
+func replayInterpretationPosture(timelineCount, segmentCount int) string {
+	switch {
+	case timelineCount >= 200:
+		return "timeline_query_capped"
+	case timelineCount == 0:
+		return "no_timeline_rows_in_window"
+	case timelineCount < 3 && segmentCount < 3:
+		return "sparse_evidence_window"
+	default:
+		return "bounded_persistence_view"
+	}
 }
 
 func parseReplayTime(v string) time.Time {
@@ -1012,15 +1033,15 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 		})
 	}
 	return map[string]any{
-		"kind":               "escalation_bundle/v1",
-		"incident_id":        inc.ID,
-		"narrative":          narrative,
+		"kind":                   "escalation_bundle/v1",
+		"incident_id":            inc.ID,
+		"narrative":              narrative,
 		"linked_control_actions": linked,
-		"proofpack_summary":  pack["assembly"],
-		"section_statuses":   pack["section_statuses"],
-		"evidence_gap_count": gapCount,
-		"continuity_note":    "linked_control_actions are incident_id-linked rows only; use proofpack for full evidence chain.",
-		"privacy_note":       "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
-		"generated_at":       time.Now().UTC().Format(time.RFC3339),
+		"proofpack_summary":      pack["assembly"],
+		"section_statuses":       pack["section_statuses"],
+		"evidence_gap_count":     gapCount,
+		"continuity_note":        "linked_control_actions are incident_id-linked rows only; use proofpack for full evidence chain.",
+		"privacy_note":           "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
+		"generated_at":           time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }

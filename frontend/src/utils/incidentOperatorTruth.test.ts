@@ -4,6 +4,7 @@ import {
   incidentActionVisibility,
   incidentMemoryDecisionCue,
   operatorCanReadLinkedControlRows,
+  resolvedIncidentActionVisibility,
 } from './incidentOperatorTruth'
 
 function inc(partial: Partial<Incident> & { id: string }): Incident {
@@ -12,6 +13,29 @@ function inc(partial: Partial<Incident> & { id: string }): Incident {
     ...partial,
   } as Incident
 }
+
+describe('resolvedIncidentActionVisibility', () => {
+  it('prefers server action_visibility when present', () => {
+    const v = resolvedIncidentActionVisibility(
+      inc({
+        id: 'srv',
+        action_visibility: {
+          action_visibility_kind: 'linked_observed',
+          action_visibility_summary: 'Server says linked.',
+          action_context_should_open_control_queue: false,
+          action_context_has_material_prior_attempts: true,
+          action_context_has_pending_related_work: false,
+          action_context_is_partial: false,
+          linked_control_row_count: 2,
+        },
+      }),
+      { canReadLinkedActions: true },
+    )
+    expect(v.kind).toBe('linked_observed')
+    expect(v.explanation).toBe('Server says linked.')
+    expect(v.linkedCount).toBe(2)
+  })
+})
 
 describe('incidentActionVisibility', () => {
   it('flags visibility_limited when read_actions is off', () => {

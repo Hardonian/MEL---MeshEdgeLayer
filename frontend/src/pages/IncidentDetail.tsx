@@ -45,7 +45,7 @@ import {
 import { controlActionExecPhase } from '@/utils/controlActionPhase'
 import { incidentTopologyFocusNodeNum } from '@/utils/operatorWorkflow'
 import {
-  incidentActionVisibility,
+  resolvedIncidentActionVisibility,
   incidentMemoryDecisionCue,
   operatorCanReadLinkedControlRows,
 } from '@/utils/incidentOperatorTruth'
@@ -82,6 +82,10 @@ interface ReplayView {
     recommendation_outcome_count?: number
     combined_segment_count?: number
     sparse_timeline?: boolean
+    window_truncated?: boolean
+    interpretation_posture?: string
+    linked_control_redacted?: boolean
+    visibility_note?: string
     ordering_posture_note?: string
   }
   recommendation_outcomes?: Array<{
@@ -418,7 +422,7 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
     trustUI: ctx.trustUI,
     capabilities: ctx.capabilities ?? [],
   })
-  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
+  const actionVis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
   const topoNum = incidentTopologyFocusNodeNum(inc)
   const intel = inc.intelligence
   const gaps =
@@ -1059,11 +1063,27 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
 
 // ─── Replay timeline ──────────────────────────────────────────────────────────
 
-function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
+function replayInterpretationHuman(posture: string | undefined): string {
+  switch (posture) {
+    case 'timeline_query_capped':
+      return 'Timeline query hit the row cap — older or concurrent events may be missing; this strip is not a complete history.'
+    case 'no_timeline_rows_in_window':
+      return 'No DB timeline rows in the bounded window — quiet here can mean pruning, wrong ref, or an empty slice; it is not proof nothing happened elsewhere.'
+    case 'sparse_evidence_window':
+      return 'Very few persisted events in-window — treat the sequence as weak evidence; widen time or check transports/diagnostics.'
+    case 'bounded_persistence_view':
+      return 'Bounded persistence view — sequence is what MEL stored for this window, not guaranteed completeness.'
+    default:
+      return posture ? posture.replace(/_/g, ' ') : ''
+  }
+}
+
+function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incidentId }: {
   segments: ReplaySegment[]
   truthNote?: string
   generatedAt?: string
   replayMeta?: ReplayView['replay_meta']
+  incidentId?: string
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<ReplayFilterId>('all')
@@ -1101,6 +1121,8 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
     })
   }
 
+  const interpLine = replayInterpretationHuman(replayMeta?.interpretation_posture)
+
   if (segments.length === 0) {
     return (
       <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
@@ -1111,6 +1133,34 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
         <p className="text-sm text-muted-foreground">
           No timeline events in the replay window ({replayMeta?.window_from ?? '—'} → {replayMeta?.window_to ?? '—'}). Evidence may have been pruned, notes may use a different ref, or the incident is outside the bounded window.
         </p>
+        {replayMeta?.window_truncated && (
+          <p className="mt-2 text-xs text-warning font-medium" role="status">
+            Window query capped — timeline may be truncated at the fetch limit.
+          </p>
+        )}
+        {interpLine && (
+          <p className="mt-2 text-xs text-foreground/90 border-l-2 border-warning/50 pl-2.5" role="status">
+            {interpLine}
+          </p>
+        )}
+        {replayMeta?.linked_control_redacted && replayMeta?.visibility_note && (
+          <p className="mt-2 text-[11px] text-muted-foreground border-l-2 border-border pl-2.5">{replayMeta.visibility_note}</p>
+        )}
+        {incidentId && (
+          <p className="mt-3 text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+            <Link to={`/diagnostics`} className="font-medium text-primary hover:underline">
+              Diagnostics / support bundle
+            </Link>
+            <span className="text-muted-foreground/50">·</span>
+            <Link to={`/topology?incident=${encodeURIComponent(incidentId)}&filter=incident_focus`} className="font-medium text-primary hover:underline">
+              Topology (incident focus)
+            </Link>
+            <span className="text-muted-foreground/50">·</span>
+            <Link to={`/incidents/${encodeURIComponent(incidentId)}`} className="font-medium text-primary hover:underline">
+              Incident detail
+            </Link>
+          </p>
+        )}
         {replayMeta?.ordering_posture_note && (
           <p className="mt-2 text-[11px] text-muted-foreground/70 border-l-2 border-muted pl-2.5">{replayMeta.ordering_posture_note}</p>
         )}
@@ -1139,7 +1189,29 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
           {replayMeta.sparse_timeline && (
             <span className="text-warning">Sparse timeline</span>
           )}
+          {replayMeta.window_truncated && <span className="text-warning">Query capped</span>}
         </div>
+      )}
+      {interpLine && (
+        <p className="text-xs text-foreground/90 border-l-2 border-warning/40 pl-2.5 leading-snug" role="status">
+          {interpLine}
+          {filter !== 'all' && ' Filtered view is not representative of the full window.'}
+        </p>
+      )}
+      {replayMeta?.linked_control_redacted && replayMeta?.visibility_note && (
+        <p className="text-[11px] text-muted-foreground border-l-2 border-border pl-2.5">{replayMeta.visibility_note}</p>
+      )}
+      {incidentId && (
+        <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+          <span className="text-muted-foreground/70">If replay is weak for decisions:</span>
+          <Link to="/diagnostics" className="font-medium text-primary hover:underline">
+            Diagnostics
+          </Link>
+          <span className="text-muted-foreground/40">·</span>
+          <Link to={`/topology?incident=${encodeURIComponent(incidentId)}&filter=incident_focus`} className="font-medium text-primary hover:underline">
+            Topology
+          </Link>
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Replay filters">
@@ -1286,7 +1358,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 function buildHandoffStructured(inc: Incident, opts?: { canReadLinkedActions?: boolean }) {
   const intel = inc.intelligence
   const canReadLinked = opts?.canReadLinkedActions !== false
-  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
+  const actionVis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
   const memoryDecisionCueCompact = incidentMemoryDecisionCue(inc)
   const gaps = [
     ...(intel?.wireless_context?.evidence_gaps ?? []),
@@ -1364,6 +1436,7 @@ function buildHandoffStructured(inc: Incident, opts?: { canReadLinkedActions?: b
     },
     operator_truth_compact: {
       action_visibility_kind: actionVis.kind,
+      action_visibility_reason: inc.action_visibility?.action_visibility_reason,
       action_context_explanation: actionVis.explanation,
       memory_decision_cue: memoryDecisionCueCompact ?? undefined,
     },
@@ -1594,7 +1667,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
     trustUI: opCtx.trustUI,
     capabilities: opCtx.capabilities ?? [],
   })
-  const actionVis = incidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
+  const actionVis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canReadLinked })
   const text = buildHandoffExportText(inc)
   const structured = buildHandoffStructured(inc, { canReadLinkedActions: canReadLinked })
   const jsonText = JSON.stringify(structured, null, 2)
@@ -2204,6 +2277,7 @@ export function IncidentDetail() {
             truthNote={replay.truth_note}
             generatedAt={replay.generated_at}
             replayMeta={replay.replay_meta}
+            incidentId={id}
           />
         ) : null}
       </div>
