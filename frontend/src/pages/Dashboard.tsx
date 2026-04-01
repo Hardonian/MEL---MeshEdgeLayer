@@ -195,6 +195,8 @@ export function Dashboard() {
 
   const pendingApprovals = operational.data?.pending_approvals ?? []
 
+  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+
   const shiftAttentionRows = useMemo(
     () =>
       buildShiftStartAttentionRows({
@@ -207,6 +209,10 @@ export function Dashboard() {
         deadLetterCount,
         deadLettersIncreasedSinceBaseline: shiftDelta.deadLettersIncreased,
         sparseOpenCount: sparseIncidents.length,
+        incidentWhyContext: {
+          exportEnabled: exportPosture?.export_enabled,
+          exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
+        },
       }),
     [
       openIncidentsShiftOrder,
@@ -218,13 +224,16 @@ export function Dashboard() {
       deadLetterCount,
       shiftDelta.deadLettersIncreased,
       sparseIncidents.length,
+      exportPosture,
+      versionInfo.loading,
+      versionInfo.error,
     ],
   )
 
   const retentionDays =
     versionInfo.data?.platform_posture?.retention?.audit_days ??
     versionInfo.data?.platform_posture?.retention_default_days
-  const exportEnabled = versionInfo.data?.platform_posture?.evidence_export_delete?.export_enabled
+  const exportEnabled = exportPosture?.export_enabled
 
   const explicitFollowUpOpenCount = useMemo(
     () => countOpenIncidentsExplicitFollowUp(openIncidents),

@@ -17,6 +17,8 @@ function inc(partial: Partial<Incident> & { id: string }): Incident {
     review_state: partial.review_state,
     updated_at: partial.updated_at,
     intelligence: partial.intelligence,
+    linked_control_actions: partial.linked_control_actions,
+    pending_actions: partial.pending_actions,
   } as Incident
 }
 
@@ -55,6 +57,25 @@ describe('operatorWorkflow', () => {
     })
     expect(openIncidentShiftWhyLine(i)).toContain('Recurring')
     expect(openIncidentShiftWhyLine(i)).toContain('not proof')
+  })
+
+  it('openIncidentShiftWhyLine surfaces linked approval wait before sparse intel', () => {
+    const sparseOnly = inc({
+      id: 's',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+    })
+    const withApproval = inc({
+      id: 'a',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+      linked_control_actions: [{ id: 'x', action_type: 't', lifecycle_state: 'pending_approval' }],
+    } as Incident)
+    expect(openIncidentShiftWhyLine(withApproval)).toMatch(/awaiting approval/i)
+    expect(openIncidentShiftWhyLine(sparseOnly)).toMatch(/Sparse or degraded/i)
+  })
+
+  it('openIncidentShiftWhyLine mentions export policy when disabled', () => {
+    const i = inc({ id: 'e' })
+    expect(openIncidentShiftWhyLine(i, { exportEnabled: false })).toMatch(/policy disables evidence export/i)
   })
 
   it('countOpenIncidentsExplicitFollowUp counts review workflow states', () => {

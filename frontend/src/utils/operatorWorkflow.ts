@@ -20,13 +20,23 @@ function ts(s: string | undefined): number {
   return Number.isFinite(t) ? t : 0
 }
 
-/** Lower = more urgent for shift-start ordering among open incidents. */
+function linkedActionsAwaitingApproval(inc: Incident): number {
+  const linked = inc.linked_control_actions ?? []
+  return linked.filter((a) => (a.lifecycle_state || '').toLowerCase() === 'pending_approval').length
+}
+
+function referencedPendingActionCount(inc: Incident): number {
+  return inc.pending_actions?.filter(Boolean).length ?? 0
+}
+
+/** Lower = more urgent for shift-start and incident workbench ordering among open incidents. */
 export function openIncidentShiftPriority(inc: Incident): number {
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) return 0
-  if (inc.intelligence?.evidence_strength === 'sparse' || inc.intelligence?.degraded === true) return 1
-  if ((inc.intelligence?.signature_match_count ?? 0) > 1) return 2
-  return 3
+  if (linkedActionsAwaitingApproval(inc) > 0 || referencedPendingActionCount(inc) > 0) return 1
+  if (inc.intelligence?.evidence_strength === 'sparse' || inc.intelligence?.degraded === true) return 2
+  if ((inc.intelligence?.signature_match_count ?? 0) > 1) return 3
+  return 4
 }
 
 export function sortOpenIncidentsForShiftStart(incidents: Incident[]): Incident[] {
@@ -38,16 +48,40 @@ export function sortOpenIncidentsForShiftStart(incidents: Incident[]): Incident[
   })
 }
 
-export function openIncidentShiftWhyLine(inc: Incident): string {
+export interface IncidentWorkQueueWhyContext {
+  /** When false, incident evidence export is disabled by policy — proofpack/escalation likely blocked. */
+  exportEnabled?: boolean
+  /** Version/policy endpoint failed — export gates unknown. */
+  exportPolicyUnknown?: boolean
+}
+
+export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueWhyContext): string {
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) {
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`
+  }
+  const awaiting = linkedActionsAwaitingApproval(inc)
+  if (awaiting > 0) {
+    return `${awaiting} linked control action${awaiting > 1 ? 's' : ''} awaiting approval — approval ≠ execution; check the control queue.`
+  }
+  const pend = referencedPendingActionCount(inc)
+  if (pend > 0) {
+    return `${pend} referenced pending action ID${pend > 1 ? 's' : ''} on the incident record — verify they match the queue and linkage.`
   }
   if (inc.intelligence?.evidence_strength === 'sparse' || inc.intelligence?.degraded === true) {
     return 'Sparse or degraded intelligence — conclusions stay bounded; gather replay/topology/control context.'
   }
   if ((inc.intelligence?.signature_match_count ?? 0) > 1) {
     return 'Recurring signature on this instance — pattern memory, not proof of repeating root cause.'
+  }
+  if (inc.reopened_from_incident_id) {
+    return 'Reopened incident — prior case id is in record; compare replay and outcomes before reusing the same control pattern.'
+  }
+  if (ctx?.exportEnabled === false) {
+    return 'Instance policy disables evidence export — plan plain handoff and runtime/diagnostics continuity, not proofpack-first.'
+  }
+  if (ctx?.exportPolicyUnknown) {
+    return 'Export policy not loaded — confirm Settings/runtime truth before choosing proofpack or escalation.'
   }
   return 'Open in workflow — verify state against replay and exports before stronger claims.'
 }
@@ -71,6 +105,8 @@ export function buildShiftStartAttentionRows(args: {
   deadLetterCount: number
   deadLettersIncreasedSinceBaseline: boolean
   sparseOpenCount: number
+  /** When set, incident rows use the same export-gate hints as the incident workbench. */
+  incidentWhyContext?: IncidentWorkQueueWhyContext
 }): ShiftStartAttentionRow[] {
   const rows: ShiftStartAttentionRow[] = []
 
@@ -133,12 +169,12 @@ export function buildShiftStartAttentionRows(args: {
 
   const sorted = sortOpenIncidentsForShiftStart(args.openIncidents)
   for (const inc of sorted.slice(0, 12)) {
-    const pri = 3 + openIncidentShiftPriority(inc)
+    const pri = 4 + openIncidentShiftPriority(inc)
     rows.push({
       key: `incident-${inc.id}`,
       priority: pri,
       title: inc.title || `Incident ${inc.id.slice(0, 10)}…`,
-      why: openIncidentShiftWhyLine(inc),
+      why: openIncidentShiftWhyLine(inc, args.incidentWhyContext),
       href: `/incidents/${encodeURIComponent(inc.id)}`,
     })
   }
@@ -192,4 +228,25 @@ export function buildRecurrenceHomeTeasers(incidents: Incident[], limit = 4): Re
     })
   }
   return out
+}
+
+/** Graph focus node derived from incident resource / implicated domains — not RF certainty. */
+export function incidentTopologyFocusNodeNum(inc: Incident): number | null {
+  const rt = (inc.resource_type || '').toLowerCase()
+  const rid = (inc.resource_id || '').trim()
+  if (rt === 'mesh_node' || rt === 'node') {
+    const n = parseInt(rid.replace(/\D/g, '') || '0', 10)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  for (const d of inc.intelligence?.implicated_domains ?? []) {
+    if ((d.domain || '').toLowerCase() !== 'mesh_topology') continue
+    for (const ref of d.evidence_refs ?? []) {
+      const m = /^node[:_]?(\d+)$/i.exec(ref.trim())
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (Number.isFinite(n) && n > 0) return n
+      }
+    }
+  }
+  return null
 }
