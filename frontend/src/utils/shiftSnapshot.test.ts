@@ -17,6 +17,7 @@ describe('computeShiftDelta', () => {
     const d = computeShiftDelta(null, {
       incidents: [inc('a', '2026-01-02T00:00:00Z')],
       nodes: [],
+      topologyNodes: [],
       transports: [],
       events: [],
       messageCount: 1,
@@ -31,6 +32,7 @@ describe('computeShiftDelta', () => {
       savedAt: '2026-01-01T12:00:00Z',
       openIncidentIds: ['a'],
       nodeLastSeen: {},
+      topologyNodeLastSeen: {},
       transportHeartbeatMax: null,
       eventMaxTime: null,
       messageCountApprox: 0,
@@ -39,6 +41,7 @@ describe('computeShiftDelta', () => {
     const d = computeShiftDelta(prev, {
       incidents: [inc('a', '2026-01-02T00:00:00Z')],
       nodes: [],
+      topologyNodes: [],
       transports: [],
       events: [],
       messageCount: 0,
@@ -52,6 +55,7 @@ describe('computeShiftDelta', () => {
       savedAt: '2026-01-01T00:00:00Z',
       openIncidentIds: [],
       nodeLastSeen: {},
+      topologyNodeLastSeen: {},
       transportHeartbeatMax: null,
       eventMaxTime: '2026-01-01T10:00:00Z',
       messageCountApprox: 0,
@@ -64,11 +68,35 @@ describe('computeShiftDelta', () => {
     const d = computeShiftDelta(prev, {
       incidents: [],
       nodes: [],
+      topologyNodes: [],
       transports: [],
       events,
       messageCount: 0,
       deadLetterCount: 0,
     })
     expect(d.newAuditEvents).toBe(2)
+  })
+
+  it('detects topology node last_seen advances after baseline', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T12:00:00Z',
+      openIncidentIds: [],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: { '7': '2026-01-01T11:00:00Z' },
+      transportHeartbeatMax: null,
+      eventMaxTime: null,
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const d = computeShiftDelta(prev, {
+      incidents: [],
+      nodes: [],
+      topologyNodes: [{ node_num: 7, last_seen_at: '2026-01-02T12:00:00Z', short_name: 'n7' }],
+      transports: [],
+      events: [],
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.topologyNodesWithNewerLastSeen.map((x) => x.node_num)).toContain(7)
   })
 })
