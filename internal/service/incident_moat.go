@@ -715,7 +715,8 @@ func (a *App) PatchIncidentWorkflow(incidentID, actorID string, patch models.Inc
 
 func validReviewState(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "open", "investigating", "pending_review", "resolved_review", "closed_review":
+	case "open", "acknowledged", "investigating", "mitigated", "resolved", "follow_up_needed",
+		"pending_review", "resolved_review", "closed_review":
 		return true
 	default:
 		return false

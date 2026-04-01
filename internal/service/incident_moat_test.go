@@ -61,3 +61,29 @@ func TestPatchIncidentWorkflow_ReviewState(t *testing.T) {
 		t.Fatalf("got %+v ok=%v err=%v", inc, ok, err)
 	}
 }
+
+func TestPatchIncidentWorkflow_ReviewState_Mitigated(t *testing.T) {
+	a := newSoDTestApp(t)
+	id := "inc-wf-mitigated"
+	if err := a.DB.UpsertIncident(models.Incident{
+		ID:           id,
+		Category:     "transport",
+		Severity:     "warning",
+		Title:        "r",
+		Summary:      "s",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-sod",
+		State:        "open",
+		OccurredAt:   time.Now().UTC().Format(time.RFC3339),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rs := "mitigated"
+	if err := a.PatchIncidentWorkflow(id, "op-c", models.IncidentWorkflowPatch{ReviewState: &rs}); err != nil {
+		t.Fatal(err)
+	}
+	inc, ok, err := a.DB.IncidentByID(id)
+	if err != nil || !ok || inc.ReviewState != "mitigated" {
+		t.Fatalf("got %+v ok=%v err=%v", inc, ok, err)
+	}
+}
