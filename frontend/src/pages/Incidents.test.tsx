@@ -136,6 +136,17 @@ function setupFetch() {
           }),
         } as Response)
       }
+      if (url.includes('/api/v1/version')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            version: 'test',
+            platform_posture: {
+              evidence_export_delete: { export_enabled: true, delete_enabled: false, delete_scope: [] },
+            },
+          }),
+        } as Response)
+      }
       return Promise.reject(new Error(`unexpected fetch ${url}`))
     }),
   )
@@ -151,6 +162,9 @@ describe('Incidents intelligence rendering', () => {
 
   it('renders signature and similarity summary when incident intelligence is available', async () => {
     renderIncidents()
+    await waitFor(() => {
+      expect(screen.getByTestId('incident-workbench-strip')).toBeTruthy()
+    })
     // Wait for incident intelligence section to appear (open incidents are expanded by default)
     await waitFor(() => {
       expect(screen.getAllByText(/Incident intelligence/i).length).toBeGreaterThan(0)
@@ -162,8 +176,8 @@ describe('Incidents intelligence rendering', () => {
     // Historical action outcomes section
     expect(screen.getByText(/Historical action outcomes/i)).toBeTruthy()
     expect(screen.getByText(/does not establish causality/i)).toBeTruthy()
-    expect(screen.getByText(/trigger health recheck/i)).toBeTruthy()
-    expect(screen.getByText(/n=4/i)).toBeTruthy()
+    expect(screen.getAllByText(/trigger health recheck/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/n=4/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/2 improved/i)).toBeTruthy()
     expect(screen.getByText(/Historical association only/i)).toBeTruthy()
     // Snapshot traceability

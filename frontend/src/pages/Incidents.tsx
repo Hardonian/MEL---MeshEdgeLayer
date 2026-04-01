@@ -1,5 +1,13 @@
 import { useIncidents } from '@/hooks/useIncidents'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
+import { useVersionInfo } from '@/hooks/useVersionInfo'
+import {
+  incidentTopologyFocusNodeNum,
+  openIncidentShiftWhyLine,
+  sortOpenIncidentsForShiftStart,
+  type IncidentWorkQueueWhyContext,
+} from '@/utils/operatorWorkflow'
+import { partitionOpenIncidentsForWorkbench } from '@/utils/incidentWorkbench'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -26,6 +34,10 @@ import {
   Activity,
   FileText,
   Link2,
+  GitBranch,
+  ListOrdered,
+  Compass,
+  ClipboardList,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useState } from 'react'
@@ -123,10 +135,18 @@ function evidenceStrengthVariant(strength: string | undefined): 'success' | 'war
   return 'secondary'
 }
 
+function outcomeMemoryScanLine(mem: NonNullable<Incident['intelligence']>['action_outcome_memory']): string | null {
+  if (!mem?.length) return null
+  const top = mem[0]
+  if (!top) return null
+  const label = top.action_label || toWords(top.action_type) || 'action'
+  return `${label}: ${outcomeFramingLabel(top.outcome_framing)} (n=${top.sample_size})`
+}
 
 export function Incidents() {
   const { data, loading, error, refresh } = useIncidents()
   const ctx = useOperatorContext()
+  const versionInfo = useVersionInfo()
 
   if (loading && !data) {
     return <Loading message="Loading incidents..." />
@@ -159,12 +179,30 @@ export function Incidents() {
   const canHandoff = ctx.trustUI?.incident_handoff_write === true
   const canMutate = ctx.trustUI?.incident_mutate === true
 
+  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
+  const workbenchWhyCtx: IncidentWorkQueueWhyContext = {
+    exportEnabled: exportPosture?.export_enabled,
+    exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
+  }
+  const proofpackExportBlocked =
+    exportPosture?.export_enabled === false ||
+    (!versionInfo.loading && versionInfo.error != null && exportPosture == null)
+  const proofpackExportBlockedReason =
+    exportPosture?.export_enabled === false
+      ? 'Instance policy disables evidence export — use plain handoff from incident detail; proofpack would likely fail.'
+      : versionInfo.error != null && exportPosture == null
+        ? `Export policy unknown (${versionInfo.error}) — confirm Settings before proofpack.`
+        : undefined
+
+  const { needsAttention, backlog } = partitionOpenIncidentsForWorkbench(incidents)
+  const openSortedFull = sortOpenIncidentsForShiftStart(openIncidents)
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
-          description="Mesh / link / transport disruptions with durable handoff context."
+          description="Open-work queue: same priority signals as Command surface — review state, control gates, evidence posture, recurrence — then handoff and export paths."
         />
         <button
           type="button"
@@ -181,6 +219,13 @@ export function Incidents() {
 
       {ctx.error && (
         <AlertCard variant="warning" title="Operator context unavailable" description={ctx.error} />
+      )}
+
+      {versionInfo.error && (
+        <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5" role="status">
+          Version / export policy not loaded ({versionInfo.error}). Queue “why” lines may omit export gates — confirm under Settings before
+          choosing proofpack or escalation.
+        </p>
       )}
 
       {!canHandoff && !ctx.loading && (
@@ -219,9 +264,89 @@ export function Incidents() {
         />
       ) : (
         <div className="space-y-4">
-          {openIncidents.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} canMutate={canMutate} />
-          ))}
+          <div
+            className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
+            data-testid="incident-workbench-strip"
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                <ListOrdered className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Workbench order
+              </span>
+              <span className="text-[11px]">
+                Matches Command surface: follow-up / control gates → sparse or degraded intel → recurrence → rest by last update.
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-snug">
+              <span className="text-foreground font-medium">{needsAttention.length}</span> row{needsAttention.length === 1 ? '' : 's'} in
+              “needs attention” (explicit review, linked approval wait, or sparse/degraded).{' '}
+              <span className="text-foreground font-medium">{backlog.length}</span> in backlog — still open, lower immediate pressure by the
+              same deterministic rules.
+            </p>
+          </div>
+
+          {needsAttention.length > 0 && (
+            <section className="space-y-3" aria-labelledby="mel-workbench-needs-heading">
+              <h2
+                id="mel-workbench-needs-heading"
+                className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-warning"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Needs attention first
+              </h2>
+              <div className="space-y-4">
+                {needsAttention.map((inc) => (
+                  <IncidentCard
+                    key={inc.id}
+                    incident={inc}
+                    canMutate={canMutate}
+                    workbenchWhyContext={workbenchWhyCtx}
+                    proofpackExportBlocked={proofpackExportBlocked}
+                    proofpackExportBlockedReason={proofpackExportBlockedReason}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {backlog.length > 0 && (
+            <section className="space-y-3" aria-labelledby="mel-workbench-backlog-heading">
+              <h2
+                id="mel-workbench-backlog-heading"
+                className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Open backlog
+              </h2>
+              <div className="space-y-4">
+                {backlog.map((inc) => (
+                  <IncidentCard
+                    key={inc.id}
+                    incident={inc}
+                    canMutate={canMutate}
+                    workbenchWhyContext={workbenchWhyCtx}
+                    proofpackExportBlocked={proofpackExportBlocked}
+                    proofpackExportBlockedReason={proofpackExportBlockedReason}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {needsAttention.length === 0 && backlog.length === 0 && openSortedFull.length > 0 && (
+            <div className="space-y-4">
+              {openSortedFull.map((inc) => (
+                <IncidentCard
+                  key={inc.id}
+                  incident={inc}
+                  canMutate={canMutate}
+                  workbenchWhyContext={workbenchWhyCtx}
+                  proofpackExportBlocked={proofpackExportBlocked}
+                  proofpackExportBlockedReason={proofpackExportBlockedReason}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -242,11 +367,20 @@ export function Incidents() {
   )
 }
 
-function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
+function ProofpackDownloadButton({
+  incidentId,
+  exportBlocked,
+  exportBlockedReason,
+}: {
+  incidentId: string
+  exportBlocked?: boolean
+  exportBlockedReason?: string
+}) {
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
   async function download() {
+    if (exportBlocked) return
     setState('loading')
     setErrorMsg('')
     try {
@@ -283,28 +417,69 @@ function ProofpackDownloadButton({ incidentId }: { incidentId: string }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-1.5">
+      {exportBlocked && exportBlockedReason && (
+        <p className="text-xs text-warning border border-warning/25 rounded-lg px-2 py-1.5 bg-warning/5" role="status">
+          {exportBlockedReason}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         onClick={() => void download()}
-        disabled={state === 'loading'}
-        className="button-secondary text-xs"
-        title="Download incident evidence proofpack (JSON)"
+        disabled={state === 'loading' || exportBlocked}
+        className="button-secondary text-xs min-h-[44px] sm:min-h-0 touch-manipulation"
+        title={
+          exportBlocked
+            ? exportBlockedReason
+            : 'Download incident evidence proofpack (JSON)'
+        }
       >
         <Download className="h-3.5 w-3.5" />
         {state === 'loading' ? 'Assembling...' : 'Export proofpack'}
       </button>
       <span className="text-[10px] text-muted-foreground/60">
-        Snapshot at request-time. Review evidence_gaps.
+        Snapshot at request-time. Review evidence_gaps. For continuity without proof, use handoff on the incident page.
       </span>
       {state === 'error' && errorMsg && (
         <span className="text-xs text-critical">{errorMsg}</span>
       )}
+      </div>
     </div>
   )
 }
 
-function IncidentCard({ incident: inc, muted = false, canMutate = false }: { incident: Incident; muted?: boolean; canMutate?: boolean }) {
+function linkedControlLifecycleSummary(inc: Incident): {
+  total: number
+  awaitingApproval: number
+  inFlight: number
+} {
+  const linked = inc.linked_control_actions ?? []
+  let awaitingApproval = 0
+  let inFlight = 0
+  for (const a of linked) {
+    const ls = (a.lifecycle_state || '').toLowerCase()
+    if (ls === 'pending_approval') awaitingApproval++
+    else if (ls === 'pending' || ls === 'running') inFlight++
+  }
+  return { total: linked.length, awaitingApproval, inFlight }
+}
+
+function IncidentCard({
+  incident: inc,
+  muted = false,
+  canMutate = false,
+  workbenchWhyContext,
+  proofpackExportBlocked,
+  proofpackExportBlockedReason,
+}: {
+  incident: Incident
+  muted?: boolean
+  canMutate?: boolean
+  workbenchWhyContext?: IncidentWorkQueueWhyContext
+  proofpackExportBlocked?: boolean
+  proofpackExportBlockedReason?: string
+}) {
   void canMutate // reserved for future mutation controls
   const [expanded, setExpanded] = useState(!muted)
   const pending = inc.pending_actions?.filter(Boolean) ?? []
@@ -314,6 +489,10 @@ function IncidentCard({ incident: inc, muted = false, canMutate = false }: { inc
   const hasIntel = !!intel
   const seenBefore = (intel?.signature_match_count ?? 0) > 1
   const hasSimilar = (intel?.similar_incidents?.length ?? 0) > 0
+  const linkedSum = linkedControlLifecycleSummary(inc)
+  const memoryLine = intel?.action_outcome_memory ? outcomeMemoryScanLine(intel.action_outcome_memory) : null
+  const topoNum = !muted ? incidentTopologyFocusNodeNum(inc) : null
+  const priorityWhy = !muted ? openIncidentShiftWhyLine(inc, workbenchWhyContext) : ''
 
   const severityVariant = inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'
   const stateVariant = inc.state === 'resolved' || inc.state === 'closed' ? 'success' : 'outline'
@@ -367,9 +546,30 @@ function IncidentCard({ incident: inc, muted = false, canMutate = false }: { inc
                 seen {intel!.signature_match_count}x
               </Badge>
             )}
+            {linkedSum.awaitingApproval > 0 && (
+              <span title="Linked control rows awaiting approval on this incident">
+                <Badge variant="warning">
+                  {linkedSum.awaitingApproval} approval wait
+                </Badge>
+              </span>
+            )}
+            {linkedSum.total > 0 && linkedSum.awaitingApproval === 0 && (
+              <span title="FK-linked control actions on this incident">
+                <Badge variant="secondary">
+                  {linkedSum.total} linked control
+                </Badge>
+              </span>
+            )}
+            {pending.length > 0 && (
+              <span title="Action IDs referenced on the incident record (verify against queue)">
+                <Badge variant="outline">
+                  {pending.length} ref ID{pending.length > 1 ? 's' : ''}
+                </Badge>
+              </span>
+            )}
             <Link
               to={`/incidents/${inc.id}`}
-              className="ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+              className="ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline min-h-[44px] sm:min-h-0 px-1 touch-manipulation"
               title="Open incident detail page"
             >
               <ArrowRight className="h-3 w-3" />
@@ -380,8 +580,84 @@ function IncidentCard({ incident: inc, muted = false, canMutate = false }: { inc
       </CardHeader>
 
       <CardContent className="space-y-4 pt-0">
+        {!muted && priorityWhy && (
+          <div
+            className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+            data-testid="incident-workbench-why"
+          >
+            <span className="font-semibold text-foreground">Why this order: </span>
+            {priorityWhy}
+          </div>
+        )}
+
         {inc.summary && (
           <p className="text-sm leading-relaxed text-muted-foreground">{inc.summary}</p>
+        )}
+
+        {!muted && (
+          <div className="flex flex-wrap gap-2" role="navigation" aria-label="Incident shortcuts">
+            <Link
+              to={`/incidents/${encodeURIComponent(inc.id)}#mel-investigation-path`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <Compass className="h-3 w-3 shrink-0" aria-hidden />
+              Path
+            </Link>
+            <Link
+              to={`/incidents/${encodeURIComponent(inc.id)}?replay=1`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <Activity className="h-3 w-3 shrink-0" aria-hidden />
+              Replay
+            </Link>
+            <Link
+              to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <GitBranch className="h-3 w-3 shrink-0" aria-hidden />
+              Topology{topoNum != null ? ` ${topoNum}` : ''}
+            </Link>
+            <Link
+              to={`/planning?incident=${encodeURIComponent(inc.id)}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <ClipboardList className="h-3 w-3 shrink-0" aria-hidden />
+              Planning
+            </Link>
+            <Link
+              to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <Zap className="h-3 w-3 shrink-0" aria-hidden />
+              Controls
+            </Link>
+            <Link
+              to={`/incidents/${encodeURIComponent(inc.id)}#shift-continuity-handoff`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+            >
+              <Download className="h-3 w-3 shrink-0" aria-hidden />
+              Handoff / export
+            </Link>
+          </div>
+        )}
+
+        {memoryLine && !muted && (
+          <p className="text-[11px] text-muted-foreground border-l-2 border-border/60 pl-2.5" data-testid="incident-workbench-memory-scan">
+            <span className="font-semibold text-foreground">Outcome memory (scan): </span>
+            {memoryLine}
+            <span className="text-muted-foreground/70"> — association only; open detail for caveats.</span>
+          </p>
+        )}
+
+        {inc.reopened_from_incident_id && (
+          <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Reopened</span>
+            {inc.reopened_at && <span> · {formatRelativeTime(inc.reopened_at)}</span>}
+            {' — '}
+            <Link to={`/incidents/${encodeURIComponent(inc.reopened_from_incident_id)}`} className="font-mono text-primary hover:underline">
+              prior {inc.reopened_from_incident_id.slice(0, 12)}…
+            </Link>
+          </div>
         )}
 
         {/* Quick intelligence snapshot — always visible */}
@@ -445,7 +721,11 @@ function IncidentCard({ incident: inc, muted = false, canMutate = false }: { inc
 
             {/* Proofpack export */}
             <DetailSection title="Evidence proofpack" icon={<Download className="h-3.5 w-3.5" />}>
-              <ProofpackDownloadButton incidentId={inc.id} />
+              <ProofpackDownloadButton
+                incidentId={inc.id}
+                exportBlocked={proofpackExportBlocked}
+                exportBlockedReason={proofpackExportBlockedReason}
+              />
               <a href={`/incidents/${encodeURIComponent(inc.id)}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
                 Open full incident review <ArrowRight className="h-3 w-3" />
               </a>
