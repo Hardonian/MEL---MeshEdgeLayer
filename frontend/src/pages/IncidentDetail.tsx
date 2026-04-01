@@ -31,6 +31,7 @@ import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { useControlStatus } from '@/hooks/useApi'
+import { useVersionInfo } from '@/hooks/useVersionInfo'
 import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident } from '@/types/api'
 import {
   evidenceStrengthLabel,
@@ -196,6 +197,127 @@ function proofpackCompletenessVariant(completeness: string): 'success' | 'warnin
 
 function defaultProofpackFilename(id: string) {
   return `proofpack-${id || 'incident'}.json`
+}
+
+type InvestigationPathStep = {
+  label: string
+  detail: string
+  href: string
+  samePage: boolean
+  emphasize?: boolean
+}
+
+function InvestigationPathPanel({ inc }: { inc: Incident }) {
+  const topoNum = incidentTopologyFocusNodeNum(inc)
+  const intel = inc.intelligence
+  const linkedCount = inc.linked_control_actions?.length ?? 0
+  const awaiting = (inc.linked_control_actions ?? []).filter(
+    (a) => (a.lifecycle_state || '').toLowerCase() === 'pending_approval',
+  ).length
+  const inFlight = (inc.linked_control_actions ?? []).filter((a) => {
+    const ls = (a.lifecycle_state || '').toLowerCase()
+    return ls === 'pending' || ls === 'running'
+  }).length
+  const gaps =
+    (intel?.wireless_context?.evidence_gaps?.length ?? 0) + (intel?.sparsity_markers?.length ?? 0) > 0
+
+  const steps: InvestigationPathStep[] = [
+    {
+      label: 'Operational picture',
+      detail: 'Severity, state, and evidence strength at top of this page.',
+      href: '#incident-operational-summary',
+      samePage: true,
+      emphasize: false,
+    },
+    {
+      label: 'Linked control actions',
+      detail:
+        linkedCount === 0
+          ? 'None linked yet — queue still shows all rows; linkage needs incident_id on the action.'
+          : `${linkedCount} linked — ${awaiting} awaiting approval, ${inFlight} queued or executing.`,
+      href: '#linked-control-actions',
+      samePage: true,
+      emphasize: linkedCount > 0 || awaiting > 0,
+    },
+    {
+      label: 'Replay / timeline',
+      detail: 'Merged chronology — filter by control, workflow, or evidence classes.',
+      href: `/incidents/${encodeURIComponent(inc.id)}?replay=1`,
+      samePage: false,
+      emphasize: gaps,
+    },
+    {
+      label: 'Topology focus',
+      detail:
+        topoNum != null
+          ? `Graph around node ${topoNum} from resource / implicated domains — not an RF map.`
+          : 'Incident-scoped nodes when the record references topology evidence.',
+      href: `/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`,
+      samePage: false,
+      emphasize: topoNum != null,
+    },
+    {
+      label: 'Planning board',
+      detail: 'Resilience bounds from stored topology — same incident context.',
+      href: `/planning?incident=${encodeURIComponent(inc.id)}`,
+      samePage: false,
+      emphasize: false,
+    },
+    {
+      label: 'Handoff → proof → support',
+      detail: 'Continuity text/JSON and escalation bundle; proofpack for bundled evidence; diagnostics for host/runtime.',
+      href: '#shift-continuity-handoff',
+      samePage: true,
+      emphasize: false,
+    },
+  ]
+
+  return (
+    <Card id="mel-investigation-path" data-testid="incident-investigation-path">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Investigation path (in-product)</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          One pass through MEL’s surfaces — you still verify against transports and exports. No implied automation or root-cause
+          certainty.
+        </p>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ol className="space-y-2">
+          {steps.map((s, i) => (
+            <li key={s.label} className="flex gap-3 text-sm">
+              <span
+                className={clsx(
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-[11px] font-semibold',
+                  s.emphasize ? 'border-warning/30 bg-warning/8 text-warning' : 'border-border/60 bg-muted/20 text-muted-foreground',
+                )}
+                aria-hidden
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                {s.samePage ? (
+                  <a
+                    href={s.href}
+                    className={clsx('font-medium hover:underline', s.emphasize ? 'text-warning' : 'text-primary')}
+                  >
+                    {s.label}
+                  </a>
+                ) : (
+                  <Link
+                    to={s.href}
+                    className={clsx('font-medium hover:underline', s.emphasize ? 'text-warning' : 'text-primary')}
+                  >
+                    {s.label}
+                  </Link>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{s.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  )
 }
 
 function incidentTopologyFocusNodeNum(inc: Incident): number | null {
@@ -383,26 +505,49 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
     void refreshCtrl()
   }, [inc.id, refreshCtrl])
 
-  const grouped = useMemo(() => {
+  function matrixRowFor(type: string) {
+    return matrix.find((m) => m.action_type === type)
+  }
+
+  const sortedLinked = useMemo(() => {
+    return [...linked].sort((a, b) => {
+      const ta = new Date(
+        a.completed_at || a.executed_at || a.approved_at || a.created_at || 0,
+      ).getTime()
+      const tb = new Date(
+        b.completed_at || b.executed_at || b.approved_at || b.created_at || 0,
+      ).getTime()
+      return tb - ta
+    })
+  }, [linked])
+
+  const groupedSorted = useMemo(() => {
     const awaiting: typeof linked = []
     const inFlight: typeof linked = []
     const done: typeof linked = []
-    for (const a of linked) {
+    for (const a of sortedLinked) {
       const ls = (a.lifecycle_state || '').toLowerCase()
       if (ls === 'pending_approval') awaiting.push(a)
       else if (ls === 'pending' || ls === 'running') inFlight.push(a)
       else done.push(a)
     }
     return { awaiting, inFlight, done }
-  }, [linked])
+  }, [sortedLinked])
 
-  function matrixRowFor(type: string) {
-    return matrix.find((m) => m.action_type === type)
-  }
+  const matrixCoverage =
+    linked.length > 0
+      ? linked.filter((a) => {
+          const row = matrix.find((m) => m.action_type === a.action_type)
+          return row && row.actuator_exists === false
+        }).length
+      : 0
 
   if (!canReadActions && linked.length === 0) {
     return (
-      <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+      <div
+        id="linked-control-actions"
+        className="rounded-xl border border-border/60 bg-muted/10 p-4 scroll-mt-20"
+      >
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1">
           <Zap className="h-3.5 w-3.5" />
           Linked control actions
@@ -421,7 +566,10 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+    <div
+      id="linked-control-actions"
+      className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3 scroll-mt-20"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <Zap className="h-3.5 w-3.5" />
@@ -443,6 +591,17 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
           Control emergency disable is on for this instance — new execution may be blocked regardless of approval state.
         </p>
       )}
+      {ctrlData == null && canReadActions && (
+        <p className="text-xs text-muted-foreground border border-border/40 rounded-lg px-2 py-1.5">
+          Control capability matrix not loaded — reversibility and advisory cues may be incomplete until status returns.
+        </p>
+      )}
+      {matrixCoverage > 0 && (
+        <p className="text-xs text-warning border border-warning/20 rounded-lg px-2 py-1.5 bg-warning/5">
+          {matrixCoverage} linked action type{matrixCoverage > 1 ? 's' : ''} report no actuator on this instance — execution may be
+          blocked by capability, not only approval.
+        </p>
+      )}
       {linked.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No linked control rows yet. If you expect actions, check the queue; linkage requires{' '}
@@ -450,31 +609,31 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
         </p>
       ) : (
         <div className="space-y-3">
-          {grouped.awaiting.length > 0 && (
+          {groupedSorted.awaiting.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">Awaiting approval</p>
               <ul className="space-y-2">
-                {grouped.awaiting.map((a) => (
+                {groupedSorted.awaiting.map((a) => (
                   <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
                 ))}
               </ul>
             </div>
           )}
-          {grouped.inFlight.length > 0 && (
+          {groupedSorted.inFlight.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-info mb-1.5">Queued / executing</p>
               <ul className="space-y-2">
-                {grouped.inFlight.map((a) => (
+                {groupedSorted.inFlight.map((a) => (
                   <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
                 ))}
               </ul>
             </div>
           )}
-          {grouped.done.length > 0 && (
+          {groupedSorted.done.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Completed / terminal</p>
               <ul className="space-y-2">
-                {grouped.done.map((a) => (
+                {groupedSorted.done.map((a) => (
                   <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
                 ))}
               </ul>
@@ -493,7 +652,13 @@ function LinkedActionRow({
 }: {
   incidentId: string
   action: ControlActionRecord
-  matrixRow?: { reversible?: boolean; blast_radius_class?: string; notes?: string; advisory_only?: boolean }
+  matrixRow?: {
+    reversible?: boolean
+    blast_radius_class?: string
+    notes?: string
+    advisory_only?: boolean
+    actuator_exists?: boolean
+  }
 }) {
   const phase = controlActionExecPhase(a)
   const rev = matrixRow?.reversible === true ? 'Reversible (policy matrix)' : matrixRow?.reversible === false ? 'Treat as hard to reverse' : null
@@ -510,6 +675,11 @@ function LinkedActionRow({
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {a.result && <span>result: <span className="text-foreground">{a.result}</span></span>}
+        {a.reason && (
+          <span className="max-w-full">
+            reason: <span className="text-foreground break-words">{a.reason}</span>
+          </span>
+        )}
         {blast && (
           <span title={matrixRow?.notes || undefined}>
             blast: <span className="text-foreground">{blast}</span>
@@ -517,6 +687,15 @@ function LinkedActionRow({
         )}
         {rev && <span>{rev}</span>}
         {matrixRow?.advisory_only && <span className="text-warning">advisory-only type</span>}
+        {matrixRow && matrixRow.actuator_exists === false && (
+          <span className="text-warning">no actuator on instance (capability)</span>
+        )}
+        {a.requires_separate_approver && <span className="text-warning">separate approver required</span>}
+        {a.approval_mode && a.approval_mode !== 'unknown' && (
+          <span>
+            approval mode: <span className="text-foreground">{toWords(a.approval_mode)}</span>
+          </span>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <Link
@@ -617,6 +796,13 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
 
       <ProofpackButton incidentId={inc.id} />
       <p className="text-[11px] text-muted-foreground">
+        Pair with{' '}
+        <a href="#shift-continuity-handoff" className="font-medium text-primary hover:underline">
+          handoff / escalation
+        </a>{' '}
+        for continuity narrative; proofpack remains the stronger incident evidence bundle when policy allows.
+      </p>
+      <p className="text-[11px] text-muted-foreground">
         For host/runtime continuity (not incident proof), use{' '}
         <Link to="/diagnostics" className="font-medium text-primary hover:underline">
           Diagnostics → support bundle
@@ -713,27 +899,34 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta }: {
       )}
 
       <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Replay filters">
+        <span className="sr-only">
+          Filter shortcuts: hold Alt and press 0 through 6 to select a filter when focus is not in a text field.
+        </span>
         {REPLAY_FILTER_OPTIONS.map((o, idx) => (
           <button
             key={o.id}
             type="button"
             onClick={() => setFilter(o.id)}
             title={`Alt+${idx}`}
+            aria-pressed={filter === o.id}
             className={clsx(
-              'rounded-md border px-2 py-1 text-[10px] font-semibold transition-colors',
+              'rounded-md border min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 px-2 py-1.5 sm:py-1 text-[10px] font-semibold transition-colors touch-manipulation',
               filter === o.id
                 ? 'border-primary/50 bg-primary/10 text-foreground'
                 : 'border-border/50 bg-card/40 text-muted-foreground hover:border-border/80',
             )}
           >
             {o.label}
-            <span className="ml-1 font-mono text-muted-foreground/50">{idx}</span>
+            <span className="ml-1 font-mono text-muted-foreground/50" aria-hidden>
+              {idx}
+            </span>
           </button>
         ))}
         <button
           type="button"
           onClick={() => setNewestFirst((v) => !v)}
-          className="ml-auto rounded-md border border-border/50 bg-card/40 px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:border-border/80"
+          aria-pressed={newestFirst}
+          className="ml-auto rounded-md border border-border/50 bg-card/40 min-h-[36px] px-2 py-1.5 sm:py-1 text-[10px] font-semibold text-muted-foreground hover:border-border/80 touch-manipulation"
         >
           {newestFirst ? 'Order: newest first' : 'Order: oldest first'}
         </button>
@@ -1110,11 +1303,13 @@ function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void })
 }
 
 function HandoffExportPanel({ inc }: { inc: Incident }) {
+  const versionInfo = useVersionInfo()
   const text = buildHandoffExportText(inc)
   const structured = buildHandoffStructured(inc)
   const jsonText = JSON.stringify(structured, null, 2)
   const [escState, setEscState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [escErr, setEscErr] = useState('')
+  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
 
   async function downloadEscalationBundle() {
     setEscState('loading')
@@ -1144,7 +1339,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
   }
 
   return (
-    <Card>
+    <Card id="shift-continuity-handoff" className="scroll-mt-20">
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Shift continuity / handoff</CardTitle>
@@ -1158,6 +1353,25 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
         </p>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
+        {!versionInfo.loading && exportPosture && (
+          <div
+            className="rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground"
+            role="status"
+          >
+            <span className="font-semibold text-foreground">This instance: </span>
+            {exportPosture.export_enabled === false ? (
+              <span className="text-warning">
+                Incident evidence export disabled by policy — escalation bundle and proofpack may be blocked; use plain handoff where
+                allowed.
+              </span>
+            ) : (
+              <span>
+                Export/delete policy is active — scope and caveats live under Settings (runtime truth). Review{' '}
+                <code className="font-mono text-[10px]">evidence_gaps</code> before treating any bundle as complete proof.
+              </span>
+            )}
+          </div>
+        )}
         <div className="rounded-lg border border-border/50 bg-muted/15 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
           <p className="font-semibold text-foreground">What to export when</p>
           <ul className="list-disc pl-4 space-y-1">
@@ -1334,7 +1548,7 @@ export function IncidentDetail() {
       </div>
 
       {/* Header card */}
-      <Card>
+      <Card id="incident-operational-summary" className="scroll-mt-20">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start gap-3">
             <AlertTriangle className={clsx('h-5 w-5 shrink-0 mt-0.5', inc.severity === 'critical' ? 'text-critical' : inc.severity === 'high' ? 'text-warning' : 'text-muted-foreground')} />
@@ -1394,6 +1608,8 @@ export function IncidentDetail() {
           </div>
         </CardContent>
       </Card>
+
+      <InvestigationPathPanel inc={inc} />
 
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
