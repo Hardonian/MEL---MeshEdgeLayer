@@ -235,6 +235,8 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
   const drift = intel.drift_fingerprints ?? []
   const corr = intel.correlation_groups ?? []
 
+  const fam = intel.signature_family_resolved_history
+
   const hasBody =
     sig > 1 ||
     sim.length > 0 ||
@@ -243,7 +245,8 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
     hist.length > 0 ||
     drift.length > 0 ||
     corr.length > 0 ||
-    !!inc.reopened_from_incident_id
+    !!inc.reopened_from_incident_id ||
+    !!fam
 
   if (!hasBody) return null
 
@@ -280,6 +283,25 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
             </Link>
             {inc.reopened_at && (
               <span className="text-muted-foreground"> · {formatRelativeTime(inc.reopened_at)}</span>
+            )}
+          </div>
+        )}
+        {fam && fam.family_match_total > 0 && (
+          <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2" data-testid="signature-family-history">
+            <p className="font-semibold text-foreground">Signature family (resolved peers on this instance)</p>
+            <p className="text-muted-foreground mt-0.5">
+              <span className="text-foreground font-medium">{fam.resolved_peer_count}</span> other resolved/closed peer
+              {fam.resolved_peer_count === 1 ? '' : 's'} ·{' '}
+              <span className="text-foreground font-medium">{fam.reopened_peer_count}</span> with reopen marker on record —{' '}
+              <span className="text-warning/90">chronology only, not causal proof.</span>
+            </p>
+            {fam.peer_sample_incident_id && (
+              <Link
+                to={`/incidents/${encodeURIComponent(fam.peer_sample_incident_id)}`}
+                className="mt-1.5 inline-block text-[11px] font-semibold text-primary hover:underline"
+              >
+                Open sample peer →
+              </Link>
             )}
           </div>
         )}
@@ -2112,7 +2134,9 @@ export function IncidentDetail() {
               ? 'border-success/25 bg-success/5 text-muted-foreground'
               : exportReadiness.semantic === 'policy_limited'
                 ? 'border-critical/30 bg-critical/5 text-foreground'
-                : 'border-warning/25 bg-warning/5 text-foreground',
+                : exportReadiness.semantic === 'degraded'
+                  ? 'border-warning/30 bg-warning/5 text-foreground'
+                  : 'border-warning/25 bg-warning/5 text-foreground',
           )}
           role="status"
           aria-live="polite"
@@ -2120,8 +2144,52 @@ export function IncidentDetail() {
         >
           <span className="font-semibold text-foreground">Export / bundle readiness: </span>
           {exportReadiness.summary}
+          {exportReadiness.blockers.length > 0 && (
+            <ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+              {exportReadiness.blockers.map((b) => (
+                <li key={b.code}>
+                  <span className="font-mono text-foreground/80">{b.code}</span>
+                  {b.summary ? ` — ${b.summary}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
+
+      {(() => {
+        const triage = inc.triage_signals
+        if (!triage?.codes?.length) return null
+        return (
+        <div
+          className="rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5 text-xs"
+          data-testid="incident-triage-signals"
+          role="region"
+          aria-label="Deterministic triage signals from API"
+        >
+          <p className="font-semibold text-foreground mb-1.5">Deterministic triage (server)</p>
+          <p className="text-[11px] text-muted-foreground mb-2">
+            Tier {triage.tier} — inspectable codes, not an opaque priority score. Evidence refs:{' '}
+            <span className="font-mono text-[10px] break-all">
+              {(triage.evidence_refs ?? []).slice(0, 4).join(' · ') || '—'}
+            </span>
+          </p>
+          <ul className="space-y-1.5">
+            {triage.codes.map((code, i) => (
+              <li key={code} className="text-[11px] text-muted-foreground border-l-2 border-primary/25 pl-2">
+                <span className="font-mono text-foreground/90">{code.replace(/_/g, ' ')}</span>
+                {triage.rationale_lines?.[i] ? ` — ${triage.rationale_lines[i]}` : ''}
+              </li>
+            ))}
+          </ul>
+          {(triage.uncertainty_notes?.length ?? 0) > 0 && (
+            <p className="mt-2 text-[11px] text-warning border-l-2 border-warning/30 pl-2">
+              {triage.uncertainty_notes!.join(' ')}
+            </p>
+          )}
+        </div>
+        )
+      })()}
 
       {/* Header card */}
       <Card id="incident-operational-summary" className="scroll-mt-20">

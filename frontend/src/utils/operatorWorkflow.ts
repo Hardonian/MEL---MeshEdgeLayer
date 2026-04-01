@@ -39,8 +39,23 @@ export interface IncidentWorkQueueWhyContext {
   canReadLinkedActions?: boolean
 }
 
+function triageTierFromIncident(inc: Incident): number | null {
+  const t = inc.triage_signals?.tier
+  if (typeof t !== 'number' || Number.isNaN(t)) return null
+  if (t < 0 || t > 4) return null
+  const rs = (inc.review_state || '').toLowerCase()
+  const isFollowUp = FOLLOW_UP_REVIEW.has(rs)
+  if (isFollowUp && t !== 0) return null
+  if (!isFollowUp && t === 0) return null
+  return t
+}
+
 /** Lower = more urgent for shift-start and incident workbench ordering among open incidents. */
 export function openIncidentShiftPriority(inc: Incident, ctx?: IncidentWorkQueueWhyContext): number {
+  const fromAPI = triageTierFromIncident(inc)
+  if (fromAPI != null) {
+    return fromAPI
+  }
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) return 0
   const canRead = ctx?.canReadLinkedActions !== false
@@ -68,6 +83,19 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) {
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`
+  }
+  const sig = inc.triage_signals
+  if (sig?.codes?.length) {
+    const pick = ['governance_friction_memory', 'mitigation_durability_weak_in_family', 'sparse_or_degraded_intel']
+    for (const code of pick) {
+      if (sig.codes.includes(code)) {
+        const idx = sig.codes.indexOf(code)
+        const line = sig.rationale_lines?.[idx]
+        if (line) {
+          return `${line} (triage code: ${code.replace(/_/g, ' ')} — inspect incident.triage_signals in API for full basis).`
+        }
+      }
+    }
   }
   const canRead = ctx?.canReadLinkedActions !== false
   const vis = resolvedIncidentActionVisibility(inc, { canReadLinkedActions: canRead })
@@ -229,7 +257,10 @@ export function buildRecurrenceHomeTeasers(incidents: Incident[], limit = 4): Re
       const sim = intel?.similar_incidents?.length ?? 0
       const mem = intel?.action_outcome_memory?.length ?? 0
       const gov = intel?.governance_memory?.length ?? 0
-      const score = (sig > 1 ? sig * 1000 : 0) + sim * 50 + mem * 30 + gov * 20
+      const fam = i.intelligence?.signature_family_resolved_history
+    const reopenStress =
+      fam && fam.resolved_peer_count >= 2 && fam.reopened_peer_count >= 1 ? 400 : 0
+    const score = (sig > 1 ? sig * 1000 : 0) + sim * 50 + mem * 30 + gov * 20 + reopenStress
       return { i, score, sig, sim, mem }
     })
     .filter((x) => x.score > 0)
