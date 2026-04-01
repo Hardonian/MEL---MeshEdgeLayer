@@ -24,6 +24,8 @@ describe('computeShiftDelta', () => {
       deadLetterCount: 0,
     })
     expect(d.incidentsTouchedSince).toHaveLength(0)
+    expect(d.openIncidentsChangedSince).toHaveLength(0)
+    expect(d.stillOpenSinceBaseline).toHaveLength(0)
     expect(d.newAuditEvents).toBe(0)
   })
 
@@ -98,5 +100,38 @@ describe('computeShiftDelta', () => {
       deadLetterCount: 0,
     })
     expect(d.topologyNodesWithNewerLastSeen.map((x) => x.node_num)).toContain(7)
+  })
+
+  it('groups open-work continuity: still open, closed since baseline, open and changed', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T12:00:00Z',
+      openIncidentIds: ['a', 'b'],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: {},
+      transportHeartbeatMax: null,
+      eventMaxTime: null,
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const openA = { ...inc('a', '2026-01-02T00:00:00Z'), id: 'a' }
+    const resolvedB = {
+      ...inc('b', '2026-01-02T01:00:00Z'),
+      id: 'b',
+      state: 'resolved' as const,
+      resolved_at: '2026-01-02T01:00:00Z',
+    }
+    const newOpenC = { ...inc('c', '2026-01-02T02:00:00Z'), id: 'c' }
+    const d = computeShiftDelta(prev, {
+      incidents: [openA, resolvedB, newOpenC],
+      nodes: [],
+      topologyNodes: [],
+      transports: [],
+      events: [],
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.stillOpenSinceBaseline.map((x) => x.id).sort()).toEqual(['a'])
+    expect(d.noLongerOpenSinceBaseline.map((x) => x.id)).toContain('b')
+    expect(d.openIncidentsChangedSince.map((x) => x.id).sort()).toEqual(['a', 'c'])
   })
 })

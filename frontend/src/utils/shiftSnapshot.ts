@@ -118,12 +118,23 @@ export function buildShiftSnapshotFromConsole(args: {
 
 export interface ShiftDelta {
   incidentsTouchedSince: Incident[]
+  /** Open incidents that also changed since baseline (subset of incidents still open). */
+  openIncidentsChangedSince: Incident[]
+  /** Open at baseline and still open now (continuity set). */
+  stillOpenSinceBaseline: Incident[]
+  /** Were open at baseline but no longer open (resolved/closed — not “healthy”, just state change). */
+  noLongerOpenSinceBaseline: Incident[]
   nodesWithNewerLastSeen: Array<{ node_id: string; long_name?: string; short_name?: string }>
   topologyNodesWithNewerLastSeen: Array<{ node_num: number; short_name?: string; long_name?: string }>
   transportHeartbeatAdvanced: boolean
   newAuditEvents: number
   messagesIncreased: boolean
   deadLettersIncreased: boolean
+}
+
+function isOpenIncident(inc: Incident): boolean {
+  const s = (inc.state || '').toLowerCase()
+  return s !== 'resolved' && s !== 'closed'
 }
 
 function ts(s: string | undefined): number {
@@ -147,6 +158,9 @@ export function computeShiftDelta(
   if (!prev) {
     return {
       incidentsTouchedSince: [],
+      openIncidentsChangedSince: [],
+      stillOpenSinceBaseline: [],
+      noLongerOpenSinceBaseline: [],
       nodesWithNewerLastSeen: [],
       topologyNodesWithNewerLastSeen: [],
       transportHeartbeatAdvanced: false,
@@ -156,10 +170,22 @@ export function computeShiftDelta(
     }
   }
   const anchor = ts(prev.savedAt)
+  const baselineOpen = new Set(prev.openIncidentIds)
 
   const incidentsTouchedSince = args.incidents.filter((inc) => {
     const touch = Math.max(ts(inc.updated_at), ts(inc.occurred_at), ts(inc.resolved_at))
     return touch > anchor
+  })
+
+  const openIncidentsChangedSince = incidentsTouchedSince.filter(isOpenIncident)
+
+  const stillOpenSinceBaseline = args.incidents.filter(
+    (inc) => baselineOpen.has(inc.id) && isOpenIncident(inc),
+  )
+
+  const noLongerOpenSinceBaseline = args.incidents.filter((inc) => {
+    if (!baselineOpen.has(inc.id)) return false
+    return !isOpenIncident(inc)
   })
 
   const nodesWithNewerLastSeen = args.nodes.filter((n) => {
@@ -195,6 +221,9 @@ export function computeShiftDelta(
 
   return {
     incidentsTouchedSince,
+    openIncidentsChangedSince,
+    stillOpenSinceBaseline,
+    noLongerOpenSinceBaseline,
     nodesWithNewerLastSeen,
     topologyNodesWithNewerLastSeen,
     transportHeartbeatAdvanced,
