@@ -3,6 +3,8 @@
 /** GET /api/v1/version — build and schema metadata from the running binary */
 export interface VersionResponse {
   version: string
+  /** Topology ingest + graph store enabled in running config (not “live mesh proof”). */
+  topology_model_enabled?: boolean
   git_commit?: string
   build_time?: string
   go_version?: string

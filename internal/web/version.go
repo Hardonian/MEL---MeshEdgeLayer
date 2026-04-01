@@ -46,6 +46,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := map[string]any{
 		"version":                      v.Version,
+		"topology_model_enabled":       s.cfg.Topology.Enabled,
 		"git_commit":                   v.GitCommit,
 		"build_time":                   v.BuildTime,
 		"go_version":                   v.GoVersion,

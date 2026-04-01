@@ -10,6 +10,8 @@ export interface ShiftSnapshot {
   savedAt: string
   openIncidentIds: string[]
   nodeLastSeen: Record<string, string>
+  /** Topology store last_seen_at by node_num (string key); same browser scope as the rest of this snapshot. */
+  topologyNodeLastSeen: Record<string, string>
   transportHeartbeatMax: string | null
   eventMaxTime: string | null
   messageCountApprox: number
@@ -29,6 +31,10 @@ export function readShiftSnapshot(): ShiftSnapshot | null {
       nodeLastSeen:
         p.nodeLastSeen && typeof p.nodeLastSeen === 'object' && !Array.isArray(p.nodeLastSeen)
           ? (p.nodeLastSeen as Record<string, string>)
+          : {},
+      topologyNodeLastSeen:
+        p.topologyNodeLastSeen && typeof p.topologyNodeLastSeen === 'object' && !Array.isArray(p.topologyNodeLastSeen)
+          ? (p.topologyNodeLastSeen as Record<string, string>)
           : {},
       transportHeartbeatMax: typeof p.transportHeartbeatMax === 'string' ? p.transportHeartbeatMax : null,
       eventMaxTime: typeof p.eventMaxTime === 'string' ? p.eventMaxTime : null,
@@ -52,6 +58,8 @@ export function writeShiftSnapshot(snapshot: ShiftSnapshot): void {
 export function buildShiftSnapshotFromConsole(args: {
   incidents: Incident[]
   nodes: Array<{ node_id: string; last_seen: string }>
+  /** Optional: topology API nodes for “changed since baseline” on /topology. */
+  topologyNodes?: Array<{ node_num: number; last_seen_at?: string }>
   transports: Array<{ last_heartbeat_at?: string }>
   events: Pick<AuditLog, 'created_at'>[]
   messageCount: number
@@ -67,6 +75,12 @@ export function buildShiftSnapshotFromConsole(args: {
   const nodeLastSeen: Record<string, string> = {}
   for (const n of args.nodes) {
     if (n.node_id && n.last_seen) nodeLastSeen[n.node_id] = n.last_seen
+  }
+
+  const topologyNodeLastSeen: Record<string, string> = {}
+  for (const n of args.topologyNodes ?? []) {
+    const key = String(n.node_num)
+    if (n.last_seen_at) topologyNodeLastSeen[key] = n.last_seen_at
   }
 
   let transportHeartbeatMax: string | null = null
@@ -94,6 +108,7 @@ export function buildShiftSnapshotFromConsole(args: {
     savedAt: new Date().toISOString(),
     openIncidentIds,
     nodeLastSeen,
+    topologyNodeLastSeen,
     transportHeartbeatMax,
     eventMaxTime,
     messageCountApprox: args.messageCount,
@@ -104,6 +119,7 @@ export function buildShiftSnapshotFromConsole(args: {
 export interface ShiftDelta {
   incidentsTouchedSince: Incident[]
   nodesWithNewerLastSeen: Array<{ node_id: string; long_name?: string; short_name?: string }>
+  topologyNodesWithNewerLastSeen: Array<{ node_num: number; short_name?: string; long_name?: string }>
   transportHeartbeatAdvanced: boolean
   newAuditEvents: number
   messagesIncreased: boolean
@@ -121,6 +137,7 @@ export function computeShiftDelta(
   args: {
     incidents: Incident[]
     nodes: Array<{ node_id: string; long_name?: string; short_name?: string; last_seen: string }>
+    topologyNodes?: Array<{ node_num: number; short_name?: string; long_name?: string; last_seen_at?: string }>
     transports: Array<{ last_heartbeat_at?: string }>
     events: Pick<AuditLog, 'created_at'>[]
     messageCount: number
@@ -131,6 +148,7 @@ export function computeShiftDelta(
     return {
       incidentsTouchedSince: [],
       nodesWithNewerLastSeen: [],
+      topologyNodesWithNewerLastSeen: [],
       transportHeartbeatAdvanced: false,
       newAuditEvents: 0,
       messagesIncreased: false,
@@ -148,6 +166,14 @@ export function computeShiftDelta(
     const prevSeen = prev.nodeLastSeen[n.node_id]
     if (!prevSeen) return ts(n.last_seen) > anchor
     return ts(n.last_seen) > ts(prevSeen)
+  })
+
+  const topologyNodesWithNewerLastSeen = (args.topologyNodes ?? []).filter((n) => {
+    const cur = n.last_seen_at
+    if (!cur) return false
+    const prevSeen = prev.topologyNodeLastSeen[String(n.node_num)]
+    if (!prevSeen) return ts(cur) > anchor
+    return ts(cur) > ts(prevSeen)
   })
 
   let transportHeartbeatAdvanced = false
@@ -170,6 +196,7 @@ export function computeShiftDelta(
   return {
     incidentsTouchedSince,
     nodesWithNewerLastSeen,
+    topologyNodesWithNewerLastSeen,
     transportHeartbeatAdvanced,
     newAuditEvents,
     messagesIncreased: args.messageCount > prev.messageCountApprox,

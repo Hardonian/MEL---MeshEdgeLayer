@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GitBranch, RefreshCw, AlertCircle, ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { GitBranch, RefreshCw, AlertCircle, ZoomIn, ZoomOut, Maximize2, X, ExternalLink } from 'lucide-react'
+import type { Incident } from '@/types/api'
+import { readShiftSnapshot } from '@/utils/shiftSnapshot'
+import { topologyLinkTruthSummary, topologyNodeTruthSummary } from '@/utils/evidenceSemantics'
 
 type TopoNode = {
   node_num: number
@@ -8,11 +12,14 @@ type TopoNode = {
   short_name: string
   health_state: string
   health_score: number
+  first_seen_at?: string
   last_seen_at?: string
   stale: boolean
   lat_redacted?: number
   lon_redacted?: number
   location_state?: string
+  trust_class?: string
+  source_connector?: string
 }
 
 type TopoLink = {
@@ -71,6 +78,30 @@ type MeshIntelligence = {
   recommendations?: MeshIntelRec[]
 }
 
+type TopologyCluster = {
+  id: string
+  node_nums: number[]
+  state: string
+  avg_score: number
+  min_score: number
+  edge_count: number
+}
+
+type TopologyStaleRegion = {
+  node_nums: number[]
+  stale_ratio: number
+  last_fresh_at?: string
+}
+
+type TopologyAnalysisBlock = {
+  weak_clusters?: TopologyCluster[]
+  stale_regions?: TopologyStaleRegion[]
+  isolated_nodes?: number[]
+  bridge_nodes?: number[]
+  bottlenecks?: Array<{ type: string; node_nums?: number[]; severity: string; explanation: string }>
+  recommendations?: Array<{ id: string; summary: string; confidence: number; evidence?: string[] }>
+}
+
 type Intelligence = {
   generated_at?: string
   topology_enabled?: boolean
@@ -82,10 +113,10 @@ type Intelligence = {
   google_maps_basemap_available?: boolean
   google_maps_api_key?: string
   mesh_intelligence?: MeshIntelligence
-  analysis?: {
-    recommendations?: Array<{ id: string; summary: string; confidence: number; evidence?: string[] }>
+  analysis?: TopologyAnalysisBlock & {
     snapshot?: { explanation?: string[]; confidence_summary?: Record<string, number> }
   }
+  staleness?: { node_stale_minutes?: number; link_stale_minutes?: number }
 }
 
 type NodeMeshIntel = {
@@ -104,6 +135,7 @@ type NodeDrill = {
   next_actions?: string[]
   evidence_notes?: string[]
   links?: TopoLink[]
+  observations?: unknown[]
   freshness_age_seconds?: number
   mesh_intel?: NodeMeshIntel
 }
@@ -201,6 +233,7 @@ function nodeColor(n: TopoNode): string {
   if (n.health_state === 'healthy') return 'hsl(142 65% 38%)'
   if (n.health_state === 'isolated') return 'hsl(280 50% 52%)'
   if (n.health_state === 'degraded') return 'hsl(28 90% 48%)'
+  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(200 55% 42%)'
   return 'hsl(210 65% 46%)'
 }
 
@@ -218,7 +251,10 @@ async function fetchTopologyJson<T>(path: string, signal: AbortSignal, label: st
   return (await res.json()) as T
 }
 
+type NodeFilterId = 'all' | 'stale' | 'degraded' | 'risky' | 'no_map_coords' | 'changed_since_visit' | 'incident_focus' | 'transport_scoped'
+
 export function Topology() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [intel, setIntel] = useState<Intelligence | null>(null)
   const [nodes, setNodes] = useState<TopoNode[]>([])
   const [links, setLinks] = useState<TopoLink[]>([])
@@ -226,8 +262,11 @@ export function Topology() {
   const [err, setErr] = useState<string | null>(null)
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
-  const [nodeFilter, setNodeFilter] = useState<'all' | 'stale' | 'degraded' | 'risky' | 'no_map_coords'>('all')
+  const [nodeFilter, setNodeFilter] = useState<NodeFilterId>('all')
+  const [incidentCtx, setIncidentCtx] = useState<Incident | null>(null)
+  const [incidentErr, setIncidentErr] = useState<string | null>(null)
   const loadAbortRef = useRef<AbortController | null>(null)
+  const urlSyncRef = useRef(false)
 
   const [vb, setVb] = useState({ x: 0, y: 0, w: 600, h: 480 })
   const svgRef = useRef<SVGSVGElement>(null)
@@ -267,6 +306,80 @@ export function Topology() {
     }
   }, [load])
 
+  const incidentIdParam = (searchParams.get('incident') || '').trim()
+  const selectParam = searchParams.get('select')
+  const selectedFromUrl = selectParam != null && selectParam !== '' ? Number(selectParam) : null
+
+  useEffect(() => {
+    const f = (searchParams.get('filter') || '').trim() as NodeFilterId
+    const allowed: NodeFilterId[] = [
+      'all',
+      'stale',
+      'degraded',
+      'risky',
+      'no_map_coords',
+      'changed_since_visit',
+      'incident_focus',
+      'transport_scoped',
+    ]
+    if (f && allowed.includes(f)) {
+      setNodeFilter(f)
+    } else {
+      setNodeFilter('all')
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!incidentIdParam) {
+      setIncidentCtx(null)
+      setIncidentErr(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/v1/incidents/${encodeURIComponent(incidentIdParam)}`)
+        if (!res.ok) {
+          if (!cancelled) {
+            setIncidentCtx(null)
+            setIncidentErr(`Incident HTTP ${res.status}`)
+          }
+          return
+        }
+        const data = (await res.json()) as Incident
+        if (!cancelled) {
+          setIncidentCtx(data)
+          setIncidentErr(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setIncidentCtx(null)
+          setIncidentErr('Failed to load incident')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [incidentIdParam])
+
+  function setFilterAndUrl(f: NodeFilterId) {
+    urlSyncRef.current = true
+    setNodeFilter(f)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (f === 'all') next.delete('filter')
+        else next.set('filter', f)
+        return next
+      },
+      { replace: true },
+    )
+    window.setTimeout(() => {
+      urlSyncRef.current = false
+    }, 0)
+  }
+
   const riskyNodeNums = useMemo(() => {
     const s = new Set<number>()
     for (const l of links) {
@@ -278,11 +391,67 @@ export function Topology() {
     return s
   }, [links])
 
+  const shiftSnap = useMemo(() => readShiftSnapshot(), [])
+  const topologyChangedSinceVisit = useMemo(() => {
+    const prev = shiftSnap?.topologyNodeLastSeen
+    if (!prev || Object.keys(prev).length === 0) return new Set<number>()
+    const s = new Set<number>()
+    for (const n of nodes) {
+      const key = String(n.node_num)
+      const was = prev[key]
+      if (!was) continue
+      const cur = n.last_seen_at
+      if (!cur) continue
+      if (new Date(cur).getTime() > new Date(was).getTime()) s.add(n.node_num)
+    }
+    return s
+  }, [nodes, shiftSnap])
+
+  const incidentFocusNodeNums = useMemo(() => {
+    if (!incidentCtx) return new Set<number>()
+    const s = new Set<number>()
+    const rt = (incidentCtx.resource_type || '').toLowerCase()
+    const rid = (incidentCtx.resource_id || '').trim()
+    if (rt === 'mesh_node' || rt === 'node') {
+      const num = Number(rid.replace(/\D/g, '') || '0')
+      if (Number.isFinite(num) && num > 0) s.add(num)
+    }
+    for (const d of incidentCtx.intelligence?.implicated_domains ?? []) {
+      if ((d.domain || '').toLowerCase() !== 'mesh_topology') continue
+      for (const ref of d.evidence_refs ?? []) {
+        const m = /^node[:_]?(\d+)$/i.exec(ref.trim())
+        if (m) s.add(Number(m[1]))
+      }
+    }
+    return s
+  }, [incidentCtx])
+
+  const transportScopedNodeNums = useMemo(() => {
+    const s = new Set<number>()
+    const tn = (incidentCtx?.resource_type || '').toLowerCase() === 'transport' ? (incidentCtx?.resource_id || '').trim() : ''
+    if (!tn) return s
+    for (const l of links) {
+      const path = (l.transport_path || '').toLowerCase()
+      if (path.includes(tn.toLowerCase())) {
+        s.add(l.src_node_num)
+        s.add(l.dst_node_num)
+      }
+    }
+    return s
+  }, [links, incidentCtx])
+
   const filteredNodes = useMemo(() => {
     if (nodeFilter === 'all') return nodes
     return nodes.filter((n) => {
       if (nodeFilter === 'stale') return n.stale || n.health_state === 'stale'
-      if (nodeFilter === 'degraded') return n.health_state === 'degraded' || n.health_state === 'isolated'
+      if (nodeFilter === 'degraded') {
+        return (
+          n.health_state === 'degraded' ||
+          n.health_state === 'isolated' ||
+          n.health_state === 'weakly_observed' ||
+          n.health_state === 'inferred_only'
+        )
+      }
       if (nodeFilter === 'risky') return riskyNodeNums.has(n.node_num)
       if (nodeFilter === 'no_map_coords') {
         const lat = n.lat_redacted
@@ -290,9 +459,25 @@ export function Topology() {
         const noCoords = lat == null || lon == null || (lat === 0 && lon === 0)
         return noCoords || n.location_state === 'unknown' || !n.location_state
       }
+      if (nodeFilter === 'changed_since_visit') return topologyChangedSinceVisit.has(n.node_num)
+      if (nodeFilter === 'incident_focus') {
+        if (incidentFocusNodeNums.size === 0) return false
+        return incidentFocusNodeNums.has(n.node_num)
+      }
+      if (nodeFilter === 'transport_scoped') {
+        if (transportScopedNodeNums.size === 0) return false
+        return transportScopedNodeNums.has(n.node_num)
+      }
       return true
     })
-  }, [nodes, nodeFilter, riskyNodeNums])
+  }, [
+    nodes,
+    nodeFilter,
+    riskyNodeNums,
+    topologyChangedSinceVisit,
+    incidentFocusNodeNums,
+    transportScopedNodeNums,
+  ])
 
   const filteredNodeSet = useMemo(() => new Set(filteredNodes.map((n) => n.node_num)), [filteredNodes])
 
@@ -321,18 +506,45 @@ export function Topology() {
     }
   }, [selected, filteredNodeSet])
 
-  const selectNode = async (num: number) => {
-    setSelLoading(true)
-    try {
-      const res = await fetch(`${API}/nodes/${num}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setSelected((await res.json()) as NodeDrill)
-    } catch {
-      setSelected(null)
-    } finally {
-      setSelLoading(false)
-    }
-  }
+  const syncSelectToUrl = useCallback(
+    (num: number | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (num == null) next.delete('select')
+          else next.set('select', String(num))
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const selectNode = useCallback(
+    async (num: number, opts?: { syncUrl?: boolean }) => {
+      const syncUrl = opts?.syncUrl !== false
+      setSelLoading(true)
+      try {
+        const res = await fetch(`${API}/nodes/${num}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setSelected((await res.json()) as NodeDrill)
+        if (syncUrl) syncSelectToUrl(num)
+      } catch {
+        setSelected(null)
+        if (syncUrl) syncSelectToUrl(null)
+      } finally {
+        setSelLoading(false)
+      }
+    },
+    [syncSelectToUrl],
+  )
+
+  useEffect(() => {
+    if (selectedFromUrl == null || Number.isNaN(selectedFromUrl)) return
+    if (selected?.node.node_num === selectedFromUrl) return
+    void selectNode(selectedFromUrl, { syncUrl: false })
+  }, [selectedFromUrl, selected?.node.node_num, selectNode])
 
   const selectedNodeNum = selected?.node?.node_num ?? null
 
@@ -411,6 +623,7 @@ export function Topology() {
       if (e.key === 'Escape') {
         e.preventDefault()
         setSelected(null)
+        syncSelectToUrl(null)
         return
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -425,15 +638,18 @@ export function Topology() {
     }
     el.addEventListener('keydown', onKeyDown)
     return () => el.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [syncSelectToUrl])
 
   const intelDisabled = intel?.topology_enabled === false
 
-  const FILTER_OPTIONS: Array<{ id: typeof nodeFilter; label: string; hint: string }> = [
+  const FILTER_OPTIONS: Array<{ id: NodeFilterId; label: string; hint: string }> = [
     { id: 'all', label: 'All', hint: 'full graph' },
+    { id: 'changed_since_visit', label: 'Changed since visit', hint: 'topology last_seen advanced vs your saved command-surface baseline (this browser)' },
     { id: 'stale', label: 'Stale', hint: 'last_seen beyond window' },
-    { id: 'degraded', label: 'Degraded / isolated', hint: 'health from evidence' },
+    { id: 'degraded', label: 'Degraded / sparse graph', hint: 'degraded, isolated, weakly observed, or inferred-only health states' },
     { id: 'risky', label: 'Link-risky', hint: 'touches relay-dependent, weak, stale, or contradiction edges' },
+    { id: 'incident_focus', label: 'Incident focus', hint: 'requires ?incident=… — nodes referenced by incident resource or implicated_domains' },
+    { id: 'transport_scoped', label: 'Transport edges', hint: 'requires transport incident — nodes on links whose transport_path mentions the resource_id' },
     { id: 'no_map_coords', label: 'No map coords', hint: 'no redacted lat/lon for scatter/basemap' },
   ]
 
@@ -468,6 +684,45 @@ export function Topology() {
         </div>
       )}
 
+      {incidentIdParam && (
+        <div
+          className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          role="region"
+          aria-label="Incident context for topology"
+        >
+          {incidentErr && (
+            <p className="text-warning">
+              Incident context: {incidentErr}{' '}
+              <Link to={`/incidents/${encodeURIComponent(incidentIdParam)}`} className="text-primary font-medium hover:underline">
+                Open incident
+              </Link>
+            </p>
+          )}
+          {!incidentErr && incidentCtx && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-medium text-foreground">Focused for incident</span>
+              <Link
+                to={`/incidents/${encodeURIComponent(incidentCtx.id)}`}
+                className="inline-flex items-center gap-1 text-primary font-medium hover:underline"
+              >
+                {incidentCtx.title || incidentCtx.id.slice(0, 12)}
+                <ExternalLink className="h-3 w-3 opacity-60" aria-hidden />
+              </Link>
+              <span className="text-muted-foreground">
+                {incidentCtx.resource_type || '—'} / {incidentCtx.resource_id || '—'}
+              </span>
+              <Link
+                to={`/planning?incident=${encodeURIComponent(incidentCtx.id)}`}
+                className="text-primary hover:underline font-medium"
+              >
+                Planning (same incident) →
+              </Link>
+            </div>
+          )}
+          {!incidentErr && !incidentCtx && <p>Loading incident context…</p>}
+        </div>
+      )}
+
       {intelDisabled && (
         <p className="text-muted-foreground text-sm">
           {(intel as { message?: string })?.message || 'Topology model is disabled in config.'}
@@ -496,6 +751,14 @@ export function Topology() {
       )}
 
       {intel?.mesh_intelligence && !intelDisabled && <MeshIntelPanel intel={intel.mesh_intelligence} />}
+
+      {intel?.analysis && !intelDisabled && (
+        <TopologyOperatorAnalysisPanel
+          analysis={intel.analysis}
+          staleness={intel.staleness}
+          incidentId={incidentIdParam || undefined}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
@@ -541,8 +804,9 @@ export function Topology() {
               <LegendItem color="hsl(28 90% 48%)" label="Degraded" />
               <LegendItem color="hsl(280 50% 52%)" label="Isolated" />
               <LegendItem color="hsl(210 65% 46%)" label="Unknown" />
-              <span className="text-[10px] text-muted-foreground ml-auto">
-                Dashed = unobserved link · thin = relay-dependent
+              <LegendItem color="hsl(200 55% 42%)" label="Weak / inferred-only" />
+              <span className="text-[10px] text-muted-foreground ml-auto max-w-[min(100%,280px)] sm:max-w-none sm:ml-auto">
+                Solid line = packet-observed edge · dashed = inferred · thin = relay-dependent · double ring = newer last_seen vs your baseline
               </span>
             </div>
 
@@ -556,7 +820,7 @@ export function Topology() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setNodeFilter(f.id)}
+                  onClick={() => setFilterAndUrl(f.id)}
                   title={f.hint}
                   className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     nodeFilter === f.id
@@ -567,8 +831,18 @@ export function Topology() {
                   {f.label}
                 </button>
               ))}
-              <span className="text-[10px] text-muted-foreground ml-auto">
-                Showing {filteredNodes.length}/{nodes.length} nodes · focus the graph and press arrow keys to pan (Esc clears selection)
+              <span className="text-[10px] text-muted-foreground ml-auto text-right max-w-[min(100%,320px)] sm:max-w-none">
+                Showing {filteredNodes.length}/{nodes.length} nodes
+                {nodeFilter === 'changed_since_visit' && topologyChangedSinceVisit.size === 0 && (
+                  <span className="block text-warning">No matches — mark “caught up” on the command surface to record topology baselines.</span>
+                )}
+                {nodeFilter === 'incident_focus' && incidentFocusNodeNums.size === 0 && incidentCtx && (
+                  <span className="block text-warning">No implicated node numbers in this incident — use All or Stale, or link a mesh_node resource.</span>
+                )}
+                {nodeFilter === 'transport_scoped' && transportScopedNodeNums.size === 0 && (
+                  <span className="block text-warning">Needs a transport-scoped incident or matching transport_path on edges.</span>
+                )}
+                <span className="block sm:inline sm:ml-1">· focus graph · arrows pan · Esc clears selection</span>
               </span>
             </div>
 
@@ -620,6 +894,7 @@ export function Topology() {
                   const isSelected = selectedNodeNum === n.node_num
                   const r = isSelected ? 13 : 10
                   const label = nodeLabel(n)
+                  const changedMark = topologyChangedSinceVisit.has(n.node_num)
                   return (
                     <g
                       key={n.node_num}
@@ -630,12 +905,12 @@ export function Topology() {
                       aria-pressed={isSelected}
                       onClick={(e) => {
                         e.stopPropagation()
-                        void selectNode(n.node_num)
+                        void selectNode(n.node_num, { syncUrl: true })
                       }}
                       onKeyDown={(ev) => {
                         if (ev.key === 'Enter' || ev.key === ' ') {
                           ev.preventDefault()
-                          void selectNode(n.node_num)
+                          void selectNode(n.node_num, { syncUrl: true })
                         }
                       }}
                     >
@@ -648,6 +923,18 @@ export function Topology() {
                           stroke="currentColor"
                           strokeWidth={1.5}
                           strokeOpacity={0.4}
+                        />
+                      )}
+                      {changedMark && (
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={r + 6}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1}
+                          strokeOpacity={0.35}
+                          strokeDasharray="2 2"
                         />
                       )}
                       <circle
@@ -693,13 +980,13 @@ export function Topology() {
                   apiKey={intel!.google_maps_api_key!}
                   nodes={mapPoints}
                   selectedNodeNum={selectedNodeNum}
-                  onSelectNode={(num) => void selectNode(num)}
+                  onSelectNode={(num) => void selectNode(num, { syncUrl: true })}
                 />
               ) : (
                 <MapScatter
                   nodes={mapPoints}
                   selectedNodeNum={selectedNodeNum}
-                  onSelectNode={(num) => void selectNode(num)}
+                  onSelectNode={(num) => void selectNode(num, { syncUrl: true })}
                 />
               )}
             </div>
@@ -712,8 +999,12 @@ export function Topology() {
             {selected && (
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null)
+                  syncSelectToUrl(null)
+                }}
                 className="rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Clear node selection"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -732,7 +1023,7 @@ export function Topology() {
             {intel!.analysis!.recommendations!.slice(0, 12).map((r) => (
               <li key={r.id} className="border-b border-border/50 pb-2 last:border-0">
                 <div>{r.summary}</div>
-                <div className="text-xs text-muted-foreground">confidence {r.confidence.toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">rank score {r.confidence.toFixed(2)} (not propagation proof)</div>
                 {r.evidence && r.evidence.length > 0 && (
                   <div className="text-xs mt-1 font-mono text-muted-foreground">{r.evidence.join(' · ')}</div>
                 )}
@@ -740,6 +1031,115 @@ export function Topology() {
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  )
+}
+
+function TopologyOperatorAnalysisPanel({
+  analysis,
+  staleness,
+  incidentId,
+}: {
+  analysis: NonNullable<Intelligence['analysis']>
+  staleness?: Intelligence['staleness']
+  incidentId?: string
+}) {
+  const weak = analysis.weak_clusters ?? []
+  const staleRegs = analysis.stale_regions ?? []
+  const bottlenecks = analysis.bottlenecks ?? []
+  const isolated = analysis.isolated_nodes ?? []
+  const bridges = analysis.bridge_nodes ?? []
+
+  if (
+    weak.length === 0 &&
+    staleRegs.length === 0 &&
+    bottlenecks.length === 0 &&
+    isolated.length === 0 &&
+    bridges.length === 0
+  ) {
+    return null
+  }
+
+  return (
+    <div className="rounded-xl border bg-card p-4 space-y-3" data-testid="topology-operator-analysis">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium text-foreground">Fault domains &amp; impact (graph-bounded)</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5 max-w-3xl">
+            Connected components and stale regions from stored topology_links — not RF or geographic causality. Use with transport health and
+            incident evidence.
+            {staleness?.node_stale_minutes != null && (
+              <span className="block sm:inline sm:ml-1">
+                Stale thresholds: node {staleness.node_stale_minutes}m, link {staleness.link_stale_minutes ?? '—'}m (config).
+              </span>
+            )}
+          </p>
+        </div>
+        {incidentId && (
+          <Link
+            to={`/incidents/${encodeURIComponent(incidentId)}`}
+            className="text-xs font-medium text-primary hover:underline shrink-0"
+          >
+            Back to incident →
+          </Link>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {weak.length > 0 && (
+          <div className="rounded-lg border border-border/60 p-3">
+            <p className="text-xs font-semibold text-foreground mb-1">Weaker clusters</p>
+            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+              {weak.slice(0, 6).map((c) => (
+                <li key={c.id}>
+                  <span className="font-mono text-foreground">{c.id}</span> · state {c.state} · nodes {c.node_nums.length} · edges{' '}
+                  {c.edge_count} · min health {c.min_score.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {staleRegs.length > 0 && (
+          <div className="rounded-lg border border-warning/25 bg-warning/5 p-3">
+            <p className="text-xs font-semibold text-foreground mb-1">Stale regions</p>
+            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+              {staleRegs.slice(0, 5).map((r, i) => (
+                <li key={i}>
+                  {r.node_nums.length} nodes · stale ratio {(r.stale_ratio * 100).toFixed(0)}%
+                  {r.last_fresh_at && <span className="block text-[10px]">last fresh hint: {r.last_fresh_at}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {bottlenecks.length > 0 && (
+          <div className="rounded-lg border border-border/60 p-3 sm:col-span-2 lg:col-span-1">
+            <p className="text-xs font-semibold text-foreground mb-1">Bottlenecks (graph shape)</p>
+            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+              {bottlenecks.slice(0, 6).map((b, i) => (
+                <li key={i}>
+                  <span className="font-medium text-foreground">{b.type.replace(/_/g, ' ')}</span> ({b.severity}) — {b.explanation}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      {(isolated.length > 0 || bridges.length > 0) && (
+        <p className="text-[11px] text-muted-foreground">
+          {isolated.length > 0 && (
+            <span>
+              Isolated in graph: {isolated.slice(0, 12).join(', ')}
+              {isolated.length > 12 ? '…' : ''}.{' '}
+            </span>
+          )}
+          {bridges.length > 0 && (
+            <span>
+              Bridge / articulation candidates: {bridges.slice(0, 12).join(', ')}
+              {bridges.length > 12 ? '…' : ''}.
+            </span>
+          )}
+        </p>
       )}
     </div>
   )
@@ -809,7 +1209,7 @@ function MeshIntelPanel({ intel }: { intel: MeshIntelligence }) {
                       {r.title}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {r.class.replace(/_/g, ' ')} · sev {r.severity} · conf {r.confidence.toFixed(2)}
+                      {r.class.replace(/_/g, ' ')} · sev {r.severity} · rank {r.confidence.toFixed(2)} (internal score, not RF certainty)
                     </div>
                   </li>
                 ))}
@@ -824,6 +1224,11 @@ function MeshIntelPanel({ intel }: { intel: MeshIntelligence }) {
 }
 
 function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
+  const truth = topologyNodeTruthSummary({
+    stale: d.node.stale,
+    health_state: d.node.health_state,
+    last_seen_at: d.node.last_seen_at,
+  })
   return (
     <div className="space-y-3 text-sm">
       <div>
@@ -837,6 +1242,29 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
         <span>{d.scored_state}</span>
         <span className="text-muted-foreground">({d.scored_health.toFixed(2)})</span>
       </div>
+      <p className="text-[11px] text-muted-foreground border-l-2 border-muted pl-2">{truth}</p>
+      {(d.node.first_seen_at || d.node.last_seen_at) && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+          {d.node.first_seen_at && (
+            <>
+              <dt className="font-medium text-foreground/80">First seen</dt>
+              <dd className="font-mono">{d.node.first_seen_at}</dd>
+            </>
+          )}
+          {d.node.last_seen_at && (
+            <>
+              <dt className="font-medium text-foreground/80">Last seen</dt>
+              <dd className="font-mono">{d.node.last_seen_at}</dd>
+            </>
+          )}
+        </dl>
+      )}
+      {(d.node.trust_class || d.node.source_connector) && (
+        <p className="text-[11px] text-muted-foreground">
+          Trust: {d.node.trust_class?.replace(/_/g, ' ') ?? '—'}
+          {d.node.source_connector ? ` · connector ${d.node.source_connector}` : ''}
+        </p>
+      )}
       {d.freshness_age_seconds != null && d.freshness_age_seconds >= 0 && (
         <p className="text-xs text-muted-foreground">Last seen ≈ {Math.round(d.freshness_age_seconds)}s ago (server clock)</p>
       )}
@@ -854,9 +1282,21 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
           </ul>
         </div>
       )}
+      {(d.links?.length ?? 0) > 0 && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Adjacent edges</div>
+          <ul className="text-[10px] space-y-1 max-h-32 overflow-y-auto font-mono text-muted-foreground">
+            {d.links!.slice(0, 8).map((l) => (
+              <li key={l.edge_id}>
+                →{l.dst_node_num} {topologyLinkTruthSummary(l)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(d.next_actions?.length ?? 0) > 0 && (
         <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1">Next actions</div>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Next checks (deterministic)</div>
           <ul className="text-xs list-disc pl-4 space-y-1">
             {d.next_actions!.map((a, i) => (
               <li key={i}>{a}</li>

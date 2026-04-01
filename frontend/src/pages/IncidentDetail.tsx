@@ -31,6 +31,13 @@ import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { formatTimestamp, formatRelativeTime, type Incident } from '@/types/api'
+import {
+  evidenceStrengthLabel,
+  guidanceConfidenceLabel,
+  runbookStrengthOperatorLabel,
+  wirelessConfidencePostureLabel,
+  wirelessEvidencePostureLabel,
+} from '@/utils/evidenceSemantics'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +194,115 @@ function proofpackCompletenessVariant(completeness: string): 'success' | 'warnin
 
 function defaultProofpackFilename(id: string) {
   return `proofpack-${id || 'incident'}.json`
+}
+
+function incidentTopologyFocusNodeNum(inc: Incident): number | null {
+  const rt = (inc.resource_type || '').toLowerCase()
+  const rid = (inc.resource_id || '').trim()
+  if (rt === 'mesh_node' || rt === 'node') {
+    const n = parseInt(rid.replace(/\D/g, '') || '0', 10)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  for (const d of inc.intelligence?.implicated_domains ?? []) {
+    if ((d.domain || '').toLowerCase() !== 'mesh_topology') continue
+    for (const ref of d.evidence_refs ?? []) {
+      const m = /^node[:_]?(\d+)$/i.exec(ref.trim())
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (Number.isFinite(n) && n > 0) return n
+      }
+    }
+  }
+  return null
+}
+
+function InvestigationGuidePanel({ inc }: { inc: Incident }) {
+  const intel = inc.intelligence
+  if (!intel) return null
+
+  const topoNum = incidentTopologyFocusNodeNum(inc)
+  const evPosture = intel.wireless_context ? wirelessEvidencePostureLabel(intel.wireless_context.evidence_posture) : null
+  const confPosture = intel.wireless_context ? wirelessConfidencePostureLabel(intel.wireless_context.confidence_posture) : null
+  const gaps = [...(intel.sparsity_markers ?? []), ...(intel.wireless_context?.evidence_gaps ?? [])]
+  const inspectNext = intel.wireless_context?.inspect_next ?? []
+
+  return (
+    <Card data-testid="incident-investigation-guide">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Investigation guide (bounded)</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Deterministic checklist from stored intelligence — not automation or root-cause AI. Verify against transports, replay, and topology
+          before control actions.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-0">
+        <div className="flex flex-wrap gap-2 items-start">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-full sm:w-auto">Evidence posture</span>
+          <span title={evidenceStrengthLabel(intel.evidence_strength)} className="inline-flex">
+            <Badge variant={evidenceStrengthVariant(intel.evidence_strength)}>{intel.evidence_strength ?? 'unknown'} strength</Badge>
+          </span>
+          {intel.degraded && <Badge variant="warning">Degraded intel</Badge>}
+          {evPosture && <Badge variant={evPosture.variant}>{evPosture.label}</Badge>}
+          {confPosture && <Badge variant={confPosture.variant}>{confPosture.label}</Badge>}
+        </div>
+
+        {(intel.degraded_reasons?.length ?? 0) > 0 && (
+          <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs">
+            <p className="font-medium text-foreground">What not to assume</p>
+            <ul className="mt-1 list-disc pl-4 text-muted-foreground space-y-0.5">
+              {intel.degraded_reasons!.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {gaps.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-foreground mb-1">What remains missing / sparse</p>
+            <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+              {gaps.slice(0, 10).map((g, i) => (
+                <li key={i}>{g}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {inspectNext.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-foreground mb-1">Verify first (from wireless context)</p>
+            <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+              {inspectNext.slice(0, 6).map((x, i) => (
+                <li key={i}>{x}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
+          <Link
+            to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            Topology{topoNum != null ? ` (node ${topoNum})` : ''}
+          </Link>
+          <Link
+            to={`/planning?incident=${encodeURIComponent(inc.id)}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+          >
+            Planning
+          </Link>
+          <Link
+            to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+          >
+            Control queue
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 function filenameFromDisposition(cd: string | null, fallback: string): string {
@@ -1028,7 +1144,11 @@ export function IncidentDetail() {
             <div className="flex flex-wrap gap-1.5">
               {inc.state && <Badge variant={stateVariant(inc.state)}>{inc.state}</Badge>}
               {inc.severity && <Badge variant={severityVariant(inc.severity)}>{inc.severity}</Badge>}
-              {hasIntel && <Badge variant={evidenceStrengthVariant(intel.evidence_strength)}>{intel.evidence_strength} evidence</Badge>}
+              {hasIntel && (
+                <span title={evidenceStrengthLabel(intel.evidence_strength)} className="inline-flex">
+                  <Badge variant={evidenceStrengthVariant(intel.evidence_strength)}>{intel.evidence_strength} evidence</Badge>
+                </span>
+              )}
               {seenBefore && <Badge variant="warning">seen {intel!.signature_match_count}x</Badge>}
             </div>
           </div>
@@ -1062,6 +1182,8 @@ export function IncidentDetail() {
 
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
+
+      {hasIntel && <InvestigationGuidePanel inc={inc} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <WorkflowPanel inc={inc} onSaved={() => void load()} />
@@ -1187,7 +1309,12 @@ export function IncidentDetail() {
                   <div className="space-y-1.5">
                     {intel.investigate_next!.slice(0, 5).map((g) => (
                       <div key={g.id} className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
-                        <p className="font-medium text-foreground">{g.title}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">{g.title}</p>
+                          <span title={guidanceConfidenceLabel(g.confidence)} className="inline-flex">
+                            <Badge variant="outline">{g.confidence} confidence</Badge>
+                          </span>
+                        </div>
                         <p className="mt-0.5 text-muted-foreground">{g.rationale}</p>
                       </div>
                     ))}
@@ -1206,6 +1333,7 @@ export function IncidentDetail() {
                           <span className="font-medium text-foreground flex-1">{r.title}</span>
                           <Badge variant="outline">{toWords(r.strength)}</Badge>
                         </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground leading-snug">{runbookStrengthOperatorLabel(r.strength)}</p>
                         {r.rationale && <p className="mt-1 text-muted-foreground">{r.rationale}</p>}
                       </div>
                     ))}

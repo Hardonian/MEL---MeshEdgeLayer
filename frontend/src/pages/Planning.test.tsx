@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { Planning } from './Planning'
+
+function renderPlanning(path = '/planning') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Planning />
+    </MemoryRouter>,
+  )
+}
 
 interface PlanningScenario {
   evidenceModel?: string
@@ -73,11 +82,12 @@ describe('Planning', () => {
   })
 
   it('renders evidence-model uncertainty banner', async () => {
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-banner')).toBeTruthy()
     })
     expect(screen.getByTestId('planning-evidence-banner').textContent).toMatch(/inconclusive|Directional/i)
+    expect(screen.getByTestId('planning-decision-board')).toBeTruthy()
   })
 
   it('shows baseline-missing and directional caution semantics', async () => {
@@ -86,7 +96,7 @@ describe('Planning', () => {
       evidenceFlags: { baseline_missing: true, directional_only: true },
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -103,7 +113,7 @@ describe('Planning', () => {
       evidenceFlags: { confounded_same_assessment_context: true },
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -119,7 +129,7 @@ describe('Planning', () => {
       evidenceFlags: { topology_or_graph_drift_detected: true },
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -133,7 +143,7 @@ describe('Planning', () => {
       evidenceFlags: { directional_only: true, inconclusive: true },
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -150,7 +160,7 @@ describe('Planning', () => {
       evidenceFlags: { limited_confidence: true },
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-advisories-empty')).toBeTruthy()
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
@@ -169,7 +179,7 @@ describe('Planning', () => {
       advisories: [{ id: 'a-1', severity: 'warning', reason: 'partition-risk', summary: 'Potential fragility increase' }],
     })
 
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -184,7 +194,7 @@ describe('Planning', () => {
       evidenceFlags: {},
       evidenceModel: 'No baseline mesh assessment id was recorded and validation is directional.',
     })
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.getByTestId('planning-evidence-signals')).toBeTruthy()
     })
@@ -196,7 +206,7 @@ describe('Planning', () => {
       evidenceFlags: { baseline_missing: false, directional_only: false, inconclusive: false },
       evidenceModel: 'No baseline mesh assessment id was recorded and validation is directional.',
     })
-    render(<Planning />)
+    renderPlanning()
     await waitFor(() => {
       expect(screen.queryByTestId('planning-evidence-signals')).toBeNull()
     })

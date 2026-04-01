@@ -8,6 +8,7 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { KeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { useConsoleThemePreference } from '@/hooks/useConsoleThemePreference'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
+import { useStatus } from '@/hooks/useApi'
 import type { PlatformPosture } from '@/types/api'
 import {
   Server,
@@ -46,6 +47,7 @@ function stringifyValue(value: unknown): string | null {
 
 export function SettingsPage() {
   const version = useVersionInfo()
+  const status = useStatus()
   const { preference, setPreference } = useConsoleThemePreference()
   const [configInspect, setConfigInspect] = useState<{ values?: Record<string, unknown>; fingerprint?: string } | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
@@ -103,6 +105,8 @@ export function SettingsPage() {
         title="Settings"
         description="Console preferences (this browser), read-only configuration reference, and links to operator documentation."
       />
+
+      <RuntimeTruthStrip version={v} status={status.data} versionLoading={version.loading} statusLoading={status.loading} />
 
       {/* Quick Access */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -419,6 +423,99 @@ export function SettingsPage() {
         description="MEL reads settings from a JSON config file on the host. Edit that file and restart the process for changes to apply. This UI does not persist server configuration."
       />
     </div>
+  )
+}
+
+function RuntimeTruthStrip({
+  version,
+  status,
+  versionLoading,
+  statusLoading,
+}: {
+  version: import('@/types/api').VersionResponse | null | undefined
+  status: import('@/types/api').StatusResponse | null | undefined
+  versionLoading: boolean
+  statusLoading: boolean
+}) {
+  const topo = version?.topology_model_enabled === true
+  const transports = status?.transports ?? []
+  const anyLive = transports.some((t) => t.effective_state === 'connected' || t.runtime_state === 'live')
+  const anyConfigured = transports.length > 0
+  const schemaOk = version?.schema_matches_binary === true
+  const fp = version?.config_canonical_fingerprint
+
+  return (
+    <Card className="border-primary/15 bg-muted/20" data-testid="settings-runtime-truth-strip">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Monitor className="h-4 w-4" aria-hidden />
+          Runtime truth at a glance
+        </CardTitle>
+        <CardDescription>
+          What the connected API reports now — distinct from documented defaults. “Configured” is not the same as “yielding fresh evidence”.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {(versionLoading || statusLoading) && <p className="text-xs text-muted-foreground">Loading runtime endpoints…</p>}
+        {!versionLoading && !statusLoading && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Topology model</p>
+              <p className="mt-1 text-muted-foreground">
+                {version?.topology_model_enabled === undefined
+                  ? 'Unknown (older server — upgrade to expose topology_model_enabled)'
+                  : topo
+                    ? 'Enabled in running config — graph can update from ingest when transports deliver packets.'
+                    : 'Disabled — topology pages stay informative but the graph store is not active.'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Transports</p>
+              <p className="mt-1 text-muted-foreground">
+                {!anyConfigured && 'None configured — ingest cannot run until transports exist in config.'}
+                {anyConfigured &&
+                  (anyLive
+                    ? `${transports.length} configured; at least one connected/live — evidence can flow.`
+                    : `${transports.length} configured; none connected in this poll — evidence may be stale or idle.`)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Schema / config</p>
+              <p className="mt-1 text-muted-foreground">
+                Migrations:{' '}
+                {schemaOk ? (
+                  <span className="text-success">match binary</span>
+                ) : (
+                  <span className="text-warning">mismatch or unknown — check diagnostics</span>
+                )}
+                {fp && (
+                  <span className="block font-mono text-[10px] mt-0.5 text-muted-foreground/80 truncate" title={fp}>
+                    fingerprint {fp.slice(0, 16)}…
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Where to verify</p>
+              <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                <li>
+                  <a href="/status" className="text-primary font-medium hover:underline">
+                    Status
+                  </a>{' '}
+                  — per-transport effective_state and last_ingest
+                </li>
+                <li>
+                  <a href="/diagnostics" className="text-primary font-medium hover:underline">
+                    Diagnostics
+                  </a>{' '}
+                  — internal health signals
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
