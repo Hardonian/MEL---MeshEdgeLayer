@@ -13,6 +13,7 @@ import {
   operatorCanReadLinkedControlRows,
   resolvedIncidentActionVisibility,
 } from '@/utils/incidentOperatorTruth'
+import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -45,8 +46,8 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 function isOpenIncident(inc: Incident): boolean {
   const s = (inc.state || '').toLowerCase()
@@ -152,6 +153,16 @@ export function Incidents() {
   const { data, loading, error, refresh } = useIncidents()
   const ctx = useOperatorContext()
   const versionInfo = useVersionInfo()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusIncidentId = (searchParams.get('focus') || '').trim()
+
+  useEffect(() => {
+    if (!focusIncidentId) return
+    const el = document.getElementById(`mel-workbench-row-${focusIncidentId}`)
+    if (!el) return
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' })
+  }, [focusIncidentId, loading, data])
 
   if (loading && !data) {
     return <Loading message="Loading incidents..." />
@@ -196,18 +207,23 @@ export function Incidents() {
     exportPolicyUnknown: !versionInfo.loading && versionInfo.error != null && exportPosture == null,
     canReadLinkedActions,
   }
-  const proofpackExportBlocked =
-    exportPosture?.export_enabled === false ||
-    (!versionInfo.loading && versionInfo.error != null && exportPosture == null)
-  const proofpackExportBlockedReason =
-    exportPosture?.export_enabled === false
-      ? 'Instance policy disables evidence export — use plain handoff from incident detail; proofpack would likely fail.'
-      : versionInfo.error != null && exportPosture == null
-        ? `Export policy unknown (${versionInfo.error}) — confirm Settings before proofpack.`
-        : undefined
+  const exportReadiness = operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null)
+  const proofpackExportBlocked = exportReadiness.semantic === 'policy_limited' || exportReadiness.semantic === 'unknown_partial'
+  const proofpackExportBlockedReason = exportReadiness.summary
 
   const { needsAttention, backlog } = partitionOpenIncidentsForWorkbench(incidents, workbenchWhyCtx)
   const openSortedFull = sortOpenIncidentsForShiftStart(openIncidents, workbenchWhyCtx)
+
+  const clearFocusParam = () => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev)
+        n.delete('focus')
+        return n
+      },
+      { replace: true },
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -238,6 +254,36 @@ export function Incidents() {
           Version / export policy not loaded ({versionInfo.error}). Queue “why” lines may omit export gates — confirm under Settings before
           choosing proofpack or escalation.
         </p>
+      )}
+
+      {!versionInfo.loading && (
+        <div
+          className={clsx(
+            'rounded-xl border px-3 py-2.5 text-xs',
+            exportReadiness.semantic === 'available'
+              ? 'border-success/25 bg-success/5 text-muted-foreground'
+              : exportReadiness.semantic === 'policy_limited'
+                ? 'border-critical/30 bg-critical/5 text-foreground'
+                : 'border-warning/25 bg-warning/5 text-foreground',
+          )}
+          role="status"
+          aria-live="polite"
+          data-testid="workbench-export-readiness"
+        >
+          <span className="font-semibold text-foreground">Export / bundle readiness: </span>
+          {exportReadiness.summary}
+        </div>
+      )}
+
+      {focusIncidentId && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-info/25 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+          <span>
+            Returned to workbench row <span className="font-mono text-foreground">{focusIncidentId.slice(0, 14)}…</span>
+          </span>
+          <button type="button" onClick={clearFocusParam} className="text-primary font-semibold hover:underline min-h-[44px] sm:min-h-0 px-1">
+            Clear highlight
+          </button>
+        </div>
       )}
 
       {!canHandoff && !ctx.loading && (
@@ -277,6 +323,7 @@ export function Incidents() {
       ) : (
         <div className="space-y-4">
           <div
+            id="mel-incident-workbench"
             className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
             data-testid="incident-workbench-strip"
           >
@@ -323,6 +370,8 @@ export function Incidents() {
                     workbenchWhyContext={workbenchWhyCtx}
                     proofpackExportBlocked={proofpackExportBlocked}
                     proofpackExportBlockedReason={proofpackExportBlockedReason}
+                    workbenchSection="needs"
+                    workbenchHighlight={focusIncidentId === inc.id}
                   />
                 ))}
               </div>
@@ -348,6 +397,8 @@ export function Incidents() {
                     workbenchWhyContext={workbenchWhyCtx}
                     proofpackExportBlocked={proofpackExportBlocked}
                     proofpackExportBlockedReason={proofpackExportBlockedReason}
+                    workbenchSection="backlog"
+                    workbenchHighlight={focusIncidentId === inc.id}
                   />
                 ))}
               </div>
@@ -365,6 +416,8 @@ export function Incidents() {
                   workbenchWhyContext={workbenchWhyCtx}
                   proofpackExportBlocked={proofpackExportBlocked}
                   proofpackExportBlockedReason={proofpackExportBlockedReason}
+                  workbenchSection="open"
+                  workbenchHighlight={focusIncidentId === inc.id}
                 />
               ))}
             </div>
@@ -479,6 +532,8 @@ function IncidentCard({
   workbenchWhyContext,
   proofpackExportBlocked,
   proofpackExportBlockedReason,
+  workbenchSection,
+  workbenchHighlight,
 }: {
   incident: Incident
   muted?: boolean
@@ -487,6 +542,8 @@ function IncidentCard({
   workbenchWhyContext?: IncidentWorkQueueWhyContext
   proofpackExportBlocked?: boolean
   proofpackExportBlockedReason?: string
+  workbenchSection?: 'needs' | 'backlog' | 'open'
+  workbenchHighlight?: boolean
 }) {
   void canMutate // reserved for future mutation controls
   const [expanded, setExpanded] = useState(!muted)
@@ -506,11 +563,19 @@ function IncidentCard({
   const severityVariant = inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'
   const stateVariant = inc.state === 'resolved' || inc.state === 'closed' ? 'success' : 'outline'
 
+  const workbenchReturn =
+    !muted && workbenchSection
+      ? `/incidents?focus=${encodeURIComponent(inc.id)}&section=${encodeURIComponent(workbenchSection)}`
+      : '/incidents'
+  const incidentDetailReturnPath = `/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}`
+
   return (
     <Card
+      id={!muted ? `mel-workbench-row-${inc.id}` : undefined}
       className={clsx(
         muted && 'opacity-75',
-        'transition-shadow hover:shadow-[0_20px_48px_-28px_hsl(var(--shell-shadow)/0.5)]'
+        'transition-shadow hover:shadow-[0_20px_48px_-28px_hsl(var(--shell-shadow)/0.5)]',
+        workbenchHighlight && 'ring-2 ring-info/40 border-info/30',
       )}
     >
       {/* Header stripe */}
@@ -524,9 +589,9 @@ function IncidentCard({
             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1 font-mono">
                 <Link2 className="h-3 w-3" />
-                <a href={`/incidents/${encodeURIComponent(inc.id)}`} className="hover:underline">
+                <Link to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}`} className="hover:underline">
                   {inc.id.slice(0, 12)}
-                </a>
+                </Link>
               </span>
               {inc.occurred_at && (
                 <span className="inline-flex items-center gap-1">
@@ -598,7 +663,7 @@ function IncidentCard({
               </span>
             )}
             <Link
-              to={`/incidents/${inc.id}`}
+              to={`/incidents/${inc.id}?return=${encodeURIComponent(workbenchReturn)}`}
               className="ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline min-h-[44px] sm:min-h-0 px-1 touch-manipulation"
               title="Open incident detail page"
             >
@@ -649,42 +714,42 @@ function IncidentCard({
         {!muted && (
           <div className="flex flex-wrap gap-2" role="navigation" aria-label="Incident shortcuts">
             <Link
-              to={`/incidents/${encodeURIComponent(inc.id)}#mel-investigation-path`}
+              to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}#mel-investigation-path`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Compass className="h-3 w-3 shrink-0" aria-hidden />
               Path
             </Link>
             <Link
-              to={`/incidents/${encodeURIComponent(inc.id)}?replay=1`}
+              to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}&replay=1`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Activity className="h-3 w-3 shrink-0" aria-hidden />
               Replay
             </Link>
             <Link
-              to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`}
+              to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <GitBranch className="h-3 w-3 shrink-0" aria-hidden />
               Topology{topoNum != null ? ` ${topoNum}` : ''}
             </Link>
             <Link
-              to={`/planning?incident=${encodeURIComponent(inc.id)}`}
+              to={`/planning?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <ClipboardList className="h-3 w-3 shrink-0" aria-hidden />
               Planning
             </Link>
             <Link
-              to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+              to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Zap className="h-3 w-3 shrink-0" aria-hidden />
               Controls
             </Link>
             <Link
-              to={`/incidents/${encodeURIComponent(inc.id)}#shift-continuity-handoff`}
+              to={`${incidentDetailReturnPath}#shift-continuity-handoff`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Download className="h-3 w-3 shrink-0" aria-hidden />

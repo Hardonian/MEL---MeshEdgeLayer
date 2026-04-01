@@ -59,4 +59,10 @@ func TestBuildPostureInferenceDegradedWhenEnabledWithoutReadyProvider(t *testing
 	if p.InferenceCaveat == "" {
 		t.Fatalf("expected inference caveat text")
 	}
+	if p.OperatorIntelligence.AssistiveInferenceLayer != "unavailable_not_configured" {
+		t.Fatalf("assist layer: got %q", p.OperatorIntelligence.AssistiveInferenceLayer)
+	}
+	if p.OperatorIntelligence.RemoteAssistSupported {
+		t.Fatal("expected remote assist unsupported in base posture")
+	}
 }

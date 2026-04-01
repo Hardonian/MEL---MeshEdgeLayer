@@ -25,6 +25,17 @@ export interface VersionResponse {
   platform_posture?: PlatformPosture
 }
 
+export interface OperatorIntelligencePosture {
+  deterministic_incident_intel: string
+  deterministic_basis: string
+  telemetry_outbound: boolean
+  telemetry_require_explicit_opt_in: boolean
+  assistive_inference_layer: string
+  assist_non_canonical_truth: boolean
+  remote_assist_supported: boolean
+  review_recommended_for_assist_output: boolean
+}
+
 export interface PlatformPosture {
   mode: string
   telemetry_enabled: boolean
@@ -45,6 +56,10 @@ export interface PlatformPosture {
     delete_caveat?: string
   }
   inference_enabled: boolean
+  inference_runtime_ready?: boolean
+  inference_degraded?: boolean
+  inference_caveat?: string
+  export_redaction_enabled?: boolean
   inference_providers: Array<{
     name: string
     enabled: boolean
@@ -64,6 +79,7 @@ export interface PlatformPosture {
     context_token_budget: number
     non_canonical_truth: boolean
   }>
+  operator_intelligence_posture?: OperatorIntelligencePosture
 }
 
 /** Honest capability envelope for this build (backend internal/runtime). */
@@ -304,6 +320,35 @@ export interface IncidentIntelligence {
   replay_hints?: IncidentReplayHints
   learning_loop_hints?: string[]
   generated_at?: string
+  mesh_routing_companion?: MeshRoutingIntelCompanion
+  operator_suggested_actions?: OperatorSuggestedAction[]
+}
+
+export interface MeshRoutingIntelCompanion {
+  applicable: boolean
+  reason?: string
+  topology_enabled?: boolean
+  transport_connected?: boolean
+  assessment_computed_at?: string
+  graph_hash?: string
+  evidence_model?: string
+  message_window_description?: string
+  routing_summary_lines?: string[]
+  suspected_relay_hotspot?: boolean
+  weak_onward_propagation_suspected?: boolean
+  hop_budget_stress_suspected?: boolean
+  suggested_topology_search?: string
+}
+
+export interface OperatorSuggestedAction {
+  id: string
+  title: string
+  rationale: string
+  evidence_refs?: string[]
+  uncertainty?: string
+  href?: string
+  kind: string
+  disable_hint?: string
 }
 
 export interface IncidentFingerprint {

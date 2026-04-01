@@ -253,6 +253,12 @@ async function fetchTopologyJson<T>(path: string, signal: AbortSignal, label: st
 
 type NodeFilterId = 'all' | 'stale' | 'degraded' | 'risky' | 'no_map_coords' | 'changed_since_visit' | 'incident_focus' | 'transport_scoped'
 
+function withReturnParam(targetPath: string, returnPath: string): string {
+  if (!returnPath.startsWith('/')) return targetPath
+  const joiner = targetPath.includes('?') ? '&' : '?'
+  return `${targetPath}${joiner}return=${encodeURIComponent(returnPath)}`
+}
+
 export function Topology() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [intel, setIntel] = useState<Intelligence | null>(null)
@@ -307,6 +313,7 @@ export function Topology() {
   }, [load])
 
   const incidentIdParam = (searchParams.get('incident') || '').trim()
+  const returnParam = (searchParams.get('return') || '').trim()
   const selectParam = searchParams.get('select')
   const selectedFromUrl = selectParam != null && selectParam !== '' ? Number(selectParam) : null
 
@@ -656,25 +663,32 @@ export function Topology() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
             <GitBranch className="h-6 w-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight">Topology</h1>
             <p className="text-sm text-muted-foreground">
               Graph from stored links (packet relay / destination fields). Not a geographic or RF map unless coordinates are present.
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-background hover:bg-muted text-sm"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {returnParam.startsWith('/') && (
+            <Link to={returnParam} className="text-sm font-semibold text-primary hover:underline">
+              ← Back
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-background hover:bg-muted text-sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {err && (
@@ -693,7 +707,10 @@ export function Topology() {
           {incidentErr && (
             <p className="text-warning">
               Incident context: {incidentErr}{' '}
-              <Link to={`/incidents/${encodeURIComponent(incidentIdParam)}`} className="text-primary font-medium hover:underline">
+              <Link
+                to={withReturnParam(`/incidents/${encodeURIComponent(incidentIdParam)}`, returnParam)}
+                className="text-primary font-medium hover:underline"
+              >
                 Open incident
               </Link>
             </p>
@@ -702,7 +719,7 @@ export function Topology() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="font-medium text-foreground">Focused for incident</span>
               <Link
-                to={`/incidents/${encodeURIComponent(incidentCtx.id)}`}
+                to={withReturnParam(`/incidents/${encodeURIComponent(incidentCtx.id)}`, returnParam)}
                 className="inline-flex items-center gap-1 text-primary font-medium hover:underline"
               >
                 {incidentCtx.title || incidentCtx.id.slice(0, 12)}
@@ -712,7 +729,7 @@ export function Topology() {
                 {incidentCtx.resource_type || '—'} / {incidentCtx.resource_id || '—'}
               </span>
               <Link
-                to={`/planning?incident=${encodeURIComponent(incidentCtx.id)}`}
+                to={withReturnParam(`/planning?incident=${encodeURIComponent(incidentCtx.id)}`, returnParam)}
                 className="text-primary hover:underline font-medium"
               >
                 Planning (same incident) →

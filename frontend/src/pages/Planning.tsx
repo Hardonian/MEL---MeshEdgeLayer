@@ -89,6 +89,12 @@ interface AdvisoryAlertsResponse {
   evidence_flags?: PlanningEvidenceFlags
 }
 
+function withReturnParam(targetPath: string, returnPath: string): string {
+  if (!returnPath.startsWith('/')) return targetPath
+  const joiner = targetPath.includes('?') ? '&' : '?'
+  return `${targetPath}${joiner}return=${encodeURIComponent(returnPath)}`
+}
+
 interface PlanComparison {
   compared_ids: string[]
   ranked_by_upside: Array<{
@@ -288,6 +294,7 @@ function planningDecisionBoard(bundle: PlanningBundle, evidenceSignals: Evidence
 export function Planning() {
   const [searchParams] = useSearchParams()
   const incidentIdParam = (searchParams.get('incident') || '').trim()
+  const returnParam = (searchParams.get('return') || '').trim()
   const [incidentCtx, setIncidentCtx] = useState<Incident | null>(null)
   const [incidentErr, setIncidentErr] = useState<string | null>(null)
 
@@ -458,7 +465,10 @@ export function Planning() {
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>
                 Planning with incident context:{' '}
-                <Link to={`/incidents/${encodeURIComponent(incidentCtx.id)}`} className="font-medium text-primary hover:underline">
+                <Link
+                  to={withReturnParam(`/incidents/${encodeURIComponent(incidentCtx.id)}`, returnParam)}
+                  className="font-medium text-primary hover:underline"
+                >
                   {incidentCtx.title || incidentCtx.id.slice(0, 12)}
                 </Link>
               </span>
@@ -466,7 +476,7 @@ export function Planning() {
                 ·
               </span>
               <Link
-                to={`/incidents/${encodeURIComponent(incidentCtx.id)}?replay=1`}
+                to={withReturnParam(`/incidents/${encodeURIComponent(incidentCtx.id)}?replay=1`, returnParam)}
                 className="font-medium text-primary hover:underline"
               >
                 Replay
@@ -475,7 +485,7 @@ export function Planning() {
                 ·
               </span>
               <Link
-                to={`/topology?incident=${encodeURIComponent(incidentCtx.id)}&filter=incident_focus`}
+                to={withReturnParam(`/topology?incident=${encodeURIComponent(incidentCtx.id)}&filter=incident_focus`, returnParam)}
                 className="font-medium text-primary hover:underline"
               >
                 Topology focus
@@ -484,7 +494,7 @@ export function Planning() {
                 ·
               </span>
               <Link
-                to={`/control-actions?incident=${encodeURIComponent(incidentCtx.id)}`}
+                to={withReturnParam(`/control-actions?incident=${encodeURIComponent(incidentCtx.id)}`, returnParam)}
                 className="font-medium text-primary hover:underline"
               >
                 Control queue
@@ -506,14 +516,21 @@ export function Planning() {
           title="Deployment planning"
           description="Next-step moves, resilience, and playbooks from observed mesh evidence. Not RF coverage simulation."
         />
-        <button
-          type="button"
-          onClick={() => setDenseLayout((d) => !d)}
-          className="shrink-0 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
-          aria-pressed={denseLayout}
-        >
-          {denseLayout ? 'Comfortable layout' : 'Dense layout'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {returnParam.startsWith('/') && (
+            <Link to={returnParam} className="text-xs font-semibold text-primary hover:underline px-1">
+              ← Back
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setDenseLayout((d) => !d)}
+            className="shrink-0 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
+            aria-pressed={denseLayout}
+          >
+            {denseLayout ? 'Comfortable layout' : 'Dense layout'}
+          </button>
+        </div>
       </div>
 
       <Card className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>

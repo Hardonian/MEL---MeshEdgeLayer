@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+
+function withReturnParam(targetPath: string, returnPath: string): string {
+  if (!returnPath.startsWith('/')) return targetPath
+  const joiner = targetPath.includes('?') ? '&' : '?'
+  return `${targetPath}${joiner}return=${encodeURIComponent(returnPath)}`
+}
 import { useControlActions } from '@/hooks/useControlActions'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -37,6 +43,7 @@ const LIFECYCLE_FILTERS = [
 export function ControlActions() {
   const [searchParams] = useSearchParams()
   const incidentFromUrl = (searchParams.get('incident') || '').trim()
+  const returnParam = (searchParams.get('return') || '').trim()
   const [filter, setFilter] = useState('')
   const { data, loading, error, refresh } = useControlActions(filter)
   const ctx = useOperatorContext()
@@ -100,11 +107,19 @@ export function ControlActions() {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/15 px-4 py-2.5 text-sm">
           <span className="text-muted-foreground">Filtered to incident</span>
           <code className="font-mono text-xs bg-muted/40 px-2 py-0.5 rounded">{incidentFromUrl}</code>
-          <Link to="/control-actions" className="text-xs font-semibold text-primary hover:underline">
+          <Link
+            to={returnParam.startsWith('/') ? `/control-actions?return=${encodeURIComponent(returnParam)}` : '/control-actions'}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
             Clear filter
           </Link>
+          {returnParam.startsWith('/') && (
+            <Link to={returnParam} className="text-xs font-semibold text-primary hover:underline">
+              ← Back
+            </Link>
+          )}
           <Link
-            to={`/incidents/${encodeURIComponent(incidentFromUrl)}`}
+            to={withReturnParam(`/incidents/${encodeURIComponent(incidentFromUrl)}`, returnParam)}
             className="text-xs font-semibold text-muted-foreground hover:text-foreground ml-auto"
           >
             Open incident →

@@ -22,6 +22,7 @@ import {
   GitBranch,
   Circle,
   History,
+  ArrowRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -49,6 +50,7 @@ import {
   incidentMemoryDecisionCue,
   operatorCanReadLinkedControlRows,
 } from '@/utils/incidentOperatorTruth'
+import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -414,7 +416,101 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
   )
 }
 
-function InvestigationPathPanel({ inc }: { inc: Incident }) {
+function MeshRoutingCompanionStrip({ inc }: { inc: Incident }) {
+  const c = inc.intelligence?.mesh_routing_companion
+  if (!c?.applicable) return null
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
+      role="region"
+      aria-label="Mesh routing pressure companion"
+    >
+      <p className="font-semibold text-foreground mb-1">Mesh ingest routing pressure (companion)</p>
+      <p className="leading-snug mb-2">
+        From latest mesh intelligence snapshot — observability proxies only, not RF or live path proof. Assessment at{' '}
+        <span className="font-mono text-foreground">{c.assessment_computed_at || '—'}</span>
+        {c.transport_connected === false && ' · transport was disconnected when computed (may be stale).'}
+      </p>
+      {(c.suspected_relay_hotspot || c.weak_onward_propagation_suspected || c.hop_budget_stress_suspected) && (
+        <ul className="list-disc pl-4 space-y-0.5 mb-2 text-foreground">
+          {c.suspected_relay_hotspot && <li>Suspected relay / duplicate-forward hotspot (message-field proxy)</li>}
+          {c.weak_onward_propagation_suspected && <li>Weak onward propagation in observed graph edges (proxy)</li>}
+          {c.hop_budget_stress_suspected && <li>Hop-limit stress in recent message rollup (proxy)</li>}
+        </ul>
+      )}
+      {c.routing_summary_lines && c.routing_summary_lines.length > 0 && (
+        <ul className="list-disc pl-4 space-y-0.5">
+          {c.routing_summary_lines.slice(0, 4).map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {c.suggested_topology_search && (
+        <p className="mt-2">
+          <Link
+            to={`/topology?${c.suggested_topology_search}`}
+            className="font-semibold text-primary hover:underline"
+          >
+            Open topology with same incident focus →
+          </Link>
+        </p>
+      )}
+    </div>
+  )
+}
+
+function OperatorSuggestedActionsPanel({ inc }: { inc: Incident }) {
+  const acts = inc.intelligence?.operator_suggested_actions
+  if (!acts?.length) return null
+  return (
+    <Card id="mel-operator-suggested-actions" className="scroll-mt-20" data-testid="operator-suggested-actions">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Deterministic next checks</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Reviewable links from persisted evidence — not ranked black-box recommendations. Turn off inference in Settings if you want assist
+          disabled; deterministic incident intelligence remains on the server.
+        </p>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-2">
+        <ol className="space-y-2">
+          {acts.map((a, idx) => (
+            <li key={a.id} className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-sm">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="text-[11px] font-mono text-muted-foreground">{idx + 1}.</span>
+                <span className="font-medium text-foreground">{a.title}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {a.kind.replace(/_/g, ' ')}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 leading-snug">{a.rationale}</p>
+              {a.uncertainty && (
+                <p className="text-[11px] text-warning mt-1 border-l-2 border-warning/30 pl-2">{a.uncertainty}</p>
+              )}
+              {a.evidence_refs && a.evidence_refs.length > 0 && (
+                <p className="text-[10px] font-mono text-muted-foreground/80 mt-1 break-all">
+                  {a.evidence_refs.join(' · ')}
+                </p>
+              )}
+              {a.href && (
+                <div className="mt-2">
+                  <Link
+                    to={a.href}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1 min-h-[44px] sm:min-h-0"
+                  >
+                    Open
+                    <ArrowRight className="h-3 w-3" aria-hidden />
+                  </Link>
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: string }) {
   const ctx = useOperatorContext()
   const canReadLinked = operatorCanReadLinkedControlRows({
     loading: ctx.loading,
@@ -427,6 +523,8 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
   const intel = inc.intelligence
   const gaps =
     (intel?.wireless_context?.evidence_gaps?.length ?? 0) + (intel?.sparsity_markers?.length ?? 0) > 0
+  const rt = encodeURIComponent(returnTo)
+  const here = `/incidents/${encodeURIComponent(inc.id)}?return=${rt}`
 
   const controlStepDetail =
     actionVis.kind === 'linked_observed'
@@ -457,7 +555,7 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
     {
       label: 'Replay / timeline',
       detail: 'Merged chronology — filter by control, workflow, or evidence classes.',
-      href: `/incidents/${encodeURIComponent(inc.id)}?replay=1`,
+      href: `${here}&replay=1`,
       samePage: false,
       emphasize: gaps,
     },
@@ -467,14 +565,14 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
         topoNum != null
           ? `Graph around node ${topoNum} from resource / implicated domains — not an RF map.`
           : 'Incident-scoped nodes when the record references topology evidence.',
-      href: `/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`,
+      href: `/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${rt}`,
       samePage: false,
       emphasize: topoNum != null,
     },
     {
       label: 'Planning board',
       detail: 'Resilience bounds from stored topology — same incident context.',
-      href: `/planning?incident=${encodeURIComponent(inc.id)}`,
+      href: `/planning?incident=${encodeURIComponent(inc.id)}&return=${rt}`,
       samePage: false,
       emphasize: false,
     },
@@ -535,7 +633,7 @@ function InvestigationPathPanel({ inc }: { inc: Incident }) {
   )
 }
 
-function InvestigationGuidePanel({ inc }: { inc: Incident }) {
+function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: string }) {
   const intel = inc.intelligence
   if (!intel) return null
 
@@ -600,27 +698,27 @@ function InvestigationGuidePanel({ inc }: { inc: Incident }) {
 
         <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
           <Link
-            to={`/incidents/${encodeURIComponent(inc.id)}?replay=1`}
+            to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}&replay=1`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
             <Activity className="h-3.5 w-3.5" />
             Replay / timeline
           </Link>
           <Link
-            to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`}
+            to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
             <GitBranch className="h-3.5 w-3.5" />
             Topology{topoNum != null ? ` (node ${topoNum})` : ''}
           </Link>
           <Link
-            to={`/planning?incident=${encodeURIComponent(inc.id)}`}
+            to={`/planning?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
             Planning
           </Link>
           <Link
-            to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+            to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
             Control queue
@@ -709,7 +807,7 @@ function ProofpackButton({
 
 // ─── Proofpack completeness panel ─────────────────────────────────────────────
 
-function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
+function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo: string }) {
   const ctx = useOperatorContext()
   const { data: ctrlData, refresh: refreshCtrl } = useControlStatus()
   const linked = useMemo(() => inc.linked_control_actions ?? [], [inc.linked_control_actions])
@@ -779,7 +877,7 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
             : 'Your session may lack read_actions — open the control queue with appropriate credentials to see incident-linked rows.'}
         </p>
         <Link
-          to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+          to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
           className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
         >
           Control queue (filtered) →
@@ -801,7 +899,7 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
           Control actions linked to this incident
         </div>
         <Link
-          to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+          to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
           className="text-[11px] font-semibold text-primary hover:underline"
         >
           Full queue →
@@ -846,7 +944,13 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">Awaiting approval</p>
               <ul className="space-y-2">
                 {groupedSorted.awaiting.map((a) => (
-                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                  <LinkedActionRow
+                    key={a.id}
+                    incidentId={inc.id}
+                    action={a}
+                    matrixRow={matrixRowFor(a.action_type)}
+                    returnAfterQueue={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`}
+                  />
                 ))}
               </ul>
             </div>
@@ -856,7 +960,13 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-info mb-1.5">Queued / executing</p>
               <ul className="space-y-2">
                 {groupedSorted.inFlight.map((a) => (
-                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                  <LinkedActionRow
+                    key={a.id}
+                    incidentId={inc.id}
+                    action={a}
+                    matrixRow={matrixRowFor(a.action_type)}
+                    returnAfterQueue={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`}
+                  />
                 ))}
               </ul>
             </div>
@@ -866,7 +976,13 @@ function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Completed / terminal</p>
               <ul className="space-y-2">
                 {groupedSorted.done.map((a) => (
-                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                  <LinkedActionRow
+                    key={a.id}
+                    incidentId={inc.id}
+                    action={a}
+                    matrixRow={matrixRowFor(a.action_type)}
+                    returnAfterQueue={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`}
+                  />
                 ))}
               </ul>
             </div>
@@ -881,6 +997,7 @@ function LinkedActionRow({
   incidentId,
   action: a,
   matrixRow,
+  returnAfterQueue,
 }: {
   incidentId: string
   action: ControlActionRecord
@@ -891,6 +1008,7 @@ function LinkedActionRow({
     advisory_only?: boolean
     actuator_exists?: boolean
   }
+  returnAfterQueue: string
 }) {
   const phase = controlActionExecPhase(a)
   const rev = matrixRow?.reversible === true ? 'Reversible (policy matrix)' : matrixRow?.reversible === false ? 'Treat as hard to reverse' : null
@@ -931,7 +1049,7 @@ function LinkedActionRow({
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <Link
-          to={`/control-actions?incident=${encodeURIComponent(incidentId)}`}
+          to={`/control-actions?incident=${encodeURIComponent(incidentId)}&return=${encodeURIComponent(returnAfterQueue)}`}
           className="text-[11px] font-semibold text-primary hover:underline"
         >
           Open in queue
@@ -951,16 +1069,9 @@ function LinkedActionRow({
 
 function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
   const versionInfo = useVersionInfo()
-  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
-  const exportBlocked =
-    exportPosture?.export_enabled === false ||
-    (!versionInfo.loading && versionInfo.error != null && exportPosture == null)
-  const exportBlockedReason =
-    exportPosture?.export_enabled === false
-      ? 'Incident evidence export disabled by instance policy — proofpack may be blocked; use plain handoff where allowed.'
-      : versionInfo.error != null && exportPosture == null
-        ? `Could not load version / export policy (${versionInfo.error}) — proofpack may fail; confirm in Settings before relying on export.`
-        : undefined
+  const er = operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null)
+  const exportBlocked = er.semantic === 'policy_limited' || er.semantic === 'unknown_partial'
+  const exportBlockedReason = er.summary
 
   const trace = inc.intelligence?.action_outcome_trace
   const wirelessGaps = inc.intelligence?.wireless_context?.evidence_gaps ?? []
@@ -1549,7 +1660,7 @@ function buildHandoffExportText(inc: Incident): string {
   return lines.join('\n')
 }
 
-function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void }) {
+function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () => void; returnTo: string }) {
   const ctx = useOperatorContext()
   const { addToast } = useToast()
   const [reviewState, setReviewState] = useState(inc.review_state || 'open')
@@ -1646,7 +1757,7 @@ function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void })
             {saving ? 'Saving…' : 'Save workflow'}
           </button>
           <Link
-            to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+            to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-muted/50"
           >
             <Zap className="h-3.5 w-3.5" />
@@ -1673,9 +1784,9 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
   const jsonText = JSON.stringify(structured, null, 2)
   const [escState, setEscState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [escErr, setEscErr] = useState('')
-  const exportPosture = versionInfo.data?.platform_posture?.evidence_export_delete
-  const exportBlockedByPolicy = exportPosture?.export_enabled === false
-  const policyUnknown = !versionInfo.loading && versionInfo.error != null && exportPosture == null
+  const er = operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null)
+  const exportBlockedByPolicy = er.semantic === 'policy_limited'
+  const policyUnknown = er.semantic === 'unknown_partial'
   const escalationLikelyBlocked = exportBlockedByPolicy || policyUnknown
 
   async function downloadEscalationBundle() {
@@ -1726,17 +1837,19 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
             Version / policy fetch failed ({versionInfo.error}). Export gates may be unknown — prefer plain handoff until Settings loads.
           </p>
         )}
-        {!versionInfo.loading && exportPosture && (
+        {!versionInfo.loading && (
           <div
             className="rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-[11px] text-muted-foreground"
             role="status"
           >
             <span className="font-semibold text-foreground">This instance: </span>
-            {exportPosture.export_enabled === false ? (
+            {er.semantic === 'policy_limited' ? (
               <span className="text-warning">
                 Incident evidence export disabled by policy — escalation bundle and proofpack may be blocked; use plain handoff where
                 allowed.
               </span>
+            ) : er.semantic === 'unknown_partial' ? (
+              <span className="text-warning">{er.summary}</span>
             ) : (
               <span>
                 Export/delete policy is active — scope and caveats live under Settings (runtime truth). Review{' '}
@@ -1851,6 +1964,15 @@ export function IncidentDetail() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { setFocus: setWorkspaceFocus } = useOperatorWorkspaceFocus()
+  const versionInfo = useVersionInfo()
+
+  const returnToWorkbench = useMemo(() => {
+    const raw = (searchParams.get('return') || '').trim()
+    if (raw.startsWith('/')) return raw
+    return id ? `/incidents?focus=${encodeURIComponent(id)}` : '/incidents'
+  }, [searchParams, id])
+
+  const exportReadiness = operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null)
 
   const [inc, setInc] = useState<Incident | null>(null)
   const [replay, setReplay] = useState<ReplayView | null>(null)
@@ -1937,8 +2059,8 @@ export function IncidentDetail() {
   if (error) {
     return (
       <div className="p-8 max-w-2xl mx-auto space-y-4">
-        <Link to="/incidents" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to incidents
+        <Link to={returnToWorkbench} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Back to workbench
         </Link>
         <AlertCard variant="critical" title="Could not load incident" description={error} action={
           <button type="button" onClick={() => void load()} className="button-secondary text-xs">Retry</button>
@@ -1961,14 +2083,14 @@ export function IncidentDetail() {
       <div className="flex items-center gap-3 flex-wrap">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(returnToWorkbench)}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back
+          Back to workbench
         </button>
-        <Link to="/incidents" className="text-sm text-muted-foreground hover:text-foreground">
-          All incidents
+        <Link to={returnToWorkbench} className="text-sm text-muted-foreground hover:text-foreground">
+          Workbench
         </Link>
         <span className="text-muted-foreground/40">/</span>
         <span className="text-sm text-foreground font-mono truncate max-w-[200px]">{inc.id.slice(0, 16)}…</span>
@@ -1981,6 +2103,25 @@ export function IncidentDetail() {
           Refresh
         </button>
       </div>
+
+      {!versionInfo.loading && (
+        <div
+          className={clsx(
+            'rounded-xl border px-3 py-2.5 text-xs',
+            exportReadiness.semantic === 'available'
+              ? 'border-success/25 bg-success/5 text-muted-foreground'
+              : exportReadiness.semantic === 'policy_limited'
+                ? 'border-critical/30 bg-critical/5 text-foreground'
+                : 'border-warning/25 bg-warning/5 text-foreground',
+          )}
+          role="status"
+          aria-live="polite"
+          data-testid="incident-export-readiness"
+        >
+          <span className="font-semibold text-foreground">Export / bundle readiness: </span>
+          {exportReadiness.summary}
+        </div>
+      )}
 
       {/* Header card */}
       <Card id="incident-operational-summary" className="scroll-mt-20">
@@ -2044,19 +2185,23 @@ export function IncidentDetail() {
         </CardContent>
       </Card>
 
-      <InvestigationPathPanel inc={inc} />
+      <InvestigationPathPanel inc={inc} returnTo={returnToWorkbench} />
+
+      <MeshRoutingCompanionStrip inc={inc} />
+
+      <OperatorSuggestedActionsPanel inc={inc} />
 
       <OperationalMemoryPanel inc={inc} />
 
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
 
-      <LinkedControlActionsPanel inc={inc} />
+      <LinkedControlActionsPanel inc={inc} returnTo={returnToWorkbench} />
 
-      {hasIntel && <InvestigationGuidePanel inc={inc} />}
+      {hasIntel && <InvestigationGuidePanel inc={inc} returnTo={returnToWorkbench} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <WorkflowPanel inc={inc} onSaved={() => void load()} />
+        <WorkflowPanel inc={inc} onSaved={() => void load()} returnTo={returnToWorkbench} />
         <HandoffExportPanel inc={inc} />
       </div>
 
@@ -2121,7 +2266,7 @@ export function IncidentDetail() {
                   </div>
                 ))}
                 <Link
-                  to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+                  to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnToWorkbench)}`)}`}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                 >
                   View control actions for this incident →
