@@ -24,6 +24,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { controlActionExecPhase } from '@/utils/controlActionPhase'
 
 const LIFECYCLE_FILTERS = [
   { value: '', label: 'All' },
@@ -32,20 +33,6 @@ const LIFECYCLE_FILTERS = [
   { value: 'running', label: 'Executing' },
   { value: 'completed', label: 'Completed' },
 ]
-
-function execPhase(a: ControlActionRecord): { label: string; variant: 'warning' | 'info' | 'success' | 'critical' | 'secondary' } {
-  const ls = (a.lifecycle_state || '').toLowerCase()
-  const res = (a.result || '').toLowerCase()
-  if (ls === 'pending_approval') return { label: 'Awaiting approval', variant: 'warning' }
-  if (ls === 'pending' && res === 'approved') return { label: 'Approved, queued', variant: 'info' }
-  if (ls === 'running') return { label: 'Executing', variant: 'info' }
-  if (ls === 'completed') {
-    if (res === 'rejected') return { label: 'Rejected', variant: 'critical' }
-    if (res.includes('failed')) return { label: 'Failed', variant: 'critical' }
-    return { label: 'Finished', variant: 'success' }
-  }
-  return { label: a.lifecycle_state || 'Unknown', variant: 'secondary' }
-}
 
 export function ControlActions() {
   const [searchParams] = useSearchParams()
@@ -165,7 +152,7 @@ export function ControlActions() {
 
 function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord; incidentQuery?: string }) {
   const [expanded, setExpanded] = useState(false)
-  const phase = execPhase(a)
+  const phase = controlActionExecPhase(a)
   const isHighBlast = a.high_blast_radius || a.approval_escalated_due_to_blast_radius
 
   return (

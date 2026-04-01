@@ -247,8 +247,20 @@ export function Dashboard() {
 
   const hasShiftBaseline = shiftBaseline !== null
   const deltaSummaryParts: string[] = []
-  if (shiftDelta.incidentsTouchedSince.length > 0) {
-    deltaSummaryParts.push(`${shiftDelta.incidentsTouchedSince.length} incident update(s)`)
+  if (shiftDelta.openIncidentsChangedSince.length > 0) {
+    deltaSummaryParts.push(
+      `${shiftDelta.openIncidentsChangedSince.length} open incident(s) updated since baseline`,
+    )
+  } else if (shiftDelta.incidentsTouchedSince.length > 0) {
+    deltaSummaryParts.push(`${shiftDelta.incidentsTouchedSince.length} incident touch(es) (incl. resolved/closed)`)
+  }
+  if (shiftDelta.stillOpenSinceBaseline.length > 0) {
+    deltaSummaryParts.push(`${shiftDelta.stillOpenSinceBaseline.length} still open from baseline list`)
+  }
+  if (shiftDelta.noLongerOpenSinceBaseline.length > 0) {
+    deltaSummaryParts.push(
+      `${shiftDelta.noLongerOpenSinceBaseline.length} incident(s) no longer open since baseline (state changed — verify in list)`,
+    )
   }
   if (shiftDelta.nodesWithNewerLastSeen.length > 0) {
     deltaSummaryParts.push(`${shiftDelta.nodesWithNewerLastSeen.length} node(s) with newer last_seen`)
@@ -323,6 +335,87 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Open work vs baseline — operational continuity (browser-local) */}
+      {hasShiftBaseline &&
+        (shiftDelta.stillOpenSinceBaseline.length > 0 ||
+          shiftDelta.openIncidentsChangedSince.length > 0 ||
+          shiftDelta.noLongerOpenSinceBaseline.length > 0) && (
+          <div
+            className="rounded-2xl border border-border/60 bg-card/30 p-4"
+            aria-label="Open work relative to your saved baseline"
+          >
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+              <p className="text-sm font-semibold text-foreground">Open work vs your baseline</p>
+              <span className="text-[10px] text-muted-foreground/80">
+                Same-browser anchor only — not shared across operators.
+              </span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {shiftDelta.stillOpenSinceBaseline.length > 0 && (
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                    Still open (was open at baseline)
+                  </p>
+                  <ul className="space-y-1">
+                    {shiftDelta.stillOpenSinceBaseline.slice(0, 5).map((inc) => (
+                      <li key={inc.id}>
+                        <Link
+                          to={`/incidents/${encodeURIComponent(inc.id)}`}
+                          className="text-sm font-medium text-primary hover:underline truncate block"
+                        >
+                          {inc.title || inc.id.slice(0, 12)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {shiftDelta.stillOpenSinceBaseline.length > 5 && (
+                    <Link to="/incidents" className="text-xs text-muted-foreground hover:underline mt-1 inline-block">
+                      +{shiftDelta.stillOpenSinceBaseline.length - 5} more on incidents list
+                    </Link>
+                  )}
+                </div>
+              )}
+              {shiftDelta.openIncidentsChangedSince.length > 0 && (
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">
+                    Open + touched since baseline
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mb-1.5">
+                    Updated while still open — prioritize review and handoff notes.
+                  </p>
+                  <ul className="space-y-1">
+                    {shiftDelta.openIncidentsChangedSince.slice(0, 5).map((inc) => (
+                      <li key={inc.id}>
+                        <Link
+                          to={`/incidents/${encodeURIComponent(inc.id)}?replay=1`}
+                          className="text-sm font-medium text-foreground hover:underline truncate block"
+                        >
+                          {inc.title || inc.id.slice(0, 12)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {shiftDelta.noLongerOpenSinceBaseline.length > 0 && (
+                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                    No longer open (since baseline)
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mb-1.5">
+                    State changed to resolved/closed in MEL — not proof the underlying mesh issue ended; verify in
+                    incident record.
+                  </p>
+                  <Link to="/incidents" className="text-sm font-medium text-primary hover:underline">
+                    Review incidents list →
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
 
       {/* System Pulse — what needs attention */}
@@ -382,7 +475,7 @@ export function Dashboard() {
 
       {/* Calm state — when everything is quiet */}
       {attentionCount === 0 && !isLoading && hasTransports && (
-        <div className="rounded-2xl border border-success/20 bg-success/5 p-4">
+        <div className="rounded-2xl border border-success/20 bg-success/5 p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-success/20 bg-success/10 text-success">
               <CheckCircle2 className="h-4 w-4" />
@@ -390,12 +483,61 @@ export function Dashboard() {
             <div>
               <p className="text-sm font-semibold text-foreground">Nothing queued in the attention strip</p>
               <p className="text-xs text-muted-foreground">
-                No open incidents, transports healthy, no pending approvals in operational state
+                No open incidents, transports healthy, no pending approvals in operational state — not a claim that the mesh is
+                fully observed or risk-free.
                 {pendingRecommendations.length > 0 && (
-                  <> &middot; <Link to="/recommendations" className="text-primary hover:underline">{pendingRecommendations.length} recommendation{pendingRecommendations.length > 1 ? 's' : ''} available</Link></>
+                  <> &middot;{' '}
+                    <Link to="/recommendations" className="text-primary hover:underline">
+                      {pendingRecommendations.length} recommendation{pendingRecommendations.length > 1 ? 's' : ''} available
+                    </Link>
+                  </>
                 )}
               </p>
             </div>
+          </div>
+          <div className="border-t border-success/15 pt-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+              Still worth a pass (quiet console)
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1.5">
+              <li>
+                <Link
+                  to={
+                    shiftDelta.topologyNodesWithNewerLastSeen.length > 0
+                      ? '/topology?filter=changed_since_visit'
+                      : '/topology'
+                  }
+                  className="font-medium text-foreground hover:underline"
+                >
+                  Topology drift / graph evidence
+                </Link>
+                {shiftDelta.topologyNodesWithNewerLastSeen.length > 0
+                  ? ` — ${shiftDelta.topologyNodesWithNewerLastSeen.length} node(s) newer than your baseline.`
+                  : ' — compare stale vs active from stored observations.'}
+              </li>
+              <li>
+                <Link to="/events" className="font-medium text-foreground hover:underline">
+                  Events / audit trail
+                </Link>
+                {' — '}continuity for what changed on the instance.
+              </li>
+              {deadLetterCount > 0 && (
+                <li>
+                  <Link to="/dead-letters" className="font-medium text-warning hover:underline">
+                    {deadLetterCount} dead letter{deadLetterCount > 1 ? 's' : ''}
+                  </Link>
+                  {' — '}processing failures still deserve attention.
+                </li>
+              )}
+              <li>
+                <Link to="/diagnostics" className="font-medium text-foreground hover:underline">
+                  Diagnostics
+                </Link>
+                {' — '}
+                runtime truth and{' '}
+                <span className="text-foreground/90">support bundle</span> export when you need host-level continuity.
+              </li>
+            </ul>
           </div>
         </div>
       )}
