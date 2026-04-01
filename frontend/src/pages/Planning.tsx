@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import type { Incident } from '@/types/api'
 
 interface BestNextMove {
   title: string
@@ -237,7 +239,40 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
   return deriveEvidenceSignalsFromLegacyText(bundle, advisories)
 }
 
+function planningDecisionBoard(bundle: PlanningBundle, evidenceSignals: EvidenceSignal[]) {
+  const bn = bundle.best_next_move
+  const unknowns: string[] = []
+  if (bundle.evidence_flags?.baseline_missing) unknowns.push('Baseline snapshot missing — deltas are directional only.')
+  if (bundle.evidence_flags?.inconclusive || bundle.evidence_flags?.directional_only) {
+    unknowns.push('Outcome remains inconclusive for RF or propagation — graph-only bounds.')
+  }
+  if (!bundle.transport_connected) unknowns.push('Transport not connected in this snapshot — planning may reflect stale graph.')
+  if (!bundle.topology_enabled) unknowns.push('Topology model disabled — resilience scores are not graph-backed.')
+  for (const s of evidenceSignals) {
+    if (s.id === 'confounded' || s.id === 'topology-drift') unknowns.push(s.message)
+  }
+  const unsupported: string[] = []
+  if (!bundle.topology_enabled) unsupported.push('Topology-derived planning surfaces are limited while topology is off.')
+
+  const weakAssumptions = (bn?.uncertainty_notes ?? []).slice(0, 4)
+  const inferredTradeoffs = (bundle.resilience.fragility_explanation ?? []).slice(0, 3)
+  const missingEvidence = (bundle.resilience.confidence.missing_inputs ?? []).slice(0, 4)
+  const nextCheck: string[] = []
+  if (bn?.would_validate_with?.length) nextCheck.push(...bn.would_validate_with.slice(0, 3))
+  if (bn?.wait_observe_rationale) nextCheck.push(`Wait/observe: ${bn.wait_observe_rationale}`)
+  if (nextCheck.length === 0 && bundle.resilience.next_best_move_summary) {
+    nextCheck.push(bundle.resilience.next_best_move_summary)
+  }
+
+  return { unknowns, unsupported, weakAssumptions, inferredTradeoffs, missingEvidence, nextCheck }
+}
+
 export function Planning() {
+  const [searchParams] = useSearchParams()
+  const incidentIdParam = (searchParams.get('incident') || '').trim()
+  const [incidentCtx, setIncidentCtx] = useState<Incident | null>(null)
+  const [incidentErr, setIncidentErr] = useState<string | null>(null)
+
   const [denseLayout, setDenseLayout] = useState(true)
   const [bundle, setBundle] = useState<PlanningBundle | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -251,6 +286,40 @@ export function Planning() {
   const [execPlanId, setExecPlanId] = useState('')
   const [executions, setExecutions] = useState<PlanExecution[]>([])
   const [execErr, setExecErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!incidentIdParam) {
+      setIncidentCtx(null)
+      setIncidentErr(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/v1/incidents/${encodeURIComponent(incidentIdParam)}`)
+        if (!res.ok) {
+          if (!cancelled) {
+            setIncidentCtx(null)
+            setIncidentErr(`HTTP ${res.status}`)
+          }
+          return
+        }
+        const data = (await res.json()) as Incident
+        if (!cancelled) {
+          setIncidentCtx(data)
+          setIncidentErr(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setIncidentCtx(null)
+          setIncidentErr('Failed to load incident')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [incidentIdParam])
 
   useEffect(() => {
     let cancelled = false
@@ -356,9 +425,36 @@ export function Planning() {
 
   const bn = bundle.best_next_move
   const evidenceSignals = deriveEvidenceSignals(bundle, advisories, advisoryFlags)
+  const board = planningDecisionBoard(bundle, evidenceSignals)
 
   return (
     <div className={denseLayout ? 'p-4 space-y-4 max-w-6xl mx-auto' : 'p-6 space-y-6 max-w-6xl mx-auto'}>
+      {incidentIdParam && (
+        <div
+          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          role="region"
+          aria-label="Planning context incident"
+        >
+          {incidentErr && <p className="text-warning">Incident {incidentIdParam}: {incidentErr}</p>}
+          {!incidentErr && incidentCtx && (
+            <span>
+              Planning with incident context:{' '}
+              <Link to={`/incidents/${encodeURIComponent(incidentCtx.id)}`} className="font-medium text-primary hover:underline">
+                {incidentCtx.title || incidentCtx.id.slice(0, 12)}
+              </Link>
+              {' · '}
+              <Link
+                to={`/topology?incident=${encodeURIComponent(incidentCtx.id)}&filter=incident_focus`}
+                className="text-primary hover:underline font-medium"
+              >
+                Open topology focus
+              </Link>
+            </span>
+          )}
+          {!incidentErr && !incidentCtx && <span>Loading incident for cross-link…</span>}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Deployment planning"
@@ -411,6 +507,94 @@ export function Planning() {
           </p>
         )}
       </Card>
+
+      <div data-testid="planning-decision-board">
+        <Card className={`border-border/80 ${denseLayout ? 'p-3' : 'p-4'}`}>
+        <h3 className={`font-semibold mb-2 ${denseLayout ? 'text-sm' : ''}`}>Decision board</h3>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Scan-first layout: what is known vs unknown vs unsupported, then what to check next. Does not add simulation beyond the planning bundle.
+        </p>
+        <div className={`grid gap-3 ${denseLayout ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
+          <div className="rounded-lg border border-border/60 p-2.5">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Known (from bundle)</p>
+            <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+              <li>Transport: {bundle.transport_connected ? 'connected' : 'not connected'}</li>
+              <li>Topology model: {bundle.topology_enabled ? 'enabled' : 'disabled'}</li>
+              {bn?.primary_verdict && <li>Verdict: {bn.primary_verdict}</li>}
+              <li>Resilience confidence: {bundle.resilience.confidence.level}</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-warning/20 bg-warning/5 p-2.5">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Unknown / confounded</p>
+            {board.unknowns.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No extra unknown flags beyond the evidence banner.</p>
+            ) : (
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                {board.unknowns.map((u, i) => (
+                  <li key={i}>{u}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-2.5">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Unsupported / gated</p>
+            {board.unsupported.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No explicit unsupported gates in this view.</p>
+            ) : (
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                {board.unsupported.map((u, i) => (
+                  <li key={i}>{u}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Weak assumptions</p>
+            {board.weakAssumptions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">—</p>
+            ) : (
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                {board.weakAssumptions.map((u, i) => (
+                  <li key={i}>{u}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Inferred tradeoffs (graph)</p>
+            {board.inferredTradeoffs.length === 0 ? (
+              <p className="text-xs text-muted-foreground">—</p>
+            ) : (
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                {board.inferredTradeoffs.map((u, i) => (
+                  <li key={i}>{u}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Missing evidence inputs</p>
+            {board.missingEvidence.length === 0 ? (
+              <p className="text-xs text-muted-foreground">None listed on resilience confidence.</p>
+            ) : (
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                {board.missingEvidence.map((u, i) => (
+                  <li key={i}>{u}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-primary/15 bg-primary/5 p-2.5 sm:col-span-2 lg:col-span-3">
+            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Recommended next check</p>
+            <ul className="text-xs text-foreground list-disc list-inside space-y-0.5">
+              {board.nextCheck.slice(0, 5).map((u, i) => (
+                <li key={i}>{u}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        </Card>
+      </div>
 
       {denseLayout ? (
         <div className="grid gap-3 lg:grid-cols-3" data-testid="planning-dense-grid">

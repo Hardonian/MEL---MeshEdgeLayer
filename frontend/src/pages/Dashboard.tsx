@@ -55,6 +55,9 @@ export function Dashboard() {
   const [refreshCount, setRefreshCount] = useState(0)
   const prevAttemptRef = useRef<Date | null>(null)
   const [shiftBaseline, setShiftBaseline] = useState<ShiftSnapshot | null>(() => readShiftSnapshot())
+  const [topologyNodesForShift, setTopologyNodesForShift] = useState<
+    Array<{ node_num: number; last_seen_at?: string; short_name?: string; long_name?: string }>
+  >([])
 
   const isLoading = status.loading || nodes.loading || messagesLoading
   const hasError = status.error || nodes.error || messagesError
@@ -92,6 +95,7 @@ export function Dashboard() {
     return computeShiftDelta(shiftBaseline, {
       incidents: incList,
       nodes: nodeList,
+      topologyNodes: topologyNodesForShift,
       transports,
       events: ev,
       messageCount: msgCount,
@@ -101,12 +105,32 @@ export function Dashboard() {
     shiftBaseline,
     incidents.data,
     nodes.data,
+    topologyNodesForShift,
     transports,
     events.data,
     status.data?.messages,
     messagesData?.length,
     deadLetters.data?.length,
   ])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/v1/topology/nodes?limit=500')
+        if (!res.ok) return
+        const j = (await res.json()) as {
+          nodes?: Array<{ node_num: number; last_seen_at?: string; short_name?: string; long_name?: string }>
+        }
+        if (!cancelled) setTopologyNodesForShift(j.nodes ?? [])
+      } catch {
+        if (!cancelled) setTopologyNodesForShift([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [refreshCount])
 
   useEffect(() => {
     const t = status.lastUpdated
@@ -172,6 +196,7 @@ export function Dashboard() {
     const snap = buildShiftSnapshotFromConsole({
       incidents: incList,
       nodes: nodeList,
+      topologyNodes: topologyNodesForShift,
       transports,
       events: ev,
       messageCount: msgCount,
@@ -227,6 +252,11 @@ export function Dashboard() {
   }
   if (shiftDelta.nodesWithNewerLastSeen.length > 0) {
     deltaSummaryParts.push(`${shiftDelta.nodesWithNewerLastSeen.length} node(s) with newer last_seen`)
+  }
+  if (shiftDelta.topologyNodesWithNewerLastSeen.length > 0) {
+    deltaSummaryParts.push(
+      `${shiftDelta.topologyNodesWithNewerLastSeen.length} topology node(s) with newer last_seen (graph store)`,
+    )
   }
   if (shiftDelta.newAuditEvents > 0) {
     deltaSummaryParts.push(`${shiftDelta.newAuditEvents} new audit event(s)`)
@@ -434,8 +464,20 @@ export function Dashboard() {
                 </li>
               )}
               <li>
-                <Link to="/topology" className="text-foreground font-medium hover:underline">Topology</Link>
-                {' — '}compare stale vs healthy nodes from stored graph evidence.
+                <Link
+                  to={
+                    shiftDelta.topologyNodesWithNewerLastSeen.length > 0
+                      ? '/topology?filter=changed_since_visit'
+                      : '/topology'
+                  }
+                  className="text-foreground font-medium hover:underline"
+                >
+                  Topology
+                </Link>
+                {' — '}
+                {shiftDelta.topologyNodesWithNewerLastSeen.length > 0
+                  ? `${shiftDelta.topologyNodesWithNewerLastSeen.length} node(s) changed since your baseline — open with “changed since visit” focus.`
+                  : 'compare stale vs healthy nodes from stored graph evidence.'}
               </li>
               <li>
                 <Link to="/planning" className="text-foreground font-medium hover:underline">Planning</Link>
