@@ -160,6 +160,8 @@ func (a *App) buildIncidentIntelligence(inc models.Incident) *models.IncidentInt
 	if out.WirelessContext != nil && len(out.SparsityMarkers) > 0 {
 		out.WirelessContext.EvidenceGaps = append(out.WirelessContext.EvidenceGaps, out.SparsityMarkers...)
 	}
+	out.MeshRoutingCompanion = a.meshRoutingCompanionForIncident(inc, out)
+	out.OperatorSuggestedActions = operatorSuggestedActions(a.Cfg, inc, out)
 	return out
 }
 

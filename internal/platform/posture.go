@@ -50,6 +50,7 @@ type PlatformPosture struct {
 	InferenceCaveat        string                 `json:"inference_caveat,omitempty"`
 	InferenceProviders     []ProviderPosture      `json:"inference_providers"`
 	AssistPolicies         []AssistTaskPolicy     `json:"assist_policies"`
+	OperatorIntelligence   OperatorIntelligencePosture `json:"operator_intelligence_posture"`
 }
 
 func BuildPosture(cfg config.Config) PlatformPosture {
@@ -134,6 +135,8 @@ func BuildPosture(cfg config.Config) PlatformPosture {
 		telemetryStatus = "degraded"
 	}
 
+	opIntel := BuildOperatorIntelligencePosture(cfg, inferenceDegraded, runtimeReady)
+
 	return PlatformPosture{
 		Mode:                   cfg.Platform.Mode,
 		TelemetryEnabled:       cfg.Platform.Telemetry.Enabled,
@@ -155,6 +158,7 @@ func BuildPosture(cfg config.Config) PlatformPosture {
 		InferenceCaveat:        inferenceCaveat,
 		InferenceProviders:     providers,
 		AssistPolicies:         assist,
+		OperatorIntelligence:   opIntel,
 	}
 }
 

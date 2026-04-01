@@ -115,6 +115,40 @@ type IncidentIntelligence struct {
 	ReplayHints             *IncidentReplayHints            `json:"replay_hints,omitempty"`
 	LearningLoopHints       []string                        `json:"learning_loop_hints,omitempty"`
 	GeneratedAt             string                          `json:"generated_at,omitempty"`
+	// MeshRoutingCompanion is optional ingest-graph routing-pressure context (never RF/path proof).
+	MeshRoutingCompanion *MeshRoutingIntelCompanion `json:"mesh_routing_companion,omitempty"`
+	// OperatorSuggestedActions are deterministic, reviewable next checks — not ranked black-box scoring.
+	OperatorSuggestedActions []OperatorSuggestedAction `json:"operator_suggested_actions,omitempty"`
+}
+
+// MeshRoutingIntelCompanion surfaces bounded mesh routing-pressure diagnostics next to mesh-scoped incidents.
+type MeshRoutingIntelCompanion struct {
+	Applicable                 bool     `json:"applicable"`
+	Reason                     string   `json:"reason,omitempty"`
+	TopologyEnabled            bool     `json:"topology_enabled,omitempty"`
+	TransportConnected         bool     `json:"transport_connected,omitempty"`
+	AssessmentComputedAt       string   `json:"assessment_computed_at,omitempty"`
+	GraphHash                  string   `json:"graph_hash,omitempty"`
+	EvidenceModel              string   `json:"evidence_model,omitempty"`
+	MessageWindowDescription   string   `json:"message_window_description,omitempty"`
+	RoutingSummaryLines        []string `json:"routing_summary_lines,omitempty"`
+	SuspectedRelayHotspot      bool     `json:"suspected_relay_hotspot"`
+	WeakOnwardPropagationSuspected bool `json:"weak_onward_propagation_suspected"`
+	HopBudgetStressSuspected   bool     `json:"hop_budget_stress_suspected"`
+	// SuggestedTopologySearch is URL query (no leading ?) for /topology deep link — incident_focus filter when incident id known.
+	SuggestedTopologySearch string `json:"suggested_topology_search,omitempty"`
+}
+
+// OperatorSuggestedAction is a single deterministic operator affordance with explicit evidence basis.
+type OperatorSuggestedAction struct {
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	Rationale     string   `json:"rationale"`
+	EvidenceRefs  []string `json:"evidence_refs,omitempty"`
+	Uncertainty   string   `json:"uncertainty,omitempty"`
+	Href          string   `json:"href,omitempty"`
+	Kind          string   `json:"kind"` // inspect_surface | correlation_memory
+	DisableHint   string   `json:"disable_hint,omitempty"`
 }
 
 // IncidentFingerprint is a versioned structured fingerprint derived from persisted and correlated evidence.
