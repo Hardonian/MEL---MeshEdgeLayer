@@ -437,17 +437,45 @@ export function Planning() {
         >
           {incidentErr && <p className="text-warning">Incident {incidentIdParam}: {incidentErr}</p>}
           {!incidentErr && incidentCtx && (
-            <span>
-              Planning with incident context:{' '}
-              <Link to={`/incidents/${encodeURIComponent(incidentCtx.id)}`} className="font-medium text-primary hover:underline">
-                {incidentCtx.title || incidentCtx.id.slice(0, 12)}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>
+                Planning with incident context:{' '}
+                <Link to={`/incidents/${encodeURIComponent(incidentCtx.id)}`} className="font-medium text-primary hover:underline">
+                  {incidentCtx.title || incidentCtx.id.slice(0, 12)}
+                </Link>
+              </span>
+              <span className="text-muted-foreground/50 hidden sm:inline" aria-hidden>
+                ·
+              </span>
+              <Link
+                to={`/incidents/${encodeURIComponent(incidentCtx.id)}?replay=1`}
+                className="font-medium text-primary hover:underline"
+              >
+                Replay
               </Link>
-              {' · '}
+              <span className="text-muted-foreground/50 hidden sm:inline" aria-hidden>
+                ·
+              </span>
               <Link
                 to={`/topology?incident=${encodeURIComponent(incidentCtx.id)}&filter=incident_focus`}
-                className="text-primary hover:underline font-medium"
+                className="font-medium text-primary hover:underline"
               >
-                Open topology focus
+                Topology focus
+              </Link>
+              <span className="text-muted-foreground/50 hidden sm:inline" aria-hidden>
+                ·
+              </span>
+              <Link
+                to={`/control-actions?incident=${encodeURIComponent(incidentCtx.id)}`}
+                className="font-medium text-primary hover:underline"
+              >
+                Control queue
+              </Link>
+              <span className="text-muted-foreground/50 hidden sm:inline" aria-hidden>
+                ·
+              </span>
+              <Link to="/diagnostics" className="font-medium text-muted-foreground hover:text-foreground hover:underline">
+                Support bundle
               </Link>
             </span>
           )}

@@ -30,7 +30,8 @@ import { Loading } from '@/components/ui/StateViews'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
-import { formatTimestamp, formatRelativeTime, type Incident } from '@/types/api'
+import { useControlStatus } from '@/hooks/useApi'
+import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident } from '@/types/api'
 import {
   evidenceStrengthLabel,
   guidanceConfidenceLabel,
@@ -38,6 +39,7 @@ import {
   wirelessConfidencePostureLabel,
   wirelessEvidencePostureLabel,
 } from '@/utils/evidenceSemantics'
+import { controlActionExecPhase } from '@/utils/controlActionPhase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -281,6 +283,13 @@ function InvestigationGuidePanel({ inc }: { inc: Incident }) {
 
         <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
           <Link
+            to={`/incidents/${encodeURIComponent(inc.id)}?replay=1`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            Replay / timeline
+          </Link>
+          <Link
             to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}`}
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
@@ -298,6 +307,12 @@ function InvestigationGuidePanel({ inc }: { inc: Incident }) {
             className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
           >
             Control queue
+          </Link>
+          <Link
+            to="/diagnostics"
+            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+          >
+            Support bundle
           </Link>
         </div>
       </CardContent>
@@ -355,6 +370,173 @@ function ProofpackButton({ incidentId }: { incidentId: string }) {
 }
 
 // ─── Proofpack completeness panel ─────────────────────────────────────────────
+
+function LinkedControlActionsPanel({ inc }: { inc: Incident }) {
+  const ctx = useOperatorContext()
+  const { data: ctrlData, refresh: refreshCtrl } = useControlStatus()
+  const linked = useMemo(() => inc.linked_control_actions ?? [], [inc.linked_control_actions])
+  const canReadActions = ctx.trustUI?.read_actions === true || ctx.capabilities?.includes('read_actions')
+  const emergencyOff = ctrlData?.emergency_disable === true
+  const matrix = ctrlData?.reality_matrix ?? []
+
+  useEffect(() => {
+    void refreshCtrl()
+  }, [inc.id, refreshCtrl])
+
+  const grouped = useMemo(() => {
+    const awaiting: typeof linked = []
+    const inFlight: typeof linked = []
+    const done: typeof linked = []
+    for (const a of linked) {
+      const ls = (a.lifecycle_state || '').toLowerCase()
+      if (ls === 'pending_approval') awaiting.push(a)
+      else if (ls === 'pending' || ls === 'running') inFlight.push(a)
+      else done.push(a)
+    }
+    return { awaiting, inFlight, done }
+  }, [linked])
+
+  function matrixRowFor(type: string) {
+    return matrix.find((m) => m.action_type === type)
+  }
+
+  if (!canReadActions && linked.length === 0) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1">
+          <Zap className="h-3.5 w-3.5" />
+          Linked control actions
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Your session may lack read_actions — open the control queue with appropriate credentials to see incident-linked rows.
+        </p>
+        <Link
+          to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+          className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+        >
+          Control queue (filtered) →
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <Zap className="h-3.5 w-3.5" />
+          Control actions linked to this incident
+        </div>
+        <Link
+          to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+          className="text-[11px] font-semibold text-primary hover:underline"
+        >
+          Full queue →
+        </Link>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-snug">
+        Rows where <code className="font-mono text-[10px]">incident_id</code> matches this incident. Approval, queue, and execution remain
+        separate states — see lifecycle on each row.
+      </p>
+      {emergencyOff && (
+        <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5">
+          Control emergency disable is on for this instance — new execution may be blocked regardless of approval state.
+        </p>
+      )}
+      {linked.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No linked control rows yet. If you expect actions, check the queue; linkage requires{' '}
+          <code className="font-mono text-xs">incident_id</code> on the action record.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {grouped.awaiting.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">Awaiting approval</p>
+              <ul className="space-y-2">
+                {grouped.awaiting.map((a) => (
+                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {grouped.inFlight.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-info mb-1.5">Queued / executing</p>
+              <ul className="space-y-2">
+                {grouped.inFlight.map((a) => (
+                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {grouped.done.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Completed / terminal</p>
+              <ul className="space-y-2">
+                {grouped.done.map((a) => (
+                  <LinkedActionRow key={a.id} incidentId={inc.id} action={a} matrixRow={matrixRowFor(a.action_type)} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LinkedActionRow({
+  incidentId,
+  action: a,
+  matrixRow,
+}: {
+  incidentId: string
+  action: ControlActionRecord
+  matrixRow?: { reversible?: boolean; blast_radius_class?: string; notes?: string; advisory_only?: boolean }
+}) {
+  const phase = controlActionExecPhase(a)
+  const rev = matrixRow?.reversible === true ? 'Reversible (policy matrix)' : matrixRow?.reversible === false ? 'Treat as hard to reverse' : null
+  const blast = matrixRow?.blast_radius_class && matrixRow.blast_radius_class !== 'unknown' ? matrixRow.blast_radius_class : null
+
+  return (
+    <li className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{a.action_type}</p>
+          <p className="font-mono text-[10px] text-muted-foreground/80 truncate mt-0.5">{a.id}</p>
+        </div>
+        <Badge variant={phase.variant}>{phase.label}</Badge>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        {a.result && <span>result: <span className="text-foreground">{a.result}</span></span>}
+        {blast && (
+          <span title={matrixRow?.notes || undefined}>
+            blast: <span className="text-foreground">{blast}</span>
+          </span>
+        )}
+        {rev && <span>{rev}</span>}
+        {matrixRow?.advisory_only && <span className="text-warning">advisory-only type</span>}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Link
+          to={`/control-actions?incident=${encodeURIComponent(incidentId)}`}
+          className="text-[11px] font-semibold text-primary hover:underline"
+        >
+          Open in queue
+        </Link>
+        <a
+          href={`/api/v1/control/actions/${encodeURIComponent(a.id)}/inspect`}
+          className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Inspect API (new tab)
+        </a>
+      </div>
+    </li>
+  )
+}
 
 function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
   const trace = inc.intelligence?.action_outcome_trace
@@ -434,6 +616,13 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
       )}
 
       <ProofpackButton incidentId={inc.id} />
+      <p className="text-[11px] text-muted-foreground">
+        For host/runtime continuity (not incident proof), use{' '}
+        <Link to="/diagnostics" className="font-medium text-primary hover:underline">
+          Diagnostics → support bundle
+        </Link>
+        .
+      </p>
     </div>
   )
 }
@@ -722,8 +911,10 @@ function buildHandoffStructured(inc: Incident) {
     deep_links: {
       incident: `/incidents/${inc.id}`,
       control_actions: `/control-actions?incident=${encodeURIComponent(inc.id)}`,
-      topology: `/topology?incident=${encodeURIComponent(inc.id)}`,
-      planning: '/planning',
+      topology: `/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus`,
+      planning: `/planning?incident=${encodeURIComponent(inc.id)}`,
+      replay: `/incidents/${encodeURIComponent(inc.id)}?replay=1`,
+      diagnostics_support_bundle: '/diagnostics',
     },
   }
 }
@@ -967,12 +1158,36 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
         </p>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
+        <div className="rounded-lg border border-border/50 bg-muted/15 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
+          <p className="font-semibold text-foreground">What to export when</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>
+              <span className="text-foreground">Plain / JSON handoff</span> — human or machine-readable{' '}
+              <em className="not-italic text-muted-foreground">continuity</em>; not canonical proof.
+            </li>
+            <li>
+              <span className="text-foreground">Escalation bundle</span> — support-oriented package when policy allows (may include proof
+              assembly summary).
+            </li>
+            <li>
+              <span className="text-foreground">Proofpack</span> — strongest bundled evidence export MEL assembles for this incident (still
+              review gaps in-file).
+            </li>
+            <li>
+              <span className="text-foreground">Diagnostics support bundle</span> —{' '}
+              <Link to="/diagnostics" className="text-primary font-medium hover:underline">
+                host/runtime
+              </Link>{' '}
+              continuity; separate from incident proof.
+            </li>
+          </ul>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void downloadEscalationBundle()}
             disabled={escState === 'loading'}
-            className="button-secondary text-xs inline-flex items-center gap-1.5"
+            className="button-secondary text-xs inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0 touch-manipulation"
           >
             <Download className="h-3.5 w-3.5" />
             {escState === 'loading' ? 'Downloading…' : 'Download escalation bundle'}
@@ -1182,6 +1397,8 @@ export function IncidentDetail() {
 
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
+
+      <LinkedControlActionsPanel inc={inc} />
 
       {hasIntel && <InvestigationGuidePanel inc={inc} />}
 
