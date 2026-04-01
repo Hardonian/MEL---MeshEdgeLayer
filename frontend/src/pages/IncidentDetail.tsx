@@ -27,6 +27,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
+import { CopyButton } from '@/components/ui/CopyButton'
+import { useToast } from '@/components/ui/Toast'
+import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { formatTimestamp, formatRelativeTime, type Incident } from '@/types/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -96,6 +99,18 @@ function stateVariant(s?: string): 'success' | 'outline' {
   if (s === 'resolved' || s === 'closed') return 'success'
   return 'outline'
 }
+
+const WORKFLOW_REVIEW_OPTIONS = [
+  { value: 'open', label: 'Open' },
+  { value: 'acknowledged', label: 'Acknowledged' },
+  { value: 'investigating', label: 'Investigating' },
+  { value: 'mitigated', label: 'Mitigated' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'follow_up_needed', label: 'Follow-up needed' },
+  { value: 'pending_review', label: 'Pending review' },
+  { value: 'resolved_review', label: 'Resolved (review)' },
+  { value: 'closed_review', label: 'Closed (review)' },
+] as const
 
 function evidenceStrengthVariant(s?: string): 'success' | 'warning' | 'secondary' {
   if (s === 'strong') return 'success'
@@ -369,6 +384,192 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   )
 }
 
+function buildHandoffExportText(inc: Incident): string {
+  const intel = inc.intelligence
+  const lines: string[] = [
+    'MEL — incident handoff summary (paste into ticket or runbook)',
+    `Incident: ${inc.title || inc.id}`,
+    `ID: ${inc.id}`,
+    `State (system): ${inc.state || 'unknown'}`,
+    `Review / workflow: ${inc.review_state || 'open'}`,
+    `Severity: ${inc.severity || '—'}`,
+    `Occurred: ${inc.occurred_at || '—'}`,
+    `Updated: ${inc.updated_at || '—'}`,
+    '',
+    'What we know (bounded):',
+    inc.summary || '(no summary)',
+    '',
+  ]
+  if (intel?.evidence_strength) {
+    lines.push(`Evidence strength (intel): ${intel.evidence_strength}`)
+  }
+  if (intel?.degraded) {
+    lines.push('Intelligence degraded: yes (treat guidance as non-causal)')
+    if (intel.degraded_reasons?.length) {
+      lines.push(`Reasons: ${intel.degraded_reasons.join('; ')}`)
+    }
+  }
+  if ((intel?.sparsity_markers?.length ?? 0) > 0) {
+    lines.push(`Sparsity markers: ${intel!.sparsity_markers!.join('; ')}`)
+  }
+  lines.push('')
+  lines.push('Recorded handoff narrative:')
+  lines.push(inc.handoff_summary || '(none)')
+  lines.push('')
+  lines.push('Investigation notes:')
+  lines.push(inc.investigation_notes || '(none)')
+  lines.push('')
+  lines.push('What remains uncertain:')
+  if ((intel?.wireless_context?.evidence_gaps?.length ?? 0) > 0) {
+    for (const g of intel!.wireless_context!.evidence_gaps!) lines.push(`- ${g}`)
+  } else {
+    lines.push('- See proofpack evidence_gaps and intelligence panels in MEL.')
+  }
+  lines.push('')
+  lines.push('Next checks (suggested):')
+  const next = intel?.investigate_next?.slice(0, 5) ?? []
+  if (next.length === 0) {
+    lines.push('- Open replay/timeline and topology for this incident window in MEL.')
+  } else {
+    for (const g of next) lines.push(`- ${g.title}: ${g.rationale}`)
+  }
+  lines.push('')
+  lines.push(`Deep link: /incidents/${inc.id}`)
+  lines.push('Export is a snapshot; canonical evidence lives in MEL proofpack / DB.')
+  return lines.join('\n')
+}
+
+function WorkflowPanel({ inc, onSaved }: { inc: Incident; onSaved: () => void }) {
+  const ctx = useOperatorContext()
+  const { addToast } = useToast()
+  const [reviewState, setReviewState] = useState(inc.review_state || 'open')
+  const [notes, setNotes] = useState(inc.investigation_notes || '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setReviewState(inc.review_state || 'open')
+    setNotes(inc.investigation_notes || '')
+  }, [inc.id, inc.review_state, inc.investigation_notes])
+
+  const canWrite = ctx.trustUI?.incident_mutate === true
+
+  async function saveWorkflow() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/workflow`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_state: reviewState,
+          investigation_notes: notes,
+        }),
+      })
+      if (res.status === 403) {
+        addToast({ type: 'error', title: 'Cannot save', message: 'Missing incident update capability.' })
+        return
+      }
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Save failed', message: `HTTP ${res.status}` })
+        return
+      }
+      addToast({ type: 'success', title: 'Workflow saved', message: 'Review state and notes persisted locally on this MEL instance.' })
+      await onSaved()
+    } catch {
+      addToast({ type: 'error', title: 'Save failed', message: 'Network error.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Workflow & investigation</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Review state is operator workflow on this instance (single-operator honest mode). It does not imply multi-user coordination.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        {!canWrite && (
+          <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5">
+            Read-only: your session cannot PATCH incident workflow. Notes and state changes require incident_mutate.
+          </p>
+        )}
+        <div>
+          <label htmlFor="mel-inc-review-state" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Review state
+          </label>
+          <select
+            id="mel-inc-review-state"
+            className="mt-1 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+            value={reviewState}
+            onChange={(e) => setReviewState(e.target.value)}
+            disabled={!canWrite}
+          >
+            {WORKFLOW_REVIEW_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mel-inc-notes" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Investigation notes
+          </label>
+          <textarea
+            id="mel-inc-notes"
+            className="mt-1 w-full min-h-[100px] rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            disabled={!canWrite}
+            placeholder="Observed facts, hypotheses (labeled), what you checked…"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void saveWorkflow()}
+            disabled={!canWrite || saving}
+            className="button-secondary text-xs"
+          >
+            {saving ? 'Saving…' : 'Save workflow'}
+          </button>
+          <Link
+            to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-muted/50"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Control actions for this incident
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function HandoffExportPanel({ inc }: { inc: Incident }) {
+  const text = buildHandoffExportText(inc)
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">Handoff export</CardTitle>
+          <CopyButton value={text} label="Copy handoff summary" className="button-secondary text-xs" />
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Plain-text snapshot for tickets or chat. Does not replace proofpack JSON for evidence chain.
+        </p>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <pre className="max-h-48 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-3 text-[11px] text-muted-foreground whitespace-pre-wrap font-mono">
+          {text}
+        </pre>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function IncidentDetail() {
@@ -539,6 +740,11 @@ export function IncidentDetail() {
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
 
+      <div className="grid gap-5 lg:grid-cols-2">
+        <WorkflowPanel inc={inc} onSaved={() => void load()} />
+        <HandoffExportPanel inc={inc} />
+      </div>
+
       {/* Two-column body */}
       <div className="grid gap-5 lg:grid-cols-2">
 
@@ -599,8 +805,11 @@ export function IncidentDetail() {
                     <code className="flex-1 truncate font-mono text-muted-foreground">{actionId.slice(0, 24)}…</code>
                   </div>
                 ))}
-                <Link to="/control-actions" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                  View in control actions →
+                <Link
+                  to={`/control-actions?incident=${encodeURIComponent(inc.id)}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  View control actions for this incident →
                 </Link>
               </div>
             </Section>

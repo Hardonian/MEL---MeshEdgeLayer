@@ -238,6 +238,7 @@ function deriveEvidenceSignals(bundle: PlanningBundle, advisories: AdvisoryAlert
 }
 
 export function Planning() {
+  const [denseLayout, setDenseLayout] = useState(true)
   const [bundle, setBundle] = useState<PlanningBundle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -357,13 +358,23 @@ export function Planning() {
   const evidenceSignals = deriveEvidenceSignals(bundle, advisories, advisoryFlags)
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <PageHeader
-        title="Deployment planning"
-        description="Next-step moves, resilience, and playbooks from observed mesh evidence. Not RF coverage simulation."
-      />
+    <div className={denseLayout ? 'p-4 space-y-4 max-w-6xl mx-auto' : 'p-6 space-y-6 max-w-6xl mx-auto'}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          title="Deployment planning"
+          description="Next-step moves, resilience, and playbooks from observed mesh evidence. Not RF coverage simulation."
+        />
+        <button
+          type="button"
+          onClick={() => setDenseLayout((d) => !d)}
+          className="shrink-0 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
+          aria-pressed={denseLayout}
+        >
+          {denseLayout ? 'Comfortable layout' : 'Dense layout'}
+        </button>
+      </div>
 
-      <Card className="border-warning/25 bg-warning/5 p-4">
+      <Card className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>
         <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
           {bundle.evidence_model}
         </p>
@@ -401,97 +412,197 @@ export function Planning() {
         )}
       </Card>
 
-      {bn && (
-        <Card className="p-4 border-border">
-          <h3 className="font-semibold mb-2">Best next move (consolidated)</h3>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <Badge variant="outline">{bn.primary_verdict}</Badge>
-            <Badge variant="secondary">{bn.evidence_classification}</Badge>
-            {bn.recommendation_key && (
-              <span title="Key for outcome history">
-                <Badge variant="outline">{bn.recommendation_key}</Badge>
-              </span>
-            )}
-          </div>
-          <p className="font-medium">{bn.title}</p>
-          <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-1">
-            {(bn.summary_lines ?? []).map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-          {bn.wait_observe_rationale && (
-            <p className="mt-3 text-sm text-warning">
-              <span className="font-medium">Why wait/observe: </span>
-              {bn.wait_observe_rationale}
-            </p>
-          )}
-          {(bn.would_validate_with?.length ?? 0) > 0 && (
-            <div className="mt-3 text-sm">
-              <span className="text-muted-foreground">What would validate this after action:</span>
-              <ul className="list-disc list-inside mt-1">
-                {(bn.would_validate_with ?? []).map((x, i) => (
-                  <li key={i}>{x}</li>
+      {denseLayout ? (
+        <div className="grid gap-3 lg:grid-cols-3" data-testid="planning-dense-grid">
+          {bn && (
+            <Card className="p-3 border-border lg:col-span-1">
+              <h3 className="text-sm font-semibold mb-2">Best next move</h3>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <Badge variant="outline">{bn.primary_verdict}</Badge>
+                <Badge variant="secondary">{bn.evidence_classification}</Badge>
+                {bn.recommendation_key && (
+                  <span title="Key for outcome history">
+                    <Badge variant="outline">{bn.recommendation_key}</Badge>
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-medium leading-snug">{bn.title}</p>
+              <ul className="mt-2 list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                {(bn.summary_lines ?? []).slice(0, 4).map((line, i) => (
+                  <li key={i}>{line}</li>
                 ))}
               </ul>
-            </div>
+              {bn.wait_observe_rationale && (
+                <p className="mt-2 text-xs text-warning leading-snug">
+                  <span className="font-medium">Wait/observe: </span>
+                  {bn.wait_observe_rationale}
+                </p>
+              )}
+              {(bn.would_validate_with?.length ?? 0) > 0 && (
+                <div className="mt-2 text-xs">
+                  <span className="text-muted-foreground">Validate with:</span>
+                  <ul className="list-disc list-inside mt-0.5">
+                    {(bn.would_validate_with ?? []).slice(0, 3).map((x, i) => (
+                      <li key={i}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(bn.uncertainty_notes?.length ?? 0) > 0 && (
+                <ul className="mt-2 text-[11px] text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
+                  {(bn.uncertainty_notes ?? []).map((x, i) => (
+                    <li key={i}>{x}</li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           )}
-          {(bn.uncertainty_notes?.length ?? 0) > 0 && (
-            <ul className="mt-2 text-xs text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
-              {(bn.uncertainty_notes ?? []).map((x, i) => (
+
+          <Card className="p-3 lg:col-span-1">
+            <h3 className="text-sm font-semibold mb-2">Resilience</h3>
+            <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+              <dt className="text-muted-foreground">Resilience</dt>
+              <dd className="font-mono">{bundle.resilience.resilience_score.toFixed(2)}</dd>
+              <dt className="text-muted-foreground">Redundancy</dt>
+              <dd className="font-mono">{bundle.resilience.redundancy_score.toFixed(2)}</dd>
+              <dt className="text-muted-foreground">Partition</dt>
+              <dd className="font-mono">{bundle.resilience.partition_risk_score.toFixed(2)}</dd>
+              <dt className="text-muted-foreground">Confidence</dt>
+              <dd>{bundle.resilience.confidence.level}</dd>
+            </dl>
+            <p className="mt-2 text-xs leading-snug">{bundle.resilience.next_best_move_summary}</p>
+            <ul className="mt-2 list-disc list-inside text-[11px] text-muted-foreground space-y-0.5 max-h-28 overflow-y-auto">
+              {bundle.resilience.fragility_explanation.map((x, i) => (
                 <li key={i}>{x}</li>
               ))}
             </ul>
-          )}
-        </Card>
-      )}
+          </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="p-4">
-          <h3 className="font-semibold mb-2">Resilience summary</h3>
-          <dl className="grid grid-cols-2 gap-2 text-sm">
-            <dt className="text-muted-foreground">Resilience</dt>
-            <dd>{bundle.resilience.resilience_score.toFixed(2)}</dd>
-            <dt className="text-muted-foreground">Redundancy</dt>
-            <dd>{bundle.resilience.redundancy_score.toFixed(2)}</dd>
-            <dt className="text-muted-foreground">Partition risk</dt>
-            <dd>{bundle.resilience.partition_risk_score.toFixed(2)}</dd>
-            <dt className="text-muted-foreground">Confidence</dt>
-            <dd>{bundle.resilience.confidence.level}</dd>
-          </dl>
-          <p className="mt-3 text-sm">{bundle.resilience.next_best_move_summary}</p>
-          <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-1">
-            {bundle.resilience.fragility_explanation.map((x, i) => (
-              <li key={i}>{x}</li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card className="p-4">
-          <h3 className="font-semibold mb-2">Ranked next moves</h3>
-          {bundle.ranked_next_plans.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No mesh recommendations in this snapshot.</p>
-          ) : (
-            <ul className="space-y-3">
-              {bundle.ranked_next_plans.slice(0, 6).map((r) => (
-                <li key={r.id} className="text-sm border-b border-border/50 pb-2 last:border-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">
-                      {r.rank}. {r.title}
-                    </span>
-                    <Badge variant="outline">{r.verdict}</Badge>
-                    <Badge variant="secondary">{r.benefit_band}</Badge>
-                  </div>
-                  {r.lines.slice(0, 2).map((line, i) => (
-                    <p key={i} className="text-muted-foreground mt-1">
-                      {line}
-                    </p>
+          <Card className="p-3 lg:col-span-1">
+            <h3 className="text-sm font-semibold mb-2">Ranked plans</h3>
+            {bundle.ranked_next_plans.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No recommendations in this snapshot.</p>
+            ) : (
+              <ul className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                {bundle.ranked_next_plans.slice(0, 8).map((r) => (
+                  <li key={r.id} className="text-xs border-b border-border/40 pb-2 last:border-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-foreground">
+                        {r.rank}. {r.title}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {r.verdict}
+                      </Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {r.benefit_band}
+                      </Badge>
+                    </div>
+                    {r.lines.slice(0, 1).map((line, i) => (
+                      <p key={i} className="text-muted-foreground mt-1 leading-snug">
+                        {line}
+                      </p>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      ) : (
+        <>
+          {bn && (
+            <Card className="p-4 border-border">
+              <h3 className="font-semibold mb-2">Best next move (consolidated)</h3>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <Badge variant="outline">{bn.primary_verdict}</Badge>
+                <Badge variant="secondary">{bn.evidence_classification}</Badge>
+                {bn.recommendation_key && (
+                  <span title="Key for outcome history">
+                    <Badge variant="outline">{bn.recommendation_key}</Badge>
+                  </span>
+                )}
+              </div>
+              <p className="font-medium">{bn.title}</p>
+              <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-1">
+                {(bn.summary_lines ?? []).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+              {bn.wait_observe_rationale && (
+                <p className="mt-3 text-sm text-warning">
+                  <span className="font-medium">Why wait/observe: </span>
+                  {bn.wait_observe_rationale}
+                </p>
+              )}
+              {(bn.would_validate_with?.length ?? 0) > 0 && (
+                <div className="mt-3 text-sm">
+                  <span className="text-muted-foreground">What would validate this after action:</span>
+                  <ul className="list-disc list-inside mt-1">
+                    {(bn.would_validate_with ?? []).map((x, i) => (
+                      <li key={i}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(bn.uncertainty_notes?.length ?? 0) > 0 && (
+                <ul className="mt-2 text-xs text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
+                  {(bn.uncertainty_notes ?? []).map((x, i) => (
+                    <li key={i}>{x}</li>
                   ))}
-                </li>
-              ))}
-            </ul>
+                </ul>
+              )}
+            </Card>
           )}
-        </Card>
-      </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Resilience summary</h3>
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <dt className="text-muted-foreground">Resilience</dt>
+                <dd>{bundle.resilience.resilience_score.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Redundancy</dt>
+                <dd>{bundle.resilience.redundancy_score.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Partition risk</dt>
+                <dd>{bundle.resilience.partition_risk_score.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Confidence</dt>
+                <dd>{bundle.resilience.confidence.level}</dd>
+              </dl>
+              <p className="mt-3 text-sm">{bundle.resilience.next_best_move_summary}</p>
+              <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-1">
+                {bundle.resilience.fragility_explanation.map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ul>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Ranked next moves</h3>
+              {bundle.ranked_next_plans.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No mesh recommendations in this snapshot.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {bundle.ranked_next_plans.slice(0, 6).map((r) => (
+                    <li key={r.id} className="text-sm border-b border-border/50 pb-2 last:border-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">
+                          {r.rank}. {r.title}
+                        </span>
+                        <Badge variant="outline">{r.verdict}</Badge>
+                        <Badge variant="secondary">{r.benefit_band}</Badge>
+                      </div>
+                      {r.lines.slice(0, 2).map((line, i) => (
+                        <p key={i} className="text-muted-foreground mt-1">
+                          {line}
+                        </p>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
 
       <Card className="p-4">
         <h3 className="font-semibold mb-2">Resilience advisory alerts</h3>
