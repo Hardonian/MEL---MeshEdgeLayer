@@ -59,6 +59,9 @@ type Incident struct {
 	// Intelligence is deterministic, evidence-linked incident memory/guidance derived from stored MEL history.
 	Intelligence *IncidentIntelligence `json:"intelligence,omitempty"`
 
+	// ActionVisibility is server-computed control/action visibility posture for this API response (capability-aware).
+	ActionVisibility *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
+
 	// Review / workflow (migration 0031); orthogonal to control lifecycle state.
 	ReviewState            string `json:"review_state,omitempty"`
 	InvestigationNotes     string `json:"investigation_notes,omitempty"`
@@ -67,6 +70,20 @@ type Incident struct {
 	LessonsLearned         string `json:"lessons_learned,omitempty"`
 	ReopenedFromIncidentID string `json:"reopened_from_incident_id,omitempty"`
 	ReopenedAt             string `json:"reopened_at,omitempty"`
+}
+
+// IncidentActionVisibilityPosture encodes deterministic visibility truth for operators (no implied workflow certainty).
+type IncidentActionVisibilityPosture struct {
+	Kind                     string `json:"action_visibility_kind"`
+	Reason                   string `json:"action_visibility_reason,omitempty"`
+	Summary                  string `json:"action_visibility_summary"`
+	SuggestControlQueue      bool   `json:"action_context_should_open_control_queue"`
+	HasMaterialPriorAttempts bool   `json:"action_context_has_material_prior_attempts"`
+	HasPendingRelatedWork    bool   `json:"action_context_has_pending_related_work"`
+	IsPartial                bool   `json:"action_context_is_partial"`
+	LinkedRowCount           int    `json:"linked_control_row_count,omitempty"`
+	PendingRefCount          int    `json:"pending_action_ref_count,omitempty"`
+	RecentActionRefCount     int    `json:"recent_action_ref_count,omitempty"`
 }
 
 // IncidentIntelligence is an evidence-bounded operator aid for recurring signatures and investigation flow.

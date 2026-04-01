@@ -16,6 +16,7 @@ import (
 
 	"github.com/mel-project/mel/internal/version"
 
+	"github.com/mel-project/mel/internal/actionvisibility"
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
@@ -72,12 +73,12 @@ type Server struct {
 	inspectAction            func(actionID string) (map[string]any, error)
 	operationalState         func() (map[string]any, error)
 	incidentHandoff          func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
-	incidentByID             func(id string) (models.Incident, bool, error)
+	incidentByID             func(id string, canReadLinked bool) (models.Incident, bool, error)
 	incidentWorkflowPatch    func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
 	incidentRecOutcome       func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
-	incidentReplayView       func(incidentID string) (map[string]any, error)
+	incidentReplayView       func(incidentID string, canReadLinked bool) (map[string]any, error)
 	incidentEscalationBundle func(incidentID, actorID string) (map[string]any, error)
-	recentIncidents          func(limit int) ([]models.Incident, error)
+	recentIncidents          func(limit int, canReadLinked bool) ([]models.Incident, error)
 	queueOperatorControl     func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
 
 	// Offline remote evidence import (instance-local; not live federation).
@@ -139,7 +140,7 @@ func (s *Server) SetTrustFuncs(
 // SetIncidentCollaboration wires incident handoff and lookup for multi-operator coordination.
 func (s *Server) SetIncidentCollaboration(
 	handoff func(string, string, models.IncidentHandoffRequest) error,
-	byID func(string) (models.Incident, bool, error),
+	byID func(string, bool) (models.Incident, bool, error),
 ) {
 	s.incidentHandoff = handoff
 	s.incidentByID = byID
@@ -149,7 +150,7 @@ func (s *Server) SetIncidentCollaboration(
 func (s *Server) SetIncidentMoatExtensions(
 	workflow func(string, string, models.IncidentWorkflowPatch) error,
 	recOutcome func(string, string, models.IncidentRecommendationOutcomeRequest) error,
-	replay func(string) (map[string]any, error),
+	replay func(string, bool) (map[string]any, error),
 	escalation func(string, string) (map[string]any, error),
 ) {
 	s.incidentWorkflowPatch = workflow
@@ -164,8 +165,16 @@ func (s *Server) SetProofpackAssembler(f func(incidentID, actorID string) (map[s
 }
 
 // SetRecentIncidents wires list enrichment (e.g. linked control actions); falls back to DB when nil.
-func (s *Server) SetRecentIncidents(f func(limit int) ([]models.Incident, error)) {
+func (s *Server) SetRecentIncidents(f func(limit int, canReadLinked bool) ([]models.Incident, error)) {
 	s.recentIncidents = f
+}
+
+func (s *Server) identityCanReadLinkedControlRows(r *http.Request) bool {
+	id, ok := security.GetIdentity(r.Context())
+	if !ok {
+		return false
+	}
+	return id.Can(security.CapReadActions) || id.Can(security.CapReadStatus)
 }
 
 // SetOperatorControlQueue wires operator-initiated control action enqueue (canonical service path).
@@ -1362,12 +1371,13 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) incidentDetailHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
+func (s *Server) incidentDetailHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
 	if s.incidentByID == nil {
 		writeError(w, http.StatusServiceUnavailable, "incident detail not available", "")
 		return
 	}
-	inc, ok, err := s.incidentByID(incidentID)
+	link := s.identityCanReadLinkedControlRows(r)
+	inc, ok, err := s.incidentByID(incidentID, link)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load incident", err.Error())
 		return
@@ -1456,12 +1466,13 @@ func (s *Server) incidentRecommendationOutcomeHandler(w http.ResponseWriter, r *
 	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
 }
 
-func (s *Server) incidentReplayHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
+func (s *Server) incidentReplayHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
 	if s.incidentReplayView == nil {
 		writeError(w, http.StatusServiceUnavailable, "incident replay not available", "")
 		return
 	}
-	view, err := s.incidentReplayView(incidentID)
+	link := s.identityCanReadLinkedControlRows(r)
+	view, err := s.incidentReplayView(incidentID, link)
 	if err != nil {
 		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
@@ -1679,10 +1690,17 @@ func sanitizeFilenamePart(v string) string {
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 	var records []models.Incident
 	var err error
+	link := s.identityCanReadLinkedControlRows(r)
 	if s.recentIncidents != nil {
-		records, err = s.recentIncidents(100)
+		records, err = s.recentIncidents(100, link)
 	} else {
 		records, err = s.db.RecentIncidents(100)
+		if err == nil {
+			for i := range records {
+				vis := actionvisibility.FromIncident(records[i], link)
+				records[i].ActionVisibility = &vis
+			}
+		}
 	}
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{
