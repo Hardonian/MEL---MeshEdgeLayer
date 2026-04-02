@@ -150,6 +150,7 @@ func (a *App) finishIncidentForAPI(inc *models.Incident, canReadLinked bool) {
 	inc.ActionVisibility = &vis
 	ts := incidenttriage.ComputeForIncident(*inc)
 	inc.TriageSignals = &ts
+	a.attachDecisionPack(inc)
 }
 
 // RecentIncidentsWithLinkedActions returns recent incidents with linked_control_actions populated from the canonical FK.

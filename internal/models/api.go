@@ -73,6 +73,145 @@ type Incident struct {
 	LessonsLearned         string `json:"lessons_learned,omitempty"`
 	ReopenedFromIncidentID string `json:"reopened_from_incident_id,omitempty"`
 	ReopenedAt             string `json:"reopened_at,omitempty"`
+
+	// DecisionPack is the canonical backend-assembled incident decision object (detail, workbench, export framing).
+	// Populated on API responses that run finishIncidentForAPI; not a second source of business truth.
+	DecisionPack *IncidentDecisionPack `json:"decision_pack,omitempty"`
+}
+
+// IncidentDecisionPackSchemaVersion is bumped when section shapes or semantics change incompatibly.
+const IncidentDecisionPackSchemaVersion = "1"
+
+// IncidentDecisionPack is the versioned, backend-owned contract for incident triage, evidence, memory, and next steps.
+// Interpretive layers are explicitly labeled; absence of data is honest partial state, not silent health.
+type IncidentDecisionPack struct {
+	SchemaVersion string `json:"schema_version"`
+	IncidentID    string `json:"incident_id"`
+	GeneratedAt   string `json:"generated_at"` // RFC3339 UTC from assembly
+
+	Identity             *IncidentDecisionPackIdentity            `json:"identity,omitempty"`
+	Queue                *IncidentDecisionPackQueue               `json:"queue,omitempty"`
+	EvidenceBasis        *IncidentDecisionPackEvidenceBasis       `json:"evidence_basis,omitempty"`
+	IntelligenceSummary  *IncidentDecisionPackIntelligenceSummary `json:"intelligence_summary,omitempty"`
+	MitigationDurability *IncidentMitigationDurabilityMemory      `json:"mitigation_durability,omitempty"`
+	FamilyHistory        *IncidentDecisionPackFamilyHistory       `json:"family_history,omitempty"`
+	TransportGraph       *IncidentDecisionPackTransportGraph      `json:"transport_graph,omitempty"`
+	LinkedActions        *IncidentDecisionPackLinkedActions       `json:"linked_actions,omitempty"`
+	Readiness            *IncidentDecisionPackReadiness           `json:"readiness,omitempty"`
+	Uncertainty          *IncidentDecisionPackUncertainty         `json:"uncertainty,omitempty"`
+	OperatorAdjudication *IncidentDecisionPackAdjudication        `json:"operator_adjudication,omitempty"`
+	AnalyticsHints       *IncidentDecisionPackAnalyticsHints      `json:"analytics_hints,omitempty"`
+}
+
+type IncidentDecisionPackIdentity struct {
+	Title          string `json:"title,omitempty"`
+	State          string `json:"state,omitempty"`
+	Severity       string `json:"severity,omitempty"`
+	Category       string `json:"category,omitempty"`
+	ResourceType   string `json:"resource_type,omitempty"`
+	ResourceID     string `json:"resource_id,omitempty"`
+	OccurredAt     string `json:"occurred_at,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
+	ResolvedAt     string `json:"resolved_at,omitempty"`
+	ReviewState    string `json:"review_state,omitempty"`
+	OwnerActorID   string `json:"owner_actor_id,omitempty"`
+	HandoffSummary string `json:"handoff_summary,omitempty"`
+	Summary        string `json:"summary,omitempty"`
+}
+
+type IncidentDecisionPackQueue struct {
+	TriageSignals       *IncidentTriageSignals `json:"triage_signals,omitempty"`
+	WhySurfacedOneLiner string                 `json:"why_surfaced_one_liner,omitempty"`
+	OrderingNote        string                 `json:"ordering_note,omitempty"`
+}
+
+type IncidentDecisionPackEvidenceBasis struct {
+	EvidenceStrength string                 `json:"evidence_strength,omitempty"`
+	EvidenceItems    []IncidentEvidenceItem `json:"evidence_items,omitempty"`
+	ItemCapApplied   int                    `json:"item_cap_applied,omitempty"`
+	Degraded         bool                   `json:"degraded"`
+	DegradedReasons  []string               `json:"degraded_reasons,omitempty"`
+	SparsityMarkers  []string               `json:"sparsity_markers,omitempty"`
+}
+
+type IncidentDecisionPackIntelligenceSummary struct {
+	SignatureLabel      string   `json:"signature_label,omitempty"`
+	SignatureMatchCount int      `json:"signature_match_count,omitempty"`
+	SummaryLines        []string `json:"summary_lines,omitempty"`
+	InvestigateNextIDs  []string `json:"investigate_next_ids,omitempty"`
+	RunbookRecIDs       []string `json:"runbook_recommendation_ids,omitempty"`
+	LearningLoopHints   []string `json:"learning_loop_hints,omitempty"`
+}
+
+type IncidentDecisionPackFamilyHistory struct {
+	SignatureFamily  *IncidentSignatureFamilyResolvedHistory `json:"signature_family,omitempty"`
+	SimilarIncidents []IncidentSimilarityRecord              `json:"similar_incidents,omitempty"`
+	SimilarScanCap   int                                     `json:"similar_scan_cap,omitempty"`
+}
+
+type IncidentDecisionPackTransportGraph struct {
+	MeshRoutingCompanion *MeshRoutingIntelCompanion `json:"mesh_routing_companion,omitempty"`
+	WirelessContext      *IncidentWirelessContext   `json:"wireless_context,omitempty"`
+}
+
+type IncidentDecisionPackLinkedActions struct {
+	ActionVisibility        *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
+	OperatorSuggestedAction []OperatorSuggestedAction        `json:"operator_suggested_actions,omitempty"`
+	LinkedControlActionIDs  []string                         `json:"linked_control_action_ids,omitempty"`
+}
+
+type IncidentDecisionPackReadiness struct {
+	ExportPolicySemantic    string   `json:"export_policy_semantic,omitempty"`
+	ExportPolicySummary     string   `json:"export_policy_summary,omitempty"`
+	ExportArtifactStrength  string   `json:"export_artifact_strength,omitempty"`
+	ExportBlockerCodes      []string `json:"export_blocker_codes,omitempty"`
+	ProofpackPath           string   `json:"proofpack_path,omitempty"`
+	EscalationBundlePath    string   `json:"escalation_bundle_path,omitempty"`
+	HandoffPostureNote      string   `json:"handoff_posture_note,omitempty"`
+	EvidenceSufficiencyNote string   `json:"evidence_sufficiency_note,omitempty"`
+}
+
+type IncidentDecisionPackUncertainty struct {
+	NonClaims              []string `json:"non_claims,omitempty"`
+	InterpretationLabels   []string `json:"interpretation_labels,omitempty"`
+	DegradedSections       []string `json:"degraded_sections,omitempty"`
+	BoundedScanDisclosures []string `json:"bounded_scan_disclosures,omitempty"`
+}
+
+// IncidentDecisionPackAdjudication is operator feedback on the pack (durable; separate from assistive rec outcomes).
+type IncidentDecisionPackAdjudication struct {
+	Reviewed          bool                             `json:"reviewed"`
+	ReviewedAt        string                           `json:"reviewed_at,omitempty"`
+	ReviewedByActorID string                           `json:"reviewed_by_actor_id,omitempty"`
+	Useful            string                           `json:"useful,omitempty"` // useful | not_useful | ""
+	OperatorNote      string                           `json:"operator_note,omitempty"`
+	CueOutcomes       []IncidentDecisionPackCueOutcome `json:"cue_outcomes,omitempty"`
+	UpdatedAt         string                           `json:"updated_at,omitempty"`
+}
+
+type IncidentDecisionPackCueOutcome struct {
+	CueID   string `json:"cue_id"`
+	Outcome string `json:"outcome"` // accepted | dismissed | ""
+	Note    string `json:"note,omitempty"`
+}
+
+// IncidentDecisionPackAnalyticsHints carries stable keys for future compounding analytics (no aggregation here).
+type IncidentDecisionPackAnalyticsHints struct {
+	SignatureKey                string `json:"signature_key,omitempty"`
+	FingerprintCanonicalHash    string `json:"fingerprint_canonical_hash,omitempty"`
+	TriageTier                  int    `json:"triage_tier,omitempty"`
+	MitigationDurabilityPosture string `json:"mitigation_durability_posture,omitempty"`
+	EvidenceStrength            string `json:"evidence_strength,omitempty"`
+	IntelDegraded               bool   `json:"intel_degraded"`
+}
+
+// IncidentDecisionPackAdjudicationPatch is the body for PATCH .../decision-pack.
+type IncidentDecisionPackAdjudicationPatch struct {
+	Reviewed           *bool                            `json:"reviewed,omitempty"`
+	Useful             *string                          `json:"useful,omitempty"`
+	OperatorNote       *string                          `json:"operator_note,omitempty"`
+	CueOutcomes        []IncidentDecisionPackCueOutcome `json:"cue_outcomes,omitempty"`
+	ReplaceCueOutcomes bool                             `json:"replace_cue_outcomes,omitempty"`
 }
 
 // IncidentActionVisibilityPosture encodes deterministic visibility truth for operators (no implied workflow certainty).
