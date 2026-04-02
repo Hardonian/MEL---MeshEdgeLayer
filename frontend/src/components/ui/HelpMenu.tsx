@@ -11,6 +11,7 @@ import {
   Keyboard,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { isEditableTarget } from '@/utils/keyboard'
 
 interface HelpLink {
   label: string
@@ -58,14 +59,6 @@ const icons = {
   github: Github,
   community: MessageSquare,
   changelog: FileText,
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!target || !(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-  if (target.isContentEditable) return true
-  return false
 }
 
 export function HelpMenu() {
@@ -378,6 +371,9 @@ export function KeyboardShortcuts() {
     { keys: 'Ctrl/Cmd + K', description: 'Open command palette' },
     { keys: 'r', description: 'Refresh current console data (non-destructive)' },
     { keys: 'g then i/t/p/s', description: 'Jump to Incidents / Topology / Planning / Status' },
+    { keys: '/ (planning/replay)', description: 'Focus page filter/search fields when available' },
+    { keys: '1/2/3 (planning/topology/incident)', description: 'Jump between page sections' },
+    { keys: 'o / c (planning & incident)', description: 'Expand or collapse detail groups' },
   ]
 
   return (

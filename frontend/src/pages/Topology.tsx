@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GitBranch, RefreshCw, AlertCircle } from 'lucide-react'
+import { usePageHotkeys } from '@/hooks/usePageHotkeys'
 
 type TopoNode = {
   node_num: number
@@ -125,6 +126,9 @@ export function Topology() {
   const [selected, setSelected] = useState<NodeDrill | null>(null)
   const [selLoading, setSelLoading] = useState(false)
   const [snapshots, setSnapshots] = useState<TopologySnapshot[]>([])
+  const [nodeQuery, setNodeQuery] = useState('')
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const nodeSearchRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -216,6 +220,14 @@ export function Topology() {
     }
   }
 
+
+  usePageHotkeys([
+    { key: '/', description: 'Focus node search', handler: () => nodeSearchRef.current?.focus() },
+    { key: '1', description: 'Jump to graph', handler: () => sectionRefs.current.graph?.scrollIntoView({ behavior: 'smooth' }) },
+    { key: '2', description: 'Jump to drilldown', handler: () => sectionRefs.current.drill?.scrollIntoView({ behavior: 'smooth' }) },
+    { key: '3', description: 'Jump to intelligence', handler: () => sectionRefs.current.intel?.scrollIntoView({ behavior: 'smooth' }) },
+  ])
+
   const mapPoints = useMemo(() => {
     return nodes.filter(
       (n) =>
@@ -225,6 +237,12 @@ export function Topology() {
         (n.lat_redacted !== 0 || n.lon_redacted !== 0)
     )
   }, [nodes])
+
+  const filteredNodes = useMemo(() => {
+    if (!nodeQuery.trim()) return nodes
+    const q = nodeQuery.toLowerCase()
+    return nodes.filter((n) => `${n.node_num} ${n.short_name} ${n.long_name} ${n.node_id}`.toLowerCase().includes(q))
+  }, [nodes, nodeQuery])
 
   const intelBody =
     intel && intel.topology_enabled === false ? (
@@ -266,6 +284,19 @@ export function Topology() {
 
       {intelBody}
 
+      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:items-center">
+        <input
+          ref={nodeSearchRef}
+          className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs sm:max-w-xs"
+          value={nodeQuery}
+          onChange={(e) => setNodeQuery(e.target.value)}
+          placeholder="Filter nodes in graph/drilldown…"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Shortcuts: / focus filter · 1 graph · 2 drilldown · 3 intelligence. Graph remains relaxed-layout (no full pan/zoom canvas yet).
+        </p>
+      </div>
+
       {intel && intel.topology_enabled !== false && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard label="View mode" value={intel.view_mode || '—'} hint="graph unless map reporting + coordinates justify map" />
@@ -284,7 +315,7 @@ export function Topology() {
       )}
 
       {intel?.mesh_intelligence && intel.topology_enabled !== false && (
-        <div className="rounded-xl border bg-card p-4 space-y-4">
+        <div className="rounded-xl border bg-card p-4 space-y-4" ref={(el) => (sectionRefs.current.intel = el)}>
           <div>
             <h2 className="text-sm font-medium">Mesh deployment intelligence</h2>
             <p className="text-xs text-muted-foreground mt-1">
@@ -368,7 +399,7 @@ export function Topology() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-xl border bg-card p-4">
+          <div className="rounded-xl border bg-card p-4" ref={(el) => (sectionRefs.current.graph = el)}>
             <h2 className="text-sm font-medium mb-2">Topology graph</h2>
             <p className="text-xs text-muted-foreground mb-4">
               Relaxed graph layout from stored links. Inferred edges are dashed; stale or contradicted links are visually de-emphasized. Click a node for drilldown.
@@ -382,11 +413,11 @@ export function Topology() {
                 <span className="rounded border px-2 py-1">Δlinks {driftSummary.edgeDelta >= 0 ? '+' : ''}{driftSummary.edgeDelta}</span>
               </div>
             )}
-            {nodes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No nodes in topology store yet.</p>
+            {filteredNodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No nodes match this filter in topology store.</p>
             ) : (
               <svg viewBox="0 0 480 480" className="w-full max-h-[480px] text-foreground">
-                {links.map((l) => {
+                {links.filter((l) => filteredNodes.some((n) => n.node_num === l.src_node_num) && filteredNodes.some((n) => n.node_num === l.dst_node_num)).map((l) => {
                   const a = graphLayout.pos.get(l.src_node_num)
                   const b = graphLayout.pos.get(l.dst_node_num)
                   if (!a || !b) return null
@@ -406,7 +437,7 @@ export function Topology() {
                     />
                   )
                 })}
-                {nodes.map((n) => {
+                {filteredNodes.map((n) => {
                   const p = graphLayout.pos.get(n.node_num)
                   if (!p) return null
                   const fill =
@@ -431,7 +462,7 @@ export function Topology() {
           </div>
 
           {(intel?.view_mode === 'map' || intel?.view_mode === 'map_partial') && mapPoints.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4" ref={(el) => (sectionRefs.current.graph = el)}>
               <h2 className="text-sm font-medium mb-2">Coordinate scatter (redacted)</h2>
               <p className="text-xs text-muted-foreground mb-4">
                 Normalized plot of lat_redacted/lon_redacted — not a surveyed map. Stale or unknown locations are excluded.
@@ -441,7 +472,7 @@ export function Topology() {
           )}
         </div>
 
-        <div className="rounded-xl border bg-card p-4 min-h-[200px]">
+        <div className="rounded-xl border bg-card p-4 min-h-[200px] lg:sticky lg:top-20" ref={(el) => (sectionRefs.current.drill = el)}>
           <h2 className="text-sm font-medium mb-2">Drilldown</h2>
           {selLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
           {!selLoading && !selected && <p className="text-sm text-muted-foreground">Select a node on the graph.</p>}

@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { HelpMenu } from '@/components/ui/HelpMenu'
 import { truncateMiddle } from '@/utils/presentation'
+import { isEditableTarget } from '@/utils/keyboard'
 import {
   LayoutDashboard,
   Radio,
@@ -149,13 +150,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      const inEditable =
-        !!target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable)
+      const inEditable = isEditableTarget(e.target)
 
       if (e.key === 'Escape') {
         setIsMobileMenuOpen(false)
