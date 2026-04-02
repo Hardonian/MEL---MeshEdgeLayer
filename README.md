@@ -56,6 +56,8 @@ For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/ev
 ## Documentation map
 
 - Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
+- Product system: [`docs/product/README.md`](docs/product/README.md)
+- Release/support system: [`docs/release/RELEASE_CRITERIA.md`](docs/release/RELEASE_CRITERIA.md)
 - Communications hub blueprint: [`docs/architecture/communications-hub-blueprint.md`](docs/architecture/communications-hub-blueprint.md)
 - Operations: [`docs/ops/OPERATIONS_RUNBOOK.md`](docs/ops/OPERATIONS_RUNBOOK.md)
 - Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md)
@@ -65,6 +67,7 @@ For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/ev
 - Repo-local skills/checklists: [`docs/repo-os/skills/README.md`](docs/repo-os/skills/README.md)
 - Privacy platform policy: [`docs/privacy/platform-policy.md`](docs/privacy/platform-policy.md)
 - Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
+- Internal/private strategy notes: [`docs/internal/private/README.md`](docs/internal/private/README.md)
 
 ## Verification entry points
 
