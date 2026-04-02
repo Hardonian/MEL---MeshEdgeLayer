@@ -306,8 +306,8 @@ export function Incidents() {
 
       {openIncidents.some((i) => i.triage_signals?.queue_ordering_contract) && (
         <p className="text-[11px] text-muted-foreground border border-border/40 rounded-lg px-3 py-2" data-testid="workbench-queue-contract-note">
-          Open rows sort by server <span className="font-mono">triage_signals.queue_sort_primary</span> then{' '}
-          <span className="font-mono">updated_at</span> — same contract as incident detail; presentation-only toggles stay local.
+          Open rows use server <span className="font-mono">triage_signals.queue_sort_key_lex</span> when present (workbench v2); otherwise{' '}
+          <span className="font-mono">queue_sort_primary</span> then recency — same contract as incident detail; presentation-only toggles stay local.
         </p>
       )}
 

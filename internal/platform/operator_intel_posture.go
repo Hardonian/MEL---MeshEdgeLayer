@@ -35,6 +35,7 @@ func BuildOperatorIntelligencePosture(cfg config.Config, inferenceDegraded, runt
 		AssistInputContracts: []string{
 			"incident.triage_signals",
 			"incident.action_visibility",
+			"incident.assist_signals",
 			"incident.intelligence.action_outcome_memory",
 			"incident.intelligence.signature_family_resolved_history",
 			"incident.intelligence.mitigation_durability_memory",

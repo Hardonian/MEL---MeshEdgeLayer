@@ -51,6 +51,57 @@ func TestRecommendationOutcomes_InsertAndList(t *testing.T) {
 	}
 }
 
+func TestIntelSignalOutcomes_LatestByCode(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inc := models.Incident{
+		ID:           "inc-b",
+		Category:     "transport",
+		Severity:     "high",
+		Title:        "t",
+		Summary:      "s",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-a",
+		State:        "open",
+		OccurredAt:   "2026-03-29T10:00:00Z",
+	}
+	if err := d.UpsertIncident(inc); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertIncidentIntelSignalOutcome(IncidentIntelSignalOutcomeRecord{
+		ID:         "iso-1",
+		IncidentID: "inc-b",
+		SignalCode: "evidence_thin_review_needed",
+		Outcome:    "dismissed",
+		ActorID:    "op-1",
+		CreatedAt:  "2026-03-29T12:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.InsertIncidentIntelSignalOutcome(IncidentIntelSignalOutcomeRecord{
+		ID:         "iso-2",
+		IncidentID: "inc-b",
+		SignalCode: "evidence_thin_review_needed",
+		Outcome:    "reviewed",
+		ActorID:    "op-1",
+		CreatedAt:  "2026-03-29T13:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := d.LatestIntelSignalOutcomesByIncident("inc-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["evidence_thin_review_needed"].Outcome != "reviewed" {
+		t.Fatalf("want latest reviewed, got %+v", m)
+	}
+}
+
 func TestCorrelationGroup_SignatureLink(t *testing.T) {
 	cfg := config.Default()
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")

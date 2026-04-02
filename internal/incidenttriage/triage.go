@@ -3,7 +3,11 @@
 package incidenttriage
 
 import (
+	"fmt"
+	"hash/fnv"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/mel-project/mel/internal/models"
 )
@@ -185,17 +189,70 @@ func fillQueueOrdering(out *models.IncidentTriageSignals, inc models.Incident) {
 	if out == nil {
 		return
 	}
-	out.QueueOrderingContract = "open_incident_workbench_v1"
+	out.QueueOrderingContract = "open_incident_workbench_v2"
+	out.QueueOrderingContractVersion = "2"
 	out.QueueSortPrimary = out.Tier
 	out.QueueSortSecondary = "updated_at_desc"
-	out.OrderingRationale = "Primary key mirrors triage tier (0=follow-up/review, 1=control gate, 2=evidence stress, 3=recurrence, 4=routine). Secondary is RFC3339 updated_at descending when present."
+	secNs, validity := parseUpdatedAtNanos(inc.UpdatedAt)
+	out.QueueSortSecondaryNumeric = secNs
+	out.QueueSortSecondaryValidity = validity
+	tie := stableIncidentIDHash(inc.ID)
+	out.QueueSortTieBreak = "incident_id_fnv1a64_lex_tiebreak"
+	out.QueueSortTieBreakNumeric = tie
+	recencyInverted := recencyInvertedRank(secNs, validity)
+	// Lexicographic ascending sort on this tuple matches: lower tier first, then more-recent updated_at first (smaller inverted rank), then stable id tie-break.
+	out.QueueSortTuple = []int64{int64(out.Tier), recencyInverted, tie}
+	out.QueueSortKeyLex = queueSortKeyLex(out.Tier, recencyInverted, tie)
+	out.OrderingRationale = "open_incident_workbench_v2: prefer ascending queue_sort_key_lex (JSON-safe). Tuple: [tier, recency_inverted_ns, tie_break_hash] — recency_inverted_ns = MaxInt64−updated_at_ns when valid (more recent → smaller rank); missing/invalid timestamps use MaxInt64 (sort after known recency). queue_sort_secondary remains a human hint (updated_at_desc)."
 	var ev []string
 	ev = append(ev, out.EvidenceRefs...)
 	if inc.UpdatedAt != "" {
 		ev = append(ev, "incident.updated_at")
 	}
+	if strings.TrimSpace(inc.ID) != "" {
+		ev = append(ev, "incident.id")
+	}
 	out.OrderingEvidenceRefs = ev
-	out.OrderingUncertainty = "Tier is deterministic from this API payload; stale updated_at or missing fields weaken recency ordering — not a team queue or hidden score."
+	out.OrderingUncertainty = "Tier is deterministic from this API payload. Recency uses incident.updated_at only; missing or invalid timestamps collapse secondary ordering to 0 — not a team queue, SLA, or hidden score."
+}
+
+func parseUpdatedAtNanos(updatedAt string) (ns int64, validity string) {
+	s := strings.TrimSpace(updatedAt)
+	if s == "" {
+		return 0, "missing"
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339, s)
+	}
+	if err != nil || t.IsZero() {
+		return 0, "invalid_timestamp"
+	}
+	return t.UTC().UnixNano(), "valid_rfc3339"
+}
+
+func stableIncidentIDHash(id string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(strings.TrimSpace(id)))
+	v := int64(h.Sum64() & ((uint64(1) << 63) - 1))
+	if v == 0 {
+		return 1
+	}
+	return v
+}
+
+func recencyInvertedRank(secNs int64, validity string) int64 {
+	if validity != "valid_rfc3339" {
+		return math.MaxInt64
+	}
+	if secNs < 0 {
+		return math.MaxInt64
+	}
+	return math.MaxInt64 - secNs
+}
+
+func queueSortKeyLex(tier int, recencyInverted, tie int64) string {
+	return fmt.Sprintf("%d.%020d.%016x", tier, recencyInverted, uint64(tie))
 }
 
 func appendCode(out *models.IncidentTriageSignals, code, rationale string, refs []string) {
