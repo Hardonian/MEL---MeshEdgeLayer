@@ -64,6 +64,8 @@ type Incident struct {
 
 	// TriageSignals are deterministic, inspectable queue-shaping hints (not ranked black-box scoring).
 	TriageSignals *IncidentTriageSignals `json:"triage_signals,omitempty"`
+	// AssistSignals are deterministic, inspectable local-intelligence cues — non-canonical vs persisted evidence rows.
+	AssistSignals *IncidentAssistSignals `json:"assist_signals,omitempty"`
 
 	// Review / workflow (migration 0031); orthogonal to control lifecycle state.
 	ReviewState            string `json:"review_state,omitempty"`
@@ -129,11 +131,69 @@ type IncidentIntelligence struct {
 }
 
 // IncidentMitigationDurabilityMemory summarizes stored outcome/family rows only — association, not causal proof.
+// SchemaVersion documents the DTO shape for export/API parity (mitigation_durability_memory_v2).
 type IncidentMitigationDurabilityMemory struct {
-	Posture      string   `json:"posture"` // reopened_after_resolution_in_family | deterioration_or_mixed_in_outcome_memory | family_peers_present_no_reopen_signal | insufficient_local_history
-	Summary      string   `json:"summary"`
+	SchemaVersion string `json:"schema_version,omitempty"`
+	// Posture is the primary normalized posture code (stable enum string for operators and export).
+	Posture string `json:"posture"`
+	// ReasonCodes are normalized taxonomy entries for why this posture was chosen (subset of posture-specific codes).
+	ReasonCodes []string `json:"reason_codes,omitempty"`
+	Summary     string   `json:"summary"`
+	// Scope bounds what the summary claims (instance_record, signature_family_scan, outcome_memory_aggregate, etc.).
+	Scope *IncidentDurabilityScope `json:"scope,omitempty"`
+	// Basis lists deterministic derivation steps (field paths), not narrative proof.
+	Basis *IncidentDurabilityBasis `json:"basis,omitempty"`
+	// NonClaims explicitly states what this memory does not assert.
+	NonClaims    []string `json:"non_claims,omitempty"`
 	EvidenceRefs []string `json:"evidence_refs,omitempty"`
 	Uncertainty  string   `json:"uncertainty"`
+}
+
+// IncidentDurabilityScope bounds mitigation durability statements to stored evidence classes.
+type IncidentDurabilityScope struct {
+	Primary string   `json:"primary"` // e.g. instance_record | signature_family_bounded_scan | action_outcome_memory
+	Detail  []string `json:"detail,omitempty"`
+}
+
+// IncidentDurabilityBasis ties the memory object to deterministic inputs (evidence paths, counts).
+type IncidentDurabilityBasis struct {
+	Inputs      []string       `json:"inputs,omitempty"`       // e.g. incident.signature_family_resolved_history
+	Counts      map[string]int `json:"counts,omitempty"`       // e.g. resolved_peer_count -> 2
+	ScanPosture string         `json:"scan_posture,omitempty"` // full_family | bounded_recent_peers
+}
+
+// IncidentAssistSignals groups bounded assistive incident-intelligence outputs (deterministic, not LLM).
+type IncidentAssistSignals struct {
+	SchemaVersion string                 `json:"schema_version"` // incident_assist_signals_v1
+	Signals       []IncidentAssistSignal `json:"signals,omitempty"`
+	Uncertainty   string                 `json:"uncertainty,omitempty"`
+	EvidenceBasis string                 `json:"evidence_basis,omitempty"` // high-level note on inputs used
+}
+
+// IncidentAssistSignal is one inspectable assist cue with explicit codes and uncertainty.
+type IncidentAssistSignal struct {
+	Code         string   `json:"code"`
+	Severity     string   `json:"severity,omitempty"` // info | watch | review
+	Title        string   `json:"title"`
+	Rationale    string   `json:"rationale"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty,omitempty"`
+	// OperatorState summarizes durable adjudication for this signal code when rows exist (non-authoritative snapshot).
+	OperatorState *IncidentAssistSignalOperatorState `json:"operator_state,omitempty"`
+}
+
+// IncidentAssistSignalOperatorState is derived from persisted incident_intel_signal_outcomes (latest per signal_code).
+type IncidentAssistSignalOperatorState struct {
+	LatestOutcome string `json:"latest_outcome,omitempty"`
+	LatestAt      string `json:"latest_at,omitempty"`
+	ActorID       string `json:"actor_id,omitempty"`
+}
+
+// IncidentIntelSignalOutcomeRequest records operator adjudication for a deterministic assist signal code.
+type IncidentIntelSignalOutcomeRequest struct {
+	SignalCode string `json:"signal_code"`
+	Outcome    string `json:"outcome"` // dismissed | accepted | reviewed | snoozed
+	Note       string `json:"note,omitempty"`
 }
 
 // IncidentSignatureFamilyResolvedHistory is observational recurrence context from stored incidents — not prediction.
@@ -145,12 +205,22 @@ type IncidentTriageSignals struct {
 	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
 	UncertaintyNotes []string `json:"uncertainty_notes,omitempty"`
 	// Queue ordering contract: same semantics as Tier for open-incident work ordering; explicit for cross-surface parity.
-	QueueOrderingContract string   `json:"queue_ordering_contract,omitempty"`
-	QueueSortPrimary      int      `json:"queue_sort_primary,omitempty"`
-	QueueSortSecondary    string   `json:"queue_sort_secondary,omitempty"`
-	OrderingRationale     string   `json:"ordering_rationale,omitempty"`
-	OrderingEvidenceRefs  []string `json:"ordering_evidence_refs,omitempty"`
-	OrderingUncertainty   string   `json:"ordering_uncertainty,omitempty"`
+	QueueOrderingContract string `json:"queue_ordering_contract,omitempty"`
+	// QueueOrderingContractVersion distinguishes contract upgrades (open_incident_workbench_v2 adds full tuple).
+	QueueOrderingContractVersion string `json:"queue_ordering_contract_version,omitempty"`
+	QueueSortPrimary             int    `json:"queue_sort_primary,omitempty"`
+	// QueueSortSecondary is a human hint; use QueueSortSecondaryNumeric + tuple for machine ordering.
+	QueueSortSecondary         string  `json:"queue_sort_secondary,omitempty"`
+	QueueSortSecondaryNumeric  int64   `json:"queue_sort_secondary_numeric,omitempty"`  // nanoseconds since epoch when valid; 0 when missing/invalid
+	QueueSortSecondaryValidity string  `json:"queue_sort_secondary_validity,omitempty"` // valid_rfc3339 | missing | invalid_timestamp
+	QueueSortTieBreak          string  `json:"queue_sort_tie_break,omitempty"`          // incident_id_lex_asc
+	QueueSortTieBreakNumeric   int64   `json:"queue_sort_tie_break_numeric,omitempty"`  // stable hash for id tie-break when present
+	QueueSortTuple             []int64 `json:"queue_sort_tuple,omitempty"`              // [primary, recency_inverted_ns, tie_break] — prefer queue_sort_key_lex in JSON clients (int64 ns may exceed JS safe integer).
+	// QueueSortKeyLex sorts lexicographically ascending with the same order as the tuple (tier, recency, tie-break).
+	QueueSortKeyLex      string   `json:"queue_sort_key_lex,omitempty"`
+	OrderingRationale    string   `json:"ordering_rationale,omitempty"`
+	OrderingEvidenceRefs []string `json:"ordering_evidence_refs,omitempty"`
+	OrderingUncertainty  string   `json:"ordering_uncertainty,omitempty"`
 }
 
 type IncidentSignatureFamilyResolvedHistory struct {
