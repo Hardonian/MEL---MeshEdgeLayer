@@ -5,6 +5,7 @@ This hub is organized for operator truth: simple wording by default, precise con
 ## Start here
 
 - [Getting started](getting-started/README.md)
+- [Product documentation](product/README.md)
 - [Evaluate in 10 minutes](ops/evaluate-in-10-minutes.md)
 - [Support matrix](ops/support-matrix.md)
 - [Known limitations](ops/limitations.md)
@@ -46,3 +47,13 @@ This hub is organized for operator truth: simple wording by default, precise con
 - [What MEL is not](product/what-mel-is-not.md)
 - [Claims vs reality](community/claims-vs-reality.md)
 - [Roadmap execution](roadmap/ROADMAP_EXECUTION.md)
+
+
+## Release and support system
+
+- [Release criteria](release/RELEASE_CRITERIA.md)
+- [Release checklist](release/RELEASE_CHECKLIST.md)
+- [Upgrade and migration](release/UPGRADE_AND_MIGRATION.md)
+- [Compatibility and support matrix](release/COMPATIBILITY_AND_SUPPORT_MATRIX.md)
+- [Security model](release/SECURITY_MODEL.md)
+- [Privacy and data posture](release/PRIVACY_AND_DATA_POSTURE.md)

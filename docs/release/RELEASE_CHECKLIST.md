@@ -69,3 +69,16 @@ All verification evidence is stored under `docs/release/evidence/`:
 ### Next Steps
 
 Phase 8 is now complete. The MEL project has achieved Release Maturity status with all verification items completed and documented.
+
+
+## Companion release docs
+
+- [Release criteria](./RELEASE_CRITERIA.md)
+- [Upgrade and migration](./UPGRADE_AND_MIGRATION.md)
+- [Backup and restore](./BACKUP_AND_RESTORE.md)
+- [Compatibility and support matrix](./COMPATIBILITY_AND_SUPPORT_MATRIX.md)
+- [Support runbook](./SUPPORT_RUNBOOK.md)
+- [Security model](./SECURITY_MODEL.md)
+- [Privacy and data posture](./PRIVACY_AND_DATA_POSTURE.md)
+
+- [Product-system verification template](./evidence/PRODUCT_SYSTEM_VERIFICATION_TEMPLATE.md)

@@ -5,10 +5,18 @@ This path takes you from first install to trustworthy runtime checks.
 ## Startup path
 
 1. [Installation](installation.md)
-2. [First 10 minutes](first-10-minutes.md)
-3. [Direct node quickstart](../ops/direct-node-quickstart.md)
-4. [Support matrix](../ops/support-matrix.md)
-5. [Known limitations](../ops/limitations.md)
+2. [Quickstart](QUICKSTART.md)
+3. [First 10 minutes](first-10-minutes.md)
+4. [First hour guide](FIRST_HOUR_GUIDE.md)
+5. [First incident guide](FIRST_INCIDENT_GUIDE.md)
+6. [Support matrix](../ops/support-matrix.md)
+7. [Known limitations](../ops/limitations.md)
+
+## Shift and support workflows
+
+- [Operator shift start](OPERATOR_SHIFT_START.md)
+- [Support bundle guide](SUPPORT_BUNDLE_GUIDE.md)
+- [Common misreads](COMMON_MISREADS.md)
 
 ## Core concepts (read early)
 
