@@ -214,6 +214,13 @@ func fillQueueOrdering(out *models.IncidentTriageSignals, inc models.Incident) {
 	}
 	out.OrderingEvidenceRefs = ev
 	out.OrderingUncertainty = "Tier is deterministic from this API payload. Recency uses incident.updated_at only; missing or invalid timestamps collapse secondary ordering to 0 — not a team queue, SLA, or hidden score."
+	if validity == "valid_rfc3339" {
+		out.QueueOrderingPosture = "canonical_v2"
+	} else {
+		out.QueueOrderingPosture = "degraded_partial_recency"
+		out.QueueOrderingDegradedReasons = append(out.QueueOrderingDegradedReasons, "queue_sort_secondary_"+validity)
+		out.OrderingUncertainty += " Ordering posture is degraded_partial_recency: recency/tie-break used safe fallbacks — do not assume strict time ordering vs other incidents."
+	}
 }
 
 func parseUpdatedAtNanos(updatedAt string) (ns int64, validity string) {

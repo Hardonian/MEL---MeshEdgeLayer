@@ -77,6 +77,9 @@ func TestComputeForIncident_QueueOrderingFilled(t *testing.T) {
 	if sig.OrderingUncertainty == "" {
 		t.Fatal("expected ordering uncertainty")
 	}
+	if sig.QueueOrderingPosture != "canonical_v2" {
+		t.Fatalf("posture %q want canonical_v2", sig.QueueOrderingPosture)
+	}
 }
 
 func TestQueueOrderingDeterministicAcrossEqualTier(t *testing.T) {
@@ -107,6 +110,12 @@ func TestQueueOrderingMissingUpdatedAt(t *testing.T) {
 	}
 	if sig.QueueSortTuple[1] != 9223372036854775807 { // math.MaxInt64
 		t.Fatalf("missing recency should use MaxInt64 inverted rank, got %d", sig.QueueSortTuple[1])
+	}
+	if sig.QueueOrderingPosture != "degraded_partial_recency" {
+		t.Fatalf("posture %q", sig.QueueOrderingPosture)
+	}
+	if len(sig.QueueOrderingDegradedReasons) == 0 {
+		t.Fatal("expected degraded reasons")
 	}
 }
 

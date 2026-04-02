@@ -17,7 +17,16 @@ func TestWhySurfacedOneLiner_FollowUpReview(t *testing.T) {
 }
 
 func TestBuild_HasSchemaVersion(t *testing.T) {
-	inc := models.Incident{ID: "x", Title: "t", State: "open"}
+	inc := models.Incident{
+		ID:    "x",
+		Title: "t",
+		State: "open",
+		Intelligence: &models.IncidentIntelligence{
+			EvidenceStrength:    "moderate",
+			SignatureMatchCount: 2,
+		},
+		AssistSignals: &models.IncidentAssistSignals{SchemaVersion: "incident_assist_signals_v1", Signals: []models.IncidentAssistSignal{{Code: "recurrence_review_recommended", Title: "r"}}},
+	}
 	pack := Build(inc, nil, operatorreadiness.OperatorReadinessDTO{Semantic: operatorreadiness.SemanticAvailable}, time.Unix(1, 0))
 	if pack.SchemaVersion != models.IncidentDecisionPackSchemaVersion {
 		t.Fatalf("schema: %q", pack.SchemaVersion)
@@ -27,5 +36,8 @@ func TestBuild_HasSchemaVersion(t *testing.T) {
 	}
 	if pack.Uncertainty == nil || len(pack.Uncertainty.NonClaims) == 0 {
 		t.Fatalf("uncertainty missing")
+	}
+	if pack.AssistSignals == nil || len(pack.AssistSignals.Signals) == 0 {
+		t.Fatal("expected assist_signals re-export on pack")
 	}
 }

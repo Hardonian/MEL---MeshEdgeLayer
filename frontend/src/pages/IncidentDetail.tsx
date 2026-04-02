@@ -35,7 +35,14 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
 import { useControlStatus } from '@/hooks/useApi'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
-import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident, type IncidentDecisionPack } from '@/types/api'
+import {
+  formatTimestamp,
+  formatRelativeTime,
+  type ControlActionRecord,
+  type Incident,
+  type IncidentAssistSignal,
+  type IncidentDecisionPack,
+} from '@/types/api'
 import {
   evidenceStrengthLabel,
   guidanceConfidenceLabel,
@@ -1731,7 +1738,7 @@ function DecisionPackPanel({
           useful: useful || undefined,
           operator_note: note.trim() || undefined,
           cue_outcomes: cueOutcomes,
-          replace_cue_outcomes: true,
+          replace_cue_outcomes: false,
         }),
       })
       if (res.status === 403) {
@@ -1910,6 +1917,92 @@ function DecisionPackPanel({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+const assistSignalOutcomeOptions: { value: string; label: string }[] = [
+  { value: 'dismissed', label: 'Dismiss' },
+  { value: 'reviewed', label: 'Reviewed' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'snoozed', label: 'Snooze' },
+]
+
+function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => void | Promise<void> }) {
+  const ctx = useOperatorContext()
+  const { addToast } = useToast()
+  const assist = inc.assist_signals
+  const canWrite = ctx.trustUI?.incident_mutate === true
+  const signals = assist?.signals
+  if (!signals?.length) return null
+
+  async function recordOutcome(sig: IncidentAssistSignal, outcome: string) {
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/intel-signal-outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signal_code: sig.code, outcome }),
+      })
+      if (res.status === 403) {
+        addToast({ type: 'error', title: 'Cannot record', message: 'Missing incident update capability.' })
+        return
+      }
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Save failed', message: `HTTP ${res.status}` })
+        return
+      }
+      addToast({ type: 'success', title: 'Recorded', message: `Assist cue ${sig.code} marked ${outcome}.` })
+      await onReload()
+    } catch {
+      addToast({ type: 'error', title: 'Save failed', message: 'Network error.' })
+    }
+  }
+
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-muted/10 px-4 py-3 space-y-2 scroll-mt-20"
+      data-testid="incident-assist-signals"
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Assist cues (deterministic)</p>
+      <p className="text-[11px] text-muted-foreground">
+        Bounded heuristics from this incident payload — not canonical transport or RF proof. Outcomes are stored for local memory.
+      </p>
+      <ul className="space-y-2">
+        {signals.map((s) => (
+          <li key={s.code} className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[11px] text-muted-foreground">{s.code}</span>
+              {s.severity && <Badge variant="outline">{s.severity}</Badge>}
+            </div>
+            <p className="font-medium text-foreground">{s.title}</p>
+            <p className="text-muted-foreground">{s.rationale}</p>
+            {s.uncertainty && (
+              <p className="text-[10px] text-muted-foreground border-l-2 border-warning/25 pl-2">{s.uncertainty.replace(/_/g, ' ')}</p>
+            )}
+            {s.operator_state?.latest_outcome && (
+              <p className="text-[10px] text-muted-foreground">
+                Last: <span className="font-mono">{s.operator_state.latest_outcome}</span>
+                {s.operator_state.latest_at ? ` · ${formatRelativeTime(s.operator_state.latest_at)}` : ''}
+                {s.operator_state.actor_id ? ` · ${s.operator_state.actor_id}` : ''}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {assistSignalOutcomeOptions.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  disabled={!canWrite}
+                  className="rounded-md border border-border/60 bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted/60 disabled:opacity-50"
+                  onClick={() => void recordOutcome(s, o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {!canWrite && <p className="text-[11px] text-warning">Read-only — recording requires incident_mutate.</p>}
+    </div>
   )
 }
 
@@ -2510,8 +2603,6 @@ export function IncidentDetail() {
               </div>
             </Section>
           )}
-        </CardContent>
-      </Card></div>
 
           {/* Risks */}
           {(inc.risks?.length ?? 0) > 0 && (

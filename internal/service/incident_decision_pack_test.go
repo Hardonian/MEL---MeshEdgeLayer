@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/models"
 )
 
@@ -71,5 +72,50 @@ func TestPatchIncidentDecisionPackAdjudication_Persists(t *testing.T) {
 	}
 	if !got.Reviewed || got.Useful != "useful" {
 		t.Fatalf("unexpected row: %+v", got)
+	}
+}
+
+func TestRecordIntelSignalOutcome_SyncsPackCueOutcomes(t *testing.T) {
+	a := newTrustTestApp(t)
+	inc := models.Incident{
+		ID:           "inc-intel-sync-1",
+		Category:     "transport",
+		Severity:     "high",
+		Title:        "Sync",
+		Summary:      "s",
+		ResourceType: "transport",
+		ResourceID:   "t-sync",
+		State:        "open",
+		OccurredAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := a.DB.UpsertIncident(inc); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RecordIntelSignalOutcome(inc.ID, "op-1", models.IncidentIntelSignalOutcomeRequest{
+		SignalCode: "recurrence_review_recommended",
+		Outcome:    "dismissed",
+		Note:       "noise",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	row, ok, err := a.DB.GetIncidentDecisionPackAdjudication(inc.ID)
+	if err != nil || !ok {
+		t.Fatalf("expected pack adjudication row: ok=%v err=%v", ok, err)
+	}
+	cues, err := db.DecodeCueOutcomesJSON(row.CueOutcomesJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, c := range cues {
+		if c.CueID == "recurrence_review_recommended" && c.Outcome == "dismissed" {
+			found = true
+			if c.Note != "noise" {
+				t.Fatalf("note %q", c.Note)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("cue not merged: %#v", cues)
 	}
 }
