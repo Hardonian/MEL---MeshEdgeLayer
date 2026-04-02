@@ -12,6 +12,7 @@ import {
   Keyboard,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { isEditableTarget } from '@/utils/keyboard'
 
 // ─── Global keyboard shortcuts hook ──────────────────────────────────────────
 // Exported so Layout can mount it once at the app root.
@@ -116,14 +117,6 @@ const icons = {
   github: Github,
   community: MessageSquare,
   changelog: FileText,
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!target || !(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-  if (target.isContentEditable) return true
-  return false
 }
 
 export function HelpMenu() {

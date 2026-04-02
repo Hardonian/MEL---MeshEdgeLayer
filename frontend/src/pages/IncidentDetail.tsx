@@ -2510,6 +2510,8 @@ export function IncidentDetail() {
               </div>
             </Section>
           )}
+        </CardContent>
+      </Card></div>
 
           {/* Risks */}
           {(inc.risks?.length ?? 0) > 0 && (

@@ -555,6 +555,14 @@ export function Topology() {
 
   const selectedNodeNum = selected?.node?.node_num ?? null
 
+
+  usePageHotkeys([
+    { key: '/', description: 'Focus node search', handler: () => nodeSearchRef.current?.focus() },
+    { key: '1', description: 'Jump to graph', handler: () => sectionRefs.current.graph?.scrollIntoView({ behavior: 'smooth' }) },
+    { key: '2', description: 'Jump to drilldown', handler: () => sectionRefs.current.drill?.scrollIntoView({ behavior: 'smooth' }) },
+    { key: '3', description: 'Jump to intelligence', handler: () => sectionRefs.current.intel?.scrollIntoView({ behavior: 'smooth' }) },
+  ])
+
   const mapPoints = useMemo(() => {
     const allowed = new Set(filteredNodes.map((n) => n.node_num))
     return nodes.filter(
