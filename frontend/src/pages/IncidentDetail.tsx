@@ -35,7 +35,7 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
 import { useControlStatus } from '@/hooks/useApi'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
-import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident } from '@/types/api'
+import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident, type IncidentAssistSignal } from '@/types/api'
 import {
   evidenceStrengthLabel,
   guidanceConfidenceLabel,
@@ -1682,6 +1682,96 @@ function buildHandoffExportText(inc: Incident): string {
   return lines.join('\n')
 }
 
+const ASSIST_OUTCOMES = [
+  { value: 'dismissed', label: 'Dismiss' },
+  { value: 'reviewed', label: 'Reviewed' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'snoozed', label: 'Snooze' },
+] as const
+
+function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => void }) {
+  const ctx = useOperatorContext()
+  const { addToast } = useToast()
+  const assist = inc.assist_signals
+  const canWrite = ctx.trustUI?.incident_mutate === true
+  if (!assist?.signals?.length) return null
+
+  async function recordOutcome(sig: IncidentAssistSignal, outcome: string) {
+    try {
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/intel-signal-outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signal_code: sig.code, outcome }),
+      })
+      if (res.status === 403) {
+        addToast({ type: 'error', title: 'Cannot record', message: 'Missing incident update capability.' })
+        return
+      }
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Save failed', message: `HTTP ${res.status}` })
+        return
+      }
+      addToast({ type: 'success', title: 'Recorded', message: `Assist cue ${sig.code} marked ${outcome}.` })
+      await onReload()
+    } catch {
+      addToast({ type: 'error', title: 'Save failed', message: 'Network error.' })
+    }
+  }
+
+  return (
+    <div
+      className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2.5 text-xs"
+      data-testid="incident-assist-signals"
+      role="region"
+      aria-label="Deterministic assist signals from API"
+    >
+      <p className="font-semibold text-foreground mb-1.5">Assist cues (local, deterministic)</p>
+      <p className="text-[11px] text-muted-foreground mb-2 border-l-2 border-border/60 pl-2">
+        {assist.uncertainty ?? 'Non-canonical heuristics from this payload — not proof of root cause or live path.'}
+        {assist.evidence_basis ? (
+          <>
+            {' '}
+            Basis: <span className="font-mono text-[10px] break-all">{assist.evidence_basis}</span>
+          </>
+        ) : null}
+      </p>
+      <ul className="space-y-2">
+        {assist.signals!.map((sig) => (
+          <li key={sig.code} className="border-l-2 border-primary/20 pl-2 text-[11px] text-muted-foreground">
+            <span className="font-mono text-foreground/90">{sig.code.replace(/_/g, ' ')}</span>
+            {sig.severity ? (
+              <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground/80">({sig.severity})</span>
+            ) : null}
+            <div className="mt-0.5">{sig.title}</div>
+            <div className="mt-0.5">{sig.rationale}</div>
+            {sig.uncertainty && <div className="mt-0.5 text-warning/90">Uncertainty: {sig.uncertainty.replace(/_/g, ' ')}</div>}
+            {sig.operator_state?.latest_outcome && (
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                Last: {sig.operator_state.latest_outcome} at {sig.operator_state.latest_at ?? '—'}
+                {sig.operator_state.actor_id ? ` (${sig.operator_state.actor_id})` : ''}
+              </div>
+            )}
+            {canWrite && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {ASSIST_OUTCOMES.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className="rounded border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] hover:bg-muted/50"
+                    onClick={() => void recordOutcome(sig, o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () => void; returnTo: string }) {
   const ctx = useOperatorContext()
   const { addToast } = useToast()
@@ -2204,6 +2294,8 @@ export function IncidentDetail() {
         </div>
         )
       })()}
+
+      <AssistSignalsPanel inc={inc} onReload={() => void load()} />
 
       {/* Header card */}
       <Card id="incident-operational-summary" className="scroll-mt-20">

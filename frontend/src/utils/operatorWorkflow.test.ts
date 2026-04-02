@@ -37,8 +37,10 @@ describe('operatorWorkflow', () => {
       triage_signals: {
         tier: 4,
         codes: ['open_routine'],
-        queue_ordering_contract: 'open_incident_workbench_v1',
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_ordering_contract_version: '2',
         queue_sort_primary: 4,
+        queue_sort_key_lex: '4.00000000000000000000.0000000000000001',
       },
     } as Incident)
     const high = inc({
@@ -49,14 +51,43 @@ describe('operatorWorkflow', () => {
         tier: 2,
         codes: ['sparse_or_degraded_intel'],
         rationale_lines: ['Sparse intel in API'],
-        queue_ordering_contract: 'open_incident_workbench_v1',
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_ordering_contract_version: '2',
         queue_sort_primary: 2,
+        queue_sort_key_lex: '2.00000000000000000000.0000000000000001',
       },
     } as Incident)
     expect(openIncidentShiftPriority(high)).toBe(2)
     expect(openIncidentShiftPriority(low)).toBe(4)
     const sorted = sortOpenIncidentsForShiftStart([low, high])
     expect(sorted.map((x) => x.id)).toEqual(['high', 'low'])
+  })
+
+  it('sortOpenIncidentsForShiftStart uses queue_sort_key_lex when v2 present', () => {
+    const newer = inc({
+      id: 'newer',
+      review_state: 'investigating',
+      updated_at: '2025-06-01T00:00:00Z',
+      triage_signals: {
+        tier: 4,
+        codes: ['open_routine'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_sort_key_lex: '4.00000000000000000001.0000000000000001',
+      },
+    } as Incident)
+    const older = inc({
+      id: 'older',
+      review_state: 'investigating',
+      updated_at: '2020-01-01T00:00:00Z',
+      triage_signals: {
+        tier: 4,
+        codes: ['open_routine'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_sort_key_lex: '4.00000000000000000002.0000000000000001',
+      },
+    } as Incident)
+    const sorted = sortOpenIncidentsForShiftStart([older, newer])
+    expect(sorted.map((x) => x.id)).toEqual(['newer', 'older'])
   })
 
   it('does not trust API tier alone without queue_ordering_contract', () => {
