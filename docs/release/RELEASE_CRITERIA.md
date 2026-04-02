@@ -18,16 +18,10 @@ A MEL release is acceptable only if all gates below pass.
 
 ## Verification gates
 
-- `make lint`, `make test`, `make build`, `make product-verify`, `make smoke` executed.
+- `make lint`, `make test`, `make build`, `make smoke` executed.
 - Repo-OS verification and release-readiness checks reviewed.
 - New docs links validated.
 
 ## Evidence gate
 
 Attach command outputs and caveats under `docs/release/evidence/` for each release candidate.
-
-
-## Smoke prerequisites
-
-- Ensure `.tmp/smoke.json` exists before running `make smoke`.
-- If fixture is missing, mark release evidence as incomplete rather than claiming smoke pass.

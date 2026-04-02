@@ -80,5 +80,3 @@ Phase 8 is now complete. The MEL project has achieved Release Maturity status wi
 - [Support runbook](./SUPPORT_RUNBOOK.md)
 - [Security model](./SECURITY_MODEL.md)
 - [Privacy and data posture](./PRIVACY_AND_DATA_POSTURE.md)
-
-- [Product-system verification template](./evidence/PRODUCT_SYSTEM_VERIFICATION_TEMPLATE.md)

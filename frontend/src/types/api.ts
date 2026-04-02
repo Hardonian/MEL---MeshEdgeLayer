@@ -323,6 +323,7 @@ export interface IncidentDecisionPack {
   generated_at: string
   identity?: IncidentDecisionPackIdentity
   queue?: IncidentDecisionPackQueue
+  guidance?: IncidentDecisionPackGuidance
   evidence_basis?: IncidentDecisionPackEvidenceBasis
   intelligence_summary?: IncidentDecisionPackIntelligenceSummary
   mitigation_durability?: IncidentMitigationDurabilityMemory
@@ -356,6 +357,23 @@ export interface IncidentDecisionPackQueue {
   triage_signals?: IncidentTriageSignals
   why_surfaced_one_liner?: string
   ordering_note?: string
+}
+
+export interface IncidentDecisionPackGuidance {
+  needs_attention?: boolean
+  priority_tier?: number
+  why_now?: string
+  review_recommended?: boolean
+  verify_before_action?: boolean
+  evidence_posture?: 'strong' | 'moderate' | 'sparse' | 'degraded' | 'unknown'
+  mitigation_fragility_watch?: boolean
+  repeated_family_concern?: boolean
+  action_posture?: 'available' | 'guarded' | 'unsupported' | 'verify_linkage'
+  support_posture?: 'ready' | 'partial' | 'blocked' | 'unknown'
+  topology_planning_posture?: 'useful_non_proving'
+  escalation_posture?: 'replay_first' | 'follow_up' | 'bounded_review'
+  degraded?: boolean
+  degraded_reasons?: string[]
 }
 
 export interface IncidentDecisionPackEvidenceBasis {

@@ -40,6 +40,9 @@ func TestIncidentByIDForAPI_IncludesDecisionPack(t *testing.T) {
 	if got.DecisionPack.Readiness == nil || got.DecisionPack.Readiness.ProofpackPath == "" {
 		t.Fatalf("expected readiness in pack")
 	}
+	if got.DecisionPack.Guidance == nil || got.DecisionPack.Guidance.WhyNow == "" {
+		t.Fatalf("expected guidance in pack")
+	}
 }
 
 func TestPatchIncidentDecisionPackAdjudication_Persists(t *testing.T) {

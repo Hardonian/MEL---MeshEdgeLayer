@@ -20,6 +20,7 @@ function inc(partial: Partial<Incident> & { id: string }): Incident {
     linked_control_actions: partial.linked_control_actions,
     pending_actions: partial.pending_actions,
     triage_signals: partial.triage_signals,
+    decision_pack: partial.decision_pack,
   } as Incident
 }
 
@@ -28,6 +29,20 @@ describe('operatorWorkflow', () => {
     const a = inc({ id: 'a', review_state: 'follow_up_needed' })
     const b = inc({ id: 'b', review_state: 'investigating' })
     expect(openIncidentShiftPriority(a)).toBeLessThan(openIncidentShiftPriority(b))
+  })
+
+  it('uses decision_pack guidance tier before local/fallback semantics', () => {
+    const i = inc({
+      id: 'pack-pri',
+      review_state: 'follow_up_needed',
+      decision_pack: {
+        schema_version: '1',
+        incident_id: 'pack-pri',
+        generated_at: '2026-01-01T00:00:00Z',
+        guidance: { priority_tier: 4 },
+      },
+    } as Incident)
+    expect(openIncidentShiftPriority(i)).toBe(4)
   })
 
   it('uses server triage_signals.tier when consistent with review_state', () => {
