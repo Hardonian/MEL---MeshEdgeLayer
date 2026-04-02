@@ -14,6 +14,7 @@ import {
   resolvedIncidentActionVisibility,
 } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
+import { countV2QueueRowsMissingLex } from '@/utils/incidentQueueSort'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -225,6 +226,7 @@ export function Incidents() {
 
   const { needsAttention, backlog } = partitionOpenIncidentsForWorkbench(incidents, workbenchWhyCtx)
   const openSortedFull = sortOpenIncidentsForShiftStart(openIncidents, workbenchWhyCtx)
+  const v2QueueRowsMissingLex = countV2QueueRowsMissingLex(openIncidents)
 
   const clearFocusParam = () => {
     setSearchParams(
@@ -308,6 +310,14 @@ export function Incidents() {
         <p className="text-[11px] text-muted-foreground border border-border/40 rounded-lg px-3 py-2" data-testid="workbench-queue-contract-note">
           Open rows use server <span className="font-mono">triage_signals.queue_sort_key_lex</span> when present (workbench v2); otherwise{' '}
           <span className="font-mono">queue_sort_primary</span> then recency — same contract as incident detail; presentation-only toggles stay local.
+        </p>
+      )}
+      {v2QueueRowsMissingLex > 0 && (
+        <p className="text-[11px] text-warning border border-warning/30 bg-warning/5 rounded-lg px-3 py-2" role="status">
+          Queue ordering degraded for {v2QueueRowsMissingLex} open incident{v2QueueRowsMissingLex > 1 ? 's' : ''}: server reports
+          <span className="font-mono"> open_incident_workbench_v2 </span>
+          without
+          <span className="font-mono"> queue_sort_key_lex</span>. MEL keeps those rows behind fully keyed rows and labels this as partial truth.
         </p>
       )}
 
