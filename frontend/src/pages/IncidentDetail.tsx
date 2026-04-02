@@ -2390,6 +2390,8 @@ export function IncidentDetail() {
 
       <DecisionPackPanel pack={inc.decision_pack} inc={inc} onSaved={() => void load()} />
 
+      <AssistSignalsPanel inc={inc} onReload={() => void load()} />
+
       {/* Header card */}
       <Card id="incident-operational-summary" className="scroll-mt-20">
         <CardHeader className="pb-3">

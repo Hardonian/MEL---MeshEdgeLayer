@@ -5,6 +5,7 @@
 import type { Incident } from '@/types/api'
 import { incidentDecisionPackWhyLine } from './incidentDecisionPack'
 import { resolvedIncidentActionVisibility } from './incidentOperatorTruth'
+import { compareIncidentsByServerQueueOrder, hasServerQueueOrdering } from './incidentQueueSort'
 
 const FOLLOW_UP_REVIEW = new Set(['follow_up_needed', 'pending_review', 'mitigated'])
 
@@ -49,8 +50,11 @@ function triageTierFromIncident(inc: Incident): number | null {
   const isFollowUp = FOLLOW_UP_REVIEW.has(rs)
   if (isFollowUp && t !== 0) return null
   if (!isFollowUp && t === 0) return null
-  // When API omits explicit queue keys, keep legacy client validation only.
   if (!sig?.queue_ordering_contract) return null
+  // v2: server owns ordering; trust tier when lex key present.
+  if (hasServerQueueOrdering(sig)) {
+    return t
+  }
   if (sig.queue_sort_primary !== t) return null
   return t
 }
@@ -76,6 +80,10 @@ export function openIncidentShiftPriority(inc: Incident, ctx?: IncidentWorkQueue
 }
 
 export function sortOpenIncidentsForShiftStart(incidents: Incident[], ctx?: IncidentWorkQueueWhyContext): Incident[] {
+  const anyV2 = incidents.some((i) => hasServerQueueOrdering(i.triage_signals))
+  if (anyV2) {
+    return [...incidents].sort(compareIncidentsByServerQueueOrder)
+  }
   return [...incidents].sort((a, b) => {
     const pa = openIncidentShiftPriority(a, ctx)
     const pb = openIncidentShiftPriority(b, ctx)

@@ -490,10 +490,36 @@ export interface IncidentIntelligence {
 }
 
 export interface IncidentMitigationDurabilityMemory {
+  schema_version?: string
   posture: string
+  reason_codes?: string[]
   summary: string
+  scope?: { primary: string; detail?: string[] }
+  basis?: { inputs?: string[]; counts?: Record<string, number>; scan_posture?: string }
+  non_claims?: string[]
   evidence_refs?: string[]
   uncertainty: string
+}
+
+export interface IncidentAssistSignals {
+  schema_version: string
+  signals?: IncidentAssistSignal[]
+  uncertainty?: string
+  evidence_basis?: string
+}
+
+export interface IncidentAssistSignal {
+  code: string
+  severity?: 'info' | 'watch' | 'review'
+  title: string
+  rationale: string
+  evidence_refs?: string[]
+  uncertainty?: string
+  operator_state?: {
+    latest_outcome?: string
+    latest_at?: string
+    actor_id?: string
+  }
 }
 
 export interface IncidentTriageSignals {
@@ -503,8 +529,15 @@ export interface IncidentTriageSignals {
   evidence_refs?: string[]
   uncertainty_notes?: string[]
   queue_ordering_contract?: string
+  queue_ordering_contract_version?: string
   queue_sort_primary?: number
   queue_sort_secondary?: string
+  queue_sort_secondary_numeric?: number
+  queue_sort_secondary_validity?: string
+  queue_sort_tie_break?: string
+  queue_sort_tie_break_numeric?: number
+  queue_sort_tuple?: number[]
+  queue_sort_key_lex?: string
   ordering_rationale?: string
   ordering_evidence_refs?: string[]
   ordering_uncertainty?: string

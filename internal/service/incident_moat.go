@@ -160,12 +160,115 @@ func (a *App) attachMitigationDurabilityMemory(inc models.Incident, intel *model
 		}
 	}
 
-	intel.MitigationDurabilityMemory = &models.IncidentMitigationDurabilityMemory{
-		Posture:      posture,
-		Summary:      summary,
-		EvidenceRefs: refs,
-		Uncertainty:  uncertainty,
+	md := buildMitigationDurabilityMemoryV2(posture, summary, uncertainty, refs, inc, intel)
+	intel.MitigationDurabilityMemory = &md
+}
+
+func buildMitigationDurabilityMemoryV2(posture, summary, uncertainty string, refs []string, inc models.Incident, intel *models.IncidentIntelligence) models.IncidentMitigationDurabilityMemory {
+	out := models.IncidentMitigationDurabilityMemory{
+		SchemaVersion: "mitigation_durability_memory_v2",
+		Posture:       posture,
+		Summary:       summary,
+		EvidenceRefs:  refs,
+		Uncertainty:   uncertainty,
+		NonClaims: []string{
+			"does_not_predict_mitigation_success_or_failure",
+			"does_not_prove_rf_path_or_delivery",
+			"does_not_replace_replay_or_export_review",
+		},
 	}
+	out.ReasonCodes = durabilityReasonCodes(posture, inc, intel)
+	out.Scope = durabilityScope(posture, intel)
+	out.Basis = durabilityBasis(posture, intel)
+	return out
+}
+
+func durabilityReasonCodes(posture string, inc models.Incident, intel *models.IncidentIntelligence) []string {
+	var codes []string
+	switch posture {
+	case "reopened_incident_on_record":
+		codes = append(codes, "instance_reopen_fact")
+	case "deterioration_or_mixed_in_outcome_memory":
+		codes = append(codes, "historical_action_outcome_framing")
+	case "reopened_after_resolution_in_family":
+		codes = append(codes, "family_peer_reopen_tally")
+	case "family_peer_scan_bounded":
+		codes = append(codes, "peer_scan_window_truncated")
+	case "family_peers_present_no_reopen_signal":
+		codes = append(codes, "no_reopen_under_threshold")
+	case "insufficient_local_history":
+		codes = append(codes, "no_durability_signal_in_view")
+	}
+	if strings.TrimSpace(inc.ReopenedFromIncidentID) != "" && !containsStr(codes, "instance_reopen_fact") {
+		codes = append(codes, "instance_reopen_fact")
+	}
+	if intel != nil && intel.SignatureFamilyResolvedHistory != nil && intel.SignatureFamilyResolvedHistory.PeerHistoryScanTruncated {
+		if !containsStr(codes, "peer_scan_window_truncated") {
+			codes = append(codes, "peer_scan_window_truncated")
+		}
+	}
+	sort.Strings(codes)
+	return codes
+}
+
+func containsStr(ss []string, v string) bool {
+	for _, s := range ss {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+func durabilityScope(posture string, intel *models.IncidentIntelligence) *models.IncidentDurabilityScope {
+	sc := &models.IncidentDurabilityScope{}
+	switch posture {
+	case "reopened_incident_on_record":
+		sc.Primary = "instance_record"
+		sc.Detail = []string{"reopen_link_on_incident_row"}
+	case "deterioration_or_mixed_in_outcome_memory":
+		sc.Primary = "action_outcome_memory_aggregate"
+		sc.Detail = []string{"signature_scoped_historical_snapshots"}
+	case "reopened_after_resolution_in_family", "family_peer_scan_bounded", "family_peers_present_no_reopen_signal":
+		sc.Primary = "signature_family_bounded_scan"
+		if intel != nil && intel.SignatureFamilyResolvedHistory != nil && intel.SignatureFamilyResolvedHistory.PeerHistoryScanTruncated {
+			sc.Detail = []string{"resolved_reopened_counts_on_recent_peer_window"}
+		}
+	case "insufficient_local_history":
+		sc.Primary = "insufficient_local_rows_for_posture"
+	default:
+		sc.Primary = "signature_family_bounded_scan"
+	}
+	return sc
+}
+
+func durabilityBasis(posture string, intel *models.IncidentIntelligence) *models.IncidentDurabilityBasis {
+	b := &models.IncidentDurabilityBasis{
+		Inputs: []string{},
+		Counts: map[string]int{},
+	}
+	switch posture {
+	case "deterioration_or_mixed_in_outcome_memory":
+		b.Inputs = append(b.Inputs, "incident.intelligence.action_outcome_memory")
+	case "reopened_incident_on_record":
+		b.Inputs = append(b.Inputs, "incident.reopened_from_incident_id")
+	default:
+		b.Inputs = append(b.Inputs, "incident.intelligence.signature_family_resolved_history")
+	}
+	if intel != nil {
+		if h := intel.SignatureFamilyResolvedHistory; h != nil {
+			b.Counts["family_match_total"] = h.FamilyMatchTotal
+			b.Counts["resolved_peer_count"] = h.ResolvedPeerCount
+			b.Counts["reopened_peer_count"] = h.ReopenedPeerCount
+			b.Counts["peer_scan_window"] = h.PeerScanWindow
+			if h.PeerHistoryScanTruncated {
+				b.ScanPosture = "bounded_recent_peers"
+			} else if h.FamilyMatchTotal > 0 {
+				b.ScanPosture = "full_family_linkage_count_known"
+			}
+		}
+	}
+	return b
 }
 
 func buildLearningLoopHints(intel *models.IncidentIntelligence, inc models.Incident) []string {
@@ -746,6 +849,64 @@ func (a *App) RecordRecommendationOutcome(incidentID, actorID string, req models
 func validRecommendationOutcome(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "accepted", "rejected", "modified", "not_attempted", "ineffective", "worsened", "resolved_incident", "unknown":
+		return true
+	default:
+		return false
+	}
+}
+
+// RecordIntelSignalOutcome persists operator adjudication for a deterministic assist signal code.
+func (a *App) RecordIntelSignalOutcome(incidentID, actorID string, req models.IncidentIntelSignalOutcomeRequest) error {
+	if a == nil || a.DB == nil {
+		return fmt.Errorf("service not available")
+	}
+	incidentID = strings.TrimSpace(incidentID)
+	code := strings.TrimSpace(req.SignalCode)
+	outcome := strings.TrimSpace(req.Outcome)
+	if incidentID == "" || code == "" || outcome == "" {
+		return fmt.Errorf("incident_id, signal_code, and outcome are required")
+	}
+	if !validIntelSignalOutcome(outcome) {
+		return fmt.Errorf("unknown outcome %q", outcome)
+	}
+	if strings.TrimSpace(actorID) == "" {
+		actorID = "system"
+	}
+	_, ok, err := a.DB.IncidentByID(incidentID)
+	if err != nil {
+		return fmt.Errorf("could not load incident: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("incident not found: %s", incidentID)
+	}
+	rec := db.IncidentIntelSignalOutcomeRecord{
+		ID:         newTrustID("iso"),
+		IncidentID: incidentID,
+		SignalCode: code,
+		Outcome:    outcome,
+		ActorID:    actorID,
+		Note:       strings.TrimSpace(req.Note),
+	}
+	if err := a.DB.InsertIncidentIntelSignalOutcome(rec); err != nil {
+		return fmt.Errorf("could not persist outcome: %w", err)
+	}
+	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
+		ID:           newTrustID("aud"),
+		ActorID:      auth.OperatorID(actorID),
+		ActionClass:  auth.ActionControl,
+		ActionDetail: "incident_intel_signal_outcome",
+		ResourceType: "incident",
+		ResourceID:   incidentID,
+		Reason:       fmt.Sprintf("signal_code=%s outcome=%s", code, outcome),
+		Result:       auth.AuditResultSuccess,
+		Timestamp:    time.Now().UTC(),
+	})
+	return nil
+}
+
+func validIntelSignalOutcome(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "dismissed", "accepted", "reviewed", "snoozed":
 		return true
 	default:
 		return false

@@ -152,12 +152,14 @@ func (s *Server) SetIncidentCollaboration(
 func (s *Server) SetIncidentMoatExtensions(
 	workflow func(string, string, models.IncidentWorkflowPatch) error,
 	recOutcome func(string, string, models.IncidentRecommendationOutcomeRequest) error,
+	intelSignalOutcome func(string, string, models.IncidentIntelSignalOutcomeRequest) error,
 	replay func(string, bool) (map[string]any, error),
 	escalation func(string, string) (map[string]any, error),
 	decisionPackPatch func(string, string, models.IncidentDecisionPackAdjudicationPatch) error,
 ) {
 	s.incidentWorkflowPatch = workflow
 	s.incidentRecOutcome = recOutcome
+	s.incidentIntelSignalOutcome = intelSignalOutcome
 	s.incidentReplayView = replay
 	s.incidentEscalationBundle = escalation
 	s.incidentDecisionPackPatch = decisionPackPatch
@@ -1366,6 +1368,10 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentRecommendationOutcomeHandler(w, r, id)
 		})(w, r)
+	case sub == "intel-signal-outcome" && r.Method == http.MethodPost:
+		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentIntelSignalOutcomeHandler(w, r, id)
+		})(w, r)
 	case sub == "replay" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
 		security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentReplayHandler(w, r, id)
@@ -1507,6 +1513,30 @@ func (s *Server) incidentRecommendationOutcomeHandler(w http.ResponseWriter, r *
 			code = http.StatusBadRequest
 		}
 		writeError(w, code, "could not record recommendation outcome", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
+}
+
+func (s *Server) incidentIntelSignalOutcomeHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if s.incidentIntelSignalOutcome == nil {
+		writeError(w, http.StatusServiceUnavailable, "intel signal outcomes not available", "")
+		return
+	}
+	var req models.IncidentIntelSignalOutcomeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	actor := s.actorFromTrustContext(r)
+	if err := s.incidentIntelSignalOutcome(incidentID, actor, req); err != nil {
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "unknown outcome") {
+			code = http.StatusBadRequest
+		}
+		writeError(w, code, "could not record intel signal outcome", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
