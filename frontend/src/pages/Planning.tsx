@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePageHotkeys } from '@/hooks/usePageHotkeys'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -311,7 +312,7 @@ export function Planning() {
   const [execPlanId, setExecPlanId] = useState('')
   const [executions, setExecutions] = useState<PlanExecution[]>([])
   const [execErr, setExecErr] = useState<string | null>(null)
-  const [showAllPlans, setShowAllPlans] = useState(false)
+  const [_showAllPlans, setShowAllPlans] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
   const compareInputRef = useRef<HTMLInputElement>(null)
 
@@ -535,43 +536,45 @@ export function Planning() {
         </div>
       </div>
 
-      <Card className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>
-        <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
-          {bundle.evidence_model}
-        </p>
-        <div className="flex flex-wrap gap-2 mt-3">
-          <Badge variant={bundle.transport_connected ? 'default' : 'secondary'}>
-            Transport: {bundle.transport_connected ? 'connected' : 'not connected'}
-          </Badge>
-          <Badge variant={bundle.topology_enabled ? 'default' : 'secondary'}>
-            Topology: {bundle.topology_enabled ? 'enabled' : 'disabled'}
-          </Badge>
-          {bundle.mesh_assessment_id && (
-            <Badge variant="outline">Assessment {bundle.mesh_assessment_id}</Badge>
-          )}
-        </div>
-        {evidenceSignals.length > 0 && (
-          <div className="mt-3 border-t border-warning/20 pt-3" data-testid="planning-evidence-signals">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Evidence posture (operator caution)</p>
-            <ul className="space-y-2">
-              {evidenceSignals.map((signal) => (
-                <li key={signal.id} className="text-sm text-foreground flex items-start gap-2">
-                  <Badge variant="warning" className="mt-0.5">
-                    Caution
-                  </Badge>
-                  <span>{signal.message}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {bundle.wait_versus_expand_hint && (
-          <p className="mt-3 border-t border-warning/20 pt-3 text-sm">
-            <span className="font-medium text-foreground">Wait vs expand: </span>
-            {bundle.wait_versus_expand_hint}
+      <div ref={(el) => { sectionRefs.current.posture = el }} className="scroll-mt-20">
+        <Card className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>
+          <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
+            {bundle.evidence_model}
           </p>
-        )}
-      </Card>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Badge variant={bundle.transport_connected ? 'default' : 'secondary'}>
+              Transport: {bundle.transport_connected ? 'connected' : 'not connected'}
+            </Badge>
+            <Badge variant={bundle.topology_enabled ? 'default' : 'secondary'}>
+              Topology: {bundle.topology_enabled ? 'enabled' : 'disabled'}
+            </Badge>
+            {bundle.mesh_assessment_id && (
+              <Badge variant="outline">Assessment {bundle.mesh_assessment_id}</Badge>
+            )}
+          </div>
+          {evidenceSignals.length > 0 && (
+            <div className="mt-3 border-t border-warning/20 pt-3" data-testid="planning-evidence-signals">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Evidence posture (operator caution)</p>
+              <ul className="space-y-2">
+                {evidenceSignals.map((signal) => (
+                  <li key={signal.id} className="text-sm text-foreground flex items-start gap-2">
+                    <Badge variant="warning" className="mt-0.5">
+                      Caution
+                    </Badge>
+                    <span>{signal.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {bundle.wait_versus_expand_hint && (
+            <p className="mt-3 border-t border-warning/20 pt-3 text-sm">
+              <span className="font-medium text-foreground">Wait vs expand: </span>
+              {bundle.wait_versus_expand_hint}
+            </p>
+          )}
+        </Card>
+      </div>
 
       <div data-testid="planning-decision-board">
         <Card className={`border-border/80 ${denseLayout ? 'p-3' : 'p-4'}`}>
@@ -992,25 +995,5 @@ export function Planning() {
         <p className="text-[11px] text-muted-foreground mt-2">Computed {bundle.computed_at}</p>
       </Card>
     </div>
-  )
-}
-
-function PostureCard({ title, lines, variant, testId }: { title: string; lines: string[]; variant: 'default' | 'secondary' | 'warning' | 'outline'; testId?: string }) {
-  const tone =
-    variant === 'warning'
-      ? 'border-warning/30 bg-warning/5'
-      : variant === 'secondary'
-        ? 'border-border bg-muted/25'
-        : 'border-border bg-card'
-
-  return (
-    <Card className={`p-3 ${tone}`}>
-      <h3 className="text-xs font-semibold uppercase tracking-wide mb-2">{title}</h3>
-      <ul className="space-y-1 text-xs text-muted-foreground" data-testid={testId}>
-        {lines.slice(0, 5).map((line, i) => (
-          <li key={`${title}-${i}`} className="leading-relaxed">{line}</li>
-        ))}
-      </ul>
-    </Card>
   )
 }

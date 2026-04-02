@@ -311,6 +311,8 @@ export interface Incident {
   action_visibility?: IncidentActionVisibilityPosture
   /** Server-computed deterministic triage hints (inspectable codes, not opaque ranking). */
   triage_signals?: IncidentTriageSignals
+  /** Deterministic assist cues (same payload mirrored on decision_pack.assist_signals when pack is present). */
+  assist_signals?: IncidentAssistSignals
   /** Canonical backend-assembled decision object (detail/workbench/export framing). */
   decision_pack?: IncidentDecisionPack
 }
@@ -330,6 +332,7 @@ export interface IncidentDecisionPack {
   readiness?: IncidentDecisionPackReadiness
   uncertainty?: IncidentDecisionPackUncertainty
   operator_adjudication?: IncidentDecisionPackAdjudication
+  assist_signals?: IncidentAssistSignals
   analytics_hints?: IncidentDecisionPackAnalyticsHints
 }
 
@@ -412,6 +415,7 @@ export interface IncidentDecisionPackCueOutcome {
   cue_id: string
   outcome?: string
   note?: string
+  reason_code?: string
 }
 
 export interface IncidentDecisionPackAdjudication {
@@ -541,6 +545,9 @@ export interface IncidentTriageSignals {
   ordering_rationale?: string
   ordering_evidence_refs?: string[]
   ordering_uncertainty?: string
+  /** canonical_v2 = full tuple+lex from valid updated_at; degraded_partial_recency = missing/invalid timestamp fallbacks */
+  queue_ordering_posture?: string
+  queue_ordering_degraded_reasons?: string[]
 }
 
 export interface IncidentSignatureFamilyResolvedHistory {
