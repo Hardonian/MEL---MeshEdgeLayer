@@ -25,6 +25,33 @@ func TestOpenAppliesMigration(t *testing.T) {
 
 // TestRepairMigration0022BackfillsMissingRow simulates legacy DBs where 0022 ALTERs ran
 // without a schema_migrations row; ApplyMigrations must not fail with duplicate columns.
+func TestRepairMigration0035BackfillsWhenOnly0034PackRow(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")
+	cfg.Storage.DataDir = filepath.Dir(cfg.Storage.DatabasePath)
+	d, err := Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Exec(`DELETE FROM schema_migrations WHERE version='0035_incident_decision_pack_adjudication';`); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Exec(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES ('0034_incident_decision_pack_adjudication', datetime('now'));`); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.ApplyMigrations(migrationDir()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.Scalar(`SELECT COUNT(*) FROM schema_migrations WHERE version='0035_incident_decision_pack_adjudication';`)
+	if err != nil || got != "1" {
+		t.Fatalf("expected 0035 row after repair, got %q err=%v", got, err)
+	}
+	n, err := d.HighestMigrationNumeric()
+	if err != nil || n != 35 {
+		t.Fatalf("HighestMigrationNumeric=%d err=%v", n, err)
+	}
+}
+
 func TestRepairMigration0022BackfillsMissingRow(t *testing.T) {
 	cfg := config.Default()
 	cfg.Storage.DatabasePath = filepath.Join(t.TempDir(), "mel.db")

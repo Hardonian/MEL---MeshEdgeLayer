@@ -104,8 +104,36 @@ func (d *DB) repairMigration0022ControlActionPolicyTruth() error {
 	return d.Exec(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES ('0022_control_action_policy_truth', datetime('now'));`)
 }
 
+// repairMigration0035DecisionPackAdjudication records 0035 when the adjudication table exists from the
+// retired duplicate-prefix file 0034_incident_decision_pack_adjudication.sql (same CREATE as 0035).
+// Without this row, HighestMigrationNumeric stays at 34 while the binary expects 35.
+func (d *DB) repairMigration0035DecisionPackAdjudication() error {
+	rows, err := d.QueryRows(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='incident_decision_pack_adjudication' LIMIT 1;`)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	rows, err = d.QueryRows(`SELECT 1 FROM schema_migrations WHERE version='0035_incident_decision_pack_adjudication' LIMIT 1;`)
+	if err != nil {
+		return err
+	}
+	if len(rows) > 0 {
+		return nil
+	}
+	rows, err = d.QueryRows(`SELECT 1 FROM schema_migrations WHERE version='0034_incident_decision_pack_adjudication' LIMIT 1;`)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return d.Exec(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES ('0035_incident_decision_pack_adjudication', datetime('now'));`)
+}
+
 func (d *DB) ApplyMigrations(dir string) error {
 	if err := d.repairMigration0022ControlActionPolicyTruth(); err != nil {
+		return err
+	}
+	if err := d.repairMigration0035DecisionPackAdjudication(); err != nil {
 		return err
 	}
 	entries, err := os.ReadDir(dir)
