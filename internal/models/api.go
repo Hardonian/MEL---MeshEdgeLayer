@@ -59,6 +59,14 @@ type Incident struct {
 	// Intelligence is deterministic, evidence-linked incident memory/guidance derived from stored MEL history.
 	Intelligence *IncidentIntelligence `json:"intelligence,omitempty"`
 
+	// ActionVisibility is server-computed control/action visibility posture for this API response (capability-aware).
+	ActionVisibility *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
+
+	// TriageSignals are deterministic, inspectable queue-shaping hints (not ranked black-box scoring).
+	TriageSignals *IncidentTriageSignals `json:"triage_signals,omitempty"`
+	// AssistSignals are deterministic, inspectable local-intelligence cues — non-canonical vs persisted evidence rows.
+	AssistSignals *IncidentAssistSignals `json:"assist_signals,omitempty"`
+
 	// Review / workflow (migration 0031); orthogonal to control lifecycle state.
 	ReviewState            string `json:"review_state,omitempty"`
 	InvestigationNotes     string `json:"investigation_notes,omitempty"`
@@ -67,6 +75,159 @@ type Incident struct {
 	LessonsLearned         string `json:"lessons_learned,omitempty"`
 	ReopenedFromIncidentID string `json:"reopened_from_incident_id,omitempty"`
 	ReopenedAt             string `json:"reopened_at,omitempty"`
+
+	// DecisionPack is the canonical backend-assembled incident decision object (detail, workbench, export framing).
+	// Populated on API responses that run finishIncidentForAPI; not a second source of business truth.
+	DecisionPack *IncidentDecisionPack `json:"decision_pack,omitempty"`
+}
+
+// IncidentDecisionPackSchemaVersion is bumped when section shapes or semantics change incompatibly.
+const IncidentDecisionPackSchemaVersion = "1"
+
+// IncidentDecisionPack is the versioned, backend-owned contract for incident triage, evidence, memory, and next steps.
+// Interpretive layers are explicitly labeled; absence of data is honest partial state, not silent health.
+type IncidentDecisionPack struct {
+	SchemaVersion string `json:"schema_version"`
+	IncidentID    string `json:"incident_id"`
+	GeneratedAt   string `json:"generated_at"` // RFC3339 UTC from assembly
+
+	Identity             *IncidentDecisionPackIdentity            `json:"identity,omitempty"`
+	Queue                *IncidentDecisionPackQueue               `json:"queue,omitempty"`
+	EvidenceBasis        *IncidentDecisionPackEvidenceBasis       `json:"evidence_basis,omitempty"`
+	IntelligenceSummary  *IncidentDecisionPackIntelligenceSummary `json:"intelligence_summary,omitempty"`
+	MitigationDurability *IncidentMitigationDurabilityMemory      `json:"mitigation_durability,omitempty"`
+	FamilyHistory        *IncidentDecisionPackFamilyHistory       `json:"family_history,omitempty"`
+	TransportGraph       *IncidentDecisionPackTransportGraph      `json:"transport_graph,omitempty"`
+	LinkedActions        *IncidentDecisionPackLinkedActions       `json:"linked_actions,omitempty"`
+	Readiness            *IncidentDecisionPackReadiness           `json:"readiness,omitempty"`
+	Uncertainty          *IncidentDecisionPackUncertainty         `json:"uncertainty,omitempty"`
+	OperatorAdjudication *IncidentDecisionPackAdjudication        `json:"operator_adjudication,omitempty"`
+	AnalyticsHints       *IncidentDecisionPackAnalyticsHints      `json:"analytics_hints,omitempty"`
+}
+
+type IncidentDecisionPackIdentity struct {
+	Title          string `json:"title,omitempty"`
+	State          string `json:"state,omitempty"`
+	Severity       string `json:"severity,omitempty"`
+	Category       string `json:"category,omitempty"`
+	ResourceType   string `json:"resource_type,omitempty"`
+	ResourceID     string `json:"resource_id,omitempty"`
+	OccurredAt     string `json:"occurred_at,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
+	ResolvedAt     string `json:"resolved_at,omitempty"`
+	ReviewState    string `json:"review_state,omitempty"`
+	OwnerActorID   string `json:"owner_actor_id,omitempty"`
+	HandoffSummary string `json:"handoff_summary,omitempty"`
+	Summary        string `json:"summary,omitempty"`
+}
+
+type IncidentDecisionPackQueue struct {
+	TriageSignals       *IncidentTriageSignals `json:"triage_signals,omitempty"`
+	WhySurfacedOneLiner string                 `json:"why_surfaced_one_liner,omitempty"`
+	OrderingNote        string                 `json:"ordering_note,omitempty"`
+}
+
+type IncidentDecisionPackEvidenceBasis struct {
+	EvidenceStrength string                 `json:"evidence_strength,omitempty"`
+	EvidenceItems    []IncidentEvidenceItem `json:"evidence_items,omitempty"`
+	ItemCapApplied   int                    `json:"item_cap_applied,omitempty"`
+	Degraded         bool                   `json:"degraded"`
+	DegradedReasons  []string               `json:"degraded_reasons,omitempty"`
+	SparsityMarkers  []string               `json:"sparsity_markers,omitempty"`
+}
+
+type IncidentDecisionPackIntelligenceSummary struct {
+	SignatureLabel      string   `json:"signature_label,omitempty"`
+	SignatureMatchCount int      `json:"signature_match_count,omitempty"`
+	SummaryLines        []string `json:"summary_lines,omitempty"`
+	InvestigateNextIDs  []string `json:"investigate_next_ids,omitempty"`
+	RunbookRecIDs       []string `json:"runbook_recommendation_ids,omitempty"`
+	LearningLoopHints   []string `json:"learning_loop_hints,omitempty"`
+}
+
+type IncidentDecisionPackFamilyHistory struct {
+	SignatureFamily  *IncidentSignatureFamilyResolvedHistory `json:"signature_family,omitempty"`
+	SimilarIncidents []IncidentSimilarityRecord              `json:"similar_incidents,omitempty"`
+	SimilarScanCap   int                                     `json:"similar_scan_cap,omitempty"`
+}
+
+type IncidentDecisionPackTransportGraph struct {
+	MeshRoutingCompanion *MeshRoutingIntelCompanion `json:"mesh_routing_companion,omitempty"`
+	WirelessContext      *IncidentWirelessContext   `json:"wireless_context,omitempty"`
+}
+
+type IncidentDecisionPackLinkedActions struct {
+	ActionVisibility        *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
+	OperatorSuggestedAction []OperatorSuggestedAction        `json:"operator_suggested_actions,omitempty"`
+	LinkedControlActionIDs  []string                         `json:"linked_control_action_ids,omitempty"`
+}
+
+type IncidentDecisionPackReadiness struct {
+	ExportPolicySemantic    string   `json:"export_policy_semantic,omitempty"`
+	ExportPolicySummary     string   `json:"export_policy_summary,omitempty"`
+	ExportArtifactStrength  string   `json:"export_artifact_strength,omitempty"`
+	ExportBlockerCodes      []string `json:"export_blocker_codes,omitempty"`
+	ProofpackPath           string   `json:"proofpack_path,omitempty"`
+	EscalationBundlePath    string   `json:"escalation_bundle_path,omitempty"`
+	HandoffPostureNote      string   `json:"handoff_posture_note,omitempty"`
+	EvidenceSufficiencyNote string   `json:"evidence_sufficiency_note,omitempty"`
+}
+
+type IncidentDecisionPackUncertainty struct {
+	NonClaims              []string `json:"non_claims,omitempty"`
+	InterpretationLabels   []string `json:"interpretation_labels,omitempty"`
+	DegradedSections       []string `json:"degraded_sections,omitempty"`
+	BoundedScanDisclosures []string `json:"bounded_scan_disclosures,omitempty"`
+}
+
+// IncidentDecisionPackAdjudication is operator feedback on the pack (durable; separate from assistive rec outcomes).
+type IncidentDecisionPackAdjudication struct {
+	Reviewed          bool                             `json:"reviewed"`
+	ReviewedAt        string                           `json:"reviewed_at,omitempty"`
+	ReviewedByActorID string                           `json:"reviewed_by_actor_id,omitempty"`
+	Useful            string                           `json:"useful,omitempty"` // useful | not_useful | ""
+	OperatorNote      string                           `json:"operator_note,omitempty"`
+	CueOutcomes       []IncidentDecisionPackCueOutcome `json:"cue_outcomes,omitempty"`
+	UpdatedAt         string                           `json:"updated_at,omitempty"`
+}
+
+type IncidentDecisionPackCueOutcome struct {
+	CueID   string `json:"cue_id"`
+	Outcome string `json:"outcome"` // accepted | dismissed | ""
+	Note    string `json:"note,omitempty"`
+}
+
+// IncidentDecisionPackAnalyticsHints carries stable keys for future compounding analytics (no aggregation here).
+type IncidentDecisionPackAnalyticsHints struct {
+	SignatureKey                string `json:"signature_key,omitempty"`
+	FingerprintCanonicalHash    string `json:"fingerprint_canonical_hash,omitempty"`
+	TriageTier                  int    `json:"triage_tier,omitempty"`
+	MitigationDurabilityPosture string `json:"mitigation_durability_posture,omitempty"`
+	EvidenceStrength            string `json:"evidence_strength,omitempty"`
+	IntelDegraded               bool   `json:"intel_degraded"`
+}
+
+// IncidentDecisionPackAdjudicationPatch is the body for PATCH .../decision-pack.
+type IncidentDecisionPackAdjudicationPatch struct {
+	Reviewed           *bool                            `json:"reviewed,omitempty"`
+	Useful             *string                          `json:"useful,omitempty"`
+	OperatorNote       *string                          `json:"operator_note,omitempty"`
+	CueOutcomes        []IncidentDecisionPackCueOutcome `json:"cue_outcomes,omitempty"`
+	ReplaceCueOutcomes bool                             `json:"replace_cue_outcomes,omitempty"`
+}
+
+// IncidentActionVisibilityPosture encodes deterministic visibility truth for operators (no implied workflow certainty).
+type IncidentActionVisibilityPosture struct {
+	Kind                     string `json:"action_visibility_kind"`
+	Reason                   string `json:"action_visibility_reason,omitempty"`
+	Summary                  string `json:"action_visibility_summary"`
+	SuggestControlQueue      bool   `json:"action_context_should_open_control_queue"`
+	HasMaterialPriorAttempts bool   `json:"action_context_has_material_prior_attempts"`
+	HasPendingRelatedWork    bool   `json:"action_context_has_pending_related_work"`
+	IsPartial                bool   `json:"action_context_is_partial"`
+	LinkedRowCount           int    `json:"linked_control_row_count,omitempty"`
+	PendingRefCount          int    `json:"pending_action_ref_count,omitempty"`
+	RecentActionRefCount     int    `json:"recent_action_ref_count,omitempty"`
 }
 
 // IncidentIntelligence is an evidence-bounded operator aid for recurring signatures and investigation flow.
@@ -98,6 +259,149 @@ type IncidentIntelligence struct {
 	ReplayHints             *IncidentReplayHints            `json:"replay_hints,omitempty"`
 	LearningLoopHints       []string                        `json:"learning_loop_hints,omitempty"`
 	GeneratedAt             string                          `json:"generated_at,omitempty"`
+	// MeshRoutingCompanion is optional ingest-graph routing-pressure context (never RF/path proof).
+	MeshRoutingCompanion *MeshRoutingIntelCompanion `json:"mesh_routing_companion,omitempty"`
+	// OperatorSuggestedActions are deterministic, reviewable next checks — not ranked black-box scoring.
+	OperatorSuggestedActions []OperatorSuggestedAction `json:"operator_suggested_actions,omitempty"`
+	// SignatureFamilyResolvedHistory summarizes resolved/reopened peers sharing this incident's signature (local DB only).
+	SignatureFamilyResolvedHistory *IncidentSignatureFamilyResolvedHistory `json:"signature_family_resolved_history,omitempty"`
+	// MitigationDurabilityMemory is deterministic local-history posture for this incident/family — not prediction of success.
+	MitigationDurabilityMemory *IncidentMitigationDurabilityMemory `json:"mitigation_durability_memory,omitempty"`
+}
+
+// IncidentMitigationDurabilityMemory summarizes stored outcome/family rows only — association, not causal proof.
+// SchemaVersion documents the DTO shape for export/API parity (mitigation_durability_memory_v2).
+type IncidentMitigationDurabilityMemory struct {
+	SchemaVersion string `json:"schema_version,omitempty"`
+	// Posture is the primary normalized posture code (stable enum string for operators and export).
+	Posture string `json:"posture"`
+	// ReasonCodes are normalized taxonomy entries for why this posture was chosen (subset of posture-specific codes).
+	ReasonCodes []string `json:"reason_codes,omitempty"`
+	Summary     string   `json:"summary"`
+	// Scope bounds what the summary claims (instance_record, signature_family_scan, outcome_memory_aggregate, etc.).
+	Scope *IncidentDurabilityScope `json:"scope,omitempty"`
+	// Basis lists deterministic derivation steps (field paths), not narrative proof.
+	Basis *IncidentDurabilityBasis `json:"basis,omitempty"`
+	// NonClaims explicitly states what this memory does not assert.
+	NonClaims    []string `json:"non_claims,omitempty"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty"`
+}
+
+// IncidentDurabilityScope bounds mitigation durability statements to stored evidence classes.
+type IncidentDurabilityScope struct {
+	Primary string   `json:"primary"` // e.g. instance_record | signature_family_bounded_scan | action_outcome_memory
+	Detail  []string `json:"detail,omitempty"`
+}
+
+// IncidentDurabilityBasis ties the memory object to deterministic inputs (evidence paths, counts).
+type IncidentDurabilityBasis struct {
+	Inputs      []string       `json:"inputs,omitempty"`       // e.g. incident.signature_family_resolved_history
+	Counts      map[string]int `json:"counts,omitempty"`       // e.g. resolved_peer_count -> 2
+	ScanPosture string         `json:"scan_posture,omitempty"` // full_family | bounded_recent_peers
+}
+
+// IncidentAssistSignals groups bounded assistive incident-intelligence outputs (deterministic, not LLM).
+type IncidentAssistSignals struct {
+	SchemaVersion string                 `json:"schema_version"` // incident_assist_signals_v1
+	Signals       []IncidentAssistSignal `json:"signals,omitempty"`
+	Uncertainty   string                 `json:"uncertainty,omitempty"`
+	EvidenceBasis string                 `json:"evidence_basis,omitempty"` // high-level note on inputs used
+}
+
+// IncidentAssistSignal is one inspectable assist cue with explicit codes and uncertainty.
+type IncidentAssistSignal struct {
+	Code         string   `json:"code"`
+	Severity     string   `json:"severity,omitempty"` // info | watch | review
+	Title        string   `json:"title"`
+	Rationale    string   `json:"rationale"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty,omitempty"`
+	// OperatorState summarizes durable adjudication for this signal code when rows exist (non-authoritative snapshot).
+	OperatorState *IncidentAssistSignalOperatorState `json:"operator_state,omitempty"`
+}
+
+// IncidentAssistSignalOperatorState is derived from persisted incident_intel_signal_outcomes (latest per signal_code).
+type IncidentAssistSignalOperatorState struct {
+	LatestOutcome string `json:"latest_outcome,omitempty"`
+	LatestAt      string `json:"latest_at,omitempty"`
+	ActorID       string `json:"actor_id,omitempty"`
+}
+
+// IncidentIntelSignalOutcomeRequest records operator adjudication for a deterministic assist signal code.
+type IncidentIntelSignalOutcomeRequest struct {
+	SignalCode string `json:"signal_code"`
+	Outcome    string `json:"outcome"` // dismissed | accepted | reviewed | snoozed
+	Note       string `json:"note,omitempty"`
+}
+
+// IncidentSignatureFamilyResolvedHistory is observational recurrence context from stored incidents — not prediction.
+// IncidentTriageSignals mirrors internal/incidenttriage (JSON-stable for operators).
+type IncidentTriageSignals struct {
+	Tier             int      `json:"tier"`
+	Codes            []string `json:"codes,omitempty"`
+	RationaleLines   []string `json:"rationale_lines,omitempty"`
+	EvidenceRefs     []string `json:"evidence_refs,omitempty"`
+	UncertaintyNotes []string `json:"uncertainty_notes,omitempty"`
+	// Queue ordering contract: same semantics as Tier for open-incident work ordering; explicit for cross-surface parity.
+	QueueOrderingContract string `json:"queue_ordering_contract,omitempty"`
+	// QueueOrderingContractVersion distinguishes contract upgrades (open_incident_workbench_v2 adds full tuple).
+	QueueOrderingContractVersion string `json:"queue_ordering_contract_version,omitempty"`
+	QueueSortPrimary             int    `json:"queue_sort_primary,omitempty"`
+	// QueueSortSecondary is a human hint; use QueueSortSecondaryNumeric + tuple for machine ordering.
+	QueueSortSecondary         string  `json:"queue_sort_secondary,omitempty"`
+	QueueSortSecondaryNumeric  int64   `json:"queue_sort_secondary_numeric,omitempty"`  // nanoseconds since epoch when valid; 0 when missing/invalid
+	QueueSortSecondaryValidity string  `json:"queue_sort_secondary_validity,omitempty"` // valid_rfc3339 | missing | invalid_timestamp
+	QueueSortTieBreak          string  `json:"queue_sort_tie_break,omitempty"`          // incident_id_lex_asc
+	QueueSortTieBreakNumeric   int64   `json:"queue_sort_tie_break_numeric,omitempty"`  // stable hash for id tie-break when present
+	QueueSortTuple             []int64 `json:"queue_sort_tuple,omitempty"`              // [primary, recency_inverted_ns, tie_break] — prefer queue_sort_key_lex in JSON clients (int64 ns may exceed JS safe integer).
+	// QueueSortKeyLex sorts lexicographically ascending with the same order as the tuple (tier, recency, tie-break).
+	QueueSortKeyLex      string   `json:"queue_sort_key_lex,omitempty"`
+	OrderingRationale    string   `json:"ordering_rationale,omitempty"`
+	OrderingEvidenceRefs []string `json:"ordering_evidence_refs,omitempty"`
+	OrderingUncertainty  string   `json:"ordering_uncertainty,omitempty"`
+}
+
+type IncidentSignatureFamilyResolvedHistory struct {
+	FamilyMatchTotal     int    `json:"family_match_total"`
+	ResolvedPeerCount    int    `json:"resolved_peer_count"`
+	ReopenedPeerCount    int    `json:"reopened_peer_count"`
+	Basis                string `json:"basis"`
+	Uncertainty          string `json:"uncertainty"`
+	PeerSampleIncidentID string `json:"peer_sample_incident_id,omitempty"`
+	// When true, resolved/reopened counts are computed only over the most recent PeerScanWindow linked peers — not the full family. FamilyMatchTotal remains an exact COUNT.
+	PeerHistoryScanTruncated bool `json:"peer_history_scan_truncated,omitempty"`
+	PeerScanWindow           int  `json:"peer_scan_window,omitempty"`
+}
+
+// MeshRoutingIntelCompanion surfaces bounded mesh routing-pressure diagnostics next to mesh-scoped incidents.
+type MeshRoutingIntelCompanion struct {
+	Applicable                     bool     `json:"applicable"`
+	Reason                         string   `json:"reason,omitempty"`
+	TopologyEnabled                bool     `json:"topology_enabled,omitempty"`
+	TransportConnected             bool     `json:"transport_connected,omitempty"`
+	AssessmentComputedAt           string   `json:"assessment_computed_at,omitempty"`
+	GraphHash                      string   `json:"graph_hash,omitempty"`
+	EvidenceModel                  string   `json:"evidence_model,omitempty"`
+	MessageWindowDescription       string   `json:"message_window_description,omitempty"`
+	RoutingSummaryLines            []string `json:"routing_summary_lines,omitempty"`
+	SuspectedRelayHotspot          bool     `json:"suspected_relay_hotspot"`
+	WeakOnwardPropagationSuspected bool     `json:"weak_onward_propagation_suspected"`
+	HopBudgetStressSuspected       bool     `json:"hop_budget_stress_suspected"`
+	// SuggestedTopologySearch is URL query (no leading ?) for /topology deep link — incident_focus filter when incident id known.
+	SuggestedTopologySearch string `json:"suggested_topology_search,omitempty"`
+}
+
+// OperatorSuggestedAction is a single deterministic operator affordance with explicit evidence basis.
+type OperatorSuggestedAction struct {
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Rationale    string   `json:"rationale"`
+	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	Uncertainty  string   `json:"uncertainty,omitempty"`
+	Href         string   `json:"href,omitempty"`
+	Kind         string   `json:"kind"` // inspect_surface | correlation_memory
+	DisableHint  string   `json:"disable_hint,omitempty"`
 }
 
 // IncidentFingerprint is a versioned structured fingerprint derived from persisted and correlated evidence.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/mel-project/mel/internal/version"
 
+	"github.com/mel-project/mel/internal/actionvisibility"
 	"github.com/mel-project/mel/internal/auth"
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
@@ -27,6 +28,7 @@ import (
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/models"
 	"github.com/mel-project/mel/internal/operatorlang"
+	"github.com/mel-project/mel/internal/operatorreadiness"
 	"github.com/mel-project/mel/internal/platform"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/privacy"
@@ -61,24 +63,25 @@ type Server struct {
 	federationHandlers *FederationHandlers
 
 	// Trust / operability hooks (wired from service layer)
-	approveAction            func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error)
-	rejectAction             func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error)
-	createFreeze             func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
-	clearFreeze              func(freezeID, clearedBy string) error
-	createMaintenanceWindow  func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
-	cancelMaintenanceWindow  func(windowID, cancelledBy string) error
-	addOperatorNote          func(refType, refID, actorID, content string) (string, error)
-	timeline                 func(start, end string, limit int) ([]db.TimelineEvent, error)
-	inspectAction            func(actionID string) (map[string]any, error)
-	operationalState         func() (map[string]any, error)
-	incidentHandoff          func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
-	incidentByID             func(id string) (models.Incident, bool, error)
-	incidentWorkflowPatch    func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
-	incidentRecOutcome       func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
-	incidentReplayView       func(incidentID string) (map[string]any, error)
-	incidentEscalationBundle func(incidentID, actorID string) (map[string]any, error)
-	recentIncidents          func(limit int) ([]models.Incident, error)
-	queueOperatorControl     func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
+	approveAction             func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error)
+	rejectAction              func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error)
+	createFreeze              func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
+	clearFreeze               func(freezeID, clearedBy string) error
+	createMaintenanceWindow   func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
+	cancelMaintenanceWindow   func(windowID, cancelledBy string) error
+	addOperatorNote           func(refType, refID, actorID, content string) (string, error)
+	timeline                  func(start, end string, limit int) ([]db.TimelineEvent, error)
+	inspectAction             func(actionID string) (map[string]any, error)
+	operationalState          func() (map[string]any, error)
+	incidentHandoff           func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
+	incidentByID              func(id string, canReadLinked bool) (models.Incident, bool, error)
+	incidentWorkflowPatch     func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
+	incidentRecOutcome        func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
+	incidentReplayView        func(incidentID string, canReadLinked bool) (map[string]any, error)
+	incidentEscalationBundle  func(incidentID, actorID string) (map[string]any, error)
+	incidentDecisionPackPatch func(incidentID, actorID string, patch models.IncidentDecisionPackAdjudicationPatch) error
+	recentIncidents           func(limit int, canReadLinked bool) ([]models.Incident, error)
+	queueOperatorControl      func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
 
 	// Offline remote evidence import (instance-local; not live federation).
 	importRemoteEvidence       func(raw []byte, strictOrigin bool, actor string) (map[string]any, error)
@@ -139,23 +142,27 @@ func (s *Server) SetTrustFuncs(
 // SetIncidentCollaboration wires incident handoff and lookup for multi-operator coordination.
 func (s *Server) SetIncidentCollaboration(
 	handoff func(string, string, models.IncidentHandoffRequest) error,
-	byID func(string) (models.Incident, bool, error),
+	byID func(string, bool) (models.Incident, bool, error),
 ) {
 	s.incidentHandoff = handoff
 	s.incidentByID = byID
 }
 
-// SetIncidentMoatExtensions wires workflow, recommendation outcomes, replay, and escalation bundles.
+// SetIncidentMoatExtensions wires workflow, recommendation outcomes, replay, escalation bundles, and decision pack adjudication.
 func (s *Server) SetIncidentMoatExtensions(
 	workflow func(string, string, models.IncidentWorkflowPatch) error,
 	recOutcome func(string, string, models.IncidentRecommendationOutcomeRequest) error,
-	replay func(string) (map[string]any, error),
+	intelSignalOutcome func(string, string, models.IncidentIntelSignalOutcomeRequest) error,
+	replay func(string, bool) (map[string]any, error),
 	escalation func(string, string) (map[string]any, error),
+	decisionPackPatch func(string, string, models.IncidentDecisionPackAdjudicationPatch) error,
 ) {
 	s.incidentWorkflowPatch = workflow
 	s.incidentRecOutcome = recOutcome
+	s.incidentIntelSignalOutcome = intelSignalOutcome
 	s.incidentReplayView = replay
 	s.incidentEscalationBundle = escalation
+	s.incidentDecisionPackPatch = decisionPackPatch
 }
 
 // SetProofpackAssembler wires incident proofpack assembly for evidence export.
@@ -164,8 +171,16 @@ func (s *Server) SetProofpackAssembler(f func(incidentID, actorID string) (map[s
 }
 
 // SetRecentIncidents wires list enrichment (e.g. linked control actions); falls back to DB when nil.
-func (s *Server) SetRecentIncidents(f func(limit int) ([]models.Incident, error)) {
+func (s *Server) SetRecentIncidents(f func(limit int, canReadLinked bool) ([]models.Incident, error)) {
 	s.recentIncidents = f
+}
+
+func (s *Server) identityCanReadLinkedControlRows(r *http.Request) bool {
+	id, ok := security.GetIdentity(r.Context())
+	if !ok {
+		return false
+	}
+	return id.Can(security.CapReadActions) || id.Can(security.CapReadStatus)
 }
 
 // SetOperatorControlQueue wires operator-initiated control action enqueue (canonical service path).
@@ -1345,9 +1360,17 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentWorkflowHandler(w, r, id)
 		})(w, r)
+	case sub == "decision-pack" && r.Method == http.MethodPatch:
+		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentDecisionPackHandler(w, r, id)
+		})(w, r)
 	case sub == "recommendation-outcome" && r.Method == http.MethodPost:
 		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentRecommendationOutcomeHandler(w, r, id)
+		})(w, r)
+	case sub == "intel-signal-outcome" && r.Method == http.MethodPost:
+		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentIntelSignalOutcomeHandler(w, r, id)
 		})(w, r)
 	case sub == "replay" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
 		security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, func(w http.ResponseWriter, r *http.Request) {
@@ -1362,12 +1385,13 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) incidentDetailHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
+func (s *Server) incidentDetailHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
 	if s.incidentByID == nil {
 		writeError(w, http.StatusServiceUnavailable, "incident detail not available", "")
 		return
 	}
-	inc, ok, err := s.incidentByID(incidentID)
+	link := s.identityCanReadLinkedControlRows(r)
+	inc, ok, err := s.incidentByID(incidentID, link)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load incident", err.Error())
 		return
@@ -1432,6 +1456,44 @@ func (s *Server) incidentWorkflowHandler(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "incident_id": incidentID})
 }
 
+func (s *Server) incidentDecisionPackHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if s.incidentDecisionPackPatch == nil {
+		writeError(w, http.StatusServiceUnavailable, "incident decision pack not available", "")
+		return
+	}
+	var patch models.IncidentDecisionPackAdjudicationPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	actor := s.actorFromTrustContext(r)
+	if err := s.incidentDecisionPackPatch(incidentID, actor, patch); err != nil {
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "required") {
+			code = http.StatusBadRequest
+		}
+		writeError(w, code, "could not update decision pack adjudication", err.Error())
+		return
+	}
+	if s.incidentByID != nil {
+		link := s.identityCanReadLinkedControlRows(r)
+		inc, ok, err := s.incidentByID(incidentID, link)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not load incident", err.Error())
+			return
+		}
+		if !ok {
+			writeError(w, http.StatusNotFound, "incident not found", "")
+			return
+		}
+		writeJSON(w, http.StatusOK, inc)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "incident_id": incidentID})
+}
+
 func (s *Server) incidentRecommendationOutcomeHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
 	if s.incidentRecOutcome == nil {
 		writeError(w, http.StatusServiceUnavailable, "recommendation outcomes not available", "")
@@ -1456,12 +1518,37 @@ func (s *Server) incidentRecommendationOutcomeHandler(w http.ResponseWriter, r *
 	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
 }
 
-func (s *Server) incidentReplayHandler(w http.ResponseWriter, _ *http.Request, incidentID string) {
+func (s *Server) incidentIntelSignalOutcomeHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
+	if s.incidentIntelSignalOutcome == nil {
+		writeError(w, http.StatusServiceUnavailable, "intel signal outcomes not available", "")
+		return
+	}
+	var req models.IncidentIntelSignalOutcomeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
+		return
+	}
+	actor := s.actorFromTrustContext(r)
+	if err := s.incidentIntelSignalOutcome(incidentID, actor, req); err != nil {
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			code = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "unknown outcome") {
+			code = http.StatusBadRequest
+		}
+		writeError(w, code, "could not record intel signal outcome", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded", "incident_id": incidentID})
+}
+
+func (s *Server) incidentReplayHandler(w http.ResponseWriter, r *http.Request, incidentID string) {
 	if s.incidentReplayView == nil {
 		writeError(w, http.StatusServiceUnavailable, "incident replay not available", "")
 		return
 	}
-	view, err := s.incidentReplayView(incidentID)
+	link := s.identityCanReadLinkedControlRows(r)
+	view, err := s.incidentReplayView(incidentID, link)
 	if err != nil {
 		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "not found") {
@@ -1550,9 +1637,10 @@ func (s *Server) incidentProofpackHandler(w http.ResponseWriter, r *http.Request
 func (s *Server) platformPostureHandler(w http.ResponseWriter, r *http.Request) {
 	posture := platform.BuildPosture(s.cfg)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"platform_posture": posture,
-		"privacy_summary":  privacy.Summary(privacy.Audit(s.cfg)),
-		"generated_at":     time.Now().UTC().Format(time.RFC3339),
+		"platform_posture":   posture,
+		"operator_readiness": operatorreadiness.FromPlatformPosture(posture),
+		"privacy_summary":    privacy.Summary(privacy.Audit(s.cfg)),
+		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 		"notes": []string{
 			"Assistive outputs are non-canonical and cannot mutate control truth without deterministic checks.",
 			"No hidden telemetry path is enabled unless platform.telemetry.enabled and allow_outbound are both true.",
@@ -1679,10 +1767,17 @@ func sanitizeFilenamePart(v string) string {
 func (s *Server) incidents(w http.ResponseWriter, r *http.Request) {
 	var records []models.Incident
 	var err error
+	link := s.identityCanReadLinkedControlRows(r)
 	if s.recentIncidents != nil {
-		records, err = s.recentIncidents(100)
+		records, err = s.recentIncidents(100, link)
 	} else {
 		records, err = s.db.RecentIncidents(100)
+		if err == nil {
+			for i := range records {
+				vis := actionvisibility.FromIncident(records[i], link)
+				records[i].ActionVisibility = &vis
+			}
+		}
 	}
 	if err != nil {
 		s.log.Error("db_query_failed", "database query failed", map[string]any{

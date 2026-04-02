@@ -8,15 +8,20 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build reality-check
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build frontend-lint reality-check
 
 fmt:
-	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
+	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*' -not -path './frontend/node_modules/*')
 
 vet:
 	$(GO) vet ./...
 
-lint: fmt vet
+frontend-lint:
+	cd frontend && npm ci && npm run lint
+
+# gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
+# Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
+lint: vet frontend-lint
 
 test:
 	$(GO) test ./...
@@ -41,7 +46,7 @@ build-cross:
 	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-amd64 ./cmd/mel
 	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-arm64 ./cmd/mel
 
-verify: lint test build build-cross reality-check
+verify: fmt lint test build build-cross reality-check
 
 smoke:
 	./scripts/smoke.sh
@@ -56,7 +61,7 @@ version:
 	@echo "  Version:           $(VERSION)"
 	@echo "  Git Commit:        $(COMMIT)"
 	@echo "  Build Time:        $(BUILD_TIME)"
-	@echo "  Schema Version:    31"
+	@echo "  Schema Version:    34"
 	@echo "  Compatibility:     dev"
 	@$(GO) run -ldflags "$(LDFLAGS)" ./cmd/mel version
 

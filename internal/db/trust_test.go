@@ -2,10 +2,12 @@ package db
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/mel-project/mel/internal/config"
+	"github.com/mel-project/mel/internal/models"
 )
 
 func newTrustTestDB(t *testing.T) *DB {
@@ -536,6 +538,52 @@ func TestTimeline_IncludesMultipleEventTypes(t *testing.T) {
 	}
 	if !typesSeen["operator_note"] {
 		t.Error("timeline missing operator_note events")
+	}
+}
+
+func TestTimelineEventsForIncidentResource_IncludesIncidentOperatorNotes(t *testing.T) {
+	d := newTrustTestDB(t)
+	incID := "inc-tl-notes-1"
+	ts := time.Now().UTC().Format(time.RFC3339)
+	if err := d.UpsertIncident(models.Incident{
+		ID:           incID,
+		Category:     "test",
+		Severity:     "info",
+		Title:        "t",
+		Summary:      "s",
+		ResourceType: "transport",
+		ResourceID:   "mqtt",
+		State:        "open",
+		ActorID:      "system",
+		OccurredAt:   ts,
+		UpdatedAt:    ts,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.CreateOperatorNote(OperatorNoteRecord{
+		ID:      "note-on-inc-1",
+		RefType: "incident",
+		RefID:   incID,
+		ActorID: "ops",
+		Content: "handoff context from prior shift",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	from := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	to := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	events, err := d.TimelineEventsForIncidentResource(incID, from, to, 50)
+	if err != nil {
+		t.Fatalf("TimelineEventsForIncidentResource: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if ev.EventType == "operator_note" && strings.Contains(ev.Summary, "handoff") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected operator_note on incident in scoped timeline, got %#v", events)
 	}
 }
 

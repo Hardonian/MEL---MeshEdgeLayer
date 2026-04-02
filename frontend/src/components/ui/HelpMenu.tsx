@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   HelpCircle,
   ExternalLink,
@@ -12,6 +13,63 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { isEditableTarget } from '@/utils/keyboard'
+
+// ─── Global keyboard shortcuts hook ──────────────────────────────────────────
+// Exported so Layout can mount it once at the app root.
+
+const NAV_TARGETS: Record<string, string> = {
+  h: '/',
+  d: '/',
+  i: '/incidents',
+  t: '/topology',
+  n: '/nodes',
+  s: '/settings',
+  e: '/events',
+  p: '/planning',
+  c: '/control-actions',
+  m: '/messages',
+}
+
+export function useGlobalKeyboardShortcuts(onRefresh?: () => void) {
+  const navigate = useNavigate()
+  const gPending = useRef(false)
+  const gTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      if (e.repeat) return
+      const key = e.key.toLowerCase()
+
+      // g + <letter> navigation
+      if (gPending.current) {
+        gPending.current = false
+        if (gTimer.current) clearTimeout(gTimer.current)
+        const dest = NAV_TARGETS[key]
+        if (dest) {
+          e.preventDefault()
+          navigate(dest)
+        }
+        return
+      }
+
+      if (key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        gPending.current = true
+        // Cancel g-mode after 1.2s if no second key
+        gTimer.current = setTimeout(() => { gPending.current = false }, 1200)
+        return
+      }
+
+      // r = refresh
+      if (key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey && onRefresh) {
+        e.preventDefault()
+        onRefresh()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [navigate, onRefresh])
+}
 
 interface HelpLink {
   label: string
@@ -365,27 +423,46 @@ export function VersionInfo({
 }
 
 export function KeyboardShortcuts() {
-  const shortcuts: { keys: string; description: string }[] = [
-    { keys: '?', description: 'Open this shortcuts panel (when focus is not in an input)' },
-    { keys: 'Escape', description: 'Close open menus or this panel' },
-    { keys: 'Ctrl/Cmd + K', description: 'Open command palette' },
-    { keys: 'r', description: 'Refresh current console data (non-destructive)' },
-    { keys: 'g then i/t/p/s', description: 'Jump to Incidents / Topology / Planning / Status' },
-    { keys: '/ (planning/replay)', description: 'Focus page filter/search fields when available' },
-    { keys: '1/2/3 (planning/topology/incident)', description: 'Jump between page sections' },
-    { keys: 'o / c (planning & incident)', description: 'Expand or collapse detail groups' },
+  const groups: { heading: string; shortcuts: { keys: string; description: string }[] }[] = [
+    {
+      heading: 'General',
+      shortcuts: [
+        { keys: '?', description: 'Open this shortcuts panel' },
+        { keys: 'Escape', description: 'Close open menus or this panel' },
+        { keys: 'r', description: 'Refresh current page data' },
+      ],
+    },
+    {
+      heading: 'Navigation (g + key)',
+      shortcuts: [
+        { keys: 'g h', description: 'Go to Dashboard' },
+        { keys: 'g i', description: 'Go to Incidents' },
+        { keys: 'g t', description: 'Go to Topology' },
+        { keys: 'g n', description: 'Go to Nodes' },
+        { keys: 'g p', description: 'Go to Planning' },
+        { keys: 'g c', description: 'Go to Control actions' },
+        { keys: 'g m', description: 'Go to Messages' },
+        { keys: 'g e', description: 'Go to Events' },
+        { keys: 'g s', description: 'Go to Settings' },
+      ],
+    },
   ]
 
   return (
-    <div className="text-xs">
-      <ul className="space-y-3">
-        {shortcuts.map((shortcut) => (
-          <li key={shortcut.keys} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{shortcut.keys}</kbd>
-            <span className="min-w-0 text-muted-foreground">{shortcut.description}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="text-xs space-y-4">
+      {groups.map((group) => (
+        <div key={group.heading}>
+          <p className="mb-2 font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">{group.heading}</p>
+          <ul className="space-y-2">
+            {group.shortcuts.map((s) => (
+              <li key={s.keys} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{s.keys}</kbd>
+                <span className="min-w-0 text-muted-foreground">{s.description}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }

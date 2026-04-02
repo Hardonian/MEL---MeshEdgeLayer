@@ -187,6 +187,11 @@ type FeatureConfig struct {
 	WebUI           bool `json:"web_ui"`
 	Metrics         bool `json:"metrics"`
 	BLEExperimental bool `json:"ble_experimental"`
+	// GoogleMapsInTopologyUI enables optional Google Maps JavaScript API basemap in the operator
+	// Topology page when privacy.map_reporting_allowed is true and coordinates qualify for map view.
+	// The API key must be supplied via GoogleMapsAPIKeyEnv (never commit key material in JSON).
+	GoogleMapsInTopologyUI bool   `json:"google_maps_in_topology_ui"`
+	GoogleMapsAPIKeyEnv    string `json:"google_maps_api_key_env"`
 }
 
 func (f FeatureConfig) Active() []string {
@@ -288,7 +293,13 @@ func Default() Config {
 			TrustList:              []string{},
 		},
 		Transports:   []TransportConfig{},
-		Features:     FeatureConfig{WebUI: true, Metrics: false, BLEExperimental: false},
+		Features: FeatureConfig{
+			WebUI:                  true,
+			Metrics:                false,
+			BLEExperimental:        false,
+			GoogleMapsInTopologyUI: false,
+			GoogleMapsAPIKeyEnv:    "",
+		},
 		RateLimits:   RateLimitConfig{HTTPRPS: 20, TransportReconnectSeconds: 10},
 		Intelligence: defaultIntelligenceConfig(),
 		Control: ControlConfig{
@@ -613,6 +624,9 @@ func LintConfig(cfg Config) []Lint {
 	}
 	if cfg.Privacy.MapReportingAllowed {
 		out = append(out, Lint{"map-reporting", "high", "Map reporting can expose node metadata and location.", "Disable map reporting unless operators have explicitly accepted the risk."})
+	}
+	if cfg.Features.GoogleMapsInTopologyUI {
+		out = append(out, Lint{"google-maps-topology-ui", "high", "Google Maps basemap loads third-party scripts and sends browser requests to Google when the Topology map is shown.", "Disable features.google_maps_in_topology_ui unless operators accept outbound map tile/API usage; keep the API key only in the named env var."})
 	}
 	if cfg.Retention.MessagesDays > 90 {
 		out = append(out, Lint{"long-message-retention", "medium", "Message retention exceeds 90 days.", "Shorten message retention or document the operational need."})

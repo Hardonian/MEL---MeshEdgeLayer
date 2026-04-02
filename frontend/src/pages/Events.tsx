@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useEvents } from '@/hooks/useApi'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
@@ -18,16 +18,31 @@ export function Events() {
   const { data, loading, error, refresh } = useEvents()
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('all')
 
-  const events = data || []
+  const events = useMemo(() => data ?? [], [data])
 
-  const errorCount = events.filter(e => e.level?.toLowerCase() === 'error').length
-  const warningCount = events.filter(e => e.level?.toLowerCase() === 'warning').length
-  const categories = [...new Set(events.map(e => e.category).filter(Boolean))]
+  const errorCount = useMemo(
+    () => events.filter((e) => e.level?.toLowerCase() === 'error').length,
+    [events],
+  )
+  const warningCount = useMemo(
+    () => events.filter((e) => e.level?.toLowerCase() === 'warning').length,
+    [events],
+  )
+  const categories = useMemo(
+    () => [...new Set(events.map((e) => e.category).filter(Boolean))],
+    [events],
+  )
+
+  const levelMatches = useCallback(
+    (e: (typeof events)[number], level: LevelFilter) =>
+      level === 'all' || e.level?.toLowerCase() === level,
+    [],
+  )
 
   const filtered = useMemo(() => {
     if (levelFilter === 'all') return events
-    return events.filter(e => e.level?.toLowerCase() === levelFilter)
-  }, [events, levelFilter])
+    return events.filter((e) => levelMatches(e, levelFilter))
+  }, [events, levelFilter, levelMatches])
 
   if (loading && !data) {
     return <Loading message="Loading events..." />

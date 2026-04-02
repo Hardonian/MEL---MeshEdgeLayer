@@ -1,0 +1,219 @@
+import { describe, expect, it } from 'vitest'
+import type { Incident } from '@/types/api'
+import {
+  buildRecurrenceHomeTeasers,
+  buildShiftStartAttentionRows,
+  countOpenIncidentsExplicitFollowUp,
+  openIncidentShiftPriority,
+  openIncidentShiftWhyLine,
+  sortOpenIncidentsForShiftStart,
+} from './operatorWorkflow'
+
+function inc(partial: Partial<Incident> & { id: string }): Incident {
+  return {
+    id: partial.id,
+    title: partial.title,
+    state: partial.state ?? 'open',
+    review_state: partial.review_state,
+    updated_at: partial.updated_at,
+    intelligence: partial.intelligence,
+    linked_control_actions: partial.linked_control_actions,
+    pending_actions: partial.pending_actions,
+    triage_signals: partial.triage_signals,
+  } as Incident
+}
+
+describe('operatorWorkflow', () => {
+  it('prioritizes follow-up review states', () => {
+    const a = inc({ id: 'a', review_state: 'follow_up_needed' })
+    const b = inc({ id: 'b', review_state: 'investigating' })
+    expect(openIncidentShiftPriority(a)).toBeLessThan(openIncidentShiftPriority(b))
+  })
+
+  it('uses server triage_signals.tier when consistent with review_state', () => {
+    const low = inc({
+      id: 'low',
+      review_state: 'investigating',
+      triage_signals: {
+        tier: 4,
+        codes: ['open_routine'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_ordering_contract_version: '2',
+        queue_sort_primary: 4,
+        queue_sort_key_lex: '4.00000000000000000000.0000000000000001',
+      },
+    } as Incident)
+    const high = inc({
+      id: 'high',
+      review_state: 'investigating',
+      updated_at: '2019-01-01T00:00:00Z',
+      triage_signals: {
+        tier: 2,
+        codes: ['sparse_or_degraded_intel'],
+        rationale_lines: ['Sparse intel in API'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_ordering_contract_version: '2',
+        queue_sort_primary: 2,
+        queue_sort_key_lex: '2.00000000000000000000.0000000000000001',
+      },
+    } as Incident)
+    expect(openIncidentShiftPriority(high)).toBe(2)
+    expect(openIncidentShiftPriority(low)).toBe(4)
+    const sorted = sortOpenIncidentsForShiftStart([low, high])
+    expect(sorted.map((x) => x.id)).toEqual(['high', 'low'])
+  })
+
+  it('sortOpenIncidentsForShiftStart uses queue_sort_key_lex when v2 present', () => {
+    const newer = inc({
+      id: 'newer',
+      review_state: 'investigating',
+      updated_at: '2025-06-01T00:00:00Z',
+      triage_signals: {
+        tier: 4,
+        codes: ['open_routine'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_sort_key_lex: '4.00000000000000000001.0000000000000001',
+      },
+    } as Incident)
+    const older = inc({
+      id: 'older',
+      review_state: 'investigating',
+      updated_at: '2020-01-01T00:00:00Z',
+      triage_signals: {
+        tier: 4,
+        codes: ['open_routine'],
+        queue_ordering_contract: 'open_incident_workbench_v2',
+        queue_sort_key_lex: '4.00000000000000000002.0000000000000001',
+      },
+    } as Incident)
+    const sorted = sortOpenIncidentsForShiftStart([older, newer])
+    expect(sorted.map((x) => x.id)).toEqual(['newer', 'older'])
+  })
+
+  it('does not trust API tier alone without queue_ordering_contract', () => {
+    const a = inc({
+      id: 'a',
+      review_state: 'investigating',
+      triage_signals: { tier: 4, codes: ['open_routine'] },
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+    })
+    expect(openIncidentShiftPriority(a)).toBe(2)
+  })
+
+  it('sortOpenIncidentsForShiftStart orders by priority then updated_at', () => {
+    const old = inc({
+      id: 'old',
+      review_state: 'investigating',
+      updated_at: '2020-01-01T00:00:00Z',
+    })
+    const newSparse = inc({
+      id: 'newSparse',
+      review_state: 'investigating',
+      updated_at: '2025-01-02T00:00:00Z',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+    })
+    const follow = inc({
+      id: 'follow',
+      review_state: 'follow_up_needed',
+      updated_at: '2019-01-01T00:00:00Z',
+    })
+    const sorted = sortOpenIncidentsForShiftStart([old, newSparse, follow])
+    expect(sorted.map((x) => x.id)).toEqual(['follow', 'newSparse', 'old'])
+  })
+
+  it('openIncidentShiftWhyLine mentions recurring without causal claim', () => {
+    const i = inc({
+      id: 'r',
+      intelligence: { signature_match_count: 3 } as Incident['intelligence'],
+    })
+    expect(openIncidentShiftWhyLine(i)).toContain('Recurring')
+    expect(openIncidentShiftWhyLine(i)).toContain('not proof')
+  })
+
+  it('openIncidentShiftWhyLine surfaces linked approval wait before sparse intel', () => {
+    const sparseOnly = inc({
+      id: 's',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+    })
+    const withApproval = inc({
+      id: 'a',
+      intelligence: { evidence_strength: 'sparse' } as Incident['intelligence'],
+      linked_control_actions: [{ id: 'x', action_type: 't', lifecycle_state: 'pending_approval' }],
+    } as Incident)
+    expect(openIncidentShiftWhyLine(withApproval)).toMatch(/awaiting approval/i)
+    expect(openIncidentShiftWhyLine(sparseOnly)).toMatch(/Sparse or degraded/i)
+  })
+
+  it('openIncidentShiftWhyLine mentions export policy when disabled', () => {
+    const i = inc({ id: 'e' })
+    expect(openIncidentShiftWhyLine(i, { exportEnabled: false })).toMatch(/policy disables evidence export/i)
+  })
+
+  it('openIncidentShiftWhyLine explains visibility when read_actions is off', () => {
+    const i = inc({ id: 'v' })
+    expect(openIncidentShiftWhyLine(i, { canReadLinkedActions: false })).toMatch(/not shown for this session/i)
+  })
+
+  it('sortOpenIncidentsForShiftStart elevates history-without-linkage before plain backlog', () => {
+    const plain = inc({
+      id: 'plain',
+      updated_at: '2026-01-02T00:00:00Z',
+      review_state: 'investigating',
+    })
+    const histOnly = inc({
+      id: 'hist',
+      updated_at: '2020-01-01T00:00:00Z',
+      review_state: 'investigating',
+      intelligence: {
+        evidence_strength: 'strong',
+        historically_used_actions: [{ action_type: 'restart', count: 2 }],
+      } as Incident['intelligence'],
+    })
+    const sorted = sortOpenIncidentsForShiftStart([plain, histOnly])
+    expect(sorted[0]?.id).toBe('hist')
+  })
+
+  it('countOpenIncidentsExplicitFollowUp counts review workflow states', () => {
+    const n = countOpenIncidentsExplicitFollowUp([
+      inc({ id: 'a', review_state: 'follow_up_needed' }),
+      inc({ id: 'b', review_state: 'investigating' }),
+    ])
+    expect(n).toBe(1)
+  })
+
+  it('buildRecurrenceHomeTeasers ranks signature and similar cases', () => {
+    const a = inc({
+      id: 'a',
+      intelligence: {
+        evidence_strength: 'moderate',
+        signature_match_count: 2,
+        similar_incidents: [{ incident_id: 'x' }],
+      } as Incident['intelligence'],
+    })
+    const b = inc({
+      id: 'b',
+      intelligence: {
+        evidence_strength: 'strong',
+        signature_match_count: 5,
+      } as Incident['intelligence'],
+    })
+    const teasers = buildRecurrenceHomeTeasers([a, b], 2)
+    expect(teasers[0]?.id).toBe('b')
+    expect(teasers[0]?.why).toContain('signature')
+  })
+
+  it('buildShiftStartAttentionRows surfaces transports before incidents', () => {
+    const rows = buildShiftStartAttentionRows({
+      openIncidents: [inc({ id: 'x', title: 'X' })],
+      unhealthyTransportCount: 1,
+      degradedTransportCount: 0,
+      criticalDiagCount: 0,
+      criticalPrivacyCount: 0,
+      pendingApprovalCount: 0,
+      deadLetterCount: 0,
+      deadLettersIncreasedSinceBaseline: false,
+      sparseOpenCount: 0,
+    })
+    expect(rows[0]?.key).toBe('transport-unhealthy')
+  })
+})

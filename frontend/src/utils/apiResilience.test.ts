@@ -9,7 +9,7 @@ describe('apiResilience', () => {
     it('returns empty array for null/undefined/non-array', () => {
       expect(safeArray(null)).toEqual([]);
       expect(safeArray(undefined)).toEqual([]);
-      expect(safeArray('not-an-array' as any)).toEqual([]);
+      expect(safeArray('not-an-array' as unknown as number[])).toEqual([]);
     });
   });
 

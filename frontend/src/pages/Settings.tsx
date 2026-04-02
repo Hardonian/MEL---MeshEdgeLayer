@@ -8,6 +8,8 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { KeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { useConsoleThemePreference } from '@/hooks/useConsoleThemePreference'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
+import { useStatus } from '@/hooks/useApi'
+import type { PlatformPosture } from '@/types/api'
 import {
   Server,
   Info,
@@ -20,6 +22,8 @@ import {
   BookOpen,
   Wrench,
   Monitor,
+  Cpu,
+  Radio,
 } from 'lucide-react'
 
 function nested(root: Record<string, unknown> | undefined, path: string): unknown {
@@ -43,6 +47,7 @@ function stringifyValue(value: unknown): string | null {
 
 export function SettingsPage() {
   const version = useVersionInfo()
+  const status = useStatus()
   const { preference, setPreference } = useConsoleThemePreference()
   const [configInspect, setConfigInspect] = useState<{ values?: Record<string, unknown>; fingerprint?: string } | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
@@ -80,6 +85,8 @@ export function SettingsPage() {
       { key: 'storage.database_path', defaultValue: '"./data/mel.db"', effective: stringifyValue(nested(configInspect?.values, 'storage.database_path')) },
       { key: 'privacy.redact_exports', defaultValue: 'true', effective: stringifyValue(nested(configInspect?.values, 'privacy.redact_exports')) },
       { key: 'privacy.map_reporting_allowed', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'privacy.map_reporting_allowed')) },
+      { key: 'features.google_maps_in_topology_ui', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_in_topology_ui')) },
+      { key: 'features.google_maps_api_key_env', defaultValue: '""', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_api_key_env')) },
       { key: 'features.metrics', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.metrics')) },
     ],
     [configInspect?.values]
@@ -98,6 +105,8 @@ export function SettingsPage() {
         title="Settings"
         description="Console preferences (this browser), read-only configuration reference, and links to operator documentation."
       />
+
+      <RuntimeTruthStrip version={v} status={status.data} versionLoading={version.loading} statusLoading={status.loading} />
 
       {/* Quick Access */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -404,6 +413,9 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Platform posture — effective running truth */}
+      {v?.platform_posture && <PlatformPostureCard posture={v.platform_posture} />}
+
       {/* Note about config editing */}
       <AlertCard
         variant="info"
@@ -411,6 +423,99 @@ export function SettingsPage() {
         description="MEL reads settings from a JSON config file on the host. Edit that file and restart the process for changes to apply. This UI does not persist server configuration."
       />
     </div>
+  )
+}
+
+function RuntimeTruthStrip({
+  version,
+  status,
+  versionLoading,
+  statusLoading,
+}: {
+  version: import('@/types/api').VersionResponse | null | undefined
+  status: import('@/types/api').StatusResponse | null | undefined
+  versionLoading: boolean
+  statusLoading: boolean
+}) {
+  const topo = version?.topology_model_enabled === true
+  const transports = status?.transports ?? []
+  const anyLive = transports.some((t) => t.effective_state === 'connected' || t.runtime_state === 'live')
+  const anyConfigured = transports.length > 0
+  const schemaOk = version?.schema_matches_binary === true
+  const fp = version?.config_canonical_fingerprint
+
+  return (
+    <Card className="border-primary/15 bg-muted/20" data-testid="settings-runtime-truth-strip">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Monitor className="h-4 w-4" aria-hidden />
+          Runtime truth at a glance
+        </CardTitle>
+        <CardDescription>
+          What the connected API reports now — distinct from documented defaults. “Configured” is not the same as “yielding fresh evidence”.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {(versionLoading || statusLoading) && <p className="text-xs text-muted-foreground">Loading runtime endpoints…</p>}
+        {!versionLoading && !statusLoading && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Topology model</p>
+              <p className="mt-1 text-muted-foreground">
+                {version?.topology_model_enabled === undefined
+                  ? 'Unknown (older server — upgrade to expose topology_model_enabled)'
+                  : topo
+                    ? 'Enabled in running config — graph can update from ingest when transports deliver packets.'
+                    : 'Disabled — topology pages stay informative but the graph store is not active.'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Transports</p>
+              <p className="mt-1 text-muted-foreground">
+                {!anyConfigured && 'None configured — ingest cannot run until transports exist in config.'}
+                {anyConfigured &&
+                  (anyLive
+                    ? `${transports.length} configured; at least one connected/live — evidence can flow.`
+                    : `${transports.length} configured; none connected in this poll — evidence may be stale or idle.`)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Schema / config</p>
+              <p className="mt-1 text-muted-foreground">
+                Migrations:{' '}
+                {schemaOk ? (
+                  <span className="text-success">match binary</span>
+                ) : (
+                  <span className="text-warning">mismatch or unknown — check diagnostics</span>
+                )}
+                {fp && (
+                  <span className="block font-mono text-[10px] mt-0.5 text-muted-foreground/80 truncate" title={fp}>
+                    fingerprint {fp.slice(0, 16)}…
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+              <p className="font-medium text-foreground">Where to verify</p>
+              <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                <li>
+                  <a href="/status" className="text-primary font-medium hover:underline">
+                    Status
+                  </a>{' '}
+                  — per-transport effective_state and last_ingest
+                </li>
+                <li>
+                  <a href="/diagnostics" className="text-primary font-medium hover:underline">
+                    Diagnostics
+                  </a>{' '}
+                  — internal health signals
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -530,5 +635,255 @@ function DocLink({
         <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
       </span>
     </a>
+  )
+}
+
+function availabilityVariant(a: string): 'success' | 'warning' | 'secondary' | 'outline' {
+  if (a === 'available') return 'success'
+  if (a === 'partial' || a === 'queued') return 'warning'
+  if (a === 'unavailable') return 'secondary'
+  return 'outline'
+}
+
+function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
+  const ret = posture.retention
+  const exp = posture.evidence_export_delete
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cpu className="h-5 w-5" />
+          Effective running posture
+        </CardTitle>
+        <CardDescription>
+          Read from <code className="rounded bg-muted px-1 font-mono text-xs">GET /api/v1/version → platform_posture</code>.
+          These are the effective values for the running process — not documented defaults.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Mode + telemetry */}
+        <section aria-labelledby="posture-mode-heading">
+          <h3 id="posture-mode-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Radio className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Mode &amp; telemetry
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem
+              name="Platform mode"
+              value={posture.mode || '—'}
+              source="platform_posture.mode"
+              note="Operating mode for this instance"
+            />
+            <RunningItem
+              name="Telemetry enabled"
+              value={posture.telemetry_enabled ? 'yes' : 'no'}
+              source="platform_posture.telemetry_enabled"
+              note="Whether telemetry collection is active"
+              variant={posture.telemetry_enabled ? 'warning' : 'success'}
+            />
+            <RunningItem
+              name="Telemetry outbound"
+              value={posture.telemetry_outbound ? 'yes' : 'no'}
+              source="platform_posture.telemetry_outbound"
+              note="Whether telemetry is sent externally"
+              variant={posture.telemetry_outbound ? 'warning' : 'success'}
+            />
+          </div>
+        </section>
+
+        {/* Retention */}
+        <section aria-labelledby="posture-retention-heading">
+          <h3 id="posture-retention-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Database className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Effective retention
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem name="Retention active" value={ret.enabled ? 'yes' : 'no'} source="retention.enabled" note="Automatic data pruning on/off" />
+            <RunningItem name="Messages" value={`${ret.messages_days}d`} source="retention.messages_days" note="Message retention window" />
+            <RunningItem name="Audit logs" value={`${ret.audit_days}d`} source="retention.audit_days" note="Audit log retention window" />
+            <RunningItem name="Telemetry" value={`${ret.telemetry_days}d`} source="retention.telemetry_days" note="Telemetry retention window" />
+            <RunningItem name="Precise positions" value={`${ret.precise_position_days}d`} source="retention.precise_position_days" note="GPS coordinate retention" />
+          </div>
+        </section>
+
+        {/* Export / delete */}
+        <section aria-labelledby="posture-export-heading">
+          <h3 id="posture-export-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Shield className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Export &amp; delete policy
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <RunningItem name="Export enabled" value={exp.export_enabled ? 'yes' : 'no'} source="evidence_export_delete.export_enabled" note="Proofpack / bundle export allowed" />
+            <RunningItem name="Delete enabled" value={exp.delete_enabled ? 'yes' : 'no'} source="evidence_export_delete.delete_enabled" note="Operator-triggered data deletion" />
+            {exp.delete_scope.length > 0 && (
+              <RunningItem name="Delete scope" value={exp.delete_scope.join(', ')} source="evidence_export_delete.delete_scope" note="What can be deleted" />
+            )}
+            {exp.delete_caveat && (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Caveat: </span>{exp.delete_caveat}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Inference */}
+        <section aria-labelledby="posture-inference-heading">
+          <h3 id="posture-inference-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Cpu className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Local inference
+          </h3>
+          <div className="mb-3">
+            <RunningItem
+              name="Inference enabled"
+              value={posture.inference_enabled ? 'yes' : 'no'}
+              source="inference_enabled"
+              note="Assistive inference runtime active"
+              variant={posture.inference_enabled ? 'success' : 'secondary'}
+            />
+          </div>
+          {posture.inference_providers.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">Providers</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {posture.inference_providers.map((p) => (
+                  <div key={p.name} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 text-xs">
+                    <div>
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      <span className="ml-2 text-muted-foreground">{p.endpoint_configured ? 'endpoint configured' : 'no endpoint'}</span>
+                    </div>
+                    <Badge variant={p.enabled && p.available_by_config ? 'success' : 'secondary'}>
+                      {p.enabled ? (p.available_by_config ? 'available' : 'config-limited') : 'disabled'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {posture.assist_policies.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">Assist policies</p>
+              <div className="space-y-1.5">
+                {posture.assist_policies.map((p) => (
+                  <div key={p.task_class} className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-xs">
+                    <span className="font-mono text-foreground">{p.task_class.replace(/_/g, ' ')}</span>
+                    <Badge variant={availabilityVariant(p.availability)}>{p.availability}</Badge>
+                    <span className="text-muted-foreground">{p.execution_mode}</span>
+                    <span className="text-muted-foreground">{p.provider}</span>
+                    <span className="text-muted-foreground">{p.hardware}</span>
+                    {p.non_canonical_truth && (
+                      <Badge variant="outline" className="text-[10px]">non-canonical</Badge>
+                    )}
+                    {p.fallback_reason && (
+                      <span className="text-warning text-[10px]">{p.fallback_reason}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {posture.operator_intelligence_posture && (
+          <section aria-labelledby="posture-operator-intel-heading">
+            <h3 id="posture-operator-intel-heading" className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Shield className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Operator intelligence posture
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Contract for what the UI may claim: deterministic incident intelligence stays on persisted records; assist is optional and never
+              canonical truth. Remote cloud assist is not a base product path.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <RunningItem
+                name="Deterministic incident intel"
+                value={posture.operator_intelligence_posture.deterministic_incident_intel.replace(/_/g, ' ')}
+                source="operator_intelligence_posture.deterministic_incident_intel"
+                note={posture.operator_intelligence_posture.deterministic_basis.replace(/_/g, ' ')}
+              />
+              <RunningItem
+                name="Assistive inference layer"
+                value={posture.operator_intelligence_posture.assistive_inference_layer.replace(/_/g, ' ')}
+                source="operator_intelligence_posture.assistive_inference_layer"
+                note="LLM / assist when enabled — review output; does not override ingest or audit truth"
+                variant={posture.operator_intelligence_posture.assistive_inference_layer === 'available' ? 'warning' : 'secondary'}
+              />
+              {posture.operator_intelligence_posture.assist_capability_strategy && (
+                <RunningItem
+                  name="Assist capability strategy"
+                  value={posture.operator_intelligence_posture.assist_capability_strategy.replace(/_/g, ' ')}
+                  source="operator_intelligence_posture.assist_capability_strategy"
+                  note="Explicit contract for future assist surfaces — local-first; no hidden cloud path"
+                  variant={
+                    posture.operator_intelligence_posture.assist_capability_strategy === 'enabled_bounded_local_assist'
+                      ? 'warning'
+                      : posture.operator_intelligence_posture.assist_capability_strategy === 'unavailable' ||
+                          posture.operator_intelligence_posture.assist_capability_strategy === 'not_configured'
+                        ? 'outline'
+                        : 'secondary'
+                  }
+                />
+              )}
+              <RunningItem
+                name="Remote assist supported"
+                value={posture.operator_intelligence_posture.remote_assist_supported ? 'yes' : 'no'}
+                source="operator_intelligence_posture.remote_assist_supported"
+                note="Base MEL is local-first; no mandatory cloud assist"
+                variant={posture.operator_intelligence_posture.remote_assist_supported ? 'warning' : 'success'}
+              />
+              <RunningItem
+                name="Telemetry outbound"
+                value={posture.operator_intelligence_posture.telemetry_outbound ? 'yes' : 'no'}
+                source="operator_intelligence_posture.telemetry_outbound"
+                note="Outbound telemetry requires explicit opt-in in validated configs"
+                variant={posture.operator_intelligence_posture.telemetry_outbound ? 'warning' : 'success'}
+              />
+            </div>
+            {(posture.operator_intelligence_posture.assist_input_contracts?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground mb-1">Future bounded assist — canonical inputs (design contract)</p>
+                <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px]">
+                  {posture.operator_intelligence_posture.assist_input_contracts!.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+                {posture.operator_intelligence_posture.assist_disable_semantics && (
+                  <p className="mt-2">{posture.operator_intelligence_posture.assist_disable_semantics}</p>
+                )}
+                {posture.operator_intelligence_posture.assist_audit_expectation && (
+                  <p className="mt-2 border-t border-border/40 pt-2">{posture.operator_intelligence_posture.assist_audit_expectation}</p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function RunningItem({
+  name,
+  value,
+  source,
+  note,
+  variant,
+}: {
+  name: string
+  value: string
+  source: string
+  note: string
+  variant?: 'success' | 'warning' | 'secondary' | 'outline'
+}) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">{name}</span>
+        {variant && <Badge variant={variant} className="shrink-0 text-xs">{value}</Badge>}
+      </div>
+      {!variant && <p className="text-base font-semibold text-foreground">{value}</p>}
+      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+      <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">{source}</p>
+    </div>
   )
 }

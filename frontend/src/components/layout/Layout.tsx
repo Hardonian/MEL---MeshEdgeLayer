@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
-import { HelpMenu } from '@/components/ui/HelpMenu'
+import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
+import { HelpMenu, useGlobalKeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { truncateMiddle } from '@/utils/presentation'
-import { isEditableTarget } from '@/utils/keyboard'
+import { formatRelativeTime } from '@/types/api'
 import {
   LayoutDashboard,
   Radio,
@@ -24,6 +25,7 @@ import {
   Search,
   Eye,
   Wrench,
+  Crosshair,
 } from 'lucide-react'
 
 interface NavItem {
@@ -42,9 +44,9 @@ interface NavGroup {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
-  const navigate = useNavigate()
   const status = useStatus()
   const api = useApi()
+  const { focus, clearFocus } = useOperatorWorkspaceFocus()
   const { refreshAll } = api
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -68,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'Overview',
       icon: Eye,
       items: [
-        { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { label: 'Command surface', href: '/', icon: LayoutDashboard },
         { label: 'Status', href: '/status', icon: Activity },
         { label: 'Events', href: '/events', icon: FileText },
       ],
@@ -148,38 +150,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [refreshAll])
 
+  // Global keyboard shortcuts: g+letter nav, r=refresh
+  useGlobalKeyboardShortcuts(handleRefresh)
+
+  // Page Visibility API: refresh when tab becomes visible after being hidden
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAll()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refreshAll])
+
+  // Escape / command palette only — g+r navigation lives in useGlobalKeyboardShortcuts (HelpMenu) to avoid double handlers.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const inEditable = isEditableTarget(e.target)
-
       if (e.key === 'Escape') {
         setIsMobileMenuOpen(false)
         setCommandOpen(false)
       }
-      // Cmd+K or Ctrl+K for command palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setCommandOpen((prev) => !prev)
       }
-      if (inEditable) return
-      if (e.key === 'g') {
-        const onSecond = (ev: KeyboardEvent) => {
-          if (ev.key === 'i') navigate('/incidents')
-          if (ev.key === 't') navigate('/topology')
-          if (ev.key === 'p') navigate('/planning')
-          if (ev.key === 's') navigate('/status')
-          document.removeEventListener('keydown', onSecond)
-        }
-        document.addEventListener('keydown', onSecond, { once: true })
-      }
-      if (e.key.toLowerCase() === 'r') {
-        e.preventDefault()
-        void handleRefresh()
-      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [navigate, handleRefresh])
+  }, [])
 
   const transportStatusLabel = status.loading
     ? 'Loading transport state'
@@ -392,6 +391,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           tabIndex={-1}
           className="flex-1 px-4 pb-10 pt-4 outline-none md:ml-[17rem] md:px-6 md:pt-5"
         >
+          <WorkspaceFocusBar
+            pathname={location.pathname}
+            focus={focus}
+            onDismiss={clearFocus}
+          />
           <div className="mx-auto w-full max-w-8xl page-enter">{children}</div>
         </main>
       </div>
@@ -416,12 +420,76 @@ export function Layout({ children }: { children: React.ReactNode }) {
   )
 }
 
+function WorkspaceFocusBar({
+  pathname,
+  focus,
+  onDismiss,
+}: {
+  pathname: string
+  focus: { incidentId: string; incidentTitle?: string; savedAt: string } | null
+  onDismiss: () => void
+}) {
+  if (!focus) return null
+  const onIncidentPage =
+    pathname === `/incidents/${focus.incidentId}` || pathname.startsWith(`/incidents/${focus.incidentId}/`)
+  if (onIncidentPage) return null
+
+  return (
+    <div
+      className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2 text-xs"
+      role="region"
+      aria-label="Current workspace focus"
+    >
+      <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+      <span className="font-semibold text-foreground shrink-0">Workspace focus:</span>
+      <Link
+        to={`/incidents/${encodeURIComponent(focus.incidentId)}`}
+        className="min-w-0 flex-1 font-medium text-primary hover:underline truncate sm:flex-none"
+      >
+        {focus.incidentTitle?.trim() || focus.incidentId.slice(0, 14)}
+      </Link>
+      <span className="text-muted-foreground/80 hidden sm:inline">
+        set {formatRelativeTime(focus.savedAt)} (this browser)
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+        <Link
+          to={`/incidents/${encodeURIComponent(focus.incidentId)}?replay=1`}
+          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          Replay
+        </Link>
+        <Link
+          to={`/topology?incident=${encodeURIComponent(focus.incidentId)}&filter=incident_focus`}
+          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          Topology
+        </Link>
+        <Link
+          to={`/incidents/${encodeURIComponent(focus.incidentId)}#shift-continuity-handoff`}
+          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          Handoff
+        </Link>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          aria-label="Clear workspace focus"
+        >
+          <X className="h-3 w-3" aria-hidden />
+          Clear
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const location = useLocation()
 
   const allPages = [
-    { label: 'Dashboard', href: '/', keywords: 'home overview' },
+    { label: 'Command surface', href: '/', keywords: 'home overview dashboard operator workspace' },
     { label: 'Status', href: '/status', keywords: 'transport health connection' },
     { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
     { label: 'Topology', href: '/topology', keywords: 'graph network map' },

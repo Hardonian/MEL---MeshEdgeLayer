@@ -2,8 +2,12 @@ import React, { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { clsx } from 'clsx'
+import { useVersionInfo } from '@/hooks/useVersionInfo'
+import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 
 export const SupportBundleExport: React.FC = () => {
+  const versionInfo = useVersionInfo()
+  const exportReadiness = operatorExportReadinessFromVersion(versionInfo.data, versionInfo.error ?? null)
   const [status, setStatus] = useState<'idle' | 'generating' | 'success' | 'error' | 'unavailable'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -59,6 +63,54 @@ export const SupportBundleExport: React.FC = () => {
         control evidence) and <code className="rounded bg-muted px-1 font-mono text-xs">doctor.json</code> (same checks as{' '}
         <code className="rounded bg-muted px-1 font-mono text-xs">mel doctor</code>, bundle-redacted). Review before sharing externally.
       </p>
+      {!versionInfo.loading && (
+        <div
+          className={clsx(
+            'mb-4 rounded-lg border px-3 py-2 text-xs',
+            exportReadiness.semantic === 'available'
+              ? 'border-success/25 bg-success/5 text-muted-foreground'
+              : exportReadiness.semantic === 'policy_limited'
+                ? 'border-critical/30 bg-critical/5 text-foreground'
+                : exportReadiness.semantic === 'degraded'
+                  ? 'border-warning/30 bg-warning/5 text-foreground'
+                  : 'border-warning/25 bg-warning/5 text-foreground',
+          )}
+          role="status"
+          aria-live="polite"
+          data-testid="support-bundle-export-readiness"
+        >
+          <span className="font-semibold text-foreground">Export / artifact readiness (same as proofpack): </span>
+          {exportReadiness.summary}
+          {exportReadiness.blockers.length > 0 && (
+            <ul className="mt-1.5 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+              {exportReadiness.blockers.map((b) => (
+                <li key={b.code}>
+                  <span className="font-mono text-foreground/80">{b.code}</span>
+                  {b.summary ? ` — ${b.summary}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {exportReadiness.semantic === 'unknown_partial' && (
+        <div className="mb-4">
+          <AlertCard
+            variant="warning"
+            title="Instance export posture not fully loaded"
+            description={`${exportReadiness.summary} You can still download this host bundle; confirm GET /api/v1/version if proofpack parity matters.`}
+          />
+        </div>
+      )}
+      {exportReadiness.semantic === 'policy_limited' && (
+        <div className="mb-4">
+          <AlertCard
+            variant="critical"
+            title="Instance policy blocks evidence-class exports"
+            description={`${exportReadiness.summary} This ZIP is host/support continuity — do not treat it as a substitute for incident proofpack when policy blocks export.`}
+          />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => void handleExport()}

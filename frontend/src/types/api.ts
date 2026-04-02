@@ -3,6 +3,8 @@
 /** GET /api/v1/version — build and schema metadata from the running binary */
 export interface VersionResponse {
   version: string
+  /** Topology ingest + graph store enabled in running config (not “live mesh proof”). */
+  topology_model_enabled?: boolean
   git_commit?: string
   build_time?: string
   go_version?: string
@@ -21,7 +23,59 @@ export interface VersionResponse {
   process?: { pid: number; started_at: string }
   uptime_seconds?: number
   platform_posture?: PlatformPosture
+  /** Canonical operator export/support/proofpack readiness from backend (GET /api/v1/version). */
+  operator_readiness?: OperatorReadinessDTO
 }
+
+export interface OperatorIntelligencePosture {
+  deterministic_incident_intel: string
+  deterministic_basis: string
+  telemetry_outbound: boolean
+  telemetry_require_explicit_opt_in: boolean
+  assistive_inference_layer: string
+  /** Explicit contract for future assist UI — does not imply remote/cloud assist. */
+  assist_capability_strategy?: string
+  assist_non_canonical_truth: boolean
+  remote_assist_supported: boolean
+  review_recommended_for_assist_output: boolean
+  /** Stable field names bounded assist may read; deterministic API remains canonical. */
+  assist_input_contracts?: string[]
+  assist_disable_semantics?: string
+  assist_audit_expectation?: string
+}
+
+export interface OperatorReadinessBlocker {
+  code: string
+  summary: string
+}
+
+export interface OperatorReadinessDTO {
+  semantic: OperatorReadinessSemantic
+  summary: string
+  artifact_strength: OperatorArtifactStrengthDTO
+  blockers?: OperatorReadinessBlocker[]
+  evidence_basis?: string[]
+  generated_from_note?: string
+}
+
+export type OperatorReadinessSemantic =
+  | 'available'
+  | 'degraded'
+  | 'gated'
+  | 'unsupported'
+  | 'unavailable'
+  | 'unknown_partial'
+  | 'sparse'
+  | 'partial'
+  | 'capability_limited'
+  | 'policy_limited'
+  | 'stale'
+
+export type OperatorArtifactStrengthDTO =
+  | 'useful_now'
+  | 'usable_degraded'
+  | 'weaker_until_runtime_checked'
+  | 'blocked'
 
 export interface PlatformPosture {
   mode: string
@@ -43,6 +97,10 @@ export interface PlatformPosture {
     delete_caveat?: string
   }
   inference_enabled: boolean
+  inference_runtime_ready?: boolean
+  inference_degraded?: boolean
+  inference_caveat?: string
+  export_redaction_enabled?: boolean
   inference_providers: Array<{
     name: string
     enabled: boolean
@@ -62,6 +120,7 @@ export interface PlatformPosture {
     context_token_budget: number
     non_canonical_truth: boolean
   }>
+  operator_intelligence_posture?: OperatorIntelligencePosture
 }
 
 /** Honest capability envelope for this build (backend internal/runtime). */
@@ -248,7 +307,153 @@ export interface Incident {
   /** Canonical FK-linked control actions (when backend enriches list/detail) */
   linked_control_actions?: ControlActionRecord[]
   intelligence?: IncidentIntelligence
+  /** Server-computed control visibility for this response (capability-aware); prefer over pure frontend inference when present. */
+  action_visibility?: IncidentActionVisibilityPosture
+  /** Server-computed deterministic triage hints (inspectable codes, not opaque ranking). */
+  triage_signals?: IncidentTriageSignals
+  /** Canonical backend-assembled decision object (detail/workbench/export framing). */
+  decision_pack?: IncidentDecisionPack
 }
+
+export interface IncidentDecisionPack {
+  schema_version: string
+  incident_id: string
+  generated_at: string
+  identity?: IncidentDecisionPackIdentity
+  queue?: IncidentDecisionPackQueue
+  evidence_basis?: IncidentDecisionPackEvidenceBasis
+  intelligence_summary?: IncidentDecisionPackIntelligenceSummary
+  mitigation_durability?: IncidentMitigationDurabilityMemory
+  family_history?: IncidentDecisionPackFamilyHistory
+  transport_graph?: IncidentDecisionPackTransportGraph
+  linked_actions?: IncidentDecisionPackLinkedActions
+  readiness?: IncidentDecisionPackReadiness
+  uncertainty?: IncidentDecisionPackUncertainty
+  operator_adjudication?: IncidentDecisionPackAdjudication
+  analytics_hints?: IncidentDecisionPackAnalyticsHints
+}
+
+export interface IncidentDecisionPackIdentity {
+  title?: string
+  state?: string
+  severity?: string
+  category?: string
+  resource_type?: string
+  resource_id?: string
+  occurred_at?: string
+  updated_at?: string
+  resolved_at?: string
+  review_state?: string
+  owner_actor_id?: string
+  handoff_summary?: string
+  summary?: string
+}
+
+export interface IncidentDecisionPackQueue {
+  triage_signals?: IncidentTriageSignals
+  why_surfaced_one_liner?: string
+  ordering_note?: string
+}
+
+export interface IncidentDecisionPackEvidenceBasis {
+  evidence_strength?: string
+  evidence_items?: IncidentEvidenceItem[]
+  item_cap_applied?: number
+  degraded?: boolean
+  degraded_reasons?: string[]
+  sparsity_markers?: string[]
+}
+
+export interface IncidentDecisionPackIntelligenceSummary {
+  signature_label?: string
+  signature_match_count?: number
+  summary_lines?: string[]
+  investigate_next_ids?: string[]
+  runbook_recommendation_ids?: string[]
+  learning_loop_hints?: string[]
+}
+
+export interface IncidentDecisionPackFamilyHistory {
+  signature_family?: IncidentSignatureFamilyResolvedHistory
+  similar_incidents?: IncidentSimilarityRecord[]
+  similar_scan_cap?: number
+}
+
+export interface IncidentDecisionPackTransportGraph {
+  mesh_routing_companion?: MeshRoutingIntelCompanion
+  wireless_context?: IncidentWirelessContext
+}
+
+export interface IncidentDecisionPackLinkedActions {
+  action_visibility?: IncidentActionVisibilityPosture
+  operator_suggested_actions?: OperatorSuggestedAction[]
+  linked_control_action_ids?: string[]
+}
+
+export interface IncidentDecisionPackReadiness {
+  export_policy_semantic?: string
+  export_policy_summary?: string
+  export_artifact_strength?: string
+  export_blocker_codes?: string[]
+  proofpack_path?: string
+  escalation_bundle_path?: string
+  handoff_posture_note?: string
+  evidence_sufficiency_note?: string
+}
+
+export interface IncidentDecisionPackUncertainty {
+  non_claims?: string[]
+  interpretation_labels?: string[]
+  degraded_sections?: string[]
+  bounded_scan_disclosures?: string[]
+}
+
+export interface IncidentDecisionPackCueOutcome {
+  cue_id: string
+  outcome?: string
+  note?: string
+}
+
+export interface IncidentDecisionPackAdjudication {
+  reviewed?: boolean
+  reviewed_at?: string
+  reviewed_by_actor_id?: string
+  useful?: string
+  operator_note?: string
+  cue_outcomes?: IncidentDecisionPackCueOutcome[]
+  updated_at?: string
+}
+
+export interface IncidentDecisionPackAnalyticsHints {
+  signature_key?: string
+  fingerprint_canonical_hash?: string
+  triage_tier?: number
+  mitigation_durability_posture?: string
+  evidence_strength?: string
+  intel_degraded?: boolean
+}
+
+/** Mirrors GET incident JSON; emitted when backend computes operator control visibility. */
+export interface IncidentActionVisibilityPosture {
+  action_visibility_kind: IncidentActionVisibilityKindAPI
+  action_visibility_reason?: string
+  action_visibility_summary: string
+  action_context_should_open_control_queue: boolean
+  action_context_has_material_prior_attempts: boolean
+  action_context_has_pending_related_work: boolean
+  action_context_is_partial: boolean
+  linked_control_row_count?: number
+  pending_action_ref_count?: number
+  recent_action_ref_count?: number
+}
+
+export type IncidentActionVisibilityKindAPI =
+  | 'visibility_limited'
+  | 'linked_observed'
+  | 'references_only'
+  | 'action_context_degraded'
+  | 'no_linked_historical_signals'
+  | 'no_linked_observed'
 
 export interface IncidentIntelligence {
   signature_key?: string
@@ -278,6 +483,102 @@ export interface IncidentIntelligence {
   replay_hints?: IncidentReplayHints
   learning_loop_hints?: string[]
   generated_at?: string
+  mesh_routing_companion?: MeshRoutingIntelCompanion
+  operator_suggested_actions?: OperatorSuggestedAction[]
+  signature_family_resolved_history?: IncidentSignatureFamilyResolvedHistory
+  mitigation_durability_memory?: IncidentMitigationDurabilityMemory
+}
+
+export interface IncidentMitigationDurabilityMemory {
+  schema_version?: string
+  posture: string
+  reason_codes?: string[]
+  summary: string
+  scope?: { primary: string; detail?: string[] }
+  basis?: { inputs?: string[]; counts?: Record<string, number>; scan_posture?: string }
+  non_claims?: string[]
+  evidence_refs?: string[]
+  uncertainty: string
+}
+
+export interface IncidentAssistSignals {
+  schema_version: string
+  signals?: IncidentAssistSignal[]
+  uncertainty?: string
+  evidence_basis?: string
+}
+
+export interface IncidentAssistSignal {
+  code: string
+  severity?: 'info' | 'watch' | 'review'
+  title: string
+  rationale: string
+  evidence_refs?: string[]
+  uncertainty?: string
+  operator_state?: {
+    latest_outcome?: string
+    latest_at?: string
+    actor_id?: string
+  }
+}
+
+export interface IncidentTriageSignals {
+  tier: number
+  codes?: string[]
+  rationale_lines?: string[]
+  evidence_refs?: string[]
+  uncertainty_notes?: string[]
+  queue_ordering_contract?: string
+  queue_ordering_contract_version?: string
+  queue_sort_primary?: number
+  queue_sort_secondary?: string
+  queue_sort_secondary_numeric?: number
+  queue_sort_secondary_validity?: string
+  queue_sort_tie_break?: string
+  queue_sort_tie_break_numeric?: number
+  queue_sort_tuple?: number[]
+  queue_sort_key_lex?: string
+  ordering_rationale?: string
+  ordering_evidence_refs?: string[]
+  ordering_uncertainty?: string
+}
+
+export interface IncidentSignatureFamilyResolvedHistory {
+  family_match_total: number
+  resolved_peer_count: number
+  reopened_peer_count: number
+  basis: string
+  uncertainty: string
+  peer_sample_incident_id?: string
+  peer_history_scan_truncated?: boolean
+  peer_scan_window?: number
+}
+
+export interface MeshRoutingIntelCompanion {
+  applicable: boolean
+  reason?: string
+  topology_enabled?: boolean
+  transport_connected?: boolean
+  assessment_computed_at?: string
+  graph_hash?: string
+  evidence_model?: string
+  message_window_description?: string
+  routing_summary_lines?: string[]
+  suspected_relay_hotspot?: boolean
+  weak_onward_propagation_suspected?: boolean
+  hop_budget_stress_suspected?: boolean
+  suggested_topology_search?: string
+}
+
+export interface OperatorSuggestedAction {
+  id: string
+  title: string
+  rationale: string
+  evidence_refs?: string[]
+  uncertainty?: string
+  href?: string
+  kind: string
+  disable_hint?: string
 }
 
 export interface IncidentFingerprint {

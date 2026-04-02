@@ -1,0 +1,137 @@
+import { describe, it, expect } from 'vitest'
+import { computeShiftDelta, type ShiftSnapshot } from './shiftSnapshot'
+import type { AuditLog, Incident } from '@/types/api'
+
+function inc(id: string, updated: string): Incident {
+  return {
+    id,
+    state: 'open',
+    title: 't',
+    updated_at: updated,
+    occurred_at: '2026-01-01T00:00:00Z',
+  }
+}
+
+describe('computeShiftDelta', () => {
+  it('returns empty delta when no baseline', () => {
+    const d = computeShiftDelta(null, {
+      incidents: [inc('a', '2026-01-02T00:00:00Z')],
+      nodes: [],
+      topologyNodes: [],
+      transports: [],
+      events: [],
+      messageCount: 1,
+      deadLetterCount: 0,
+    })
+    expect(d.incidentsTouchedSince).toHaveLength(0)
+    expect(d.openIncidentsChangedSince).toHaveLength(0)
+    expect(d.stillOpenSinceBaseline).toHaveLength(0)
+    expect(d.newAuditEvents).toBe(0)
+  })
+
+  it('detects incident updates after baseline time', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T12:00:00Z',
+      openIncidentIds: ['a'],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: {},
+      transportHeartbeatMax: null,
+      eventMaxTime: null,
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const d = computeShiftDelta(prev, {
+      incidents: [inc('a', '2026-01-02T00:00:00Z')],
+      nodes: [],
+      topologyNodes: [],
+      transports: [],
+      events: [],
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.incidentsTouchedSince.map((x) => x.id)).toContain('a')
+  })
+
+  it('counts audit events newer than snapshot event max', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T00:00:00Z',
+      openIncidentIds: [],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: {},
+      transportHeartbeatMax: null,
+      eventMaxTime: '2026-01-01T10:00:00Z',
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const events: Pick<AuditLog, 'created_at'>[] = [
+      { created_at: '2026-01-01T11:00:00Z' },
+      { created_at: '2026-01-01T12:00:00Z' },
+    ]
+    const d = computeShiftDelta(prev, {
+      incidents: [],
+      nodes: [],
+      topologyNodes: [],
+      transports: [],
+      events,
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.newAuditEvents).toBe(2)
+  })
+
+  it('detects topology node last_seen advances after baseline', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T12:00:00Z',
+      openIncidentIds: [],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: { '7': '2026-01-01T11:00:00Z' },
+      transportHeartbeatMax: null,
+      eventMaxTime: null,
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const d = computeShiftDelta(prev, {
+      incidents: [],
+      nodes: [],
+      topologyNodes: [{ node_num: 7, last_seen_at: '2026-01-02T12:00:00Z', short_name: 'n7' }],
+      transports: [],
+      events: [],
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.topologyNodesWithNewerLastSeen.map((x) => x.node_num)).toContain(7)
+  })
+
+  it('groups open-work continuity: still open, closed since baseline, open and changed', () => {
+    const prev: ShiftSnapshot = {
+      savedAt: '2026-01-01T12:00:00Z',
+      openIncidentIds: ['a', 'b'],
+      nodeLastSeen: {},
+      topologyNodeLastSeen: {},
+      transportHeartbeatMax: null,
+      eventMaxTime: null,
+      messageCountApprox: 0,
+      deadLetterCount: 0,
+    }
+    const openA = { ...inc('a', '2026-01-02T00:00:00Z'), id: 'a' }
+    const resolvedB = {
+      ...inc('b', '2026-01-02T01:00:00Z'),
+      id: 'b',
+      state: 'resolved' as const,
+      resolved_at: '2026-01-02T01:00:00Z',
+    }
+    const newOpenC = { ...inc('c', '2026-01-02T02:00:00Z'), id: 'c' }
+    const d = computeShiftDelta(prev, {
+      incidents: [openA, resolvedB, newOpenC],
+      nodes: [],
+      topologyNodes: [],
+      transports: [],
+      events: [],
+      messageCount: 0,
+      deadLetterCount: 0,
+    })
+    expect(d.stillOpenSinceBaseline.map((x) => x.id).sort()).toEqual(['a'])
+    expect(d.noLongerOpenSinceBaseline.map((x) => x.id)).toContain('b')
+    expect(d.openIncidentsChangedSince.map((x) => x.id).sort()).toEqual(['a', 'c'])
+  })
+})

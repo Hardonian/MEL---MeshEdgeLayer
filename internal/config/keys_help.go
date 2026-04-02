@@ -30,6 +30,8 @@ var ConfigKeyHelp = map[string]string{
 	"features.web_ui":                                "Serve the operator web dashboard.",
 	"features.metrics":                               "Expose Prometheus metrics on the API listener.",
 	"features.ble_experimental":                      "BLE remains unsupported in RC; flag is explicit only.",
+	"features.google_maps_in_topology_ui":            "Optional Google Maps basemap on Topology when map reporting is allowed (third-party network).",
+	"features.google_maps_api_key_env":               "Env var name holding Google Maps JavaScript API key (never put the key in JSON).",
 	"rate_limits.http_rps":                           "HTTP request rate limit per client window.",
 	"rate_limits.transport_reconnect_seconds":        "Minimum delay between transport reconnect attempts.",
 	"intelligence":                                   "Transport intelligence query windows and scoring knobs.",

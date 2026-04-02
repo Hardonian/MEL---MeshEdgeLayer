@@ -8,6 +8,7 @@ import (
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/fleet"
 	"github.com/mel-project/mel/internal/logging"
+	"github.com/mel-project/mel/internal/operatorreadiness"
 	"github.com/mel-project/mel/internal/platform"
 	"github.com/mel-project/mel/internal/runtime"
 	"github.com/mel-project/mel/internal/upgrade"
@@ -46,6 +47,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	out := map[string]any{
 		"version":                      v.Version,
+		"topology_model_enabled":       s.cfg.Topology.Enabled,
 		"git_commit":                   v.GitCommit,
 		"build_time":                   v.BuildTime,
 		"go_version":                   v.GoVersion,
@@ -58,6 +60,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 		"boot_metadata":                bootMeta,
 		"product":                      runtime.BuildProductEnvelope(s.cfg),
 		"platform_posture":             platform.BuildPosture(s.cfg),
+		"operator_readiness":           operatorreadiness.FromConfig(s.cfg),
 	}
 	if s.db != nil {
 		if id, err := s.db.EnsureInstanceID(); err == nil {

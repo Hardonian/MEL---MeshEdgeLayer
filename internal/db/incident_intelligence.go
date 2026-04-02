@@ -110,6 +110,61 @@ func (d *DB) SignatureByKey(signatureKey string) (IncidentSignatureRecord, bool,
 	}, true, nil
 }
 
+// MaxSignatureFamilyPeerScan caps per-signature peer rows considered for resolved/reopened tallies (latency bound).
+// Exact family size uses a separate COUNT; when truncated, resolved/reopened apply only to the scan window.
+const MaxSignatureFamilyPeerScan = 5000
+
+// SignatureFamilyResolvedStats scans other incidents linked to the same signature (excludes current id).
+// peerTotal is an exact COUNT(*); resolved/reopened may be window-limited when peerTotal > maxScan (see truncated return).
+func (d *DB) SignatureFamilyResolvedStats(signatureKey, excludeIncidentID string, maxScan int) (peerTotal, resolvedPeers, reopenedPeers int, samplePeerID string, truncated bool, err error) {
+	signatureKey = strings.TrimSpace(signatureKey)
+	excludeIncidentID = strings.TrimSpace(excludeIncidentID)
+	if signatureKey == "" || d == nil {
+		return 0, 0, 0, "", false, nil
+	}
+	if maxScan <= 0 {
+		maxScan = MaxSignatureFamilyPeerScan
+	}
+	cntRows, err := d.QueryRows(fmt.Sprintf(`SELECT COUNT(*) AS c FROM incident_signature_incidents s
+		WHERE s.signature_key='%s' AND s.incident_id!='%s';`, esc(signatureKey), esc(excludeIncidentID)))
+	if err != nil {
+		return 0, 0, 0, "", false, err
+	}
+	if len(cntRows) > 0 {
+		peerTotal = int(asInt(cntRows[0]["c"]))
+	}
+	if peerTotal == 0 {
+		return 0, 0, 0, "", false, nil
+	}
+	truncated = peerTotal > maxScan
+	limit := peerTotal
+	if truncated {
+		limit = maxScan
+	}
+	rows, err := d.QueryRows(fmt.Sprintf(`SELECT i.id, i.state, COALESCE(i.reopened_from_incident_id,'') AS reopened_from
+		FROM incident_signature_incidents s
+		JOIN incidents i ON i.id = s.incident_id
+		WHERE s.signature_key='%s' AND i.id!='%s'
+		ORDER BY s.linked_at DESC
+		LIMIT %d;`, esc(signatureKey), esc(excludeIncidentID), limit))
+	if err != nil {
+		return peerTotal, 0, 0, "", truncated, err
+	}
+	for _, row := range rows {
+		st := strings.ToLower(strings.TrimSpace(asString(row["state"])))
+		if st == "resolved" || st == "closed" {
+			resolvedPeers++
+		}
+		if strings.TrimSpace(asString(row["reopened_from"])) != "" {
+			reopenedPeers++
+		}
+		if samplePeerID == "" {
+			samplePeerID = asString(row["id"])
+		}
+	}
+	return peerTotal, resolvedPeers, reopenedPeers, samplePeerID, truncated, nil
+}
+
 func (d *DB) SimilarIncidentsBySignature(signatureKey, excludeIncidentID string, limit int) ([]models.Incident, error) {
 	limit = clampLimit(limit)
 	rows, err := d.QueryRows(fmt.Sprintf(`SELECT i.id, i.category, i.severity, i.title, i.summary, i.resource_type, i.resource_id, i.state,

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -98,11 +99,20 @@ func BuildIntelligenceView(cfg config.Config, analysis AnalysisResult, transport
 			viewMode = "map_partial"
 		}
 	}
+	googleMaps := false
+	if cfg.Features.GoogleMapsInTopologyUI && cfg.Privacy.MapReportingAllowed && (viewMode == "map" || viewMode == "map_partial") {
+		if cfg.Features.GoogleMapsAPIKeyEnv != "" {
+			if strings.TrimSpace(os.Getenv(cfg.Features.GoogleMapsAPIKeyEnv)) != "" {
+				googleMaps = true
+			}
+		}
+	}
 	return map[string]any{
 		"generated_at":                  now.UTC().Format(time.RFC3339),
 		"topology_enabled":              cfg.Topology.Enabled,
 		"view_mode":                     viewMode,
 		"privacy_map_reporting_allowed": cfg.Privacy.MapReportingAllowed,
+		"google_maps_basemap_available": googleMaps,
 		"redact_exports":                cfg.Privacy.RedactExports,
 		"node_count":                    snap.NodeCount,
 		"link_count":                    snap.EdgeCount,

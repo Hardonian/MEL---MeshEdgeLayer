@@ -19,7 +19,6 @@ export function useIncidents() {
       const rows = (json.recent_incidents as Incident[]) || []
       setData(rows)
     } catch (e) {
-      setData(null)
       setError(e instanceof Error ? e.message : 'Failed to load incidents')
     } finally {
       setLoading(false)
