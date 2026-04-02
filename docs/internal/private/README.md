@@ -21,3 +21,5 @@ These documents are planning inputs, not public contractual promises.
 - [Unit economics notes](./UNIT_ECONOMICS_NOTES.md)
 - [Revenue model assumptions](./REVENUE_MODEL_ASSUMPTIONS.md)
 - [Data retention and support guidance](./DATA_RETENTION_AND_SUPPORT_GUIDANCE.md)
+
+- [Productization next moves](../../project/PRODUCTIZATION_NEXT_MOVES.md)

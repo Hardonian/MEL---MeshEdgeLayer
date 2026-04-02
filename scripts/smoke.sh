@@ -5,6 +5,15 @@ cd "$ROOT"
 mkdir -p .tmp
 CFG=.tmp/smoke.json
 ./bin/mel init --config "$CFG" --force >/dev/null
+if [ ! -f "$CFG" ]; then
+  if [ -f configs/mel.generated.json ]; then
+    cp configs/mel.generated.json "$CFG"
+  fi
+fi
+if [ ! -f "$CFG" ]; then
+  echo "smoke: expected config fixture at $CFG after init" >&2
+  exit 1
+fi
 python3 - <<'PY'
 from pathlib import Path
 p = Path('.tmp/smoke.json')

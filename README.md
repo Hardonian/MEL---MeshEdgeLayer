@@ -77,8 +77,11 @@ Use these before making release-strength claims:
 make lint
 make test
 make build
+make product-verify
 make smoke
 ```
+
+Note: `make smoke` expects `.tmp/smoke.json` fixture in this repo environment.
 
 Then apply the repo-os gates:
 <BLANK_LINE>
