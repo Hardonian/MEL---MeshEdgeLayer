@@ -311,8 +311,126 @@ export interface Incident {
   action_visibility?: IncidentActionVisibilityPosture
   /** Server-computed deterministic triage hints (inspectable codes, not opaque ranking). */
   triage_signals?: IncidentTriageSignals
-  /** Deterministic assist cues — non-canonical; see assist_signals.uncertainty */
-  assist_signals?: IncidentAssistSignals
+  /** Canonical backend-assembled decision object (detail/workbench/export framing). */
+  decision_pack?: IncidentDecisionPack
+}
+
+export interface IncidentDecisionPack {
+  schema_version: string
+  incident_id: string
+  generated_at: string
+  identity?: IncidentDecisionPackIdentity
+  queue?: IncidentDecisionPackQueue
+  evidence_basis?: IncidentDecisionPackEvidenceBasis
+  intelligence_summary?: IncidentDecisionPackIntelligenceSummary
+  mitigation_durability?: IncidentMitigationDurabilityMemory
+  family_history?: IncidentDecisionPackFamilyHistory
+  transport_graph?: IncidentDecisionPackTransportGraph
+  linked_actions?: IncidentDecisionPackLinkedActions
+  readiness?: IncidentDecisionPackReadiness
+  uncertainty?: IncidentDecisionPackUncertainty
+  operator_adjudication?: IncidentDecisionPackAdjudication
+  analytics_hints?: IncidentDecisionPackAnalyticsHints
+}
+
+export interface IncidentDecisionPackIdentity {
+  title?: string
+  state?: string
+  severity?: string
+  category?: string
+  resource_type?: string
+  resource_id?: string
+  occurred_at?: string
+  updated_at?: string
+  resolved_at?: string
+  review_state?: string
+  owner_actor_id?: string
+  handoff_summary?: string
+  summary?: string
+}
+
+export interface IncidentDecisionPackQueue {
+  triage_signals?: IncidentTriageSignals
+  why_surfaced_one_liner?: string
+  ordering_note?: string
+}
+
+export interface IncidentDecisionPackEvidenceBasis {
+  evidence_strength?: string
+  evidence_items?: IncidentEvidenceItem[]
+  item_cap_applied?: number
+  degraded?: boolean
+  degraded_reasons?: string[]
+  sparsity_markers?: string[]
+}
+
+export interface IncidentDecisionPackIntelligenceSummary {
+  signature_label?: string
+  signature_match_count?: number
+  summary_lines?: string[]
+  investigate_next_ids?: string[]
+  runbook_recommendation_ids?: string[]
+  learning_loop_hints?: string[]
+}
+
+export interface IncidentDecisionPackFamilyHistory {
+  signature_family?: IncidentSignatureFamilyResolvedHistory
+  similar_incidents?: IncidentSimilarityRecord[]
+  similar_scan_cap?: number
+}
+
+export interface IncidentDecisionPackTransportGraph {
+  mesh_routing_companion?: MeshRoutingIntelCompanion
+  wireless_context?: IncidentWirelessContext
+}
+
+export interface IncidentDecisionPackLinkedActions {
+  action_visibility?: IncidentActionVisibilityPosture
+  operator_suggested_actions?: OperatorSuggestedAction[]
+  linked_control_action_ids?: string[]
+}
+
+export interface IncidentDecisionPackReadiness {
+  export_policy_semantic?: string
+  export_policy_summary?: string
+  export_artifact_strength?: string
+  export_blocker_codes?: string[]
+  proofpack_path?: string
+  escalation_bundle_path?: string
+  handoff_posture_note?: string
+  evidence_sufficiency_note?: string
+}
+
+export interface IncidentDecisionPackUncertainty {
+  non_claims?: string[]
+  interpretation_labels?: string[]
+  degraded_sections?: string[]
+  bounded_scan_disclosures?: string[]
+}
+
+export interface IncidentDecisionPackCueOutcome {
+  cue_id: string
+  outcome?: string
+  note?: string
+}
+
+export interface IncidentDecisionPackAdjudication {
+  reviewed?: boolean
+  reviewed_at?: string
+  reviewed_by_actor_id?: string
+  useful?: string
+  operator_note?: string
+  cue_outcomes?: IncidentDecisionPackCueOutcome[]
+  updated_at?: string
+}
+
+export interface IncidentDecisionPackAnalyticsHints {
+  signature_key?: string
+  fingerprint_canonical_hash?: string
+  triage_tier?: number
+  mitigation_durability_posture?: string
+  evidence_strength?: string
+  intel_degraded?: boolean
 }
 
 /** Mirrors GET incident JSON; emitted when backend computes operator control visibility. */
