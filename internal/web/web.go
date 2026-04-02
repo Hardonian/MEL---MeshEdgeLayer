@@ -77,6 +77,7 @@ type Server struct {
 	incidentByID              func(id string, canReadLinked bool) (models.Incident, bool, error)
 	incidentWorkflowPatch     func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
 	incidentRecOutcome        func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
+	incidentIntelSignalOutcome func(incidentID, actorID string, req models.IncidentIntelSignalOutcomeRequest) error
 	incidentReplayView        func(incidentID string, canReadLinked bool) (map[string]any, error)
 	incidentEscalationBundle  func(incidentID, actorID string) (map[string]any, error)
 	incidentDecisionPackPatch func(incidentID, actorID string, patch models.IncidentDecisionPackAdjudicationPatch) error
