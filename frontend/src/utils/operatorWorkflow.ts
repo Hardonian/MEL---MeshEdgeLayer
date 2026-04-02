@@ -3,7 +3,11 @@
  * Single-operator honest: no team queues or implied multi-user coordination.
  */
 import type { Incident } from '@/types/api'
-import { incidentDecisionPackWhyLine } from './incidentDecisionPack'
+import {
+  incidentDecisionPackNeedsAttention,
+  incidentDecisionPackPriorityTier,
+  incidentDecisionPackWhyLine,
+} from './incidentDecisionPack'
 import { resolvedIncidentActionVisibility } from './incidentOperatorTruth'
 import { compareIncidentsByServerQueueOrder, hasServerQueueOrdering } from './incidentQueueSort'
 
@@ -61,6 +65,8 @@ function triageTierFromIncident(inc: Incident): number | null {
 
 /** Lower = more urgent for shift-start and incident workbench ordering among open incidents. */
 export function openIncidentShiftPriority(inc: Incident, ctx?: IncidentWorkQueueWhyContext): number {
+  const packTier = incidentDecisionPackPriorityTier(inc)
+  if (packTier != null) return packTier
   const fromAPI = triageTierFromIncident(inc)
   if (fromAPI != null) {
     return fromAPI
@@ -95,6 +101,12 @@ export function sortOpenIncidentsForShiftStart(incidents: Incident[], ctx?: Inci
 export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueWhyContext): string {
   const packWhy = incidentDecisionPackWhyLine(inc)
   if (packWhy) return packWhy
+  const packNeedsAttention = incidentDecisionPackNeedsAttention(inc)
+  if (packNeedsAttention != null) {
+    return packNeedsAttention
+      ? 'Decision pack guidance marks this incident as needs attention; open detail for bounded rationale.'
+      : 'Decision pack guidance marks this incident as backlog posture; verify replay/topology before stronger claims.'
+  }
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) {
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`

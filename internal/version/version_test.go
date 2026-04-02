@@ -1,6 +1,11 @@
 package version
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -83,4 +88,37 @@ func TestIsStable(t *testing.T) {
 
 	// Restore
 	CompatibilityLevel = orig
+}
+
+func TestCurrentSchemaVersionMatchesHighestMigrationFile(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	entries, err := os.ReadDir(filepath.Join(root, "migrations"))
+	if err != nil {
+		t.Fatalf("read migrations: %v", err)
+	}
+	highest := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".sql")
+		parts := strings.SplitN(name, "_", 2)
+		if len(parts) == 0 {
+			continue
+		}
+		n, err := strconv.Atoi(parts[0])
+		if err != nil {
+			t.Fatalf("migration prefix parse failed for %q: %v", e.Name(), err)
+		}
+		if n > highest {
+			highest = n
+		}
+	}
+	if highest != CurrentSchemaVersion {
+		t.Fatalf("CurrentSchemaVersion=%d, highest migration file=%d", CurrentSchemaVersion, highest)
+	}
 }
