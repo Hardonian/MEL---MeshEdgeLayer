@@ -102,6 +102,8 @@ type IncidentDecisionPack struct {
 	Readiness            *IncidentDecisionPackReadiness           `json:"readiness,omitempty"`
 	Uncertainty          *IncidentDecisionPackUncertainty         `json:"uncertainty,omitempty"`
 	OperatorAdjudication *IncidentDecisionPackAdjudication        `json:"operator_adjudication,omitempty"`
+	// AssistSignals re-exports the same bounded cues as incident.assist_signals for pack-first/export surfaces (no second computation).
+	AssistSignals *IncidentAssistSignals `json:"assist_signals,omitempty"`
 	AnalyticsHints       *IncidentDecisionPackAnalyticsHints      `json:"analytics_hints,omitempty"`
 }
 
@@ -192,9 +194,10 @@ type IncidentDecisionPackAdjudication struct {
 }
 
 type IncidentDecisionPackCueOutcome struct {
-	CueID   string `json:"cue_id"`
-	Outcome string `json:"outcome"` // accepted | dismissed | ""
-	Note    string `json:"note,omitempty"`
+	CueID      string `json:"cue_id"` // stable id: matches assist signal code
+	Outcome    string `json:"outcome"`
+	Note       string `json:"note,omitempty"`
+	ReasonCode string `json:"reason_code,omitempty"` // optional taxonomy: false_positive | needs_more_evidence | defer | other
 }
 
 // IncidentDecisionPackAnalyticsHints carries stable keys for future compounding analytics (no aggregation here).
@@ -360,6 +363,10 @@ type IncidentTriageSignals struct {
 	OrderingRationale    string   `json:"ordering_rationale,omitempty"`
 	OrderingEvidenceRefs []string `json:"ordering_evidence_refs,omitempty"`
 	OrderingUncertainty  string   `json:"ordering_uncertainty,omitempty"`
+	// QueueOrderingPosture is explicit client truth: canonical when full v2 keys present; degraded when recency/tie-break had to use safe fallbacks.
+	QueueOrderingPosture string `json:"queue_ordering_posture,omitempty"` // canonical_v2 | degraded_partial_recency
+	// QueueOrderingDegradedReasons lists machine-readable reasons when posture is degraded (e.g. invalid_timestamp, missing_updated_at).
+	QueueOrderingDegradedReasons []string `json:"queue_ordering_degraded_reasons,omitempty"`
 }
 
 type IncidentSignatureFamilyResolvedHistory struct {

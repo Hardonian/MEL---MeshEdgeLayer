@@ -890,6 +890,9 @@ func (a *App) RecordIntelSignalOutcome(incidentID, actorID string, req models.In
 	if err := a.DB.InsertIncidentIntelSignalOutcome(rec); err != nil {
 		return fmt.Errorf("could not persist outcome: %w", err)
 	}
+	if err := a.SyncPackCueOutcomeFromIntelSignal(incidentID, actorID, code, outcome, rec.Note); err != nil {
+		return fmt.Errorf("could not sync decision pack adjudication: %w", err)
+	}
 	_ = a.DB.InsertRBACAuditLog(auth.AuditEntry{
 		ID:           newTrustID("aud"),
 		ActorID:      auth.OperatorID(actorID),

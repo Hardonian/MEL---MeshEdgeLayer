@@ -148,9 +148,11 @@ func (a *App) finishIncidentForAPI(inc *models.Incident, canReadLinked bool) {
 	}
 	vis := actionvisibility.FromIncident(*inc, canReadLinked)
 	inc.ActionVisibility = &vis
+	a.attachAssistSignals(inc)
 	ts := incidenttriage.ComputeForIncident(*inc)
 	inc.TriageSignals = &ts
 	a.attachDecisionPack(inc)
+	a.overlayAssistOperatorStateFromPack(inc)
 }
 
 // RecentIncidentsWithLinkedActions returns recent incidents with linked_control_actions populated from the canonical FK.

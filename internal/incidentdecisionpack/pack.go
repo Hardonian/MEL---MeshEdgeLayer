@@ -63,6 +63,10 @@ func Build(inc models.Incident, adjudication *models.IncidentDecisionPackAdjudic
 	out.LinkedActions = linkedActions(inc)
 	out.Readiness = readinessBlock(inc, readiness)
 	out.Uncertainty = uncertaintyBlock(inc)
+	if inc.AssistSignals != nil {
+		as := *inc.AssistSignals
+		out.AssistSignals = &as
+	}
 	if adjudication != nil {
 		adj := *adjudication
 		out.OperatorAdjudication = &adj
