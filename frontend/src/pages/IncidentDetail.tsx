@@ -35,7 +35,7 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
 import { useControlStatus } from '@/hooks/useApi'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
-import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident } from '@/types/api'
+import { formatTimestamp, formatRelativeTime, type ControlActionRecord, type Incident, type IncidentDecisionPack } from '@/types/api'
 import {
   evidenceStrengthLabel,
   guidanceConfidenceLabel,
@@ -1682,6 +1682,237 @@ function buildHandoffExportText(inc: Incident): string {
   return lines.join('\n')
 }
 
+function DecisionPackPanel({
+  pack,
+  inc,
+  onSaved,
+}: {
+  pack: IncidentDecisionPack | undefined
+  inc: Incident
+  onSaved: () => void
+}) {
+  const ctx = useOperatorContext()
+  const { addToast } = useToast()
+  const adj = pack?.operator_adjudication
+  const [reviewed, setReviewed] = useState(adj?.reviewed ?? false)
+  const [useful, setUseful] = useState(adj?.useful === 'not_useful' ? 'not_useful' : adj?.useful === 'useful' ? 'useful' : '')
+  const [note, setNote] = useState(adj?.operator_note ?? '')
+  const [cueAccepted, setCueAccepted] = useState(
+    adj?.cue_outcomes?.find((c) => c.cue_id === 'operator_suggested_actions')?.outcome === 'accepted',
+  )
+  const [cueDismissed, setCueDismissed] = useState(
+    adj?.cue_outcomes?.find((c) => c.cue_id === 'operator_suggested_actions')?.outcome === 'dismissed',
+  )
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const a = pack?.operator_adjudication
+    setReviewed(a?.reviewed ?? false)
+    setUseful(a?.useful === 'not_useful' ? 'not_useful' : a?.useful === 'useful' ? 'useful' : '')
+    setNote(a?.operator_note ?? '')
+    const cue = a?.cue_outcomes?.find((c) => c.cue_id === 'operator_suggested_actions')
+    setCueAccepted(cue?.outcome === 'accepted')
+    setCueDismissed(cue?.outcome === 'dismissed')
+  }, [inc.id, pack?.generated_at, pack?.operator_adjudication])
+
+  const canWrite = ctx.trustUI?.incident_mutate === true
+
+  async function saveAdjudication() {
+    setSaving(true)
+    try {
+      const cueOutcomes: { cue_id: string; outcome: string }[] = []
+      if (cueAccepted) cueOutcomes.push({ cue_id: 'operator_suggested_actions', outcome: 'accepted' })
+      else if (cueDismissed) cueOutcomes.push({ cue_id: 'operator_suggested_actions', outcome: 'dismissed' })
+      const res = await fetch(`/api/v1/incidents/${encodeURIComponent(inc.id)}/decision-pack`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewed,
+          useful: useful || undefined,
+          operator_note: note.trim() || undefined,
+          cue_outcomes: cueOutcomes,
+          replace_cue_outcomes: true,
+        }),
+      })
+      if (res.status === 403) {
+        addToast({ type: 'error', title: 'Cannot save', message: 'Missing incident update capability.' })
+        return
+      }
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Save failed', message: `HTTP ${res.status}` })
+        return
+      }
+      addToast({ type: 'success', title: 'Saved', message: 'Decision pack feedback stored on this instance.' })
+      await onSaved()
+    } catch {
+      addToast({ type: 'error', title: 'Save failed', message: 'Network error.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!pack) {
+    return (
+      <AlertCard
+        variant="warning"
+        title="Incident Decision Pack unavailable"
+        description="This response did not include decision_pack — refresh or check API version."
+      />
+    )
+  }
+
+  const q = pack.queue
+  const triage = q?.triage_signals
+  const readiness = pack.readiness
+  const unc = pack.uncertainty
+
+  return (
+    <Card data-testid="incident-decision-pack" id="mel-incident-decision-pack" className="scroll-mt-20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Incident Decision Pack</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Schema {pack.schema_version} · assembled {pack.generated_at ? formatRelativeTime(pack.generated_at) : '—'} — backend-owned snapshot; not reinterpreted in the UI.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-0">
+        {q?.why_surfaced_one_liner && (
+          <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">Why this is surfaced</p>
+            <p className="text-foreground leading-snug">{q.why_surfaced_one_liner}</p>
+            {q.ordering_note && <p className="mt-2 text-[11px] text-muted-foreground border-l-2 border-border/50 pl-2">{q.ordering_note}</p>}
+          </div>
+        )}
+
+        {triage?.codes?.length ? (
+          <div className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2 text-xs" data-testid="decision-pack-triage">
+            <p className="font-semibold text-foreground mb-1">Queue / triage basis</p>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Tier {triage.tier}
+              {triage.queue_ordering_contract ? (
+                <>
+                  {' '}
+                  · <span className="font-mono">{triage.queue_ordering_contract}</span>
+                </>
+              ) : null}
+            </p>
+            <ul className="space-y-1">
+              {triage.codes.slice(0, 8).map((code, i) => (
+                <li key={code} className="text-[11px] text-muted-foreground border-l-2 border-primary/20 pl-2">
+                  <span className="font-mono text-foreground/90">{code.replace(/_/g, ' ')}</span>
+                  {triage.rationale_lines?.[i] ? ` — ${triage.rationale_lines[i]}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {readiness && (
+          <div className="rounded-lg border border-border/50 px-3 py-2 text-xs space-y-1" data-testid="decision-pack-readiness">
+            <p className="font-semibold text-foreground">Export / support posture (policy snapshot)</p>
+            <p className="text-muted-foreground">{readiness.export_policy_summary}</p>
+            {readiness.evidence_sufficiency_note && (
+              <p className="text-[11px] text-warning border-l-2 border-warning/25 pl-2">{readiness.evidence_sufficiency_note}</p>
+            )}
+            <p className="text-[10px] text-muted-foreground/80 font-mono break-all">
+              {readiness.proofpack_path} · {readiness.escalation_bundle_path}
+            </p>
+          </div>
+        )}
+
+        {unc && (unc.non_claims?.length || unc.bounded_scan_disclosures?.length) ? (
+          <div className="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs space-y-2">
+            <p className="font-semibold text-foreground">Uncertainty & bounded scans</p>
+            {unc.bounded_scan_disclosures?.map((line) => (
+              <p key={line} className="text-[11px] text-muted-foreground">{line}</p>
+            ))}
+            <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+              {(unc.non_claims ?? []).slice(0, 4).map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <div className="rounded-lg border border-border/60 bg-muted/10 px-3 py-3 space-y-3">
+          <p className="text-xs font-semibold text-foreground">Operator adjudication (this pack)</p>
+          <p className="text-[11px] text-muted-foreground">
+            Local feedback for institutional memory — does not execute controls or imply team workflow.
+          </p>
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={reviewed}
+              onChange={(e) => setReviewed(e.target.checked)}
+              disabled={!canWrite}
+            />
+            Mark decision pack reviewed
+          </label>
+          <div className="flex flex-wrap gap-3 text-xs">
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name={`pack-useful-${inc.id}`}
+                checked={useful === 'useful'}
+                onChange={() => setUseful('useful')}
+                disabled={!canWrite}
+              />
+              Useful
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name={`pack-useful-${inc.id}`}
+                checked={useful === 'not_useful'}
+                onChange={() => setUseful('not_useful')}
+                disabled={!canWrite}
+              />
+              Not useful
+            </label>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-muted-foreground">Note (optional)</label>
+            <textarea
+              className="mt-1 w-full min-h-[72px] rounded-lg border border-border/60 bg-background px-2 py-1.5 text-xs"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={!canWrite}
+              placeholder="Why this pack helped or misled — stays on this instance."
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold text-muted-foreground">Suggested next checks cue</p>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={cueAccepted} onChange={(e) => { setCueAccepted(e.target.checked); if (e.target.checked) setCueDismissed(false) }} disabled={!canWrite} />
+              Accept cue (will use suggested actions)
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={cueDismissed} onChange={(e) => { setCueDismissed(e.target.checked); if (e.target.checked) setCueAccepted(false) }} disabled={!canWrite} />
+              Dismiss cue
+            </label>
+          </div>
+          {!canWrite && (
+            <p className="text-[11px] text-warning">Read-only session — adjudication requires incident_mutate.</p>
+          )}
+          <button
+            type="button"
+            className="button-secondary text-xs"
+            disabled={!canWrite || saving}
+            onClick={() => void saveAdjudication()}
+          >
+            {saving ? 'Saving…' : 'Save pack feedback'}
+          </button>
+          {adj?.reviewed_at && (
+            <p className="text-[10px] text-muted-foreground">
+              Last saved {formatRelativeTime(adj.reviewed_at)}
+              {adj.reviewed_by_actor_id ? ` · ${adj.reviewed_by_actor_id}` : ''}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () => void; returnTo: string }) {
   const ctx = useOperatorContext()
   const { addToast } = useToast()
@@ -2157,53 +2388,7 @@ export function IncidentDetail() {
         </div>
       )}
 
-      {(() => {
-        const triage = inc.triage_signals
-        if (!triage?.codes?.length) return null
-        return (
-        <div
-          className="rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5 text-xs"
-          data-testid="incident-triage-signals"
-          role="region"
-          aria-label="Deterministic triage signals from API"
-        >
-          <p className="font-semibold text-foreground mb-1.5">Deterministic triage (server)</p>
-          <p className="text-[11px] text-muted-foreground mb-2">
-            Tier {triage.tier}
-            {triage.queue_ordering_contract ? (
-              <>
-                {' '}
-                · queue contract <span className="font-mono">{triage.queue_ordering_contract}</span> (sort primary={triage.queue_sort_primary ?? triage.tier},{' '}
-                secondary={triage.queue_sort_secondary ?? 'updated_at_desc'})
-              </>
-            ) : null}{' '}
-            — inspectable codes, not an opaque priority score. Evidence refs:{' '}
-            <span className="font-mono text-[10px] break-all">
-              {(triage.evidence_refs ?? []).slice(0, 4).join(' · ') || '—'}
-            </span>
-          </p>
-          {triage.ordering_rationale && (
-            <p className="text-[11px] text-muted-foreground mb-2 border-l-2 border-border/60 pl-2">{triage.ordering_rationale}</p>
-          )}
-          {triage.ordering_uncertainty && (
-            <p className="text-[11px] text-warning mb-2 border-l-2 border-warning/25 pl-2">{triage.ordering_uncertainty}</p>
-          )}
-          <ul className="space-y-1.5">
-            {triage.codes.map((code, i) => (
-              <li key={code} className="text-[11px] text-muted-foreground border-l-2 border-primary/25 pl-2">
-                <span className="font-mono text-foreground/90">{code.replace(/_/g, ' ')}</span>
-                {triage.rationale_lines?.[i] ? ` — ${triage.rationale_lines[i]}` : ''}
-              </li>
-            ))}
-          </ul>
-          {(triage.uncertainty_notes?.length ?? 0) > 0 && (
-            <p className="mt-2 text-[11px] text-warning border-l-2 border-warning/30 pl-2">
-              {triage.uncertainty_notes!.join(' ')}
-            </p>
-          )}
-        </div>
-        )
-      })()}
+      <DecisionPackPanel pack={inc.decision_pack} inc={inc} onSaved={() => void load()} />
 
       {/* Header card */}
       <Card id="incident-operational-summary" className="scroll-mt-20">

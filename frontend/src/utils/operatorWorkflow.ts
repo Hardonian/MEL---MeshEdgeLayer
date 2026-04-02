@@ -3,6 +3,7 @@
  * Single-operator honest: no team queues or implied multi-user coordination.
  */
 import type { Incident } from '@/types/api'
+import { incidentDecisionPackWhyLine } from './incidentDecisionPack'
 import { resolvedIncidentActionVisibility } from './incidentOperatorTruth'
 
 const FOLLOW_UP_REVIEW = new Set(['follow_up_needed', 'pending_review', 'mitigated'])
@@ -84,6 +85,8 @@ export function sortOpenIncidentsForShiftStart(incidents: Incident[], ctx?: Inci
 }
 
 export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueWhyContext): string {
+  const packWhy = incidentDecisionPackWhyLine(inc)
+  if (packWhy) return packWhy
   const rs = (inc.review_state || '').toLowerCase()
   if (FOLLOW_UP_REVIEW.has(rs)) {
     return `Review state “${rs.replace(/_/g, ' ')}” — explicit follow-up or review posture in MEL.`
