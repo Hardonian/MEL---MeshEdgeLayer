@@ -34,10 +34,48 @@ func TestBuild_HasSchemaVersion(t *testing.T) {
 	if pack.Readiness == nil || pack.Readiness.ProofpackPath == "" {
 		t.Fatalf("readiness missing: %#v", pack.Readiness)
 	}
+	if pack.Guidance == nil {
+		t.Fatalf("guidance missing")
+	}
+	if pack.Guidance.SupportPosture != "ready" {
+		t.Fatalf("support posture: %#v", pack.Guidance)
+	}
 	if pack.Uncertainty == nil || len(pack.Uncertainty.NonClaims) == 0 {
 		t.Fatalf("uncertainty missing")
 	}
 	if pack.AssistSignals == nil || len(pack.AssistSignals.Signals) == 0 {
 		t.Fatal("expected assist_signals re-export on pack")
+	}
+}
+
+func TestBuild_GuidanceUsesDeterministicPosture(t *testing.T) {
+	inc := models.Incident{
+		ID:          "x2",
+		Title:       "fragile",
+		State:       "open",
+		ReviewState: "pending_review",
+		ActionVisibility: &models.IncidentActionVisibilityPosture{
+			Kind: "references_only",
+		},
+		Intelligence: &models.IncidentIntelligence{
+			EvidenceStrength: "sparse",
+			MitigationDurabilityMemory: &models.IncidentMitigationDurabilityMemory{
+				Posture: "reopened_after_resolution_in_family",
+			},
+		},
+		TriageSignals: &models.IncidentTriageSignals{Tier: 0},
+	}
+	pack := Build(inc, nil, operatorreadiness.OperatorReadinessDTO{Semantic: operatorreadiness.SemanticPolicyLimited}, time.Unix(2, 0))
+	if pack.Guidance == nil {
+		t.Fatalf("guidance missing")
+	}
+	if !pack.Guidance.MitigationFragilityWatch || !pack.Guidance.RepeatedFamilyConcern {
+		t.Fatalf("expected fragility and family concern: %#v", pack.Guidance)
+	}
+	if pack.Guidance.ActionPosture != "guarded" {
+		t.Fatalf("action posture = %q", pack.Guidance.ActionPosture)
+	}
+	if pack.Guidance.SupportPosture != "blocked" {
+		t.Fatalf("support posture = %q", pack.Guidance.SupportPosture)
 	}
 }

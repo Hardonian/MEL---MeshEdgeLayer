@@ -46,6 +46,7 @@ func Build(inc models.Incident, adjudication *models.IncidentDecisionPackAdjudic
 		WhySurfacedOneLiner: WhySurfacedOneLiner(inc),
 		OrderingNote:        queueOrderingNote(inc),
 	}
+	out.Guidance = guidanceBlock(inc, readiness, out.Queue.WhySurfacedOneLiner)
 	out.EvidenceBasis = evidenceBasis(inc)
 	out.IntelligenceSummary = intelligenceSummary(inc)
 	if inc.Intelligence != nil {
@@ -73,6 +74,91 @@ func Build(inc models.Incident, adjudication *models.IncidentDecisionPackAdjudic
 	}
 	out.AnalyticsHints = analyticsHints(inc)
 	return out
+}
+
+func guidanceBlock(inc models.Incident, readiness operatorreadiness.OperatorReadinessDTO, why string) *models.IncidentDecisionPackGuidance {
+	g := &models.IncidentDecisionPackGuidance{
+		WhyNow:                  strings.TrimSpace(why),
+		PriorityTier:            4,
+		TopologyPlanningPosture: "useful_non_proving",
+		EscalationPosture:       "bounded_review",
+	}
+	if inc.TriageSignals != nil {
+		g.PriorityTier = inc.TriageSignals.Tier
+	}
+	if g.WhyNow == "" {
+		g.WhyNow = WhySurfacedOneLiner(inc)
+	}
+	g.ReviewRecommended = g.PriorityTier <= 2
+	g.NeedsAttention = g.PriorityTier <= 2
+	g.VerifyBeforeAction = true
+	g.ActionPosture = "available"
+	g.SupportPosture = "unknown"
+
+	if inc.ActionVisibility != nil {
+		switch inc.ActionVisibility.Kind {
+		case "visibility_limited":
+			g.ActionPosture = "unsupported"
+			g.Degraded = true
+			g.DegradedReasons = append(g.DegradedReasons, "action_visibility_limited")
+		case "references_only":
+			g.ActionPosture = "verify_linkage"
+		case "action_context_degraded":
+			g.ActionPosture = "guarded"
+			g.Degraded = true
+			g.DegradedReasons = append(g.DegradedReasons, "action_context_degraded")
+		}
+	}
+	if inc.Intelligence == nil {
+		g.EvidencePosture = "unknown"
+		g.Degraded = true
+		g.DegradedReasons = append(g.DegradedReasons, "no_intelligence")
+	} else {
+		if inc.Intelligence.Degraded {
+			g.EvidencePosture = "degraded"
+			g.Degraded = true
+			g.DegradedReasons = append(g.DegradedReasons, "incident_intelligence_degraded")
+		} else {
+			g.EvidencePosture = inc.Intelligence.EvidenceStrength
+		}
+		if md := inc.Intelligence.MitigationDurabilityMemory; md != nil {
+			if md.Posture == "reopened_after_resolution_in_family" || md.Posture == "deterioration_or_mixed_in_outcome_memory" || md.Posture == "family_peer_scan_bounded" {
+				g.MitigationFragilityWatch = true
+				g.RepeatedFamilyConcern = true
+				g.ActionPosture = "guarded"
+			}
+		}
+		if sf := inc.Intelligence.SignatureFamilyResolvedHistory; sf != nil {
+			if sf.ResolvedPeerCount >= 2 && sf.ReopenedPeerCount >= 1 {
+				g.RepeatedFamilyConcern = true
+			}
+		}
+	}
+	switch readiness.Semantic {
+	case operatorreadiness.SemanticAvailable:
+		g.SupportPosture = "ready"
+	case operatorreadiness.SemanticDegraded:
+		g.SupportPosture = "partial"
+		g.Degraded = true
+		g.DegradedReasons = append(g.DegradedReasons, "export_policy_degraded")
+	case operatorreadiness.SemanticPolicyLimited:
+		g.SupportPosture = "blocked"
+	case operatorreadiness.SemanticUnknownPartial:
+		g.SupportPosture = "unknown"
+		g.Degraded = true
+		g.DegradedReasons = append(g.DegradedReasons, "export_policy_unknown_partial")
+	default:
+		g.SupportPosture = "unknown"
+	}
+	if strings.TrimSpace(inc.ReopenedFromIncidentID) != "" {
+		g.EscalationPosture = "follow_up"
+	}
+	if inc.Intelligence != nil {
+		if rp := inc.Intelligence.ReplayHints; rp != nil && (strings.TrimSpace(rp.Statement) != "" || len(rp.EvidenceAtTimeRefs) > 0) {
+			g.EscalationPosture = "replay_first"
+		}
+	}
+	return g
 }
 
 func queueOrderingNote(inc models.Incident) string {

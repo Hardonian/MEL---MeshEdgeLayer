@@ -93,6 +93,7 @@ type IncidentDecisionPack struct {
 
 	Identity             *IncidentDecisionPackIdentity            `json:"identity,omitempty"`
 	Queue                *IncidentDecisionPackQueue               `json:"queue,omitempty"`
+	Guidance             *IncidentDecisionPackGuidance            `json:"guidance,omitempty"`
 	EvidenceBasis        *IncidentDecisionPackEvidenceBasis       `json:"evidence_basis,omitempty"`
 	IntelligenceSummary  *IncidentDecisionPackIntelligenceSummary `json:"intelligence_summary,omitempty"`
 	MitigationDurability *IncidentMitigationDurabilityMemory      `json:"mitigation_durability,omitempty"`
@@ -103,8 +104,31 @@ type IncidentDecisionPack struct {
 	Uncertainty          *IncidentDecisionPackUncertainty         `json:"uncertainty,omitempty"`
 	OperatorAdjudication *IncidentDecisionPackAdjudication        `json:"operator_adjudication,omitempty"`
 	// AssistSignals re-exports the same bounded cues as incident.assist_signals for pack-first/export surfaces (no second computation).
-	AssistSignals *IncidentAssistSignals `json:"assist_signals,omitempty"`
-	AnalyticsHints       *IncidentDecisionPackAnalyticsHints      `json:"analytics_hints,omitempty"`
+	AssistSignals  *IncidentAssistSignals              `json:"assist_signals,omitempty"`
+	AnalyticsHints *IncidentDecisionPackAnalyticsHints `json:"analytics_hints,omitempty"`
+}
+
+// IncidentDecisionPackGuidance is a deterministic operator posture primitive.
+// It is bounded guidance (not certainty) and is reused across queue/detail/planning/topology/export surfaces.
+type IncidentDecisionPackGuidance struct {
+	NeedsAttention bool   `json:"needs_attention"`
+	PriorityTier   int    `json:"priority_tier,omitempty"` // deterministic 0..4, lower means sooner review
+	WhyNow         string `json:"why_now,omitempty"`
+
+	ReviewRecommended  bool   `json:"review_recommended"`
+	VerifyBeforeAction bool   `json:"verify_before_action"`
+	EvidencePosture    string `json:"evidence_posture,omitempty"` // strong | moderate | sparse | degraded | unknown
+
+	MitigationFragilityWatch bool `json:"mitigation_fragility_watch"`
+	RepeatedFamilyConcern    bool `json:"repeated_family_concern"`
+
+	ActionPosture  string `json:"action_posture,omitempty"`  // available | guarded | unsupported | verify_linkage
+	SupportPosture string `json:"support_posture,omitempty"` // ready | partial | blocked | unknown
+
+	TopologyPlanningPosture string   `json:"topology_planning_posture,omitempty"` // useful_non_proving
+	EscalationPosture       string   `json:"escalation_posture,omitempty"`        // replay_first | follow_up | bounded_review
+	Degraded                bool     `json:"degraded"`
+	DegradedReasons         []string `json:"degraded_reasons,omitempty"`
 }
 
 type IncidentDecisionPackIdentity struct {
