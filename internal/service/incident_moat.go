@@ -1074,6 +1074,9 @@ func (a *App) IncidentReplayView(incidentID string, canReadLinked bool) (map[str
 		"window_truncated":             len(timeline) >= 200,
 		"interpretation_posture":       replayInterpretationPosture(len(timeline), len(segments)),
 	}
+	if delta := replayDeltaLast10Minutes(segments, to); len(delta) > 0 {
+		replayMeta["delta_last_10m"] = delta
+	}
 	if !canReadLinked {
 		replayMeta["linked_control_redacted"] = true
 		replayMeta["visibility_note"] = "Incident object omits FK-linked control rows for this identity (read_actions). Timeline rows are bounded by window and retention; filtered views are not globally representative."
@@ -1090,6 +1093,105 @@ func (a *App) IncidentReplayView(incidentID string, canReadLinked bool) (map[str
 		"truth_note":                     "Derived from persisted rows at query time; not a live simulation. event_class groups rows for filtering; knowledge_posture describes observation vs control-plane vs operator-recorded layers — not root cause.",
 		"generated_at":                   time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func replayDeltaLast10Minutes(segments []replaySegment, windowTo string) map[string]any {
+	anchor := parseReplayTime(windowTo)
+	if anchor.IsZero() {
+		for _, seg := range segments {
+			t := parseReplayTime(seg.EventTime)
+			if t.After(anchor) {
+				anchor = t
+			}
+		}
+	}
+	if anchor.IsZero() {
+		return nil
+	}
+	cutoff := anchor.Add(-10 * time.Minute)
+	recent, prior := replayWindowCounts(segments, cutoff)
+	out := map[string]any{
+		"window_minutes":              10,
+		"anchor_time":                 anchor.Format(time.RFC3339),
+		"cutoff_time":                 cutoff.Format(time.RFC3339),
+		"recent_segment_count":        recent.total,
+		"prior_segment_count":         prior.total,
+		"recent_control_events":       recent.control,
+		"prior_control_events":        prior.control,
+		"recent_workflow_events":      recent.workflow,
+		"prior_workflow_events":       prior.workflow,
+		"recent_operator_events":      recent.operator,
+		"prior_operator_events":       prior.operator,
+		"recent_evidence_events":      recent.evidence,
+		"prior_evidence_events":       prior.evidence,
+		"recent_incident_events":      recent.incident,
+		"prior_incident_events":       prior.incident,
+		"delta_total":                 recent.total - prior.total,
+		"delta_control":               recent.control - prior.control,
+		"delta_workflow":              recent.workflow - prior.workflow,
+		"delta_operator":              recent.operator - prior.operator,
+		"delta_evidence":              recent.evidence - prior.evidence,
+		"delta_incident":              recent.incident - prior.incident,
+		"activity_posture":            replayDeltaActivityPosture(recent.total, prior.total),
+		"interpretation_posture_note": "Deterministic event-count comparison only (last 10 minutes vs all earlier persisted rows in this replay window). Not proof of causality, runtime completeness, or external system silence.",
+	}
+	if recent.total+prior.total < 3 {
+		out["sparse_evidence"] = true
+		out["uncertainty"] = "Very few persisted rows in this replay slice; compare with transport and diagnostics before treating trend direction as operational truth."
+	}
+	return out
+}
+
+type replayBucketCounts struct {
+	total    int
+	control  int
+	workflow int
+	operator int
+	evidence int
+	incident int
+}
+
+func replayWindowCounts(segments []replaySegment, cutoff time.Time) (replayBucketCounts, replayBucketCounts) {
+	var recent, prior replayBucketCounts
+	for _, seg := range segments {
+		when := parseReplayTime(seg.EventTime)
+		if when.IsZero() {
+			continue
+		}
+		target := &prior
+		if when.After(cutoff) {
+			target = &recent
+		}
+		target.total++
+		switch seg.EventClass {
+		case "control_action", "control_lifecycle":
+			target.control++
+		case "workflow", "handoff":
+			target.workflow++
+		case "operator_annotation", "operator_adjudication":
+			target.operator++
+		case "evidence_export", "imported_evidence":
+			target.evidence++
+		default:
+			target.incident++
+		}
+	}
+	return recent, prior
+}
+
+func replayDeltaActivityPosture(recent, prior int) string {
+	switch {
+	case recent == 0 && prior == 0:
+		return "no_persisted_activity"
+	case recent == 0 && prior > 0:
+		return "quiet_recently"
+	case recent > prior:
+		return "activity_increasing"
+	case recent == prior:
+		return "activity_flat"
+	default:
+		return "activity_lower_recently"
+	}
 }
 
 type replaySegment struct {

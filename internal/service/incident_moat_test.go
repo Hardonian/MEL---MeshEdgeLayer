@@ -163,4 +163,14 @@ func TestIncidentReplayView_MergesOutcomesAndTypedSegments(t *testing.T) {
 	if sparse, _ := meta["sparse_timeline"].(bool); sparse {
 		t.Fatal("unexpected sparse_timeline")
 	}
+	delta, ok := meta["delta_last_10m"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing delta_last_10m: %#v", meta["delta_last_10m"])
+	}
+	if got, _ := delta["window_minutes"].(int); got != 10 {
+		t.Fatalf("window_minutes=%v", delta["window_minutes"])
+	}
+	if _, ok := delta["delta_total"]; !ok {
+		t.Fatalf("delta_total missing: %#v", delta)
+	}
 }
