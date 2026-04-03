@@ -10,6 +10,10 @@ import type {
   ControlStatusResponse,
   ControlHistoryResponse,
   ControlOperationalStateResponse,
+  ControlQueueMetrics,
+  ControlExecutorPresence,
+  ActiveFreezeWindow,
+  ActiveMaintenanceWindow,
   ControlRealityMatrixItem,
   MeshNodeControlAction,
 } from '@/types/api'
@@ -142,19 +146,79 @@ export function parseOperationalStateJson(raw: unknown): ControlOperationalState
   const pending_approvals = Array.isArray(pendingRaw)
     ? pendingRaw.map(parseMeshNodeControlAction).filter((x): x is MeshNodeControlAction => x !== null)
     : undefined
+  const parseQueueMetrics = (value: unknown): ControlQueueMetrics | undefined => {
+    if (!isRecord(value)) return undefined
+    return {
+      queued_lifecycle_pending_count:
+        typeof value.queued_lifecycle_pending_count === 'number' ? value.queued_lifecycle_pending_count : 0,
+      awaiting_approval_count: typeof value.awaiting_approval_count === 'number' ? value.awaiting_approval_count : 0,
+      approved_waiting_executor_count:
+        typeof value.approved_waiting_executor_count === 'number' ? value.approved_waiting_executor_count : 0,
+      oldest_queued_pending_created_at:
+        typeof value.oldest_queued_pending_created_at === 'string' ? value.oldest_queued_pending_created_at : '',
+      oldest_approved_waiting_executor_created_at:
+        typeof value.oldest_approved_waiting_executor_created_at === 'string'
+          ? value.oldest_approved_waiting_executor_created_at
+          : '',
+    }
+  }
+
+  const parseExecutorPresence = (value: unknown): ControlExecutorPresence | undefined => {
+    if (!isRecord(value)) return undefined
+    return {
+      executor_activity: typeof value.executor_activity === 'string' ? value.executor_activity : 'unknown',
+      executor_last_heartbeat_at:
+        typeof value.executor_last_heartbeat_at === 'string' ? value.executor_last_heartbeat_at : '',
+      executor_last_reported_kind:
+        typeof value.executor_last_reported_kind === 'string' ? value.executor_last_reported_kind : '',
+      executor_heartbeat_basis:
+        typeof value.executor_heartbeat_basis === 'string' ? value.executor_heartbeat_basis : '',
+      executor_presence_note: typeof value.executor_presence_note === 'string' ? value.executor_presence_note : '',
+      backlog_requires_active_executor: value.backlog_requires_active_executor === true,
+    }
+  }
+
+  const parseFreezeWindow = (value: unknown): ActiveFreezeWindow | null => {
+    if (!isRecord(value)) return null
+    const id = value.id
+    if (typeof id !== 'string' || id.trim() === '') return null
+    return {
+      id,
+      reason: typeof value.reason === 'string' ? value.reason : '',
+      actor: typeof value.created_by === 'string' ? value.created_by : '',
+      scope: [typeof value.scope_type === 'string' ? value.scope_type : '', typeof value.scope_value === 'string' ? value.scope_value : '']
+        .filter(Boolean)
+        .join(':'),
+      created_at: typeof value.created_at === 'string' ? value.created_at : '',
+    }
+  }
+
+  const parseMaintenanceWindow = (value: unknown): ActiveMaintenanceWindow | null => {
+    if (!isRecord(value)) return null
+    const id = value.id
+    if (typeof id !== 'string' || id.trim() === '') return null
+    return {
+      id,
+      reason: typeof value.reason === 'string' ? value.reason : '',
+      actor: typeof value.created_by === 'string' ? value.created_by : '',
+      starts_at: typeof value.starts_at === 'string' ? value.starts_at : '',
+      ends_at: typeof value.ends_at === 'string' ? value.ends_at : '',
+    }
+  }
+
   const active_freezes = Array.isArray(raw.active_freezes)
-    ? raw.active_freezes.filter((x): x is Record<string, unknown> => isRecord(x))
+    ? raw.active_freezes.map(parseFreezeWindow).filter((x): x is ActiveFreezeWindow => x !== null)
     : undefined
   const active_maintenance = Array.isArray(raw.active_maintenance)
-    ? raw.active_maintenance.filter((x): x is Record<string, unknown> => isRecord(x))
+    ? raw.active_maintenance.map(parseMaintenanceWindow).filter((x): x is ActiveMaintenanceWindow => x !== null)
     : undefined
   return {
     automation_mode: typeof raw.automation_mode === 'string' ? raw.automation_mode : undefined,
     freeze_count: typeof raw.freeze_count === 'number' ? raw.freeze_count : undefined,
     approval_backlog: typeof raw.approval_backlog === 'number' ? raw.approval_backlog : undefined,
     snapshot_at: typeof raw.snapshot_at === 'string' ? raw.snapshot_at : undefined,
-    queue_metrics: isRecord(raw.queue_metrics) ? raw.queue_metrics : undefined,
-    executor: isRecord(raw.executor) ? raw.executor : undefined,
+    queue_metrics: parseQueueMetrics(raw.queue_metrics),
+    executor: parseExecutorPresence(raw.executor),
     active_freezes,
     active_maintenance,
     pending_approvals,
