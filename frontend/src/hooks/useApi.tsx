@@ -39,7 +39,7 @@ function parseRealityMatrixItem(raw: unknown): ControlRealityMatrixItem | null {
   }
 }
 
-function parseMeshNodeControlAction(raw: unknown): MeshNodeControlAction | null {
+export function parseMeshNodeControlAction(raw: unknown): MeshNodeControlAction | null {
   if (!isRecord(raw)) return null
   const id = raw.id
   const result = raw.result
@@ -87,6 +87,24 @@ function parseMeshNodeControlAction(raw: unknown): MeshNodeControlAction | null 
     proposed_by: typeof raw.proposed_by === 'string' ? raw.proposed_by : undefined,
     approved_by: typeof raw.approved_by === 'string' ? raw.approved_by : undefined,
     evidence_bundle_id: typeof raw.evidence_bundle_id === 'string' ? raw.evidence_bundle_id : undefined,
+    approval_expires_at: typeof raw.approval_expires_at === 'string' ? raw.approval_expires_at : undefined,
+    blast_radius_class: typeof raw.blast_radius_class === 'string' ? raw.blast_radius_class : undefined,
+    requires_separate_approver: raw.requires_separate_approver === true,
+    incident_id: typeof raw.incident_id === 'string' ? raw.incident_id : undefined,
+    execution_started_at: typeof raw.execution_started_at === 'string' ? raw.execution_started_at : undefined,
+    sod_bypass: raw.sod_bypass === true,
+    sod_bypass_actor: typeof raw.sod_bypass_actor === 'string' ? raw.sod_bypass_actor : undefined,
+    sod_bypass_reason: typeof raw.sod_bypass_reason === 'string' ? raw.sod_bypass_reason : undefined,
+    approval_mode: typeof raw.approval_mode === 'string' ? raw.approval_mode : undefined,
+    required_approvals: typeof raw.required_approvals === 'number' ? raw.required_approvals : undefined,
+    collected_approvals: typeof raw.collected_approvals === 'number' ? raw.collected_approvals : undefined,
+    approval_basis: Array.isArray(raw.approval_basis)
+      ? raw.approval_basis.filter((x): x is string => typeof x === 'string')
+      : undefined,
+    approval_policy_source: typeof raw.approval_policy_source === 'string' ? raw.approval_policy_source : undefined,
+    high_blast_radius: raw.high_blast_radius === true,
+    approval_escalated_due_to_blast_radius: raw.approval_escalated_due_to_blast_radius === true,
+    execution_source: typeof raw.execution_source === 'string' ? raw.execution_source : undefined,
     operator_view,
     details,
   }
@@ -118,13 +136,29 @@ function parseControlHistoryJson(raw: unknown): ControlHistoryResponse {
   return { actions }
 }
 
-function parseOperationalStateJson(raw: unknown): ControlOperationalStateResponse {
+export function parseOperationalStateJson(raw: unknown): ControlOperationalStateResponse {
   if (!isRecord(raw)) return {}
   const pendingRaw = raw.pending_approvals
   const pending_approvals = Array.isArray(pendingRaw)
     ? pendingRaw.map(parseMeshNodeControlAction).filter((x): x is MeshNodeControlAction => x !== null)
     : undefined
-  return { pending_approvals }
+  const active_freezes = Array.isArray(raw.active_freezes)
+    ? raw.active_freezes.filter((x): x is Record<string, unknown> => isRecord(x))
+    : undefined
+  const active_maintenance = Array.isArray(raw.active_maintenance)
+    ? raw.active_maintenance.filter((x): x is Record<string, unknown> => isRecord(x))
+    : undefined
+  return {
+    automation_mode: typeof raw.automation_mode === 'string' ? raw.automation_mode : undefined,
+    freeze_count: typeof raw.freeze_count === 'number' ? raw.freeze_count : undefined,
+    approval_backlog: typeof raw.approval_backlog === 'number' ? raw.approval_backlog : undefined,
+    snapshot_at: typeof raw.snapshot_at === 'string' ? raw.snapshot_at : undefined,
+    queue_metrics: isRecord(raw.queue_metrics) ? raw.queue_metrics : undefined,
+    executor: isRecord(raw.executor) ? raw.executor : undefined,
+    active_freezes,
+    active_maintenance,
+    pending_approvals,
+  }
 }
 
 interface ApiState<T> {
