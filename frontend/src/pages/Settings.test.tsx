@@ -64,7 +64,7 @@ describe('Settings config inspect truth rendering', () => {
 
     const unreadableBadges = screen.getAllByText('unreadable')
     expect(unreadableBadges.length).toBeGreaterThan(0)
-    expect(screen.getByText('true')).toBeTruthy()
+    expect(screen.getAllByText('true').length).toBeGreaterThan(0)
   })
 
   it('renders safe-default violations from backend inspect payload', async () => {

@@ -52,6 +52,7 @@ import {
 } from '@/utils/evidenceSemantics'
 import { controlActionExecPhase } from '@/utils/controlActionPhase'
 import { incidentTopologyFocusNodeNum } from '@/utils/operatorWorkflow'
+import { parseReplayViewResponse, type ReplaySegment, type ReplayView } from '@/utils/incidentReplay'
 import {
   resolvedIncidentActionVisibility,
   incidentMemoryDecisionCue,
@@ -60,86 +61,6 @@ import {
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ReplaySegment {
-  event_time: string
-  event_type: string
-  event_id?: string
-  summary: string
-  knowledge_posture: string
-  event_class?: string
-  actor_id?: string
-  severity?: string
-  scope_posture?: string
-  timing_posture?: string
-  resource_id?: string
-  details?: Record<string, unknown>
-  evidence_refs?: string[]
-}
-
-interface ReplayView {
-  kind: string
-  incident_id: string
-  incident: Incident
-  replay_segments?: ReplaySegment[]
-  knowledge_timeline?: ReplaySegment[]
-  replay_meta?: {
-    schema_version?: string
-    window_from?: string
-    window_to?: string
-    timeline_event_count?: number
-    recommendation_outcome_count?: number
-    combined_segment_count?: number
-    sparse_timeline?: boolean
-    window_truncated?: boolean
-    interpretation_posture?: string
-    linked_control_redacted?: boolean
-    visibility_note?: string
-    ordering_posture_note?: string
-    delta_last_10m?: {
-      window_minutes: number
-      anchor_time: string
-      cutoff_time: string
-      recent_segment_count: number
-      prior_segment_count: number
-      recent_control_events: number
-      prior_control_events: number
-      recent_workflow_events: number
-      prior_workflow_events: number
-      recent_operator_events: number
-      prior_operator_events: number
-      recent_evidence_events: number
-      prior_evidence_events: number
-      recent_incident_events: number
-      prior_incident_events: number
-      delta_total: number
-      delta_control: number
-      delta_workflow: number
-      delta_operator: number
-      delta_evidence: number
-      delta_incident: number
-      activity_posture: string
-      sparse_evidence?: boolean
-      uncertainty?: string
-      interpretation_posture_note?: string
-    }
-  }
-  recommendation_outcomes?: Array<{
-    id: string
-    recommendation_id: string
-    outcome: string
-    actor_id?: string
-    note?: string
-    created_at: string
-  }>
-  bounded_counterfactual_ranking?: {
-    statement: string
-    top?: Array<{ id: string; rank_score: number; strength: string }>
-    second?: Array<{ id: string; rank_score: number; strength: string }>
-  }
-  truth_note?: string
-  generated_at?: string
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -2412,9 +2333,13 @@ export function IncidentDetail() {
         }
         return
       }
-      setReplay(await res.json() as ReplayView)
-    } catch {
-      setReplayError('Could not load replay data.')
+      const parsed = parseReplayViewResponse(await res.json())
+      if (!parsed) {
+        throw new Error('invalid replay payload')
+      }
+      setReplay(parsed)
+    } catch (error) {
+      setReplayError(error instanceof Error ? `Could not load replay data (${error.message}).` : 'Could not load replay data.')
     } finally {
       setReplayLoading(false)
     }
