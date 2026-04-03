@@ -375,6 +375,10 @@ export interface IncidentDecisionPackGuidance {
   topology_planning_posture?: 'useful_non_proving'
   escalation_posture?: 'replay_first' | 'follow_up' | 'bounded_review'
   replay_semantic?: string
+  replay_history_pattern?: string
+  replay_comparability?: string
+  replay_attention_reason?: string
+  replay_not_comparable_reasons?: string[]
   replay_summary?: string
   degraded?: boolean
   degraded_reasons?: string[]
@@ -383,6 +387,8 @@ export interface IncidentDecisionPackGuidance {
 export interface IncidentReplaySummary {
   schema_version?: string
   semantic?: 'active_changing' | 'cooling_off' | 'quiet_recently' | 'sparse' | 'no_history' | 'unavailable' | 'partial'
+  history_pattern?: 'worsening' | 'recovering' | 'stable' | 'thin_history' | 'unavailable' | 'partial'
+  comparability?: 'comparable' | 'not_comparable' | 'unavailable'
   activity_posture?: string
   window_from?: string
   window_to?: string
@@ -395,6 +401,9 @@ export interface IncidentReplaySummary {
   window_truncated?: boolean
   degraded?: boolean
   degraded_reasons?: string[]
+  needs_attention?: boolean
+  attention_reason?: string
+  not_comparable_reasons?: string[]
   summary?: string
   uncertainty?: string
   recommendation_ref?: string

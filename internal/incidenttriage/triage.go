@@ -59,6 +59,24 @@ func ComputeForIncident(inc models.Incident) models.IncidentTriageSignals {
 	}
 
 	intel := inc.Intelligence
+	if rs := inc.ReplaySummary; rs != nil {
+		if strings.TrimSpace(rs.AttentionReason) != "" {
+			line := strings.TrimSpace(rs.Summary)
+			if line == "" {
+				line = "Replay posture needs bounded review; open replay/detail for exact semantics and caveats."
+			}
+			appendCode(&out, "replay_"+strings.TrimSpace(rs.AttentionReason),
+				line,
+				[]string{"incident.replay_summary.semantic", "incident.replay_summary.history_pattern", "incident.replay_summary.comparability"})
+		}
+		if rs.NeedsAttention {
+			out.Tier = minTier(out.Tier, tierEvidenceStress)
+		}
+		if strings.TrimSpace(rs.Comparability) == "not_comparable" || strings.TrimSpace(rs.Comparability) == "unavailable" {
+			out.UncertaintyNotes = append(out.UncertaintyNotes,
+				"Replay comparison posture is "+strings.TrimSpace(rs.Comparability)+" — avoid trend claims without full replay evidence.")
+		}
+	}
 	if av != nil && (av.Kind == "visibility_limited" || av.Kind == "references_only" || av.Kind == "action_context_degraded") {
 		out.Tier = minTier(out.Tier, tierEvidenceStress)
 		if av.Kind == "visibility_limited" {

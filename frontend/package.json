@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
+    "preinstall": "node ./scripts/require-node24.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

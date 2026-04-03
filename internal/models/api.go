@@ -88,7 +88,9 @@ type Incident struct {
 // It is not a simulation and must not be interpreted as proof of transport/runtime health.
 type IncidentReplaySummary struct {
 	SchemaVersion     string   `json:"schema_version,omitempty"`
-	Semantic          string   `json:"semantic,omitempty"` // active_changing | cooling_off | quiet_recently | sparse | no_history | unavailable | partial
+	Semantic          string   `json:"semantic,omitempty"`        // active_changing | cooling_off | quiet_recently | sparse | no_history | unavailable | partial
+	HistoryPattern    string   `json:"history_pattern,omitempty"` // worsening | recovering | stable | thin_history | unavailable | partial
+	Comparability     string   `json:"comparability,omitempty"`   // comparable | not_comparable | unavailable
 	ActivityPosture   string   `json:"activity_posture,omitempty"`
 	WindowFrom        string   `json:"window_from,omitempty"`
 	WindowTo          string   `json:"window_to,omitempty"`
@@ -101,6 +103,9 @@ type IncidentReplaySummary struct {
 	WindowTruncated   bool     `json:"window_truncated,omitempty"`
 	Degraded          bool     `json:"degraded"`
 	DegradedReasons   []string `json:"degraded_reasons,omitempty"`
+	NeedsAttention    bool     `json:"needs_attention"`
+	AttentionReason   string   `json:"attention_reason,omitempty"`
+	NotComparable     []string `json:"not_comparable_reasons,omitempty"`
 	Summary           string   `json:"summary,omitempty"`
 	Uncertainty       string   `json:"uncertainty,omitempty"`
 	RecommendationRef string   `json:"recommendation_ref,omitempty"`
@@ -113,6 +118,8 @@ type IncidentEscalationReplaySupport struct {
 	Status              string                           `json:"status,omitempty"`        // available | unavailable
 	StatusReason        string                           `json:"status_reason,omitempty"` // replay_summary_present | replay_summary_missing
 	Semantic            string                           `json:"semantic,omitempty"`
+	HistoryPattern      string                           `json:"history_pattern,omitempty"`
+	Comparability       string                           `json:"comparability,omitempty"`
 	Summary             string                           `json:"summary,omitempty"`
 	Uncertainty         string                           `json:"uncertainty,omitempty"`
 	NeedsOperatorReview bool                             `json:"needs_operator_review"`
@@ -129,6 +136,7 @@ type IncidentEscalationReplaySupport struct {
 	WindowTruncated     bool                             `json:"window_truncated,omitempty"`
 	Degraded            bool                             `json:"degraded"`
 	DegradedReasons     []string                         `json:"degraded_reasons,omitempty"`
+	NotComparable       []string                         `json:"not_comparable_reasons,omitempty"`
 	CannotProve         []string                         `json:"cannot_prove,omitempty"`
 	SupportNote         string                           `json:"support_note,omitempty"`
 	RecommendationRef   string                           `json:"recommendation_ref,omitempty"`
@@ -189,6 +197,10 @@ type IncidentDecisionPackGuidance struct {
 	TopologyPlanningPosture string   `json:"topology_planning_posture,omitempty"` // useful_non_proving
 	EscalationPosture       string   `json:"escalation_posture,omitempty"`        // replay_first | follow_up | bounded_review
 	ReplaySemantic          string   `json:"replay_semantic,omitempty"`
+	ReplayHistoryPattern    string   `json:"replay_history_pattern,omitempty"`
+	ReplayComparability     string   `json:"replay_comparability,omitempty"`
+	ReplayAttentionReason   string   `json:"replay_attention_reason,omitempty"`
+	ReplayNotComparable     []string `json:"replay_not_comparable_reasons,omitempty"`
 	ReplaySummary           string   `json:"replay_summary,omitempty"`
 	Degraded                bool     `json:"degraded"`
 	DegradedReasons         []string `json:"degraded_reasons,omitempty"`
