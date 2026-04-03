@@ -154,6 +154,42 @@ function evidenceStrengthVariant(strength: string | undefined): 'success' | 'war
   return 'secondary'
 }
 
+function replaySemanticBadgeVariant(semantic: Incident['replay_summary'] extends infer T ? T extends { semantic?: infer U } ? U : never : never): 'warning' | 'secondary' | 'outline' {
+  switch (semantic) {
+    case 'active_changing':
+    case 'sparse':
+    case 'partial':
+    case 'unavailable':
+      return 'warning'
+    case 'cooling_off':
+    case 'quiet_recently':
+      return 'secondary'
+    default:
+      return 'outline'
+  }
+}
+
+function replaySemanticLabel(semantic: string | undefined): string {
+  switch (semantic) {
+    case 'active_changing':
+      return 'Replay active'
+    case 'cooling_off':
+      return 'Replay cooling'
+    case 'quiet_recently':
+      return 'Replay quiet'
+    case 'sparse':
+      return 'Replay sparse'
+    case 'no_history':
+      return 'Replay no history'
+    case 'partial':
+      return 'Replay partial'
+    case 'unavailable':
+      return 'Replay unavailable'
+    default:
+      return toWords(semantic) || 'Replay'
+  }
+}
+
 function outcomeMemoryScanLine(mem: NonNullable<Incident['intelligence']>['action_outcome_memory']): string | null {
   if (!mem?.length) return null
   const top = mem[0]
@@ -605,6 +641,8 @@ function IncidentCard({
   const memoryDecisionCue = !muted ? incidentMemoryDecisionCue(inc) : null
   const topoNum = !muted ? incidentTopologyFocusNodeNum(inc) : null
   const priorityWhy = !muted ? openIncidentShiftWhyLine(inc, workbenchWhyContext) : ''
+  const replay = inc.replay_summary
+  const replayTitle = replay?.summary || replaySemanticLabel(replay?.semantic)
 
   const severityVariant = inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'
   const stateVariant = inc.state === 'resolved' || inc.state === 'closed' ? 'success' : 'outline'
@@ -709,6 +747,13 @@ function IncidentCard({
                   </Badge>
                 </span>
               ))}
+            {!muted && replay?.semantic && (
+              <span title={replayTitle}>
+                <Badge variant={replaySemanticBadgeVariant(replay.semantic)}>
+                  {replaySemanticLabel(replay.semantic)}
+                </Badge>
+              </span>
+            )}
             {pending.length > 0 && actionVis.kind !== 'references_only' && (
               <span title="Action IDs referenced on the incident record (verify against queue)">
                 <Badge variant="outline">
@@ -736,6 +781,21 @@ function IncidentCard({
           >
             <span className="font-semibold text-foreground">Why this order: </span>
             {priorityWhy}
+          </div>
+        )}
+        {!muted && replay && (
+          <div
+            className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[11px] text-muted-foreground"
+            data-testid="incident-workbench-replay-summary"
+          >
+            <span className="font-semibold text-foreground">Replay posture: </span>
+            {replay.summary || replaySemanticLabel(replay.semantic)}
+            {typeof replay.delta_total === 'number' && (
+              <span> (Δ {replay.delta_total >= 0 ? '+' : ''}{replay.delta_total}, {replay.recent_count ?? 0} recent / {replay.prior_count ?? 0} prior)</span>
+            )}
+            {replay.degraded && (replay.degraded_reasons?.length ?? 0) > 0 && (
+              <span className="text-warning"> — degraded: {replay.degraded_reasons!.slice(0, 2).map((r) => toWords(r)).join(', ')}</span>
+            )}
           </div>
         )}
 

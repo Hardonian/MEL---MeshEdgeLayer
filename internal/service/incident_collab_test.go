@@ -158,6 +158,83 @@ func TestRecentIncidentsWithLinkedActions_IntelligenceIncludesSimilarity(t *test
 	}
 }
 
+func TestIncidentByIDForAPI_ReplaySummary_NoHistoryIsExplicit(t *testing.T) {
+	a := newSoDTestApp(t)
+	now := time.Now().UTC()
+	inc := models.Incident{
+		ID:           "inc-replay-no-history",
+		Category:     "transport",
+		Severity:     "warning",
+		Title:        "No history",
+		Summary:      "none",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-sod",
+		State:        "open",
+		OccurredAt:   now.Format(time.RFC3339),
+		UpdatedAt:    now.Format(time.RFC3339),
+	}
+	if err := a.DB.UpsertIncident(inc); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := a.IncidentByIDForAPI(inc.ID, true)
+	if err != nil || !ok {
+		t.Fatalf("IncidentByIDForAPI: err=%v ok=%v", err, ok)
+	}
+	if got.ReplaySummary == nil {
+		t.Fatalf("expected replay summary")
+	}
+	if got.ReplaySummary.Semantic != "no_history" && got.ReplaySummary.Semantic != "sparse" {
+		t.Fatalf("semantic=%q", got.ReplaySummary.Semantic)
+	}
+	if !got.ReplaySummary.Degraded {
+		t.Fatalf("expected degraded replay summary")
+	}
+}
+
+func TestIncidentByIDForAPI_ReplaySummary_SparseHistoryIsExplicit(t *testing.T) {
+	a := newSoDTestApp(t)
+	now := time.Now().UTC()
+	inc := models.Incident{
+		ID:           "inc-replay-sparse",
+		Category:     "transport",
+		Severity:     "warning",
+		Title:        "Sparse history",
+		Summary:      "few rows",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-sod",
+		State:        "open",
+		OccurredAt:   now.Add(-30 * time.Minute).Format(time.RFC3339),
+		UpdatedAt:    now.Format(time.RFC3339),
+	}
+	if err := a.DB.UpsertIncident(inc); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.InsertTimelineEvent(db.TimelineEvent{
+		EventID:    "tl-replay-sparse",
+		EventTime:  now.Add(-5 * time.Minute).Format(time.RFC3339),
+		EventType:  "incident_workflow",
+		Summary:    "incident workflow updated",
+		Severity:   "info",
+		ResourceID: inc.ID,
+		Details:    map[string]any{"incident_id": inc.ID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := a.IncidentByIDForAPI(inc.ID, true)
+	if err != nil || !ok {
+		t.Fatalf("IncidentByIDForAPI: err=%v ok=%v", err, ok)
+	}
+	if got.ReplaySummary == nil {
+		t.Fatalf("expected replay summary")
+	}
+	if got.ReplaySummary.Semantic != "sparse" {
+		t.Fatalf("semantic=%q", got.ReplaySummary.Semantic)
+	}
+	if !got.ReplaySummary.SparseEvidence {
+		t.Fatalf("expected sparse evidence flag")
+	}
+}
+
 func TestIncidentIntelligence_ActionOutcomeMemory_ClassifiesMixedAndImprovement(t *testing.T) {
 	a := newSoDTestApp(t)
 	base := time.Now().UTC().Add(-6 * time.Hour)

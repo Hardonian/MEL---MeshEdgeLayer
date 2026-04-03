@@ -43,6 +43,12 @@ func TestIncidentByIDForAPI_IncludesDecisionPack(t *testing.T) {
 	if got.DecisionPack.Guidance == nil || got.DecisionPack.Guidance.WhyNow == "" {
 		t.Fatalf("expected guidance in pack")
 	}
+	if got.ReplaySummary == nil {
+		t.Fatalf("expected replay_summary on API incident")
+	}
+	if got.DecisionPack.Guidance.ReplaySemantic == "" {
+		t.Fatalf("expected replay semantic on guidance")
+	}
 }
 
 func TestPatchIncidentDecisionPackAdjudication_Persists(t *testing.T) {

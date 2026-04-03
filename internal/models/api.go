@@ -61,6 +61,9 @@ type Incident struct {
 
 	// ActionVisibility is server-computed control/action visibility posture for this API response (capability-aware).
 	ActionVisibility *IncidentActionVisibilityPosture `json:"action_visibility,omitempty"`
+	// ReplaySummary is a compact, backend-owned replay posture for queue/workbench/detail/export surfaces.
+	// It is deterministic from persisted timeline/recommendation rows in a bounded incident window.
+	ReplaySummary *IncidentReplaySummary `json:"replay_summary,omitempty"`
 
 	// TriageSignals are deterministic, inspectable queue-shaping hints (not ranked black-box scoring).
 	TriageSignals *IncidentTriageSignals `json:"triage_signals,omitempty"`
@@ -79,6 +82,28 @@ type Incident struct {
 	// DecisionPack is the canonical backend-assembled incident decision object (detail, workbench, export framing).
 	// Populated on API responses that run finishIncidentForAPI; not a second source of business truth.
 	DecisionPack *IncidentDecisionPack `json:"decision_pack,omitempty"`
+}
+
+// IncidentReplaySummary is compact replay posture for triage surfaces.
+// It is not a simulation and must not be interpreted as proof of transport/runtime health.
+type IncidentReplaySummary struct {
+	SchemaVersion     string   `json:"schema_version,omitempty"`
+	Semantic          string   `json:"semantic,omitempty"` // active_changing | cooling_off | quiet_recently | sparse | no_history | unavailable | partial
+	ActivityPosture   string   `json:"activity_posture,omitempty"`
+	WindowFrom        string   `json:"window_from,omitempty"`
+	WindowTo          string   `json:"window_to,omitempty"`
+	AnchorTime        string   `json:"anchor_time,omitempty"`
+	LastEventAt       string   `json:"last_event_at,omitempty"`
+	RecentCount       int      `json:"recent_count,omitempty"`
+	PriorCount        int      `json:"prior_count,omitempty"`
+	DeltaTotal        int      `json:"delta_total,omitempty"`
+	SparseEvidence    bool     `json:"sparse_evidence,omitempty"`
+	WindowTruncated   bool     `json:"window_truncated,omitempty"`
+	Degraded          bool     `json:"degraded"`
+	DegradedReasons   []string `json:"degraded_reasons,omitempty"`
+	Summary           string   `json:"summary,omitempty"`
+	Uncertainty       string   `json:"uncertainty,omitempty"`
+	RecommendationRef string   `json:"recommendation_ref,omitempty"`
 }
 
 // IncidentDecisionPackSchemaVersion is bumped when section shapes or semantics change incompatibly.
@@ -127,6 +152,8 @@ type IncidentDecisionPackGuidance struct {
 
 	TopologyPlanningPosture string   `json:"topology_planning_posture,omitempty"` // useful_non_proving
 	EscalationPosture       string   `json:"escalation_posture,omitempty"`        // replay_first | follow_up | bounded_review
+	ReplaySemantic          string   `json:"replay_semantic,omitempty"`
+	ReplaySummary           string   `json:"replay_summary,omitempty"`
 	Degraded                bool     `json:"degraded"`
 	DegradedReasons         []string `json:"degraded_reasons,omitempty"`
 }

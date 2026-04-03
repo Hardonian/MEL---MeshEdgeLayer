@@ -12,7 +12,11 @@
 // completeness and recency of the evidence without false certainty.
 package proofpack
 
-import "time"
+import (
+	"time"
+
+	"github.com/mel-project/mel/internal/models"
+)
 
 // FormatVersion is the canonical proofpack schema version.
 // Consumers must check this before parsing.
@@ -133,26 +137,27 @@ type ActionOutcomeSnapshotTrace struct {
 // IncidentEvidence is the incident record at assembly time, preserved
 // exactly as it existed in the database.
 type IncidentEvidence struct {
-	ID              string                    `json:"id"`
-	Category        string                    `json:"category"`
-	Severity        string                    `json:"severity"`
-	Title           string                    `json:"title"`
-	Summary         string                    `json:"summary"`
-	ResourceType    string                    `json:"resource_type"`
-	ResourceID      string                    `json:"resource_id"`
-	State           string                    `json:"state"`
-	ActorID         string                    `json:"actor_id,omitempty"`
-	OccurredAt      string                    `json:"occurred_at"`
-	UpdatedAt       string                    `json:"updated_at,omitempty"`
-	ResolvedAt      string                    `json:"resolved_at,omitempty"`
-	OwnerActorID    string                    `json:"owner_actor_id,omitempty"`
-	HandoffSummary  string                    `json:"handoff_summary,omitempty"`
-	PendingActions  []string                  `json:"pending_actions,omitempty"`
-	RecentActions   []string                  `json:"recent_actions,omitempty"`
-	LinkedEvidence  []map[string]interface{}  `json:"linked_evidence,omitempty"`
-	Risks           []string                  `json:"risks,omitempty"`
-	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
-	WirelessContext *ProofpackWirelessContext `json:"wireless_context,omitempty"`
+	ID              string                        `json:"id"`
+	Category        string                        `json:"category"`
+	Severity        string                        `json:"severity"`
+	Title           string                        `json:"title"`
+	Summary         string                        `json:"summary"`
+	ResourceType    string                        `json:"resource_type"`
+	ResourceID      string                        `json:"resource_id"`
+	State           string                        `json:"state"`
+	ActorID         string                        `json:"actor_id,omitempty"`
+	OccurredAt      string                        `json:"occurred_at"`
+	UpdatedAt       string                        `json:"updated_at,omitempty"`
+	ResolvedAt      string                        `json:"resolved_at,omitempty"`
+	OwnerActorID    string                        `json:"owner_actor_id,omitempty"`
+	HandoffSummary  string                        `json:"handoff_summary,omitempty"`
+	PendingActions  []string                      `json:"pending_actions,omitempty"`
+	RecentActions   []string                      `json:"recent_actions,omitempty"`
+	LinkedEvidence  []map[string]interface{}      `json:"linked_evidence,omitempty"`
+	Risks           []string                      `json:"risks,omitempty"`
+	Metadata        map[string]interface{}        `json:"metadata,omitempty"`
+	WirelessContext *ProofpackWirelessContext     `json:"wireless_context,omitempty"`
+	ReplaySummary   *models.IncidentReplaySummary `json:"replay_summary,omitempty"`
 	// Workflow / review (migration 0031)
 	ReviewState            string `json:"review_state,omitempty"`
 	InvestigationNotes     string `json:"investigation_notes,omitempty"`
