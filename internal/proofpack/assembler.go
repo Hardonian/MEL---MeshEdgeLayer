@@ -588,6 +588,7 @@ func incidentToEvidence(inc models.Incident) IncidentEvidence {
 		LinkedEvidence:         inc.LinkedEvidence,
 		Risks:                  inc.Risks,
 		Metadata:               inc.Metadata,
+		ReplaySummary:          inc.ReplaySummary,
 		ReviewState:            inc.ReviewState,
 		InvestigationNotes:     inc.InvestigationNotes,
 		ResolutionSummary:      inc.ResolutionSummary,

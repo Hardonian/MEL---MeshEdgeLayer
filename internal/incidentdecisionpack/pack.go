@@ -153,6 +153,23 @@ func guidanceBlock(inc models.Incident, readiness operatorreadiness.OperatorRead
 	if strings.TrimSpace(inc.ReopenedFromIncidentID) != "" {
 		g.EscalationPosture = "follow_up"
 	}
+	if rs := inc.ReplaySummary; rs != nil {
+		if s := strings.TrimSpace(rs.Semantic); s != "" {
+			g.ReplaySemantic = s
+		}
+		if s := strings.TrimSpace(rs.Summary); s != "" {
+			g.ReplaySummary = s
+		}
+		if rs.Degraded {
+			g.Degraded = true
+			for _, reason := range rs.DegradedReasons {
+				if strings.TrimSpace(reason) == "" {
+					continue
+				}
+				g.DegradedReasons = append(g.DegradedReasons, "replay_"+reason)
+			}
+		}
+	}
 	if inc.Intelligence != nil {
 		if rp := inc.Intelligence.ReplayHints; rp != nil && (strings.TrimSpace(rp.Statement) != "" || len(rp.EvidenceAtTimeRefs) > 0) {
 			g.EscalationPosture = "replay_first"

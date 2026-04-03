@@ -148,6 +148,7 @@ func (a *App) finishIncidentForAPI(inc *models.Incident, canReadLinked bool) {
 	}
 	vis := actionvisibility.FromIncident(*inc, canReadLinked)
 	inc.ActionVisibility = &vis
+	inc.ReplaySummary = a.buildIncidentReplaySummary(*inc)
 	a.attachAssistSignals(inc)
 	ts := incidenttriage.ComputeForIncident(*inc)
 	inc.TriageSignals = &ts

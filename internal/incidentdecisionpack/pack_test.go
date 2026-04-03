@@ -64,6 +64,12 @@ func TestBuild_GuidanceUsesDeterministicPosture(t *testing.T) {
 			},
 		},
 		TriageSignals: &models.IncidentTriageSignals{Tier: 0},
+		ReplaySummary: &models.IncidentReplaySummary{
+			Semantic:        "sparse",
+			Summary:         "Sparse replay rows in bounded window.",
+			Degraded:        true,
+			DegradedReasons: []string{"sparse_replay_rows"},
+		},
 	}
 	pack := Build(inc, nil, operatorreadiness.OperatorReadinessDTO{Semantic: operatorreadiness.SemanticPolicyLimited}, time.Unix(2, 0))
 	if pack.Guidance == nil {
@@ -77,5 +83,8 @@ func TestBuild_GuidanceUsesDeterministicPosture(t *testing.T) {
 	}
 	if pack.Guidance.SupportPosture != "blocked" {
 		t.Fatalf("support posture = %q", pack.Guidance.SupportPosture)
+	}
+	if pack.Guidance.ReplaySemantic != "sparse" || pack.Guidance.ReplaySummary == "" {
+		t.Fatalf("replay guidance missing: %#v", pack.Guidance)
 	}
 }

@@ -309,6 +309,8 @@ export interface Incident {
   intelligence?: IncidentIntelligence
   /** Server-computed control visibility for this response (capability-aware); prefer over pure frontend inference when present. */
   action_visibility?: IncidentActionVisibilityPosture
+  /** Compact backend-owned replay posture for queue/workbench/detail/export surfaces. */
+  replay_summary?: IncidentReplaySummary
   /** Server-computed deterministic triage hints (inspectable codes, not opaque ranking). */
   triage_signals?: IncidentTriageSignals
   /** Deterministic assist cues (same payload mirrored on decision_pack.assist_signals when pack is present). */
@@ -372,8 +374,30 @@ export interface IncidentDecisionPackGuidance {
   support_posture?: 'ready' | 'partial' | 'blocked' | 'unknown'
   topology_planning_posture?: 'useful_non_proving'
   escalation_posture?: 'replay_first' | 'follow_up' | 'bounded_review'
+  replay_semantic?: string
+  replay_summary?: string
   degraded?: boolean
   degraded_reasons?: string[]
+}
+
+export interface IncidentReplaySummary {
+  schema_version?: string
+  semantic?: 'active_changing' | 'cooling_off' | 'quiet_recently' | 'sparse' | 'no_history' | 'unavailable' | 'partial'
+  activity_posture?: string
+  window_from?: string
+  window_to?: string
+  anchor_time?: string
+  last_event_at?: string
+  recent_count?: number
+  prior_count?: number
+  delta_total?: number
+  sparse_evidence?: boolean
+  window_truncated?: boolean
+  degraded?: boolean
+  degraded_reasons?: string[]
+  summary?: string
+  uncertainty?: string
+  recommendation_ref?: string
 }
 
 export interface IncidentDecisionPackEvidenceBasis {
