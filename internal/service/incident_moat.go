@@ -1413,7 +1413,27 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 		})
 	}
 	replaySupport := escalationReplaySupport(inc, pack)
-	replayPosture := map[string]any{
+	replayPosture := replayPostureCompatFromSupport(replaySupport)
+	replayAttention := replayAttentionCompatFromSupport(replaySupport)
+	return map[string]any{
+		"kind":                   "escalation_bundle/v1",
+		"incident_id":            inc.ID,
+		"narrative":              narrative,
+		"replay_support":         replaySupport,
+		"replay_posture":         replayPosture,
+		"replay_attention":       replayAttention,
+		"linked_control_actions": linked,
+		"proofpack_summary":      pack["assembly"],
+		"section_statuses":       pack["section_statuses"],
+		"evidence_gap_count":     gapCount,
+		"continuity_note":        "linked_control_actions are incident_id-linked rows only; use proofpack for full evidence chain.",
+		"privacy_note":           "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
+		"generated_at":           time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func replayPostureCompatFromSupport(replaySupport models.IncidentEscalationReplaySupport) map[string]any {
+	out := map[string]any{
 		"schema_version":        replaySupport.SchemaVersion,
 		"status":                replaySupport.Status,
 		"status_reason":         replaySupport.StatusReason,
@@ -1435,35 +1455,25 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 		"support_note":          replaySupport.SupportNote,
 	}
 	if replaySupport.TimelineSection != nil {
-		replayPosture["timeline_section_status"] = map[string]any{
+		out["timeline_section_status"] = map[string]any{
 			"section": replaySupport.TimelineSection.Section,
 			"status":  replaySupport.TimelineSection.Status,
 			"reason":  replaySupport.TimelineSection.Reason,
 		}
 	}
-	replayAttention := map[string]any{
+	return out
+}
+
+func replayAttentionCompatFromSupport(replaySupport models.IncidentEscalationReplaySupport) map[string]any {
+	out := map[string]any{
 		"warrants_attention": replaySupport.WarrantsAttention,
 		"reason_code":        replaySupport.AttentionReasonCode,
 		"framing":            replaySupport.AttentionFraming,
 	}
 	if strings.TrimSpace(replaySupport.Uncertainty) != "" {
-		replayAttention["uncertainty"] = replaySupport.Uncertainty
+		out["uncertainty"] = replaySupport.Uncertainty
 	}
-	return map[string]any{
-		"kind":                   "escalation_bundle/v1",
-		"incident_id":            inc.ID,
-		"narrative":              narrative,
-		"replay_support":         replaySupport,
-		"replay_posture":         replayPosture,
-		"replay_attention":       replayAttention,
-		"linked_control_actions": linked,
-		"proofpack_summary":      pack["assembly"],
-		"section_statuses":       pack["section_statuses"],
-		"evidence_gap_count":     gapCount,
-		"continuity_note":        "linked_control_actions are incident_id-linked rows only; use proofpack for full evidence chain.",
-		"privacy_note":           "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
-		"generated_at":           time.Now().UTC().Format(time.RFC3339),
-	}, nil
+	return out
 }
 
 func escalationReplaySupport(inc models.Incident, proofpack map[string]any) models.IncidentEscalationReplaySupport {

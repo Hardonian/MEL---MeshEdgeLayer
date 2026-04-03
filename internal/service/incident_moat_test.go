@@ -277,3 +277,173 @@ func TestEscalationReplaySupport_TimelineUnavailableMarksDegraded(t *testing.T) 
 		t.Fatalf("expected timeline_section_unavailable degraded reason: %#v", support.DegradedReasons)
 	}
 }
+
+func TestEscalationReplaySupport_CompatibilityProjectionScenarios(t *testing.T) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	testCases := []struct {
+		name                    string
+		incident                models.Incident
+		proofpack               map[string]any
+		wantStatus              string
+		wantReasonCode          string
+		wantWarrantsAttention   bool
+		wantNeedsReview         bool
+		wantDegraded            bool
+		wantCannotProveContains string
+	}{
+		{
+			name: "available_healthy",
+			incident: models.Incident{
+				ID: "inc-rp-healthy",
+				ReplaySummary: &models.IncidentReplaySummary{
+					SchemaVersion: "incident_replay_summary/v1",
+					Semantic:      "quiet_recently",
+					Summary:       "quiet bounded replay window",
+					RecentCount:   1,
+					PriorCount:    2,
+					DeltaTotal:    -1,
+				},
+			},
+			proofpack:             map[string]any{"section_statuses": []any{map[string]any{"section": "timeline", "status": "available"}}},
+			wantStatus:            "available",
+			wantReasonCode:        "replay_bounded_context",
+			wantWarrantsAttention: false,
+			wantNeedsReview:       false,
+			wantDegraded:          true,
+		},
+		{
+			name:                  "summary_missing",
+			incident:              models.Incident{ID: "inc-rp-missing"},
+			proofpack:             map[string]any{},
+			wantStatus:            "unavailable",
+			wantReasonCode:        "replay_summary_missing",
+			wantWarrantsAttention: true,
+			wantNeedsReview:       true,
+			wantDegraded:          true,
+		},
+		{
+			name: "timeline_partial_overrides_attention",
+			incident: models.Incident{
+				ID: "inc-rp-partial",
+				ReplaySummary: &models.IncidentReplaySummary{
+					SchemaVersion: "incident_replay_summary/v1",
+					Semantic:      "quiet_recently",
+					Summary:       "bounded replay posture",
+				},
+			},
+			proofpack:             map[string]any{"section_statuses": []any{map[string]any{"section": "timeline", "status": "partial", "reason": "truncated_window"}}},
+			wantStatus:            "available",
+			wantReasonCode:        "timeline_section_not_complete",
+			wantWarrantsAttention: true,
+			wantNeedsReview:       true,
+			wantDegraded:          true,
+		},
+		{
+			name: "timeline_unavailable",
+			incident: models.Incident{
+				ID: "inc-rp-unavailable",
+				ReplaySummary: &models.IncidentReplaySummary{
+					SchemaVersion: "incident_replay_summary/v1",
+					Semantic:      "quiet_recently",
+					Summary:       "bounded replay posture",
+				},
+			},
+			proofpack:             map[string]any{"section_statuses": []any{map[string]any{"section": "timeline", "status": "unavailable", "reason": "no_timeline_events"}}},
+			wantStatus:            "available",
+			wantReasonCode:        "timeline_section_not_complete",
+			wantWarrantsAttention: true,
+			wantNeedsReview:       true,
+			wantDegraded:          true,
+		},
+		{
+			name: "window_truncated",
+			incident: models.Incident{
+				ID: "inc-rp-truncated",
+				ReplaySummary: &models.IncidentReplaySummary{
+					SchemaVersion:   "incident_replay_summary/v1",
+					Semantic:        "active_changing",
+					Summary:         "window truncated while activity changed",
+					WindowTruncated: true,
+				},
+			},
+			proofpack:               map[string]any{},
+			wantStatus:              "available",
+			wantReasonCode:          "timeline_window_truncated",
+			wantWarrantsAttention:   true,
+			wantNeedsReview:         true,
+			wantDegraded:            true,
+			wantCannotProveContains: "does_not_prove_complete_history_within_response",
+		},
+		{
+			name: "no_history_cannot_prove",
+			incident: models.Incident{
+				ID: "inc-rp-no-history",
+				ReplaySummary: &models.IncidentReplaySummary{
+					SchemaVersion: "incident_replay_summary/v1",
+					Semantic:      "no_history",
+					Summary:       "No persisted replay rows in the bounded incident window.",
+					WindowFrom:    now,
+					WindowTo:      now,
+				},
+			},
+			proofpack:               map[string]any{},
+			wantStatus:              "available",
+			wantReasonCode:          "no_persisted_replay_rows_in_window",
+			wantWarrantsAttention:   true,
+			wantNeedsReview:         true,
+			wantDegraded:            true,
+			wantCannotProveContains: "does_not_prove_calm_runtime_when_no_rows",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			support := escalationReplaySupport(tc.incident, tc.proofpack)
+			posture := replayPostureCompatFromSupport(support)
+			attention := replayAttentionCompatFromSupport(support)
+
+			if support.Status != tc.wantStatus {
+				t.Fatalf("status=%q", support.Status)
+			}
+			if support.AttentionReasonCode != tc.wantReasonCode {
+				t.Fatalf("attention_reason_code=%q", support.AttentionReasonCode)
+			}
+			if support.WarrantsAttention != tc.wantWarrantsAttention {
+				t.Fatalf("warrants_attention=%v", support.WarrantsAttention)
+			}
+			if support.NeedsOperatorReview != tc.wantNeedsReview {
+				t.Fatalf("needs_operator_review=%v", support.NeedsOperatorReview)
+			}
+			if support.Degraded != tc.wantDegraded {
+				t.Fatalf("degraded=%v reasons=%v", support.Degraded, support.DegradedReasons)
+			}
+			if posture["status"] != support.Status || posture["status_reason"] != support.StatusReason {
+				t.Fatalf("posture status projection mismatch: %#v vs %#v", posture, support)
+			}
+			if attention["reason_code"] != support.AttentionReasonCode {
+				t.Fatalf("attention projection mismatch: %#v vs %#v", attention, support)
+			}
+			if support.TimelineSection != nil {
+				timelineStatus, ok := posture["timeline_section_status"].(map[string]any)
+				if !ok {
+					t.Fatalf("missing timeline_section_status projection: %#v", posture["timeline_section_status"])
+				}
+				if timelineStatus["status"] != support.TimelineSection.Status {
+					t.Fatalf("timeline status projection mismatch: %#v vs %#v", timelineStatus, support.TimelineSection)
+				}
+			}
+			if tc.wantCannotProveContains != "" {
+				found := false
+				for _, claim := range support.CannotProve {
+					if claim == tc.wantCannotProveContains {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("cannot_prove missing %q: %#v", tc.wantCannotProveContains, support.CannotProve)
+				}
+			}
+		})
+	}
+}
