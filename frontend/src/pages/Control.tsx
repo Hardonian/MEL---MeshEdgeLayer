@@ -13,6 +13,12 @@ import { ShieldAlert, CheckCircle2, XCircle, Clock, Send, ShieldCheck, Zap, Info
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+function bool(v: unknown): boolean | null {
+  return typeof v === 'boolean' ? v : null
+}
 
 function incidentFromAction(a: MeshNodeControlAction): string {
   const ov = a.operator_view
@@ -53,6 +59,13 @@ export function Control() {
   const actions = history?.actions ?? []
   const realityMatrix = status?.reality_matrix ?? []
   const pendingApprovals = opState?.pending_approvals ?? []
+  const queueMetrics = opState?.queue_metrics
+  const executor = opState?.executor
+  const queueDepth = num(queueMetrics?.queue_depth)
+  const queueCapacity = num(queueMetrics?.queue_capacity)
+  const executorPresent = bool(executor?.present)
+  const executorLastSeen = str(executor?.last_seen_at)
+  const snapshotAt = str(opState?.snapshot_at)
 
   return (
     <div className="space-y-6 pb-12">
@@ -118,6 +131,61 @@ export function Control() {
                 </span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Automation posture</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Badge variant={opState?.automation_mode === 'frozen' ? 'critical' : opState?.automation_mode === 'maintenance' ? 'warning' : 'success'}>
+              {opState?.automation_mode || 'unknown'}
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Active freezes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-mono font-semibold">{opState?.freeze_count ?? '—'}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Approval backlog</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-mono font-semibold">{opState?.approval_backlog ?? pendingApprovals.length}</div>
+            {opState?.approval_backlog !== undefined && opState.approval_backlog !== pendingApprovals.length && (
+              <p className="text-[11px] text-warning mt-1">
+                Backlog snapshot differs from visible rows ({pendingApprovals.length}) due to API filtering/windowing.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Executor presence</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-sm font-medium ${executorPresent === false ? 'text-warning' : ''}`}>
+              {executorPresent === true ? 'present' : executorPresent === false ? 'missing/stale' : 'unknown'}
+            </div>
+            {(queueDepth !== null || queueCapacity !== null) && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Queue {queueDepth ?? '—'} / {queueCapacity ?? '—'}
+              </p>
+            )}
+            {(executorLastSeen || snapshotAt) && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {executorLastSeen ? `Executor heartbeat: ${formatOperatorTime(executorLastSeen)}` : ''}
+                {executorLastSeen && snapshotAt ? ' · ' : ''}
+                {snapshotAt ? `Snapshot: ${formatOperatorTime(snapshotAt)}` : ''}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

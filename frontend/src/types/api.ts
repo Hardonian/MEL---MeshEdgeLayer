@@ -962,6 +962,22 @@ export interface MeshNodeControlAction {
   proposed_by?: string
   approved_by?: string
   evidence_bundle_id?: string
+  approval_expires_at?: string
+  blast_radius_class?: string
+  requires_separate_approver?: boolean
+  incident_id?: string
+  execution_started_at?: string
+  sod_bypass?: boolean
+  sod_bypass_actor?: string
+  sod_bypass_reason?: string
+  approval_mode?: string
+  required_approvals?: number
+  collected_approvals?: number
+  approval_basis?: string[]
+  approval_policy_source?: string
+  high_blast_radius?: boolean
+  approval_escalated_due_to_blast_radius?: boolean
+  execution_source?: string
   operator_view?: ControlActionOperatorView
   details?: Record<string, unknown>
 }
@@ -995,6 +1011,14 @@ export interface ControlHistoryResponse {
 
 /** GET /api/v1/control/operational-state — fields used by the operator console. */
 export interface ControlOperationalStateResponse {
+  automation_mode?: 'normal' | 'frozen' | 'maintenance' | string
+  freeze_count?: number
+  approval_backlog?: number
+  snapshot_at?: string
+  queue_metrics?: Record<string, unknown>
+  executor?: Record<string, unknown>
+  active_freezes?: Record<string, unknown>[]
+  active_maintenance?: Record<string, unknown>[]
   pending_approvals?: MeshNodeControlAction[]
 }
 
