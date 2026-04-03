@@ -96,6 +96,33 @@ interface ReplayView {
     linked_control_redacted?: boolean
     visibility_note?: string
     ordering_posture_note?: string
+    delta_last_10m?: {
+      window_minutes: number
+      anchor_time: string
+      cutoff_time: string
+      recent_segment_count: number
+      prior_segment_count: number
+      recent_control_events: number
+      prior_control_events: number
+      recent_workflow_events: number
+      prior_workflow_events: number
+      recent_operator_events: number
+      prior_operator_events: number
+      recent_evidence_events: number
+      prior_evidence_events: number
+      recent_incident_events: number
+      prior_incident_events: number
+      delta_total: number
+      delta_control: number
+      delta_workflow: number
+      delta_operator: number
+      delta_evidence: number
+      delta_incident: number
+      activity_posture: string
+      sparse_evidence?: boolean
+      uncertainty?: string
+      interpretation_posture_note?: string
+    }
   }
   recommendation_outcomes?: Array<{
     id: string
@@ -1218,6 +1245,11 @@ function replayInterpretationHuman(posture: string | undefined): string {
   }
 }
 
+function replayDeltaLabel(v: number): string {
+  if (v > 0) return `+${v}`
+  return `${v}`
+}
+
 function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incidentId }: {
   segments: ReplaySegment[]
   truthNote?: string
@@ -1330,6 +1362,26 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
             <span className="text-warning">Sparse timeline</span>
           )}
           {replayMeta.window_truncated && <span className="text-warning">Query capped</span>}
+        </div>
+      )}
+      {replayMeta?.delta_last_10m && (
+        <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2.5 space-y-1.5">
+          <p className="text-[11px] font-semibold text-foreground">
+            What MEL knows now vs 10 minutes ago (persisted replay rows)
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span>Total {replayDeltaLabel(replayMeta.delta_last_10m.delta_total)} ({replayMeta.delta_last_10m.recent_segment_count} recent / {replayMeta.delta_last_10m.prior_segment_count} prior)</span>
+            <span>Control {replayDeltaLabel(replayMeta.delta_last_10m.delta_control)}</span>
+            <span>Workflow {replayDeltaLabel(replayMeta.delta_last_10m.delta_workflow)}</span>
+            <span>Evidence {replayDeltaLabel(replayMeta.delta_last_10m.delta_evidence)}</span>
+            <span>Operator {replayDeltaLabel(replayMeta.delta_last_10m.delta_operator)}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground border-l-2 border-border pl-2.5">
+            {replayMeta.delta_last_10m.interpretation_posture_note}
+          </p>
+          {replayMeta.delta_last_10m.sparse_evidence && replayMeta.delta_last_10m.uncertainty && (
+            <p className="text-[11px] text-warning">{replayMeta.delta_last_10m.uncertainty}</p>
+          )}
         </div>
       )}
       {interpLine && (
