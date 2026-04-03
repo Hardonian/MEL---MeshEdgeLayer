@@ -157,6 +157,18 @@ func guidanceBlock(inc models.Incident, readiness operatorreadiness.OperatorRead
 		if s := strings.TrimSpace(rs.Semantic); s != "" {
 			g.ReplaySemantic = s
 		}
+		if s := strings.TrimSpace(rs.HistoryPattern); s != "" {
+			g.ReplayHistoryPattern = s
+		}
+		if s := strings.TrimSpace(rs.Comparability); s != "" {
+			g.ReplayComparability = s
+		}
+		if s := strings.TrimSpace(rs.AttentionReason); s != "" {
+			g.ReplayAttentionReason = s
+		}
+		if len(rs.NotComparable) > 0 {
+			g.ReplayNotComparable = append([]string(nil), rs.NotComparable...)
+		}
 		if s := strings.TrimSpace(rs.Summary); s != "" {
 			g.ReplaySummary = s
 		}

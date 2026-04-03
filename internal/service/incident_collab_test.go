@@ -189,6 +189,15 @@ func TestIncidentByIDForAPI_ReplaySummary_NoHistoryIsExplicit(t *testing.T) {
 	if !got.ReplaySummary.Degraded {
 		t.Fatalf("expected degraded replay summary")
 	}
+	if got.ReplaySummary.HistoryPattern != "thin_history" {
+		t.Fatalf("history_pattern=%q", got.ReplaySummary.HistoryPattern)
+	}
+	if got.ReplaySummary.Comparability != "not_comparable" {
+		t.Fatalf("comparability=%q", got.ReplaySummary.Comparability)
+	}
+	if !got.ReplaySummary.NeedsAttention {
+		t.Fatalf("expected needs_attention for no_history replay")
+	}
 }
 
 func TestIncidentByIDForAPI_ReplaySummary_SparseHistoryIsExplicit(t *testing.T) {
@@ -232,6 +241,12 @@ func TestIncidentByIDForAPI_ReplaySummary_SparseHistoryIsExplicit(t *testing.T) 
 	}
 	if !got.ReplaySummary.SparseEvidence {
 		t.Fatalf("expected sparse evidence flag")
+	}
+	if got.ReplaySummary.HistoryPattern != "thin_history" {
+		t.Fatalf("history_pattern=%q", got.ReplaySummary.HistoryPattern)
+	}
+	if got.ReplaySummary.AttentionReason == "" {
+		t.Fatalf("expected attention reason")
 	}
 }
 

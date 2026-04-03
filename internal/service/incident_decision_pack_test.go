@@ -49,6 +49,12 @@ func TestIncidentByIDForAPI_IncludesDecisionPack(t *testing.T) {
 	if got.DecisionPack.Guidance.ReplaySemantic == "" {
 		t.Fatalf("expected replay semantic on guidance")
 	}
+	if got.DecisionPack.Guidance.ReplayHistoryPattern == "" {
+		t.Fatalf("expected replay history pattern on guidance")
+	}
+	if got.DecisionPack.Guidance.ReplayComparability == "" {
+		t.Fatalf("expected replay comparability on guidance")
+	}
 }
 
 func TestPatchIncidentDecisionPackAdjudication_Persists(t *testing.T) {

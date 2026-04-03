@@ -163,3 +163,61 @@ func TestComputeForIncident_MeshRoutingCompanionStress(t *testing.T) {
 		t.Fatalf("expected tier <=2 for mesh stress, got %d", sig.Tier)
 	}
 }
+
+func TestComputeForIncident_ReplayWorseningRaisesTier(t *testing.T) {
+	inc := models.Incident{
+		ID:    "replay-worsening",
+		State: "open",
+		ReplaySummary: &models.IncidentReplaySummary{
+			Semantic:        "active_changing",
+			HistoryPattern:  "worsening",
+			Comparability:   "comparable",
+			NeedsAttention:  true,
+			AttentionReason: "history_worsening",
+			Summary:         "Replay posture active changing in bounded window.",
+		},
+	}
+	sig := ComputeForIncident(inc)
+	if sig.Tier > 2 {
+		t.Fatalf("expected tier <=2 for worsening replay, got %d", sig.Tier)
+	}
+	found := false
+	for _, c := range sig.Codes {
+		if c == "replay_history_worsening" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected replay_history_worsening in codes: %#v", sig.Codes)
+	}
+}
+
+func TestComputeForIncident_ReplayNotComparableAddsUncertainty(t *testing.T) {
+	inc := models.Incident{
+		ID:    "replay-thin",
+		State: "open",
+		ReplaySummary: &models.IncidentReplaySummary{
+			Semantic:        "sparse",
+			HistoryPattern:  "thin_history",
+			Comparability:   "not_comparable",
+			NeedsAttention:  true,
+			AttentionReason: "history_thin",
+			NotComparable:   []string{"insufficient_replay_rows"},
+		},
+	}
+	sig := ComputeForIncident(inc)
+	if sig.Tier > 2 {
+		t.Fatalf("expected tier <=2 for not_comparable replay, got %d", sig.Tier)
+	}
+	hasUncertainty := false
+	for _, u := range sig.UncertaintyNotes {
+		if u != "" {
+			hasUncertainty = true
+			break
+		}
+	}
+	if !hasUncertainty {
+		t.Fatalf("expected uncertainty notes for replay not comparable: %#v", sig.UncertaintyNotes)
+	}
+}

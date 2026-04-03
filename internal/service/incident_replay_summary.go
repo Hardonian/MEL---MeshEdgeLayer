@@ -13,13 +13,15 @@ const replaySummaryOutcomeCap = 40
 
 func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentReplaySummary {
 	if a == nil || a.DB == nil || strings.TrimSpace(inc.ID) == "" {
-		return &models.IncidentReplaySummary{
+		out := &models.IncidentReplaySummary{
 			SchemaVersion:   "incident_replay_summary/v1",
 			Semantic:        "unavailable",
 			Degraded:        true,
 			DegradedReasons: []string{"replay_service_unavailable"},
 			Summary:         "Replay posture unavailable in this API context.",
 		}
+		applyReplayHistoryContract(out)
+		return out
 	}
 	from, to := incidentEvidenceWindow(inc)
 	out := &models.IncidentReplaySummary{
@@ -35,6 +37,7 @@ func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentRe
 		out.DegradedReasons = append(out.DegradedReasons, "timeline_query_failed")
 		out.Summary = "Replay unavailable: could not query persisted timeline rows for this incident window."
 		out.Uncertainty = "Replay posture missing due to query failure; verify timeline/replay endpoint before deriving queue urgency."
+		applyReplayHistoryContract(out)
 		return out
 	}
 	out.WindowTruncated = len(timeline) >= replaySummaryTimelineCap
@@ -55,6 +58,7 @@ func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentRe
 		out.Summary = "No persisted replay rows in the bounded incident window."
 		out.Uncertainty = "Absence of rows is not proof of calm runtime; evidence may be outside window or retention bounds."
 		out.RecommendationRef = "/api/v1/incidents/" + inc.ID + "/replay"
+		applyReplayHistoryContract(out)
 		return out
 	}
 	if ts := latestReplaySegmentTime(segments); !ts.IsZero() {
@@ -68,6 +72,7 @@ func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentRe
 		out.Summary = "Replay rows found, but deterministic now-vs-10m delta is unavailable for this response."
 		out.Uncertainty = "Timestamp quality in persisted rows may be incomplete; open full replay for manual review."
 		out.RecommendationRef = "/api/v1/incidents/" + inc.ID + "/replay"
+		applyReplayHistoryContract(out)
 		return out
 	}
 	out.ActivityPosture = asString(delta["activity_posture"])
@@ -102,7 +107,64 @@ func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentRe
 		out.Summary += " Timeline rows reached cap; additional history may exist outside this response."
 	}
 	out.RecommendationRef = "/api/v1/incidents/" + inc.ID + "/replay"
+	applyReplayHistoryContract(out)
 	return out
+}
+
+func applyReplayHistoryContract(out *models.IncidentReplaySummary) {
+	if out == nil {
+		return
+	}
+	out.NotComparable = nil
+	switch strings.TrimSpace(out.Semantic) {
+	case "active_changing":
+		out.HistoryPattern = "worsening"
+		out.Comparability = "comparable"
+		out.NeedsAttention = true
+		out.AttentionReason = "history_worsening"
+	case "cooling_off":
+		out.HistoryPattern = "recovering"
+		out.Comparability = "comparable"
+		out.AttentionReason = "history_recovering"
+	case "quiet_recently":
+		out.HistoryPattern = "stable"
+		out.Comparability = "comparable"
+		out.AttentionReason = "history_stable"
+	case "sparse", "no_history":
+		out.HistoryPattern = "thin_history"
+		out.Comparability = "not_comparable"
+		out.NeedsAttention = true
+		out.AttentionReason = "history_thin"
+		out.NotComparable = append(out.NotComparable, "insufficient_replay_rows")
+	case "partial":
+		out.HistoryPattern = "partial"
+		out.Comparability = "not_comparable"
+		out.NeedsAttention = true
+		out.AttentionReason = "history_partial"
+		out.NotComparable = append(out.NotComparable, "delta_unavailable")
+	case "unavailable":
+		out.HistoryPattern = "unavailable"
+		out.Comparability = "unavailable"
+		out.NeedsAttention = true
+		out.AttentionReason = "history_unavailable"
+		out.NotComparable = append(out.NotComparable, "replay_unavailable")
+	default:
+		out.HistoryPattern = "partial"
+		out.Comparability = "not_comparable"
+		out.NeedsAttention = true
+		out.AttentionReason = "history_not_comparable"
+		out.NotComparable = append(out.NotComparable, "unknown_replay_semantic")
+	}
+	if out.Degraded {
+		out.NeedsAttention = true
+		for _, r := range out.DegradedReasons {
+			r = strings.TrimSpace(r)
+			if r == "" {
+				continue
+			}
+			out.NotComparable = append(out.NotComparable, r)
+		}
+	}
 }
 
 func latestReplaySegmentTime(segments []replaySegment) time.Time {

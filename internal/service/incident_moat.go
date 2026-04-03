@@ -1434,25 +1434,28 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 
 func replayPostureCompatFromSupport(replaySupport models.IncidentEscalationReplaySupport) map[string]any {
 	out := map[string]any{
-		"schema_version":        replaySupport.SchemaVersion,
-		"status":                replaySupport.Status,
-		"status_reason":         replaySupport.StatusReason,
-		"semantic":              replaySupport.Semantic,
-		"summary":               replaySupport.Summary,
-		"uncertainty":           replaySupport.Uncertainty,
-		"window_from":           replaySupport.WindowFrom,
-		"window_to":             replaySupport.WindowTo,
-		"last_event_at":         replaySupport.LastEventAt,
-		"anchor_time":           replaySupport.AnchorTime,
-		"recent_count":          replaySupport.RecentCount,
-		"prior_count":           replaySupport.PriorCount,
-		"delta_total":           replaySupport.DeltaTotal,
-		"window_truncated":      replaySupport.WindowTruncated,
-		"degraded":              replaySupport.Degraded,
-		"degraded_reasons":      replaySupport.DegradedReasons,
-		"cannot_prove":          replaySupport.CannotProve,
-		"needs_operator_review": replaySupport.NeedsOperatorReview,
-		"support_note":          replaySupport.SupportNote,
+		"schema_version":         replaySupport.SchemaVersion,
+		"status":                 replaySupport.Status,
+		"status_reason":          replaySupport.StatusReason,
+		"semantic":               replaySupport.Semantic,
+		"history_pattern":        replaySupport.HistoryPattern,
+		"comparability":          replaySupport.Comparability,
+		"summary":                replaySupport.Summary,
+		"uncertainty":            replaySupport.Uncertainty,
+		"window_from":            replaySupport.WindowFrom,
+		"window_to":              replaySupport.WindowTo,
+		"last_event_at":          replaySupport.LastEventAt,
+		"anchor_time":            replaySupport.AnchorTime,
+		"recent_count":           replaySupport.RecentCount,
+		"prior_count":            replaySupport.PriorCount,
+		"delta_total":            replaySupport.DeltaTotal,
+		"window_truncated":       replaySupport.WindowTruncated,
+		"degraded":               replaySupport.Degraded,
+		"degraded_reasons":       replaySupport.DegradedReasons,
+		"not_comparable_reasons": replaySupport.NotComparable,
+		"cannot_prove":           replaySupport.CannotProve,
+		"needs_operator_review":  replaySupport.NeedsOperatorReview,
+		"support_note":           replaySupport.SupportNote,
 	}
 	if replaySupport.TimelineSection != nil {
 		out["timeline_section_status"] = map[string]any{
@@ -1538,6 +1541,8 @@ func escalationReplaySupport(inc models.Incident, proofpack map[string]any) mode
 		return out
 	}
 	out.Semantic = strings.TrimSpace(rs.Semantic)
+	out.HistoryPattern = strings.TrimSpace(rs.HistoryPattern)
+	out.Comparability = strings.TrimSpace(rs.Comparability)
 	out.Summary = strings.TrimSpace(rs.Summary)
 	out.Uncertainty = strings.TrimSpace(rs.Uncertainty)
 	out.WindowFrom = strings.TrimSpace(rs.WindowFrom)
@@ -1550,6 +1555,7 @@ func escalationReplaySupport(inc models.Incident, proofpack map[string]any) mode
 	out.WindowTruncated = rs.WindowTruncated
 	out.Degraded = out.Degraded || rs.Degraded
 	out.DegradedReasons = append(out.DegradedReasons, rs.DegradedReasons...)
+	out.NotComparable = append(out.NotComparable, rs.NotComparable...)
 	out.Status = "available"
 	out.StatusReason = "replay_summary_present"
 	if strings.TrimSpace(rs.SchemaVersion) != "" {
@@ -1560,27 +1566,29 @@ func escalationReplaySupport(inc models.Incident, proofpack map[string]any) mode
 		"does_not_prove_transport_delivery_or_rf_path_success",
 		"bounded_to_persisted_rows_in_incident_window",
 	}
-	reasonCode := "replay_bounded_context"
-	warrants := false
-	switch strings.TrimSpace(rs.Semantic) {
-	case "active_changing":
-		warrants = true
-		reasonCode = "activity_increasing_in_bounded_window"
-	case "unavailable":
-		warrants = true
-		reasonCode = "replay_unavailable"
-	case "partial":
-		warrants = true
-		reasonCode = "replay_partial"
-	case "sparse":
-		warrants = true
-		reasonCode = "replay_sparse"
-	case "no_history":
-		warrants = true
-		reasonCode = "no_persisted_replay_rows_in_window"
-	}
-	if rs.Degraded {
-		warrants = true
+	reasonCode := strings.TrimSpace(rs.AttentionReason)
+	warrants := rs.NeedsAttention || rs.Degraded
+	if reasonCode == "" {
+		switch strings.TrimSpace(rs.Semantic) {
+		case "active_changing":
+			reasonCode = "history_worsening"
+			warrants = true
+		case "cooling_off":
+			reasonCode = "history_recovering"
+		case "quiet_recently":
+			reasonCode = "history_stable"
+		case "unavailable":
+			reasonCode = "history_unavailable"
+			warrants = true
+		case "partial":
+			reasonCode = "history_partial"
+			warrants = true
+		case "sparse", "no_history":
+			reasonCode = "history_thin"
+			warrants = true
+		default:
+			reasonCode = "replay_bounded_context"
+		}
 	}
 	if rs.WindowTruncated {
 		warrants = true
@@ -1603,9 +1611,7 @@ func escalationReplaySupport(inc models.Incident, proofpack map[string]any) mode
 	if sectionStatus != nil && (sectionStatus.Status == "partial" || sectionStatus.Status == "unavailable") {
 		out.WarrantsAttention = true
 		out.NeedsOperatorReview = true
-		if out.AttentionReasonCode == "replay_bounded_context" {
-			out.AttentionReasonCode = "timeline_section_not_complete"
-		}
+		out.AttentionReasonCode = "timeline_section_not_complete"
 	}
 	return out
 }
