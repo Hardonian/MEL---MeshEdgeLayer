@@ -227,4 +227,53 @@ func TestBuildEscalationBundle_IncludesReplayPosture(t *testing.T) {
 	if strings.TrimSpace(asString(att["reason_code"])) == "" {
 		t.Fatalf("missing reason_code: %#v", att)
 	}
+	rs, ok := b["replay_support"].(models.IncidentEscalationReplaySupport)
+	if !ok {
+		t.Fatalf("missing replay_support: %#v", b["replay_support"])
+	}
+	if rs.Status != "available" {
+		t.Fatalf("replay_support status=%v", rs.Status)
+	}
+	if strings.TrimSpace(rs.AttentionReasonCode) == "" {
+		t.Fatalf("missing replay_support attention_reason_code: %#v", rs)
+	}
+}
+
+func TestEscalationReplaySupport_TimelineUnavailableMarksDegraded(t *testing.T) {
+	inc := models.Incident{
+		ID: "inc-rp-unavailable",
+		ReplaySummary: &models.IncidentReplaySummary{
+			SchemaVersion: "incident_replay_summary/v1",
+			Semantic:      "quiet_recently",
+			Summary:       "Replay posture quiet recently: 0 recent vs 1 prior rows (Δ -1) in deterministic 10-minute delta (bounded incident window).",
+		},
+	}
+	support := escalationReplaySupport(inc, map[string]any{
+		"section_statuses": []any{
+			map[string]any{
+				"section": "timeline",
+				"status":  "unavailable",
+				"reason":  "no_timeline_events",
+			},
+		},
+	})
+	if !support.Degraded {
+		t.Fatalf("expected degraded replay support when timeline section unavailable: %#v", support)
+	}
+	if !support.WarrantsAttention {
+		t.Fatalf("expected attention when timeline section unavailable: %#v", support)
+	}
+	if support.TimelineSection == nil || support.TimelineSection.Status != "unavailable" {
+		t.Fatalf("expected timeline section reference: %#v", support.TimelineSection)
+	}
+	found := false
+	for _, reason := range support.DegradedReasons {
+		if reason == "timeline_section_unavailable" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected timeline_section_unavailable degraded reason: %#v", support.DegradedReasons)
+	}
 }
