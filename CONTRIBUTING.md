@@ -51,19 +51,28 @@ The control plane dashboard lives in `frontend/`.
 
 ```bash
 cd frontend
+nvm use # reads .nvmrc (Node 24.x required)
 npm install
-npm run dev      # Start dev server on port 3000
+npm run dev      # Start dev server (Vite default: http://localhost:5173)
 npm run lint     # Check styling
+npm run typecheck
 npm test         # Run vitest suite
 ```
+
+Runtime contract:
+- Frontend install/lint/typecheck/test/build are guarded by `frontend/scripts/require-node24.mjs`.
+- Required Node version: `24.x` (`>=24 <25`, see `frontend/package.json` + `frontend/.nvmrc`).
+- If Node is not 24.x, frontend commands fail fast with a runtime-contract error.
 
 ### 3. Verification Standards
 
 Every Pull Request must:
 <BLANK_LINE>
 - Pass `make lint`.
+- Pass `make frontend-typecheck`.
+- Pass `make frontend-test`.
 - Pass `make test`.
-- Pass `make smoke`.
+- Build `./bin/mel` before smoke (`make build-cli` or `make build`), then pass `make smoke`.
 - Include verification steps in the description.
 
 ---

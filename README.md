@@ -75,13 +75,17 @@ Use these before making release-strength claims:
 
 ```bash
 make lint
+make frontend-typecheck
+make frontend-test
 make test
 make build
 make product-verify
 make smoke
 ```
 
-Note: `make smoke` expects `.tmp/smoke.json` fixture in this repo environment.
+Notes:
+- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this).
+- `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
 
 Then apply the repo-os gates:
 <BLANK_LINE>
