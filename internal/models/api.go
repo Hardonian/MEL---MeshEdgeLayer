@@ -106,6 +106,42 @@ type IncidentReplaySummary struct {
 	RecommendationRef string   `json:"recommendation_ref,omitempty"`
 }
 
+// IncidentEscalationReplaySupport is the compact replay-support contract included in escalation bundles.
+// It carries bounded replay posture for support handoff without embedding full replay payloads.
+type IncidentEscalationReplaySupport struct {
+	SchemaVersion       string                           `json:"schema_version,omitempty"`
+	Status              string                           `json:"status,omitempty"`        // available | unavailable
+	StatusReason        string                           `json:"status_reason,omitempty"` // replay_summary_present | replay_summary_missing
+	Semantic            string                           `json:"semantic,omitempty"`
+	Summary             string                           `json:"summary,omitempty"`
+	Uncertainty         string                           `json:"uncertainty,omitempty"`
+	NeedsOperatorReview bool                             `json:"needs_operator_review"`
+	WarrantsAttention   bool                             `json:"warrants_attention"`
+	AttentionReasonCode string                           `json:"attention_reason_code,omitempty"`
+	AttentionFraming    string                           `json:"attention_framing,omitempty"`
+	WindowFrom          string                           `json:"window_from,omitempty"`
+	WindowTo            string                           `json:"window_to,omitempty"`
+	AnchorTime          string                           `json:"anchor_time,omitempty"`
+	LastEventAt         string                           `json:"last_event_at,omitempty"`
+	RecentCount         int                              `json:"recent_count,omitempty"`
+	PriorCount          int                              `json:"prior_count,omitempty"`
+	DeltaTotal          int                              `json:"delta_total,omitempty"`
+	WindowTruncated     bool                             `json:"window_truncated,omitempty"`
+	Degraded            bool                             `json:"degraded"`
+	DegradedReasons     []string                         `json:"degraded_reasons,omitempty"`
+	CannotProve         []string                         `json:"cannot_prove,omitempty"`
+	SupportNote         string                           `json:"support_note,omitempty"`
+	RecommendationRef   string                           `json:"recommendation_ref,omitempty"`
+	TimelineSection     *ProofpackSectionStatusReference `json:"timeline_section_status,omitempty"`
+}
+
+// ProofpackSectionStatusReference is a compact, typed reference to proofpack section completeness.
+type ProofpackSectionStatusReference struct {
+	Section string `json:"section,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
 // IncidentDecisionPackSchemaVersion is bumped when section shapes or semantics change incompatibly.
 const IncidentDecisionPackSchemaVersion = "1"
 
