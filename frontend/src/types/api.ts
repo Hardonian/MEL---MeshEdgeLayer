@@ -27,6 +27,44 @@ export interface VersionResponse {
   operator_readiness?: OperatorReadinessDTO
 }
 
+
+export interface ConfigSafetyViolation {
+  field: string
+  issue: string
+  current: string
+  safe: string
+}
+
+export interface ConfigInspectValues {
+  bind?: {
+    api?: string
+    metrics?: string
+  }
+  auth?: {
+    enabled?: boolean
+    ui_user?: string
+  }
+  storage?: {
+    database_path?: string
+  }
+  privacy?: {
+    redact_exports?: boolean
+    map_reporting_allowed?: boolean
+  }
+  features?: {
+    google_maps_in_topology_ui?: boolean
+    google_maps_api_key_env?: string
+    metrics?: boolean
+  }
+}
+
+export interface ConfigInspectResponse {
+  fingerprint?: string
+  canonical_fingerprint?: string
+  values?: ConfigInspectValues
+  violations?: ConfigSafetyViolation[]
+}
+
 export interface OperatorIntelligencePosture {
   deterministic_incident_intel: string
   deterministic_basis: string

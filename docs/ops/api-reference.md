@@ -1322,6 +1322,41 @@ Control history (same data as `/api/v1/control/actions` but without the structur
 
 ---
 
+### GET /api/v1/config/inspect
+
+Returns the effective runtime-loaded config (redacted), plus fingerprints and safe-default violations.
+
+**Response:**
+```json
+{
+  "fingerprint": "sha256-of-loaded-config-or-effective-json",
+  "canonical_fingerprint": "sha256-of-canonical-effective-config",
+  "values": {
+    "bind": { "api": "127.0.0.1:8080", "metrics": "" },
+    "auth": { "enabled": false, "ui_user": "admin" },
+    "storage": { "database_path": "./data/mel.db" },
+    "privacy": { "redact_exports": true, "map_reporting_allowed": false },
+    "features": {
+      "google_maps_in_topology_ui": false,
+      "google_maps_api_key_env": "",
+      "metrics": false
+    }
+  },
+  "violations": [
+    {
+      "field": "control.mode",
+      "issue": "non-advisory control mode enabled",
+      "current": "enabled",
+      "safe": "advisory or disabled"
+    }
+  ]
+}
+```
+
+`values` is the redacted runtime-loaded config object (not a health assertion).
+
+---
+
 ### GET /api/v1/control/operational-state
 
 Snapshot of freezes, maintenance windows, pending approvals, **queue metrics**, and

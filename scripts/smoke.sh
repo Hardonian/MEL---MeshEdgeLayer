@@ -2,6 +2,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+if [ ! -x ./bin/mel ]; then
+  echo "smoke: missing executable ./bin/mel" >&2
+  echo "smoke: build it first with 'make build-cli' (or 'make build')." >&2
+  exit 1
+fi
 mkdir -p .tmp
 CFG=.tmp/smoke.json
 ./bin/mel init --config "$CFG" --force >/dev/null
