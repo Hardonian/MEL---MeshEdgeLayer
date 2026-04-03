@@ -95,8 +95,11 @@ func (a *App) buildIncidentReplaySummary(inc models.Incident) *models.IncidentRe
 		out.Uncertainty = u
 	}
 	if out.Summary == "" {
-		out.Summary = fmt.Sprintf("Replay posture %s: %d recent vs %d prior rows (Δ %d) in deterministic 10-minute delta.",
+		out.Summary = fmt.Sprintf("Replay posture %s: %d recent vs %d prior rows (Δ %d) in deterministic 10-minute delta (bounded incident window).",
 			strings.ReplaceAll(out.Semantic, "_", " "), out.RecentCount, out.PriorCount, out.DeltaTotal)
+	}
+	if out.WindowTruncated {
+		out.Summary += " Timeline rows reached cap; additional history may exist outside this response."
 	}
 	out.RecommendationRef = "/api/v1/incidents/" + inc.ID + "/replay"
 	return out

@@ -372,6 +372,9 @@ func WhySurfacedOneLiner(inc models.Incident) string {
 			}
 		}
 	}
+	if rs := strings.TrimSpace(replayWhyLine(inc.ReplaySummary)); rs != "" {
+		return rs
+	}
 	if inc.Intelligence != nil && inc.Intelligence.MitigationDurabilityMemory != nil {
 		md := inc.Intelligence.MitigationDurabilityMemory
 		if md.Posture == "reopened_after_resolution_in_family" || md.Posture == "deterioration_or_mixed_in_outcome_memory" {
@@ -396,4 +399,23 @@ func WhySurfacedOneLiner(inc models.Incident) string {
 		return "Reopened incident — compare replay and outcomes before reusing the same control pattern."
 	}
 	return "Open in workflow — verify state against replay and exports before stronger claims."
+}
+
+func replayWhyLine(rs *models.IncidentReplaySummary) string {
+	if rs == nil {
+		return ""
+	}
+	if summary := strings.TrimSpace(rs.Summary); summary != "" {
+		if rs.Degraded {
+			if u := strings.TrimSpace(rs.Uncertainty); u != "" {
+				return summary + " " + u
+			}
+		}
+		return summary
+	}
+	semantic := strings.TrimSpace(rs.Semantic)
+	if semantic == "" {
+		return ""
+	}
+	return fmt.Sprintf("Replay posture %s in the bounded incident window; inspect incident.replay_summary for exact counts and caveats.", strings.ReplaceAll(semantic, "_", " "))
 }
