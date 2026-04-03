@@ -1010,15 +1010,48 @@ export interface ControlHistoryResponse {
 }
 
 /** GET /api/v1/control/operational-state — fields used by the operator console. */
+export interface ControlQueueMetrics {
+  queued_lifecycle_pending_count: number
+  awaiting_approval_count: number
+  approved_waiting_executor_count: number
+  oldest_queued_pending_created_at: string
+  oldest_approved_waiting_executor_created_at: string
+}
+
+export interface ControlExecutorPresence {
+  executor_activity: 'active' | 'inactive' | 'unknown' | string
+  executor_last_heartbeat_at: string
+  executor_last_reported_kind: string
+  executor_heartbeat_basis: string
+  executor_presence_note: string
+  backlog_requires_active_executor: boolean
+}
+
+export interface ActiveFreezeWindow {
+  id: string
+  reason: string
+  actor: string
+  scope: string
+  created_at: string
+}
+
+export interface ActiveMaintenanceWindow {
+  id: string
+  reason: string
+  actor: string
+  starts_at: string
+  ends_at: string
+}
+
 export interface ControlOperationalStateResponse {
   automation_mode?: 'normal' | 'frozen' | 'maintenance' | string
   freeze_count?: number
   approval_backlog?: number
   snapshot_at?: string
-  queue_metrics?: Record<string, unknown>
-  executor?: Record<string, unknown>
-  active_freezes?: Record<string, unknown>[]
-  active_maintenance?: Record<string, unknown>[]
+  queue_metrics?: ControlQueueMetrics
+  executor?: ControlExecutorPresence
+  active_freezes?: ActiveFreezeWindow[]
+  active_maintenance?: ActiveMaintenanceWindow[]
   pending_approvals?: MeshNodeControlAction[]
 }
 

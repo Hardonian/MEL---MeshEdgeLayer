@@ -1328,6 +1328,51 @@ Snapshot of freezes, maintenance windows, pending approvals, **queue metrics**, 
 **executor presence** (heartbeat from `mel serve` when available). Executor activity may
 be `active`, `inactive`, or `unknown` if no heartbeat has been recorded.
 
+**Typed posture fields currently emitted:**
+
+```json
+{
+  "automation_mode": "normal|frozen|maintenance",
+  "freeze_count": 0,
+  "approval_backlog": 0,
+  "snapshot_at": "2026-04-02T12:00:00Z",
+  "queue_metrics": {
+    "queued_lifecycle_pending_count": 0,
+    "awaiting_approval_count": 0,
+    "approved_waiting_executor_count": 0,
+    "oldest_queued_pending_created_at": "",
+    "oldest_approved_waiting_executor_created_at": ""
+  },
+  "executor": {
+    "executor_activity": "active|inactive|unknown",
+    "executor_last_heartbeat_at": "",
+    "executor_last_reported_kind": "",
+    "executor_heartbeat_basis": "control_plane_state",
+    "executor_presence_note": "",
+    "backlog_requires_active_executor": true
+  },
+  "active_freezes": [
+    {
+      "id": "frz-1",
+      "scope_type": "global|transport|action_type",
+      "scope_value": "",
+      "reason": "",
+      "created_by": "",
+      "created_at": ""
+    }
+  ],
+  "active_maintenance": [
+    {
+      "id": "mw-1",
+      "reason": "",
+      "created_by": "",
+      "starts_at": "",
+      "ends_at": ""
+    }
+  ]
+}
+```
+
 ### POST /api/v1/control/actions/{id}/approve
 
 Approves a `pending_approval` action. Response includes explicit fields such as

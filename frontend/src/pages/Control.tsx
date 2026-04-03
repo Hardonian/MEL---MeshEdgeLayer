@@ -13,12 +13,6 @@ import { ShieldAlert, CheckCircle2, XCircle, Clock, Send, ShieldCheck, Zap, Info
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
-function num(v: unknown): number | null {
-  return typeof v === 'number' && Number.isFinite(v) ? v : null
-}
-function bool(v: unknown): boolean | null {
-  return typeof v === 'boolean' ? v : null
-}
 
 function incidentFromAction(a: MeshNodeControlAction): string {
   const ov = a.operator_view
@@ -61,10 +55,11 @@ export function Control() {
   const pendingApprovals = opState?.pending_approvals ?? []
   const queueMetrics = opState?.queue_metrics
   const executor = opState?.executor
-  const queueDepth = num(queueMetrics?.queue_depth)
-  const queueCapacity = num(queueMetrics?.queue_capacity)
-  const executorPresent = bool(executor?.present)
-  const executorLastSeen = str(executor?.last_seen_at)
+  const queueDepth = queueMetrics?.approved_waiting_executor_count ?? null
+  const queueCapacity = queueMetrics?.queued_lifecycle_pending_count ?? null
+  const awaitingApproval = queueMetrics?.awaiting_approval_count ?? null
+  const executorState = executor?.executor_activity
+  const executorLastSeen = str(executor?.executor_last_heartbeat_at)
   const snapshotAt = str(opState?.snapshot_at)
 
   return (
@@ -171,12 +166,17 @@ export function Control() {
             <CardTitle className="text-sm">Executor presence</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-sm font-medium ${executorPresent === false ? 'text-warning' : ''}`}>
-              {executorPresent === true ? 'present' : executorPresent === false ? 'missing/stale' : 'unknown'}
+            <div className={`text-sm font-medium ${executorState === 'inactive' ? 'text-warning' : ''}`}>
+              {executorState === 'active' ? 'active' : executorState === 'inactive' ? 'inactive/stale' : 'unknown'}
             </div>
             {(queueDepth !== null || queueCapacity !== null) && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                Queue {queueDepth ?? '—'} / {queueCapacity ?? '—'}
+                Approved waiting executor: {queueDepth ?? '—'} · Pending (non-approved): {queueCapacity ?? '—'}
+              </p>
+            )}
+            {awaitingApproval !== null && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Awaiting second-operator approval: {awaitingApproval}
               </p>
             )}
             {(executorLastSeen || snapshotAt) && (
@@ -186,6 +186,9 @@ export function Control() {
                 {snapshotAt ? `Snapshot: ${formatOperatorTime(snapshotAt)}` : ''}
               </p>
             )}
+            {executor?.executor_presence_note ? (
+              <p className="text-[11px] text-muted-foreground mt-1">{executor.executor_presence_note}</p>
+            ) : null}
           </CardContent>
         </Card>
       </div>
