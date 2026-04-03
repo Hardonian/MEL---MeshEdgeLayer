@@ -1369,7 +1369,7 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 	if incidentID == "" {
 		return nil, fmt.Errorf("incident id is required")
 	}
-	inc, ok, err := a.IncidentByID(incidentID)
+	inc, ok, err := a.IncidentByIDForAPI(incidentID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1412,10 +1412,13 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 			"reversible":       act.Reversible,
 		})
 	}
+	replayPosture, replayAttention := escalationReplayPosture(inc, pack)
 	return map[string]any{
 		"kind":                   "escalation_bundle/v1",
 		"incident_id":            inc.ID,
 		"narrative":              narrative,
+		"replay_posture":         replayPosture,
+		"replay_attention":       replayAttention,
 		"linked_control_actions": linked,
 		"proofpack_summary":      pack["assembly"],
 		"section_statuses":       pack["section_statuses"],
@@ -1424,4 +1427,114 @@ func (a *App) BuildEscalationBundle(incidentID, actorID string) (map[string]any,
 		"privacy_note":           "Redaction follows platform export policy; safe-share consumers should use redacted export mode when enabled.",
 		"generated_at":           time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func escalationReplayPosture(inc models.Incident, proofpack map[string]any) (map[string]any, map[string]any) {
+	sectionStatus := map[string]any{}
+	if ss, ok := proofpack["section_statuses"].([]map[string]any); ok {
+		for _, row := range ss {
+			if strings.TrimSpace(asString(row["section"])) != "timeline" {
+				continue
+			}
+			sectionStatus = row
+			break
+		}
+	}
+	if len(sectionStatus) == 0 {
+		if ss, ok := proofpack["section_statuses"].([]any); ok {
+			for _, raw := range ss {
+				row, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				if strings.TrimSpace(asString(row["section"])) != "timeline" {
+					continue
+				}
+				sectionStatus = row
+				break
+			}
+		}
+	}
+	out := map[string]any{
+		"status":                "unavailable",
+		"status_reason":         "replay_summary_missing",
+		"support_note":          "Replay posture unavailable in escalation context; use /replay endpoint and proofpack timeline section for bounded verification.",
+		"cannot_prove":          []string{"no_replay_summary_in_api_context"},
+		"needs_operator_review": true,
+	}
+	attention := map[string]any{
+		"warrants_attention": true,
+		"reason_code":        "replay_summary_missing",
+		"framing":            "Replay posture is unavailable in this export; treat urgency as unknown and verify persisted timeline/replay endpoint.",
+	}
+	if len(sectionStatus) > 0 {
+		out["timeline_section_status"] = sectionStatus
+	}
+	rs := inc.ReplaySummary
+	if rs == nil {
+		return out, attention
+	}
+	out["schema_version"] = strings.TrimSpace(rs.SchemaVersion)
+	out["semantic"] = strings.TrimSpace(rs.Semantic)
+	out["summary"] = strings.TrimSpace(rs.Summary)
+	out["uncertainty"] = strings.TrimSpace(rs.Uncertainty)
+	out["window_from"] = strings.TrimSpace(rs.WindowFrom)
+	out["window_to"] = strings.TrimSpace(rs.WindowTo)
+	out["last_event_at"] = strings.TrimSpace(rs.LastEventAt)
+	out["anchor_time"] = strings.TrimSpace(rs.AnchorTime)
+	out["recent_count"] = rs.RecentCount
+	out["prior_count"] = rs.PriorCount
+	out["delta_total"] = rs.DeltaTotal
+	out["window_truncated"] = rs.WindowTruncated
+	out["degraded"] = rs.Degraded
+	out["degraded_reasons"] = append([]string(nil), rs.DegradedReasons...)
+	out["status"] = "available"
+	out["status_reason"] = "replay_summary_present"
+	out["cannot_prove"] = []string{
+		"does_not_prove_live_runtime_health",
+		"does_not_prove_transport_delivery_or_rf_path_success",
+		"bounded_to_persisted_rows_in_incident_window",
+	}
+	reasonCode := "replay_bounded_context"
+	warrants := false
+	switch strings.TrimSpace(rs.Semantic) {
+	case "active_changing":
+		warrants = true
+		reasonCode = "activity_increasing_in_bounded_window"
+	case "unavailable":
+		warrants = true
+		reasonCode = "replay_unavailable"
+	case "partial":
+		warrants = true
+		reasonCode = "replay_partial"
+	case "sparse":
+		warrants = true
+		reasonCode = "replay_sparse"
+	case "no_history":
+		warrants = true
+		reasonCode = "no_persisted_replay_rows_in_window"
+	}
+	if rs.Degraded {
+		warrants = true
+	}
+	if rs.WindowTruncated {
+		warrants = true
+		reasonCode = "timeline_window_truncated"
+	}
+	attention["warrants_attention"] = warrants
+	attention["reason_code"] = reasonCode
+	if strings.TrimSpace(rs.Summary) != "" {
+		attention["framing"] = rs.Summary
+	} else {
+		attention["framing"] = "Replay posture present but compact summary is empty; inspect incident.replay_summary fields directly."
+	}
+	if rs.Degraded && strings.TrimSpace(rs.Uncertainty) != "" {
+		attention["uncertainty"] = rs.Uncertainty
+	}
+	out["needs_operator_review"] = warrants
+	out["support_note"] = "Replay posture is bounded to persisted incident-window rows; use proofpack timeline and replay endpoint for deeper context."
+	if len(sectionStatus) > 0 {
+		out["timeline_section_status"] = sectionStatus
+	}
+	return out, attention
 }

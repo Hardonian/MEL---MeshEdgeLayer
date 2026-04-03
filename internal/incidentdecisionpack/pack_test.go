@@ -88,3 +88,29 @@ func TestBuild_GuidanceUsesDeterministicPosture(t *testing.T) {
 		t.Fatalf("replay guidance missing: %#v", pack.Guidance)
 	}
 }
+
+func TestWhySurfacedOneLiner_PrefersReplaySummaryWhenPresent(t *testing.T) {
+	inc := models.Incident{
+		ID:    "rep-1",
+		State: "open",
+		ReplaySummary: &models.IncidentReplaySummary{
+			Semantic:    "no_history",
+			Summary:     "No persisted replay rows in the bounded incident window.",
+			Degraded:    true,
+			Uncertainty: "Absence of rows is not proof of calm runtime.",
+		},
+		Intelligence: &models.IncidentIntelligence{
+			SignatureMatchCount: 3,
+		},
+	}
+	got := WhySurfacedOneLiner(inc)
+	if got == "" {
+		t.Fatal("expected replay why line")
+	}
+	if got != "No persisted replay rows in the bounded incident window. Absence of rows is not proof of calm runtime." {
+		t.Fatalf("unexpected line: %q", got)
+	}
+	if got == "Recurring signature on this instance — pattern memory, not proof of repeating root cause." {
+		t.Fatalf("should prefer replay summary over recurring fallback")
+	}
+}

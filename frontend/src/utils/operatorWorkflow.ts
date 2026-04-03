@@ -36,6 +36,19 @@ function referencedPendingActionCount(inc: Incident): number {
   return inc.pending_actions?.filter(Boolean).length ?? 0
 }
 
+function replayWhyLine(inc: Incident): string | null {
+  const replay = inc.replay_summary
+  if (!replay) return null
+  const summary = (replay.summary || '').trim()
+  if (summary) {
+    const uncertainty = replay.degraded ? (replay.uncertainty || '').trim() : ''
+    return uncertainty ? `${summary} ${uncertainty}` : summary
+  }
+  const semantic = (replay.semantic || '').trim()
+  if (!semantic) return null
+  return `Replay posture ${semantic.replace(/_/g, ' ')} in bounded incident window — inspect incident.replay_summary for exact counts and caveats.`
+}
+
 export interface IncidentWorkQueueWhyContext {
   /** When false, incident evidence export is disabled by policy — proofpack/escalation likely blocked. */
   exportEnabled?: boolean
@@ -123,6 +136,10 @@ export function openIncidentShiftWhyLine(inc: Incident, ctx?: IncidentWorkQueueW
         }
       }
     }
+  }
+  const replayLine = replayWhyLine(inc)
+  if (replayLine) {
+    return replayLine
   }
   const md = inc.intelligence?.mitigation_durability_memory
   if (md?.summary && (md.posture === 'reopened_after_resolution_in_family' || md.posture === 'deterioration_or_mixed_in_outcome_memory')) {

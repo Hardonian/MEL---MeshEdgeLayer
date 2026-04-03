@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -172,5 +173,58 @@ func TestIncidentReplayView_MergesOutcomesAndTypedSegments(t *testing.T) {
 	}
 	if _, ok := delta["delta_total"]; !ok {
 		t.Fatalf("delta_total missing: %#v", delta)
+	}
+}
+
+func TestBuildEscalationBundle_IncludesReplayPosture(t *testing.T) {
+	a := newSoDTestApp(t)
+	now := time.Now().UTC()
+	inc := models.Incident{
+		ID:           "inc-escalation-replay",
+		Category:     "transport",
+		Severity:     "warning",
+		Title:        "Escalation replay",
+		Summary:      "check portability",
+		ResourceType: "transport",
+		ResourceID:   "mqtt-sod",
+		State:        "open",
+		OccurredAt:   now.Add(-30 * time.Minute).Format(time.RFC3339),
+		UpdatedAt:    now.Format(time.RFC3339),
+	}
+	if err := a.DB.UpsertIncident(inc); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.InsertTimelineEvent(db.TimelineEvent{
+		EventID:    "tl-escalation-replay",
+		EventTime:  now.Add(-3 * time.Minute).Format(time.RFC3339),
+		EventType:  "incident_workflow",
+		Summary:    "incident workflow updated",
+		Severity:   "info",
+		ResourceID: inc.ID,
+		Details:    map[string]any{"incident_id": inc.ID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := a.BuildEscalationBundle(inc.ID, "op-escalate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp, ok := b["replay_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing replay_posture: %#v", b["replay_posture"])
+	}
+	if rp["status"] != "available" {
+		t.Fatalf("status=%v", rp["status"])
+	}
+	if strings.TrimSpace(asString(rp["semantic"])) == "" {
+		t.Fatalf("missing replay semantic: %#v", rp)
+	}
+	att, ok := b["replay_attention"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing replay_attention: %#v", b["replay_attention"])
+	}
+	if strings.TrimSpace(asString(att["reason_code"])) == "" {
+		t.Fatalf("missing reason_code: %#v", att)
 	}
 }

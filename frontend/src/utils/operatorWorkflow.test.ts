@@ -21,6 +21,7 @@ function inc(partial: Partial<Incident> & { id: string }): Incident {
     pending_actions: partial.pending_actions,
     triage_signals: partial.triage_signals,
     decision_pack: partial.decision_pack,
+    replay_summary: partial.replay_summary,
   } as Incident
 }
 
@@ -167,6 +168,22 @@ describe('operatorWorkflow', () => {
   it('openIncidentShiftWhyLine explains visibility when read_actions is off', () => {
     const i = inc({ id: 'v' })
     expect(openIncidentShiftWhyLine(i, { canReadLinkedActions: false })).toMatch(/not shown for this session/i)
+  })
+
+  it('openIncidentShiftWhyLine prefers backend replay summary over generic recurrence fallback', () => {
+    const i = inc({
+      id: 'rp',
+      replay_summary: {
+        semantic: 'no_history',
+        summary: 'No persisted replay rows in the bounded incident window.',
+        degraded: true,
+        uncertainty: 'Absence of rows is not proof of calm runtime.',
+      },
+      intelligence: { signature_match_count: 3 } as Incident['intelligence'],
+    })
+    expect(openIncidentShiftWhyLine(i)).toContain('No persisted replay rows')
+    expect(openIncidentShiftWhyLine(i)).toContain('not proof of calm runtime')
+    expect(openIncidentShiftWhyLine(i)).not.toContain('Recurring signature')
   })
 
   it('sortOpenIncidentsForShiftStart elevates history-without-linkage before plain backlog', () => {
