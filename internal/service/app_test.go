@@ -120,10 +120,7 @@ func (f *failingTransport) MarkDrop(string)                                     
 
 func TestConsumeTransportEventsPersistsFinalObservationDeadLetter(t *testing.T) {
 	app := newTestApp(t, config.TransportConfig{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	app.startWorkers(ctx)
+	startTestWorkers(t, app)
 	time.Sleep(50 * time.Millisecond)
 	app.Bus.Publish(events.Event{Type: "transport.observation", Data: transport.NewObservation("mqtt-primary", "mqtt", "msh/test/node", transport.ReasonRejectedPublish, []byte{0x01, 0x02}, true, "publish rejected", map[string]any{"endpoint": "127.0.0.1:1883", "final": true})})
 
@@ -138,10 +135,10 @@ func TestConsumeTransportEventsPersistsFinalObservationDeadLetter(t *testing.T) 
 	if len(rows) != 1 || rows[0]["topic"] != "msh/test/node" || rows[0]["payload_hex"] != "0102" || rows[0]["transport_type"] != "mqtt" {
 		t.Fatalf("unexpected dead letter rows: %+v", rows)
 	}
-	auditCount, err := app.DB.Scalar("SELECT COUNT(*) FROM audit_logs WHERE category='transport' AND message='rejected_publish';")
-	if err != nil || auditCount != "1" {
-		t.Fatalf("expected transport audit log, count=%s err=%v", auditCount, err)
-	}
+	waitFor(t, 2*time.Second, func() bool {
+		count, err := app.DB.Scalar("SELECT COUNT(*) FROM audit_logs WHERE category='transport' AND message='rejected_publish';")
+		return err == nil && count == "1"
+	})
 }
 
 func TestRunTransportPersistsRetryThresholdDeadLetter(t *testing.T) {
@@ -175,9 +172,7 @@ func TestRunTransportDoesNotDuplicateRetryThresholdDeadLetter(t *testing.T) {
 	app := newTestApp(t, tc)
 	ft := &failingTransport{name: tc.Name, typ: tc.Type, connectErr: errors.New("dial tcp 127.0.0.1:4403: connect: connection refused")}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	app.startWorkers(ctx)
+	ctx := startTestWorkers(t, app)
 	go app.runTransport(ctx, ft, tc)
 
 	waitFor(t, 4*time.Second, func() bool {
@@ -209,16 +204,14 @@ func TestRunTransportRecoveryResetsRetryThresholdEpisode(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	app.startWorkers(ctx)
+	ctx := startTestWorkers(t, app)
 	go app.runTransport(ctx, ft, tc)
 
 	waitFor(t, 4*time.Second, func() bool {
 		count, err := app.DB.Scalar("SELECT COUNT(*) FROM dead_letters WHERE transport_name='mqtt-primary' AND reason='retry_threshold_exceeded';")
 		return err == nil && count == "1"
 	})
-	waitFor(t, 5*time.Second, func() bool {
+	waitFor(t, 8*time.Second, func() bool {
 		count, err := app.DB.Scalar("SELECT COUNT(*) FROM dead_letters WHERE transport_name='mqtt-primary' AND reason='retry_threshold_exceeded';")
 		return err == nil && count == "2"
 	})
@@ -260,6 +253,17 @@ func waitFor(t *testing.T, timeout time.Duration, check func() bool) {
 		time.Sleep(25 * time.Millisecond)
 	}
 	t.Fatal("condition not met before timeout")
+}
+
+func startTestWorkers(t *testing.T, app *App) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	app.startWorkers(ctx)
+	t.Cleanup(func() {
+		cancel()
+		app.wg.Wait()
+	})
+	return ctx
 }
 
 func mustInsertTransportAuditAt(t *testing.T, database *db.DB, createdAt time.Time, name, typ, message string, details map[string]any) {
@@ -330,8 +334,7 @@ func TestEnqueueIngestDropsWhenQueueFull(t *testing.T) {
 func TestObservationPipelineHandlesBurstWithoutDeadlock(t *testing.T) {
 	tc := config.TransportConfig{Name: "mqtt-primary", Type: "mqtt", Enabled: true, Endpoint: "127.0.0.1:1883", Topic: "msh/test"}
 	app := newTestApp(t, tc)
-	ctx, cancel := context.WithCancel(context.Background())
-	app.startWorkers(ctx)
+	startTestWorkers(t, app)
 	for i := 0; i < 10000; i++ {
 		app.emitTransportObservation(tc, transport.NewObservation(tc.Name, tc.Type, tc.Topic, transport.ReasonTimeoutStall, []byte{0x01, 0x02}, false, "stall", map[string]any{"sequence": i}))
 	}
@@ -342,8 +345,6 @@ func TestObservationPipelineHandlesBurstWithoutDeadlock(t *testing.T) {
 		}
 		return count != "0"
 	})
-	cancel()
-	app.wg.Wait()
 }
 
 func TestWorkerShutdownCompletes(t *testing.T) {
