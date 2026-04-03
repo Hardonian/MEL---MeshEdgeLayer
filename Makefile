@@ -17,7 +17,7 @@ vet:
 	$(GO) vet ./...
 
 frontend-lint:
-	cd frontend && npm ci && npm run lint
+	cd frontend && node ./scripts/require-node24.mjs && npm ci && npm run lint
 
 # gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
@@ -29,7 +29,7 @@ test:
 build: frontend-build build-agent build-cli
 
 frontend-build:
-	cd frontend && npm ci && npm run build
+	cd frontend && node ./scripts/require-node24.mjs && npm ci && npm run build
 	mkdir -p internal/web/assets
 	cp -r frontend/dist/* internal/web/assets/
 

@@ -50,6 +50,19 @@ mel serve --config mel.json
 ### Start Frontend Dev Server
 ```bash
 cd frontend
+nvm use # reads frontend/.nvmrc (Node 24.x required)
+npm install
+npm run dev
+```
+
+### Runtime contract
+- Frontend verification targets Node `24.x` only (`>=24 <25`).
+- Guard script: `frontend/scripts/require-node24.mjs`.
+- If Node is not 24.x, install/lint/test/build commands fail fast with an explicit runtime-contract message.
+
+### Start Frontend Dev Server (without nvm)
+```bash
+cd frontend
 npm install
 npm run dev
 ```

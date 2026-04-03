@@ -8,6 +8,10 @@
   },
   "scripts": {
     "preinstall": "node ./scripts/require-node24.mjs",
+    "prelint": "node ./scripts/require-node24.mjs",
+    "pretypecheck": "node ./scripts/require-node24.mjs",
+    "pretest": "node ./scripts/require-node24.mjs",
+    "prebuild": "node ./scripts/require-node24.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

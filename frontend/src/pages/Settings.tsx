@@ -9,7 +9,8 @@ import { KeyboardShortcuts } from '@/components/ui/HelpMenu'
 import { useConsoleThemePreference } from '@/hooks/useConsoleThemePreference'
 import { useVersionInfo } from '@/hooks/useVersionInfo'
 import { useStatus } from '@/hooks/useApi'
-import type { PlatformPosture } from '@/types/api'
+import type { ConfigInspectResponse, PlatformPosture } from '@/types/api'
+import { parseConfigInspectResponse } from '@/utils/configInspect'
 import {
   Server,
   Info,
@@ -26,14 +27,6 @@ import {
   Radio,
 } from 'lucide-react'
 
-function nested(root: Record<string, unknown> | undefined, path: string): unknown {
-  if (!root) return undefined
-  return path.split('.').reduce<unknown>((acc, part) => {
-    if (!acc || typeof acc !== 'object' || Array.isArray(acc)) return undefined
-    return (acc as Record<string, unknown>)[part]
-  }, root)
-}
-
 function stringifyValue(value: unknown): string | null {
   if (value == null) return null
   if (typeof value === 'string') return value
@@ -49,7 +42,7 @@ export function SettingsPage() {
   const version = useVersionInfo()
   const status = useStatus()
   const { preference, setPreference } = useConsoleThemePreference()
-  const [configInspect, setConfigInspect] = useState<{ values?: Record<string, unknown>; fingerprint?: string } | null>(null)
+  const [configInspect, setConfigInspect] = useState<ConfigInspectResponse | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -60,7 +53,10 @@ export function SettingsPage() {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`)
         }
-        const data = (await res.json()) as { values?: Record<string, unknown>; fingerprint?: string }
+        const data = parseConfigInspectResponse(await res.json())
+        if (!data) {
+          throw new Error('invalid config inspect payload')
+        }
         if (!cancelled) {
           setConfigInspect(data)
           setConfigError(null)
@@ -78,18 +74,18 @@ export function SettingsPage() {
 
   const effectiveRows = useMemo<Array<{ key: string; defaultValue: string; effective: string | null }>>(
     () => [
-      { key: 'bind.api', defaultValue: '"127.0.0.1:8080"', effective: stringifyValue(nested(configInspect?.values, 'bind.api')) },
-      { key: 'bind.metrics', defaultValue: '""', effective: stringifyValue(nested(configInspect?.values, 'bind.metrics')) },
-      { key: 'auth.enabled', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'auth.enabled')) },
-      { key: 'auth.ui_user', defaultValue: '"admin"', effective: stringifyValue(nested(configInspect?.values, 'auth.ui_user')) },
-      { key: 'storage.database_path', defaultValue: '"./data/mel.db"', effective: stringifyValue(nested(configInspect?.values, 'storage.database_path')) },
-      { key: 'privacy.redact_exports', defaultValue: 'true', effective: stringifyValue(nested(configInspect?.values, 'privacy.redact_exports')) },
-      { key: 'privacy.map_reporting_allowed', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'privacy.map_reporting_allowed')) },
-      { key: 'features.google_maps_in_topology_ui', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_in_topology_ui')) },
-      { key: 'features.google_maps_api_key_env', defaultValue: '""', effective: stringifyValue(nested(configInspect?.values, 'features.google_maps_api_key_env')) },
-      { key: 'features.metrics', defaultValue: 'false', effective: stringifyValue(nested(configInspect?.values, 'features.metrics')) },
+      { key: 'bind.api', defaultValue: '"127.0.0.1:8080"', effective: stringifyValue(configInspect?.values?.bind?.api) },
+      { key: 'bind.metrics', defaultValue: '""', effective: stringifyValue(configInspect?.values?.bind?.metrics) },
+      { key: 'auth.enabled', defaultValue: 'false', effective: stringifyValue(configInspect?.values?.auth?.enabled) },
+      { key: 'auth.ui_user', defaultValue: '"admin"', effective: stringifyValue(configInspect?.values?.auth?.ui_user) },
+      { key: 'storage.database_path', defaultValue: '"./data/mel.db"', effective: stringifyValue(configInspect?.values?.storage?.database_path) },
+      { key: 'privacy.redact_exports', defaultValue: 'true', effective: stringifyValue(configInspect?.values?.privacy?.redact_exports) },
+      { key: 'privacy.map_reporting_allowed', defaultValue: 'false', effective: stringifyValue(configInspect?.values?.privacy?.map_reporting_allowed) },
+      { key: 'features.google_maps_in_topology_ui', defaultValue: 'false', effective: stringifyValue(configInspect?.values?.features?.google_maps_in_topology_ui) },
+      { key: 'features.google_maps_api_key_env', defaultValue: '""', effective: stringifyValue(configInspect?.values?.features?.google_maps_api_key_env) },
+      { key: 'features.metrics', defaultValue: 'false', effective: stringifyValue(configInspect?.values?.features?.metrics) },
     ],
-    [configInspect?.values]
+    [configInspect]
   )
 
   const v = version.data
@@ -235,6 +231,21 @@ export function SettingsPage() {
           )}
           {configInspect?.fingerprint && (
             <p className="text-xs text-muted-foreground">Config fingerprint: <code>{configInspect.fingerprint}</code></p>
+          )}
+          {configInspect?.canonical_fingerprint && (
+            <p className="text-xs text-muted-foreground">Canonical fingerprint: <code>{configInspect.canonical_fingerprint}</code></p>
+          )}
+          {(configInspect?.violations?.length ?? 0) > 0 && (
+            <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Safe-default violations from config inspect</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {configInspect!.violations!.map((vItem) => (
+                  <li key={`${vItem.field}:${vItem.issue}`}>
+                    <span className="font-mono">{vItem.field}</span>: {vItem.issue} (current={vItem.current}, safe={vItem.safe})
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </CardContent>
       </Card>
