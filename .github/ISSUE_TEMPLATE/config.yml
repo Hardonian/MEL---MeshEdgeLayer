@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Issue label routing policy
+    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/issue-routing-labels.md
+    about: Label meanings and required triage flow for setup/truth/control/docs reports.
   - name: Security report (private)
     url: https://github.com/Hardonian/MEL-MeshEdgeLayer/security/advisories/new
     about: Use GitHub private security advisories or follow SECURITY.md. Do not post secrets or precise locations in public issues.

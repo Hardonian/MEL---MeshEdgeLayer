@@ -31,6 +31,7 @@ import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
+import { IncidentRationaleSummary } from '@/components/incidents/IncidentRationaleSummary'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
 import { useControlStatus } from '@/hooks/useApi'
@@ -1838,12 +1839,9 @@ function DecisionPackPanel({
         </p>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
-        {q?.why_surfaced_one_liner && (
-          <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">Why this is surfaced</p>
-            <p className="text-foreground leading-snug">{q.why_surfaced_one_liner}</p>
-            {q.ordering_note && <p className="mt-2 text-[11px] text-muted-foreground border-l-2 border-border/50 pl-2">{q.ordering_note}</p>}
-          </div>
+        <IncidentRationaleSummary incident={inc} className="border-primary/25 bg-primary/5" />
+        {q?.ordering_note && (
+          <p className="text-[11px] text-muted-foreground border-l-2 border-border/50 pl-2">{q.ordering_note}</p>
         )}
 
         {guidance && (

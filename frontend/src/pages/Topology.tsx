@@ -261,6 +261,35 @@ function withReturnParam(targetPath: string, returnPath: string): string {
   return `${targetPath}${joiner}return=${encodeURIComponent(returnPath)}`
 }
 
+function TopologyTruthBoundary({
+  inferredEdgeCount,
+  staleEdgeCount,
+}: {
+  inferredEdgeCount: number
+  staleEdgeCount: number
+}) {
+  return (
+    <section
+      className="sticky top-14 z-20 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-primary/10"
+      role="region"
+      aria-label="Topology truth boundary"
+      data-testid="topology-truth-boundary"
+    >
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Topology truth boundary: </span>
+        observed operational context plus bounded inference from stored links.
+        <span className="font-semibold text-foreground"> Not RF/path proof or delivery proof.</span>
+        {inferredEdgeCount > 0 || staleEdgeCount > 0 ? (
+          <>
+            {' '}
+            Current graph includes {inferredEdgeCount} inferred edge{inferredEdgeCount === 1 ? '' : 's'} and {staleEdgeCount} stale edge{staleEdgeCount === 1 ? '' : 's'}.
+          </>
+        ) : null}
+      </p>
+    </section>
+  )
+}
+
 export function Topology() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [intel, setIntel] = useState<Intelligence | null>(null)
@@ -650,6 +679,8 @@ export function Topology() {
   }, [syncSelectToUrl])
 
   const intelDisabled = intel?.topology_enabled === false
+  const inferredEdgeCount = useMemo(() => links.filter((l) => !l.observed).length, [links])
+  const staleEdgeCount = useMemo(() => links.filter((l) => l.stale).length, [links])
 
   const FILTER_OPTIONS: Array<{ id: NodeFilterId; label: string; hint: string }> = [
     { id: 'all', label: 'All', hint: 'full graph' },
@@ -695,6 +726,7 @@ export function Topology() {
           visibility — not proof of end-to-end delivery or RF path.
         </p>
       </div>
+      <TopologyTruthBoundary inferredEdgeCount={inferredEdgeCount} staleEdgeCount={staleEdgeCount} />
 
       <OperatorTruthRibbon summary="Topology is a model of stored observations and inferred graph structure. It cannot certify live connectivity, routing decisions, or coverage without matching ingest evidence." />
 

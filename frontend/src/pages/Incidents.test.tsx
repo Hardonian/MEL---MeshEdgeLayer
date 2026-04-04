@@ -28,6 +28,24 @@ function setupFetch() {
                 severity: 'warning',
                 occurred_at: '2026-03-29T00:00:00Z',
                 updated_at: '2026-03-29T01:00:00Z',
+                replay_summary: {
+                  semantic: 'active_changing',
+                  summary: 'Replay active in the recent window',
+                  delta_total: 3,
+                  recent_count: 5,
+                  prior_count: 2,
+                },
+                decision_pack: {
+                  schema_version: '1',
+                  incident_id: 'inc-1',
+                  generated_at: '2026-03-29T01:00:00Z',
+                  queue: {
+                    why_surfaced_one_liner: 'Queue surfaced due to fresh transport regressions.',
+                  },
+                  guidance: {
+                    why_now: 'Backlog trend shifted in the last window.',
+                  },
+                },
                 intelligence: {
                   signature_label: 'transport/transport pattern (timeout_stall)',
                   signature_match_count: 3,
@@ -187,6 +205,9 @@ describe('Incidents intelligence rendering', () => {
     expect(screen.getAllByText(/Wireless context/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Wi-Fi backhaul instability/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Observed domains: wifi, lora/i)).toBeTruthy()
+    expect(screen.getByText(/Queue surfaced due to fresh transport regressions/i)).toBeTruthy()
+    expect(screen.getByText(/Backlog trend shifted in the last window/i)).toBeTruthy()
+    expect(screen.getByText(/Δ \+3 events \(5 recent \/ 2 prior\)/i)).toBeTruthy()
   })
 
   it('shows sparsity markers without falsely marking intelligence degraded', async () => {

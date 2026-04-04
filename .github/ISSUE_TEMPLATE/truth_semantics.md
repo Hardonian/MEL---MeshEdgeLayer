@@ -2,7 +2,7 @@
 name: Truth / semantics / degraded state
 about: Incorrect or ambiguous live vs stale, evidence posture, transport, topology, or control semantics
 title: '[TRUTH] '
-labels: bug
+labels: kind:truth-semantics,area:topology-or-status,needs:triage
 assignees: ''
 ---
 

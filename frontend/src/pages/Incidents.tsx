@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { IncidentRationaleSummary } from '@/components/incidents/IncidentRationaleSummary'
 import { formatTimestamp, formatRelativeTime, type Incident } from '@/types/api'
 import {
   ClipboardCopy,
@@ -777,29 +778,12 @@ function IncidentCard({
       </CardHeader>
 
       <CardContent className="space-y-4 pt-0">
-        {!muted && priorityWhy && (
-          <div
-            className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
-            data-testid="incident-workbench-why"
-          >
-            <span className="font-semibold text-foreground">Why this order: </span>
-            {priorityWhy}
-          </div>
-        )}
-        {!muted && replay && (
-          <div
-            className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[11px] text-muted-foreground"
-            data-testid="incident-workbench-replay-summary"
-          >
-            <span className="font-semibold text-foreground">Replay posture: </span>
-            {replay.summary || replaySemanticLabel(replay.semantic)}
-            {typeof replay.delta_total === 'number' && (
-              <span> (Δ {replay.delta_total >= 0 ? '+' : ''}{replay.delta_total}, {replay.recent_count ?? 0} recent / {replay.prior_count ?? 0} prior)</span>
-            )}
-            {replay.degraded && (replay.degraded_reasons?.length ?? 0) > 0 && (
-              <span className="text-warning"> — degraded: {replay.degraded_reasons!.slice(0, 2).map((r) => toWords(r)).join(', ')}</span>
-            )}
-          </div>
+        {!muted && (
+          <IncidentRationaleSummary
+            incident={inc}
+            fallbackWhy={priorityWhy}
+            className="border-border/40 bg-background/40"
+          />
         )}
 
         {!muted && actionVis.explanation && actionVis.kind !== 'linked_observed' && (

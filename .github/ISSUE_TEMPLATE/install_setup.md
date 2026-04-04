@@ -2,7 +2,7 @@
 name: Install / setup / bootstrap
 about: First-run, build, doctor, or environment problems
 title: '[SETUP] '
-labels: bug
+labels: kind:setup,area:environment,needs:triage
 assignees: ''
 ---
 
@@ -32,3 +32,4 @@ Run `./bin/mel doctor --config <path>` (or `mel doctor`) and paste the output (r
 - [ ] Read [docs/getting-started/QUICKSTART.md](https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/getting-started/QUICKSTART.md)
 - [ ] Ran `make build` or `make build-cli` before `make smoke` if testing smoke
 - [ ] Confirmed Node 24.x for any `frontend/` command
+- [ ] Added output of `make premerge-verify` (or first failing command from it)
