@@ -45,5 +45,13 @@ else
   _fail "need python3 (or python) on PATH for make product-verify"
 fi
 
-GO_VER="$(go version 2>/dev/null || echo "go not found")"
+GOBIN="$(command -v go 2>/dev/null || true)"
+if [[ -z "${GOBIN}" && -x /usr/local/go/bin/go ]]; then
+  GOBIN="/usr/local/go/bin/go"
+fi
+if [[ -n "${GOBIN}" ]]; then
+  GO_VER="$("${GOBIN}" version 2>/dev/null || echo "${GOBIN}")"
+else
+  GO_VER="go not on PATH (install Go 1.24+ for make build / make test)"
+fi
 echo "MEL dev-env: Node ${NODE_VER}, Python ${PY}, ${GO_VER}"
