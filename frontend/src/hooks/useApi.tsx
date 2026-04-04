@@ -16,6 +16,9 @@ import type {
   ActiveMaintenanceWindow,
   ControlRealityMatrixItem,
   MeshNodeControlAction,
+  OperatorBriefingResponse,
+  OperatorBriefingPriority,
+  OperatorBriefingRecoveryStep,
 } from '@/types/api'
 import { parseDiagnosticsFindingsFromApi, type DiagnosticsApiFinding } from '@/utils/apiResilience'
 
@@ -138,6 +141,91 @@ function parseControlHistoryJson(raw: unknown): ControlHistoryResponse {
     ? actionsRaw.map(parseMeshNodeControlAction).filter((x): x is MeshNodeControlAction => x !== null)
     : undefined
   return { actions }
+}
+
+export function parseOperatorBriefingJson(raw: unknown): OperatorBriefingResponse {
+  if (!isRecord(raw)) {
+    return {
+      api_version: '',
+      truth_basis: [],
+      overall_status: 'unknown',
+      top_priorities: [],
+      likely_causes: [],
+      recommended_sequence: [],
+      blast_radius_estimate: '',
+      uncertainty_notes: [],
+      generated_at: '',
+    }
+  }
+  const prioritiesRaw = raw.top_priorities
+  const top_priorities: OperatorBriefingPriority[] = Array.isArray(prioritiesRaw)
+    ? prioritiesRaw
+        .map((p): OperatorBriefingPriority | null => {
+          if (!isRecord(p)) return null
+          return {
+            id: typeof p.id === 'string' ? p.id : '',
+            category: typeof p.category === 'string' ? p.category : '',
+            severity: typeof p.severity === 'string' ? p.severity : '',
+            title: typeof p.title === 'string' ? p.title : '',
+            summary: typeof p.summary === 'string' ? p.summary : '',
+            rank: typeof p.rank === 'number' ? p.rank : 0,
+            confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+            evidence_freshness: typeof p.evidence_freshness === 'string' ? p.evidence_freshness : '',
+            is_actionable: p.is_actionable === true,
+            blocks_recovery: p.blocks_recovery === true,
+            resource_kind: typeof p.resource_kind === 'string' ? p.resource_kind : undefined,
+            metadata: isRecord(p.metadata) ? p.metadata : undefined,
+          }
+        })
+        .filter((x): x is OperatorBriefingPriority => x !== null)
+    : []
+
+  const seqRaw = raw.recommended_sequence
+  const recommended_sequence: OperatorBriefingRecoveryStep[] = Array.isArray(seqRaw)
+    ? seqRaw
+        .map((s): OperatorBriefingRecoveryStep | null => {
+          if (!isRecord(s)) return null
+          return {
+            stage: typeof s.stage === 'number' ? s.stage : 0,
+            action: typeof s.action === 'string' ? s.action : '',
+            justification: typeof s.justification === 'string' ? s.justification : '',
+            status: typeof s.status === 'string' ? s.status : '',
+            unsafe_early: s.unsafe_early === true,
+            dependencies: Array.isArray(s.dependencies)
+              ? s.dependencies.filter((d): d is string => typeof d === 'string')
+              : undefined,
+          }
+        })
+        .filter((x): x is OperatorBriefingRecoveryStep => x !== null)
+    : []
+
+  const truthRaw = raw.truth_basis
+  const truth_basis = Array.isArray(truthRaw)
+    ? truthRaw.filter((x): x is string => typeof x === 'string')
+    : []
+
+  const likelyRaw = raw.likely_causes
+  const likely_causes = Array.isArray(likelyRaw)
+    ? likelyRaw.filter((x): x is string => typeof x === 'string')
+    : []
+
+  const uncRaw = raw.uncertainty_notes
+  const uncertainty_notes = Array.isArray(uncRaw)
+    ? uncRaw.filter((x): x is string => typeof x === 'string')
+    : []
+
+  return {
+    api_version: typeof raw.api_version === 'string' ? raw.api_version : '',
+    truth_basis,
+    overall_status: typeof raw.overall_status === 'string' ? raw.overall_status : 'unknown',
+    top_priorities,
+    likely_causes,
+    recommended_sequence,
+    blast_radius_estimate:
+      typeof raw.blast_radius_estimate === 'string' ? raw.blast_radius_estimate : '',
+    uncertainty_notes,
+    generated_at: typeof raw.generated_at === 'string' ? raw.generated_at : '',
+  }
 }
 
 export function parseOperationalStateJson(raw: unknown): ControlOperationalStateResponse {
@@ -264,6 +352,10 @@ interface ApiContextValue {
   // Diagnostics
   diagnostics: ApiState<DiagnosticsApiFinding[]>
   refreshDiagnostics: () => Promise<void>
+
+  // Operator briefing (incidents + diagnostics rank; GET /api/v1/intelligence/briefing)
+  operatorBriefing: ApiState<OperatorBriefingResponse>
+  refreshOperatorBriefing: () => Promise<void>
   
   // Global refresh
   refreshAll: () => Promise<void>
@@ -285,6 +377,12 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   const [recommendations, setRecommendations] = useState<ApiState<Recommendation[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [events, setEvents] = useState<ApiState<AuditLog[]>>({ data: null, loading: true, error: null, lastUpdated: null })
   const [diagnostics, setDiagnostics] = useState<ApiState<DiagnosticsApiFinding[]>>({
+    data: null,
+    loading: true,
+    error: null,
+    lastUpdated: null,
+  })
+  const [operatorBriefing, setOperatorBriefing] = useState<ApiState<OperatorBriefingResponse>>({
     data: null,
     loading: true,
     error: null,
@@ -398,6 +496,27 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const refreshOperatorBriefing = useCallback(async () => {
+    setOperatorBriefing((s) => ({ ...s, loading: true, error: null }))
+    try {
+      const res = await fetch(`${API_BASE}/v1/intelligence/briefing`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const raw: unknown = await res.json()
+      setOperatorBriefing({
+        data: parseOperatorBriefingJson(raw),
+        loading: false,
+        error: null,
+        lastUpdated: new Date(),
+      })
+    } catch (e) {
+      setOperatorBriefing((s) => ({
+        ...s,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Failed to fetch operator briefing',
+      }))
+    }
+  }, [])
+
   const refreshAll = useCallback(async () => {
     setLastAttemptAt(new Date())
     await Promise.all([
@@ -409,8 +528,9 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshRecommendations(),
       refreshEvents(),
       refreshDiagnostics(),
+      refreshOperatorBriefing(),
     ])
-  }, [refreshStatus, refreshNodes, refreshMessages, refreshDeadLetters, refreshPrivacy, refreshRecommendations, refreshEvents, refreshDiagnostics])
+  }, [refreshStatus, refreshNodes, refreshMessages, refreshDeadLetters, refreshPrivacy, refreshRecommendations, refreshEvents, refreshDiagnostics, refreshOperatorBriefing])
 
   // Initial load
   useEffect(() => {
@@ -467,6 +587,8 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshEvents,
       diagnostics,
       refreshDiagnostics,
+      operatorBriefing,
+      refreshOperatorBriefing,
       refreshAll,
       refreshMeta: {
         mode: refreshMode,
@@ -525,6 +647,11 @@ export function useEvents() {
 export function useDiagnostics() {
     const { diagnostics, refreshDiagnostics } = useApi()
     return { ...diagnostics, refresh: refreshDiagnostics }
+}
+
+export function useOperatorBriefing() {
+  const { operatorBriefing, refreshOperatorBriefing } = useApi()
+  return { ...operatorBriefing, refresh: refreshOperatorBriefing }
 }
 
 export function useControlStatus() {

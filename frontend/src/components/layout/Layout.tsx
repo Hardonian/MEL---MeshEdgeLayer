@@ -533,6 +533,11 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const allPages = [
     { label: 'Command surface (home)', href: '/', keywords: 'home overview dashboard operator workspace' },
+    {
+      label: 'Instance briefing (scroll on home)',
+      href: '/#mel-instance-briefing',
+      keywords: 'briefing intelligence priorities digest shift review',
+    },
     { label: 'Status', href: '/status', keywords: 'transport health connection' },
     { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
     { label: 'Topology', href: '/topology', keywords: 'graph network map' },

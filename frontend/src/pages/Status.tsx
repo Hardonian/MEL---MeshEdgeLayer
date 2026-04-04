@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react'
 import { useStatus } from '@/hooks/useApi'
 import { ProgressBar, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { StatCard } from '@/components/ui/StatCard'
@@ -10,8 +11,22 @@ import { getHealthState, formatRelativeTime, TransportHealth } from '@/types/api
 import { Wifi, WifiOff, AlertCircle, Activity, Clock, MessageSquare, TrendingUp, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 
+function transportSectionId(name: string) {
+  return 'mel-transport-' + name.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
 export function Status() {
   const { data, loading, error, refresh } = useStatus()
+
+  useLayoutEffect(() => {
+    const id = window.location.hash.replace(/^#/, '')
+    if (!id || !id.startsWith('mel-transport-')) return
+    const el = document.getElementById(id)
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [data?.transports])
 
   if (loading && !data) {
     return <Loading message="Loading status..." />
@@ -190,8 +205,9 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
 
   return (
     <div
+      id={transportSectionId(transport.name)}
       className={clsx(
-        'surface-panel surface-panel-muted interactive-lift overflow-hidden rounded-[1.1rem] p-4 sm:p-5',
+        'surface-panel surface-panel-muted interactive-lift overflow-hidden rounded-[1.1rem] p-4 sm:p-5 scroll-mt-24',
         healthState === 'healthy'
           ? 'border-success/20'
           : healthState === 'degraded'

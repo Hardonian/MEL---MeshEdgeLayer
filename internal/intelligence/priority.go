@@ -71,6 +71,7 @@ func priorityFromIncident(inc models.Incident, now time.Time) models.PriorityIte
 		EvidenceFreshness: freshness,
 		IsActionable:      true,
 		BlocksRecovery:    inc.Severity == "critical",
+		ResourceKind:      "incident",
 		Metadata:          inc.Metadata,
 	}
 }
@@ -92,6 +93,13 @@ func priorityFromFinding(f diagnostics.Finding, now time.Time) models.PriorityIt
 		freshness = "Medium"
 	}
 
+	rk := "diagnostic"
+	switch f.Component {
+	case "transport":
+		rk = "transport"
+	case "control":
+		rk = "control"
+	}
 	return models.PriorityItem{
 		ID:                f.Code + ":" + f.Component + ":" + f.AffectedTransport,
 		Category:          f.Component,
@@ -103,6 +111,7 @@ func priorityFromFinding(f diagnostics.Finding, now time.Time) models.PriorityIt
 		EvidenceFreshness: freshness,
 		IsActionable:      true,
 		BlocksRecovery:    f.Severity == "critical" && (f.Component == "database" || f.Component == "config"),
+		ResourceKind:      rk,
 		Metadata:          f.Evidence,
 	}
 }

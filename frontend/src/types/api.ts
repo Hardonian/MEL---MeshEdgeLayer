@@ -1031,6 +1031,43 @@ export interface ControlRealityMatrixItem {
   notes: string
 }
 
+/** GET /api/v1/intelligence/briefing — deterministic ranked posture from incidents + diagnostics (not ML/RF proof). */
+export interface OperatorBriefingPriority {
+  id: string
+  category: string
+  severity: string
+  title: string
+  summary: string
+  rank: number
+  confidence: number
+  evidence_freshness: string
+  is_actionable: boolean
+  blocks_recovery: boolean
+  resource_kind?: 'incident' | 'diagnostic' | 'transport' | 'control' | string
+  metadata?: Record<string, unknown>
+}
+
+export interface OperatorBriefingRecoveryStep {
+  stage: number
+  action: string
+  justification: string
+  status: string
+  unsafe_early: boolean
+  dependencies?: string[]
+}
+
+export interface OperatorBriefingResponse {
+  api_version: string
+  truth_basis: string[]
+  overall_status: string
+  top_priorities: OperatorBriefingPriority[]
+  likely_causes: string[]
+  recommended_sequence: OperatorBriefingRecoveryStep[]
+  blast_radius_estimate: string
+  uncertainty_notes: string[]
+  generated_at: string
+}
+
 /** GET /api/v1/control/status — automation mode and executor snapshot. */
 export interface ControlStatusResponse {
   mode?: string
