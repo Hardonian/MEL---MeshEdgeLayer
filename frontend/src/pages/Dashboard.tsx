@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   Activity,
   Radio,
@@ -30,7 +30,18 @@ import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
-import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters, useEvents, useDiagnostics, useOperationalState } from '@/hooks/useApi'
+import {
+  useStatus,
+  useNodes,
+  useMessages,
+  usePrivacyFindings,
+  useRecommendations,
+  useDeadLetters,
+  useEvents,
+  useDiagnostics,
+  useOperationalState,
+  useOperatorBriefing,
+} from '@/hooks/useApi'
 import { useIncidents } from '@/hooks/useIncidents'
 import { getHealthState, formatRelativeTime, TransportHealth, NodeInfo } from '@/types/api'
 import type { ShiftSnapshot } from '@/utils/shiftSnapshot'
@@ -51,9 +62,11 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
-import { FirstRunHintBanner } from '@/components/onboarding/FirstRunHintBanner'
+import { hrefForBriefingPriority } from '@/utils/operatorBriefingLinks'
 
 export function Dashboard() {
+  const location = useLocation()
+  const briefingSectionRef = useRef<HTMLElement | null>(null)
   const status = useStatus()
   const nodes = useNodes()
   const { data: messagesData, loading: messagesLoading, error: messagesError } = useMessages()
@@ -64,6 +77,7 @@ export function Dashboard() {
   const diagnostics = useDiagnostics()
   const incidents = useIncidents()
   const operational = useOperationalState()
+  const briefing = useOperatorBriefing()
   const versionInfo = useVersionInfo()
   const operatorCtx = useOperatorContext()
 
@@ -154,6 +168,13 @@ export function Dashboard() {
     prevAttemptRef.current = t
     setRefreshCount((c) => c + 1)
   }, [status.lastUpdated])
+
+  useEffect(() => {
+    if (location.hash !== '#mel-instance-briefing') return
+    requestAnimationFrame(() => {
+      briefingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [location.hash])
 
   const openIncidents = useMemo(
     () =>
@@ -414,7 +435,126 @@ export function Dashboard() {
 
       <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
 
-      <FirstRunHintBanner visible={!hasTransports} />
+      {/* Instance briefing — same cadence as global poll (GET /api/v1/intelligence/briefing) */}
+      {!briefing.loading && briefing.data && briefing.data.api_version && (
+        <section
+          ref={briefingSectionRef}
+          id="mel-instance-briefing"
+          className="rounded-2xl border border-border/60 bg-card/35 p-4 scroll-mt-24"
+          aria-label="Instance operator briefing from persisted evidence"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex gap-3 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/18 bg-primary/10 text-primary">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Instance briefing</h2>
+                  <Badge variant="outline" className="uppercase tracking-[0.14em] text-[10px]">
+                    API {briefing.data.api_version}
+                  </Badge>
+                  <Badge
+                    variant={
+                      briefing.data.overall_status === 'Critical'
+                        ? 'critical'
+                        : briefing.data.overall_status === 'Degraded' || briefing.data.overall_status === 'unknown'
+                          ? 'warning'
+                          : 'secondary'
+                    }
+                    className="text-[10px]"
+                  >
+                    {briefing.data.overall_status}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ranked from open incidents and diagnostics on this instance — deterministic ordering, not ML or RF proof.
+                  {briefing.data.generated_at && (
+                    <>
+                      {' '}
+                      Generated {formatRelativeTime(briefing.data.generated_at)}.
+                    </>
+                  )}
+                </p>
+                {briefing.data.truth_basis.length > 0 && (
+                  <ul className="mt-2 text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
+                    {briefing.data.truth_basis.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {briefing.data.top_priorities.length > 0 && (
+            <div className="mt-4 border-t border-border/50 pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+                Top priorities (deep links)
+              </p>
+              <ol className="space-y-2 list-decimal list-inside marker:text-[11px] marker:text-muted-foreground/70">
+                {briefing.data.top_priorities.slice(0, 6).map((p) => (
+                  <li key={p.id} className="text-sm">
+                    <Link
+                      to={hrefForBriefingPriority(p)}
+                      className="font-medium text-primary hover:underline align-middle"
+                    >
+                      {p.title || p.id.slice(0, 12)}
+                    </Link>
+                    <span className="text-muted-foreground text-xs block sm:inline sm:ml-1 sm:before:content-['—_'] sm:before:text-muted-foreground/50">
+                      {p.severity} · {p.category}
+                      {p.resource_kind ? ` · ${p.resource_kind}` : ''}
+                      {p.summary ? ` — ${p.summary}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {briefing.data.recommended_sequence.length > 0 && (
+            <div className="mt-4 border-t border-border/50 pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+                Suggested sequence (heuristic)
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {briefing.data.recommended_sequence.slice(0, 5).map((step, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="font-mono text-[11px] text-foreground/80 shrink-0">{step.stage}.</span>
+                    <span>
+                      <span className="text-foreground font-medium">{step.action}</span>
+                      {step.justification ? (
+                        <span className="block text-xs mt-0.5">{step.justification}</span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {(briefing.data.blast_radius_estimate || briefing.data.uncertainty_notes.length > 0) && (
+            <div className="mt-4 border-t border-border/50 pt-3 space-y-2 text-xs text-muted-foreground">
+              {briefing.data.blast_radius_estimate ? (
+                <p>
+                  <span className="font-semibold text-foreground">Blast-radius note: </span>
+                  {briefing.data.blast_radius_estimate}
+                </p>
+              ) : null}
+              {briefing.data.uncertainty_notes.map((n, i) => (
+                <p key={i}>{n}</p>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      {briefing.error && (
+        <InlineAlert variant="warning">
+          <span className="text-sm">
+            Instance briefing unavailable ({briefing.error}). Other dashboard signals still apply.
+          </span>
+        </InlineAlert>
+      )}
 
       {/* Shift baseline — local browser only */}
       <div className="rounded-2xl border border-border/60 bg-card/40 p-4">

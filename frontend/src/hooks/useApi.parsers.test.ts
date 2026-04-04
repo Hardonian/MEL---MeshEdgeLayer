@@ -1,7 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { parseMeshNodeControlAction, parseOperationalStateJson } from './useApi'
+import { parseMeshNodeControlAction, parseOperationalStateJson, parseOperatorBriefingJson } from './useApi'
 
 describe('useApi parsers', () => {
+  it('parses operator briefing with resource_kind and truth_basis', () => {
+    const parsed = parseOperatorBriefingJson({
+      api_version: 'v1',
+      truth_basis: ['incidents + diagnostics'],
+      overall_status: 'Degraded',
+      top_priorities: [
+        {
+          id: 'inc-1',
+          category: 'transport',
+          severity: 'high',
+          title: 'Stall',
+          summary: 'timeout',
+          rank: 80,
+          confidence: 1,
+          evidence_freshness: 'High',
+          is_actionable: true,
+          blocks_recovery: false,
+          resource_kind: 'incident',
+        },
+      ],
+      likely_causes: ['stall'],
+      recommended_sequence: [
+        { stage: 1, action: 'Check transport', justification: 'evidence', status: 'pending', unsafe_early: false },
+      ],
+      blast_radius_estimate: 'bounded',
+      uncertainty_notes: [],
+      generated_at: '2026-04-04T12:00:00Z',
+    })
+    expect(parsed.api_version).toBe('v1')
+    expect(parsed.truth_basis).toEqual(['incidents + diagnostics'])
+    expect(parsed.top_priorities[0]?.resource_kind).toBe('incident')
+    expect(parsed.recommended_sequence[0]?.action).toBe('Check transport')
+  })
+
   it('preserves enriched control action approval and governance fields', () => {
     const parsed = parseMeshNodeControlAction({
       id: 'act-1',

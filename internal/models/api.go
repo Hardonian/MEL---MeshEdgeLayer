@@ -874,6 +874,10 @@ type StatusResponse struct {
 
 // OperatorBriefingDTO represents a structured briefing for the UI/API
 type OperatorBriefingDTO struct {
+	// APIVersion is the JSON contract version for this DTO (e.g. "v1").
+	APIVersion string `json:"api_version"`
+	// TruthBasis describes what evidence classes fed this briefing (deterministic, bounded claims).
+	TruthBasis []string `json:"truth_basis"`
 	OverallStatus       string         `json:"overall_status"`
 	TopPriorities       []PriorityItem `json:"top_priorities"`
 	LikelyCauses        []string       `json:"likely_causes"`
@@ -895,6 +899,8 @@ type PriorityItem struct {
 	EvidenceFreshness string         `json:"evidence_freshness"`
 	IsActionable      bool           `json:"is_actionable"`
 	BlocksRecovery    bool           `json:"blocks_recovery"`
+	// ResourceKind is a stable UI/API hint for deep links: incident, diagnostic, transport, control, unknown.
+	ResourceKind string `json:"resource_kind,omitempty"`
 	Metadata          map[string]any `json:"metadata,omitempty"`
 }
 

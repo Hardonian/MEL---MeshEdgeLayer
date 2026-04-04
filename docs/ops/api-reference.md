@@ -1145,6 +1145,52 @@ Dead letter queue entries.
 
 ---
 
+### GET /api/v1/intelligence/briefing
+
+Structured **instance-scoped** operator briefing derived from **open incidents** and **diagnostics findings** in the local database, plus deterministic ranking/heuristics in `internal/intelligence`. It is **not** ML inference, RF/path proof, or fleet-wide truth.
+
+**Semantics:**
+- `api_version` — JSON contract for this object (currently `v1`).
+- `truth_basis` — human-readable statements about what evidence classes fed the briefing (bounded claims).
+- `top_priorities[]` — ranked `PriorityItem` rows; `resource_kind` hints UI deep links: `incident`, `diagnostic`, `transport`, `control`.
+- `recommended_sequence[]` — heuristic recovery ordering from the same inputs; `unsafe_early` flags steps that may be risky if skipped or reordered without review.
+- `blast_radius_estimate` — bounded narrative from node/alert context, not a measured physical blast radius.
+- `uncertainty_notes` — explicit caveats when automation is thin.
+
+**Example:**
+```json
+{
+  "api_version": "v1",
+  "truth_basis": [
+    "Open incidents and diagnostic findings from this instance (SQLite-backed where available).",
+    "Rank and recovery sequence are deterministic heuristics over those inputs — not RF/path proof or ML inference."
+  ],
+  "overall_status": "Degraded",
+  "top_priorities": [
+    {
+      "id": "inc-001",
+      "category": "transport",
+      "severity": "high",
+      "title": "MQTT stall",
+      "summary": "timeout_stall",
+      "rank": 96,
+      "confidence": 1,
+      "evidence_freshness": "High",
+      "is_actionable": true,
+      "blocks_recovery": false,
+      "resource_kind": "incident"
+    }
+  ],
+  "likely_causes": [],
+  "recommended_sequence": [],
+  "blast_radius_estimate": "No active mesh incidents detected in briefing inputs.",
+  "uncertainty_notes": [],
+  "generated_at": "2026-04-04T12:00:00Z"
+}
+```
+
+---
+
 ### GET /api/v1/incidents
 Recent transport incidents.
 
@@ -1528,6 +1574,26 @@ view derived from persisted rows and config).
 - `critical` - Immediate action required
 - `warn` - Attention needed
 - `info` - Informational
+
+## Outbound integration (webhooks)
+
+When `integration.enabled` is true, MEL posts versioned JSON envelopes to configured HTTPS URLs (and optional Slack/Telegram adapters). This is **best-effort notification**, not guaranteed delivery or a control plane.
+
+**Payload shape** (`internal/integration.Event`):
+- `schema_version` — e.g. `mel.integration.v1`
+- `event_type` — source event type (e.g. `integration.alert`, `integration.anomaly`, `integration.control_action`, `integration.transport_state`, `meshtastic.packet`)
+- `timestamp` — RFC3339 (UTC) when the outbound record was assembled
+- `source` — `"mel"`
+- `severity` — when applicable
+- `transport_name` — when applicable
+- `summary` — short operator-facing line
+- `details` — optional object with event-specific fields (may include transport metadata)
+
+**Configuration keys** (see `mel keys` / `docs/ops/configuration-reference.md`): `integration.enabled`, `integration.webhook_urls`, `integration.slack_webhook_url`, `integration.telegram_bot_token_env`, `integration.telegram_chat_id`, `integration.min_interval_seconds`, and feature toggles `integration.alerts`, `integration.anomalies`, `integration.actions`, `integration.state_changes`.
+
+**Verification:** `mel integration test-webhook --url <https://example/hook>` (posts a synthetic envelope; requires a running config).
+
+---
 
 ## Error Response Format
 
