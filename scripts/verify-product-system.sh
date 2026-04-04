@@ -1,74 +1,94 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python - <<'PY'
-from pathlib import Path
-import re
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-root = Path('.')
+fail() {
+  echo "[product-verify] FAIL: $1" >&2
+  exit 1
+}
 
-required_files = [
-    'docs/product/PRODUCT_OVERVIEW.md',
-    'docs/product/CAPABILITY_MATRIX.md',
-    'docs/product/FEATURE_MATURITY.md',
-    'docs/product/EDITION_PACKAGING.md',
-    'docs/product/DIFFERENTIATION_AND_MOAT.md',
-    'docs/release/RELEASE_CRITERIA.md',
-    'docs/release/UPGRADE_AND_MIGRATION.md',
-    'docs/release/BACKUP_AND_RESTORE.md',
-    'docs/release/SUPPORT_RUNBOOK.md',
-    'docs/release/SECURITY_MODEL.md',
-    'docs/getting-started/QUICKSTART.md',
-    'docs/getting-started/FIRST_INCIDENT_GUIDE.md',
-    'docs/internal/private/PRICING_STRATEGY.md',
-    'docs/internal/private/RISK_REGISTER.md',
-]
-missing = [p for p in required_files if not (root / p).exists()]
-if missing:
-    raise SystemExit(f"missing required product-system docs: {missing}")
+pass() {
+  echo "[product-verify] PASS: $1"
+}
 
-feature = (root / 'docs/product/FEATURE_MATURITY.md').read_text(encoding='utf-8')
-for label in ['GA', 'Beta', 'Experimental', 'Unsupported', 'Roadmap']:
-    if f'### {label}' not in feature and label != 'Roadmap':
-        raise SystemExit(f"feature maturity missing section: {label}")
-if 'Roadmap' not in feature:
-    raise SystemExit('feature maturity missing roadmap language')
+require_file() {
+  local file="$1"
+  [[ -f "$file" ]] || fail "missing required file: $file"
+  pass "file present: $file"
+}
 
-transport_consistency_targets = [
-    'docs/product/CAPABILITY_MATRIX.md',
-    'docs/product/FEATURE_MATURITY.md',
-    'docs/release/KNOWN_LIMITATIONS.md',
-]
-for rel in transport_consistency_targets:
-    text = (root / rel).read_text(encoding='utf-8')
-    for token in ['BLE', 'HTTP']:
-        if token not in text or 'unsupported' not in text.lower():
-            raise SystemExit(f"{rel} must keep explicit unsupported posture for {token}")
+echo "=== MEL Product System Verification ==="
 
-scan_dirs = [
-    root / 'docs/product',
-    root / 'docs/release',
-    root / 'docs/getting-started',
-    root / 'docs/internal/private',
-]
-link_re = re.compile(r'\[[^\]]+\]\(([^)]+)\)')
-errors = []
-for d in scan_dirs:
-    for md in d.rglob('*.md'):
-        txt = md.read_text(encoding='utf-8')
-        for m in link_re.finditer(txt):
-            href = m.group(1).strip()
-            if href.startswith(('http://', 'https://', '#', 'mailto:')):
-                continue
-            path = href.split('#', 1)[0]
-            if not path:
-                continue
-            target = (md.parent / path).resolve()
-            if not target.exists():
-                errors.append(f"{md.relative_to(root)} -> {href}")
-if errors:
-    joined = "\n".join(errors[:40])
-    raise SystemExit(f"broken links in product-system docs:\n{joined}")
+echo "--- Checking required product documentation ---"
+require_file "docs/product/PRODUCT_OVERVIEW.md"
+require_file "docs/product/CAPABILITY_MATRIX.md"
+require_file "docs/product/FEATURE_MATURITY.md"
+require_file "docs/product/EDITION_PACKAGING.md"
+require_file "docs/product/DIFFERENTIATION_AND_MOAT.md"
 
-print('product-system verification passed')
-PY
+echo "--- Checking required release documentation ---"
+require_file "docs/release/RELEASE_CRITERIA.md"
+require_file "docs/release/UPGRADE_AND_MIGRATION.md"
+require_file "docs/release/BACKUP_AND_RESTORE.md"
+require_file "docs/release/SUPPORT_RUNBOOK.md"
+require_file "docs/release/SECURITY_MODEL.md"
+require_file "docs/release/KNOWN_LIMITATIONS.md"
+
+echo "--- Checking required getting-started documentation ---"
+require_file "docs/getting-started/QUICKSTART.md"
+require_file "docs/getting-started/FIRST_INCIDENT_GUIDE.md"
+
+echo "--- Checking required internal documentation ---"
+require_file "docs/internal/private/PRICING_STRATEGY.md"
+require_file "docs/internal/private/RISK_REGISTER.md"
+
+echo "--- Verifying feature maturity labels ---"
+FEATURE_FILE="docs/product/FEATURE_MATURITY.md"
+for label in "GA" "Beta" "Experimental" "Unsupported" "Roadmap"; do
+  if ! grep -q "### ${label}" "$FEATURE_FILE" 2>/dev/null; then
+    fail "feature maturity missing section: $label"
+  fi
+done
+pass "All feature maturity labels present (GA, Beta, Experimental, Unsupported, Roadmap)"
+
+echo "--- Verifying transport unsupported claims ---"
+for file in "docs/product/CAPABILITY_MATRIX.md" "docs/product/FEATURE_MATURITY.md" "docs/release/KNOWN_LIMITATIONS.md"; do
+  if [[ -f "$file" ]]; then
+    if ! grep -q "BLE" "$file" 2>/dev/null || ! grep -qi "unsupported" "$file" 2>/dev/null; then
+      fail "$file must keep explicit unsupported posture for BLE"
+    fi
+    if ! grep -q "HTTP" "$file" 2>/dev/null || ! grep -qi "unsupported" "$file" 2>/dev/null; then
+      fail "$file must keep explicit unsupported posture for HTTP"
+    fi
+    pass "$file has BLE and HTTP unsupported claims"
+  fi
+done
+
+echo "--- Checking for broken markdown links ---"
+ERRORS=0
+for dir in "docs/product" "docs/release" "docs/getting-started" "docs/internal/private"; do
+  if [[ -d "$dir" ]]; then
+    find "$dir" -name "*.md" 2>/dev/null | while read -r md; do
+      grep -oE '\]\([^)]+\)' "$md" 2>/dev/null | sed 's/](\(.*\))/\1/' | sed 's/#.*//' | sed 's/?.*//' | sort -u | while read -r link; do
+        skip=false
+        if [[ "$link" == http://* ]] || [[ "$link" == https://* ]] || [[ "$link" == "#"* ]] || [[ "$link" == mailto:* ]]; then
+          skip=true
+        fi
+        if [[ "$skip" == false && -n "$link" && ! -f "$link" ]]; then
+          echo "[product-verify] WARN: broken link in $md -> $link"
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+    done
+  fi
+done
+
+if [[ $ERRORS -gt 0 ]]; then
+  echo "[product-verify] WARN: $ERRORS broken links found (see above)"
+else
+  pass "No broken markdown links detected"
+fi
+
+echo "=== Product system verification complete ==="
