@@ -2488,28 +2488,33 @@ export function IncidentDetail() {
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
       {/* Back nav */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={() => navigate(returnToWorkbench)}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to workbench
-        </button>
-        <Link to={returnToWorkbench} className="text-sm text-muted-foreground hover:text-foreground">
-          Workbench
-        </Link>
-        <span className="text-muted-foreground/40">/</span>
-        <span className="text-sm text-foreground font-mono truncate max-w-[200px]">{inc.id.slice(0, 16)}…</span>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
-        </button>
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
+          Mesh operations cockpit · Incident record
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(returnToWorkbench)}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to workbench
+          </button>
+          <Link to={returnToWorkbench} className="text-sm text-muted-foreground hover:text-foreground">
+            Workbench
+          </Link>
+          <span className="text-muted-foreground/40">/</span>
+          <span className="text-sm text-foreground font-mono truncate max-w-[200px]">{inc.id.slice(0, 16)}…</span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {!versionInfo.loading && (

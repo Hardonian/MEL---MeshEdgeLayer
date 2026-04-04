@@ -7,6 +7,12 @@ Use these labels to keep post-launch triage operational and doctrine-aligned.
 - `needs:triage` — new issue has not been classified.
 - `kind:bug` / `kind:feature` / `kind:docs` / `kind:setup` / `kind:truth-semantics` / `kind:contributor-experience` — one primary class.
 
+### Optional community-intake labels (create if you use them)
+
+- `kind:field-report` — operator narrative / lessons learned (often docs-only follow-up).
+- `kind:hardware-compat` — anecdotal compatibility notes (not certification).
+- `kind:integration` — optional adapter or external system boundary proposals.
+
 ## Doctrine-sensitive classes
 
 - `area:degraded-state` — stale/partial/degraded/unknown signaling risk.

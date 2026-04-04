@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Community start here (roles + paths)
+    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/START_HERE.md
+    about: Operator, sandbox demo, contributor, and field-report entry points grounded in this repo.
+  - name: Contributor paths by role
+    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/CONTRIBUTOR_PATHS.md
+    about: Frontend, transport, docs, and demo surfaces with real folder maps and verification commands.
   - name: Issue label routing policy
     url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/issue-routing-labels.md
     about: Label meanings and required triage flow for setup/truth/control/docs reports.
