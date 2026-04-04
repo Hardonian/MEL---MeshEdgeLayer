@@ -91,7 +91,7 @@ func newAuthedTrustServer(t *testing.T) (*Server, string) {
 	srv := New(cfg, logging.New("error", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 	// Direct DB approve/reject is enough to prove HTTP authz; avoids import cycle with service → web.
 	srv.SetTrustFuncs(
@@ -209,7 +209,7 @@ func TestIncidentsListIncludesHandoffFields(t *testing.T) {
 	srv := New(cfg, logging.New("error", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents", nil)
@@ -239,5 +239,49 @@ func TestIncidentsListIncludesHandoffFields(t *testing.T) {
 	}
 	if len(payload.Recent[0].PendingActions) != 2 || payload.Recent[0].PendingActions[0] != "act-1" {
 		t.Fatalf("unexpected pending_actions: %+v", payload.Recent[0].PendingActions)
+	}
+}
+
+func TestOperationalDigest_ViewerKeyOK(t *testing.T) {
+	srv, _ := newAuthedTrustServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/operator/digest", nil)
+	req.Header.Set("X-API-Key", "viewer-test-key")
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		SchemaVersion string `json:"schema_version"`
+		WindowHours   int    `json:"window_hours"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.SchemaVersion != "mel.operator_operational_digest/v1" {
+		t.Fatalf("unexpected schema: %q", payload.SchemaVersion)
+	}
+	if payload.WindowHours != 24 {
+		t.Fatalf("expected window_hours 24, got %d", payload.WindowHours)
+	}
+}
+
+func TestIntelligenceBriefing_ViewerKeyOK(t *testing.T) {
+	srv, _ := newAuthedTrustServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/intelligence/briefing", nil)
+	req.Header.Set("X-API-Key", "viewer-test-key")
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		OverallStatus string `json:"overall_status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.OverallStatus == "" {
+		t.Fatalf("expected overall_status in briefing")
 	}
 }

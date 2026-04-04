@@ -242,7 +242,7 @@ func TestInvestigationsCaseEndpoints(t *testing.T) {
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return summary })
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/investigations/cases", nil)
@@ -336,7 +336,7 @@ func TestInvestigationCaseTimelineEndpoint(t *testing.T) {
 			}}
 		},
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary {
 			return investigation.Derive(cfg, database, []transport.Health{{
 				Name:         "mqtt",
@@ -452,7 +452,7 @@ func TestStatusUsesPersistedRuntimeEvidenceWhenNoLiveRuntimeIsPresent(t *testing
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
 	rec := httptest.NewRecorder()
@@ -636,7 +636,7 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return health },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 }
 

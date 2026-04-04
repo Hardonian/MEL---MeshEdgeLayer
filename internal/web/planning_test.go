@@ -36,7 +36,7 @@ func setupPlanningServer(t *testing.T) (*Server, *db.DB) {
 	}
 	srv := New(cfg, logging.New("info", false), d, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 	srv.SetTopologyStore(topology.NewStore(d))
 	return srv, d

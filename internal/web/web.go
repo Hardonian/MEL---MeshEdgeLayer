@@ -54,6 +54,7 @@ type Server struct {
 	controlHistory       func(string, string, string, string, int, int) (map[string]any, error)
 	diagnosticsRun       func(config.Config, *db.DB) []diagnostics.Finding
 	operatorBriefing     func() models.OperatorBriefingDTO
+	operationalDigest    func() models.OperatorOperationalDigestDTO
 	investigationSummary func() investigation.Summary
 	queueDepths          func() map[string]int
 	// processStartedAt is set by SetProcessStartedAt when running under mel serve; zero means status was assembled outside a long-lived server (e.g. CLI-only).
@@ -63,26 +64,26 @@ type Server struct {
 	federationHandlers *FederationHandlers
 
 	// Trust / operability hooks (wired from service layer)
-	approveAction             func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error)
-	rejectAction              func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error)
-	createFreeze              func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
-	clearFreeze               func(freezeID, clearedBy string) error
-	createMaintenanceWindow   func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
-	cancelMaintenanceWindow   func(windowID, cancelledBy string) error
-	addOperatorNote           func(refType, refID, actorID, content string) (string, error)
-	timeline                  func(start, end string, limit int) ([]db.TimelineEvent, error)
-	inspectAction             func(actionID string) (map[string]any, error)
-	operationalState          func() (map[string]any, error)
-	incidentHandoff           func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
-	incidentByID              func(id string, canReadLinked bool) (models.Incident, bool, error)
-	incidentWorkflowPatch     func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
-	incidentRecOutcome        func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
+	approveAction              func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.ApproveActionResponse, error)
+	rejectAction               func(actionID, actorID, note string, breakGlassSodAck bool, breakGlassSodReason string) (*models.RejectActionResponse, error)
+	createFreeze               func(scopeType, scopeValue, reason, createdBy, expiresAt string) (string, error)
+	clearFreeze                func(freezeID, clearedBy string) error
+	createMaintenanceWindow    func(title, reason, scopeType, scopeValue, createdBy, startsAt, endsAt string) (string, error)
+	cancelMaintenanceWindow    func(windowID, cancelledBy string) error
+	addOperatorNote            func(refType, refID, actorID, content string) (string, error)
+	timeline                   func(start, end string, limit int) ([]db.TimelineEvent, error)
+	inspectAction              func(actionID string) (map[string]any, error)
+	operationalState           func() (map[string]any, error)
+	incidentHandoff            func(incidentID, fromActor string, req models.IncidentHandoffRequest) error
+	incidentByID               func(id string, canReadLinked bool) (models.Incident, bool, error)
+	incidentWorkflowPatch      func(incidentID, actorID string, patch models.IncidentWorkflowPatch) error
+	incidentRecOutcome         func(incidentID, actorID string, req models.IncidentRecommendationOutcomeRequest) error
 	incidentIntelSignalOutcome func(incidentID, actorID string, req models.IncidentIntelSignalOutcomeRequest) error
-	incidentReplayView        func(incidentID string, canReadLinked bool) (map[string]any, error)
-	incidentEscalationBundle  func(incidentID, actorID string) (map[string]any, error)
-	incidentDecisionPackPatch func(incidentID, actorID string, patch models.IncidentDecisionPackAdjudicationPatch) error
-	recentIncidents           func(limit int, canReadLinked bool) ([]models.Incident, error)
-	queueOperatorControl      func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
+	incidentReplayView         func(incidentID string, canReadLinked bool) (map[string]any, error)
+	incidentEscalationBundle   func(incidentID, actorID string) (map[string]any, error)
+	incidentDecisionPackPatch  func(incidentID, actorID string, patch models.IncidentDecisionPackAdjudicationPatch) error
+	recentIncidents            func(limit int, canReadLinked bool) ([]models.Incident, error)
+	queueOperatorControl       func(actorID, actionType, targetTransport, targetSegment, targetNode, reason string, confidence float64, incidentID string) (string, error)
 
 	// Offline remote evidence import (instance-local; not live federation).
 	importRemoteEvidence       func(raw []byte, strictOrigin bool, actor string) (map[string]any, error)
@@ -199,7 +200,7 @@ func (s *Server) SetMeshIntelProvider(f func() (meshintel.Assessment, bool)) {
 	s.meshIntelLatest = f
 }
 
-func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO, investigationSummary func() investigation.Summary) *Server {
+func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, bus *events.Bus, th func() []transport.Health, rec func() []policy.Recommendation, statusSnapshot func() (statuspkg.Snapshot, error), controlStatus func() (map[string]any, error), controlHistory func(string, string, string, string, int, int) (map[string]any, error), diagnosticsRun func(config.Config, *db.DB) []diagnostics.Finding, operatorBriefing func() models.OperatorBriefingDTO, operationalDigest func() models.OperatorOperationalDigestDTO, investigationSummary func() investigation.Summary) *Server {
 	controlStatusFn := controlStatus
 	if controlStatusFn == nil {
 		controlStatusFn = func() (map[string]any, error) {
@@ -224,7 +225,18 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 			return models.OperatorBriefingDTO{OverallStatus: "unknown", GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
 		}
 	}
-	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn, investigationSummary: investigationSummary}
+	operationalDigestFn := operationalDigest
+	if operationalDigestFn == nil {
+		operationalDigestFn = func() models.OperatorOperationalDigestDTO {
+			return models.OperatorOperationalDigestDTO{
+				SchemaVersion: "mel.operator_operational_digest/v1",
+				GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+				WindowHours:   24,
+				TruthNotes:    []string{"Operational digest hook not wired; empty counts."},
+			}
+		}
+	}
+	s := &Server{cfg: cfg, log: log, db: d, state: st, bus: bus, transportHealth: th, recommendations: rec, statusSnapshot: statusSnapshot, controlStatus: controlStatusFn, controlHistory: controlHistoryFn, diagnosticsRun: diagnosticsRunFn, operatorBriefing: operatorBriefingFn, operationalDigest: operationalDigestFn, investigationSummary: investigationSummary}
 	if s.statusSnapshot == nil {
 		s.statusSnapshot = func() (statuspkg.Snapshot, error) {
 			var pt *time.Time
@@ -287,7 +299,8 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/investigations", s.requireMethod(s.investigationsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/investigations/", s.requireMethod(s.investigationsPathHandler, http.MethodGet, http.MethodHead))
-	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(s.operatorBriefingHandler, http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/intelligence/briefing", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, s.operatorBriefingHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/operator/digest", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadStatus, security.CapReadIncidents}, s.operatorOperationalDigestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support/manifest", s.requireMethod(security.Require(security.CapExportBundle, s.manifestHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/support-bundle", s.requireMethod(security.Require(security.CapExportBundle, s.supportBundleHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/control/status", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadActions, security.CapReadStatus}, s.controlStatusHandler), http.MethodGet, http.MethodHead))
@@ -2253,4 +2266,8 @@ func asFloat(v any) float64 {
 
 func (s *Server) operatorBriefingHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.operatorBriefing())
+}
+
+func (s *Server) operatorOperationalDigestHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.operationalDigest())
 }

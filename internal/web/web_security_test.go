@@ -291,7 +291,7 @@ func TestPrivacyLeakRawHex(t *testing.T) {
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("unauthorized_no_raw_hex", func(t *testing.T) {
@@ -377,7 +377,7 @@ func TestControlAbusePrevention(t *testing.T) {
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("history_endpoint_respects_limit", func(t *testing.T) {
@@ -500,7 +500,7 @@ func TestNodeIDRedaction(t *testing.T) {
 	srv := New(cfg, logger, database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/nodes", nil)
@@ -615,7 +615,7 @@ func TestDuplicateActionDetection(t *testing.T) {
 	srv := New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/control/status", nil)
@@ -645,7 +645,7 @@ func TestAuthBruteForceProtection(t *testing.T) {
 	srv := New(cfg, logger, database, meshstate.New(), events.New(),
 		func() []transport.Health { return nil },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		func() investigation.Summary { return investigation.Summary{} })
 
 	t.Run("invalid_credentials_rejected", func(t *testing.T) {
