@@ -2,7 +2,7 @@
 name: Bug Report
 about: Create a report to help us improve MEL
 title: '[BUG] '
-labels: bug
+labels: kind:bug,needs:triage
 assignees: ''
 ---
 

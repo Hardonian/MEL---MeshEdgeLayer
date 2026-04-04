@@ -2,7 +2,7 @@
 name: Contributor onboarding
 about: Orientation, build friction, or unclear extension points — not a feature request
 title: '[CONTRIB] '
-labels: enhancement
+labels: kind:contributor-experience,needs:triage
 assignees: ''
 ---
 

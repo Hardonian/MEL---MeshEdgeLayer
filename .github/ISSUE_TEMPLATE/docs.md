@@ -2,7 +2,7 @@
 name: Documentation
 about: Wrong, missing, or misleading docs (including vs implementation)
 title: '[DOCS] '
-labels: documentation
+labels: kind:docs,needs:triage
 assignees: ''
 ---
 

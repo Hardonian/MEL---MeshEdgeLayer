@@ -8,7 +8,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify reality-check product-verify
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify reality-check product-verify premerge-verify
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*' -not -path './frontend/node_modules/*')
@@ -79,3 +79,6 @@ reality-check:
 
 product-verify:
 	./scripts/verify-product-system.sh
+
+premerge-verify:
+	./scripts/verify-release-local.sh
