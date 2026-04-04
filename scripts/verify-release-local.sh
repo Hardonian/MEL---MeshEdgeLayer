@@ -50,10 +50,6 @@ pass "Python runtime: $PY"
 
 echo "[verify-release-local] Running release-reality verification sequence"
 ./scripts/repo-os-reality-check.sh
-make product-verify
-make frontend-verify
-"$GO_BIN" test ./...
-make build-cli
-make smoke
+make product-verify frontend-verify test build-cli smoke
 
 pass "Local release verification sequence completed"

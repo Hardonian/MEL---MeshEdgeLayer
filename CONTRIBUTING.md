@@ -41,6 +41,9 @@ make build
 # Run unit tests
 make test
 
+# Deterministic frontend install + lint/typecheck/test/build in one chained run
+make premerge-verify
+
 # Run the local smoke test suite
 ./scripts/smoke.sh
 ```
@@ -70,6 +73,7 @@ Runtime contract:
 - Frontend install/lint/typecheck/test/build are guarded by `frontend/scripts/require-node24.mjs`.
 - Required Node version: `24.x` (`>=24 <25`, see `frontend/package.json` + `frontend/.nvmrc`).
 - If Node is not 24.x, frontend commands fail fast with a runtime-contract error.
+- `frontend-install` runs `npm ci` deterministically; in a single `make` invocation (`make frontend-verify build-cli`, `make verify`, or `make premerge-verify`), install runs once and downstream checks/build reuse that exact dependency state.
 
 ### 3. Verification Standards
 

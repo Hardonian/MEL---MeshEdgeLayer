@@ -48,6 +48,25 @@ describe('Topology truth boundary', () => {
         if (url.includes('/api/v1/topology/nodes/')) {
           return Promise.resolve({ ok: false, status: 404 } as Response)
         }
+        if (url.includes('/api/v1/incidents/inc-topo')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: 'inc-topo',
+              title: 'Relay drift around node 2',
+              resource_type: 'mesh_node',
+              resource_id: 'node:2',
+              intelligence: {
+                implicated_domains: [
+                  {
+                    domain: 'mesh_topology',
+                    evidence_refs: ['node:2'],
+                  },
+                ],
+              },
+            }),
+          } as Response)
+        }
         return Promise.reject(new Error(`Unexpected fetch ${url}`))
       }),
     )
@@ -65,6 +84,24 @@ describe('Topology truth boundary', () => {
     expect(screen.getByText(/Not RF\/path proof or delivery proof/i)).toBeTruthy()
     expect(screen.getByText(/includes 1 inferred edge/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Stale' }))
+    expect(screen.getByTestId('topology-truth-boundary')).toBeTruthy()
+  })
+
+  it('keeps topology truth boundary explicit when incident-linked context focuses the graph', async () => {
+    window.history.pushState({}, '', '/topology?incident=inc-topo')
+    renderTopology()
+    await waitFor(() => {
+      expect(screen.getByTestId('topology-truth-boundary')).toBeTruthy()
+    })
+
+    expect(screen.getByText(/Not RF\/path proof or delivery proof/i)).toBeTruthy()
+    expect(screen.getByText(/Focused for incident/i)).toBeTruthy()
+    expect(screen.getByText(/Relay drift around node 2/i)).toBeTruthy()
+    expect(screen.getByText(/mesh_node \/ node:2/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Incident focus' }))
+    expect(screen.getByText(/Showing 1\/2 nodes/i)).toBeTruthy()
+    expect(screen.getByText(/Observed vs inferred/i)).toBeTruthy()
     expect(screen.getByTestId('topology-truth-boundary')).toBeTruthy()
   })
 })
