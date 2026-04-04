@@ -2,7 +2,9 @@
 
 Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to reduce entropy and increase structural coherence in mesh network operations.
 
-## 🏁 Ground Rules for Contributors
+**Role-based entry points:** [docs/community/START_HERE.md](docs/community/START_HERE.md) · [docs/community/CONTRIBUTOR_PATHS.md](docs/community/CONTRIBUTOR_PATHS.md) · [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
+
+## Ground rules for contributors
 
 1. **Keep MEL Honest**: No fake transports, no fake mesh data, and no dead routes.
 2. **Narrow Public Claims**: If a feature is not yet fully implemented or verified, it must be explicitly labeled as such in both code and documentation.
@@ -12,7 +14,7 @@ Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to 
 
 ---
 
-## 🏗️ Architecture & Truth Boundaries
+## Architecture and truth boundaries
 
 Before you begin, understand where MEL starts and stops:
 
@@ -25,7 +27,7 @@ Review the [Known Limitations](docs/ops/limitations.md) for more details.
 
 ---
 
-## 🛠️ Local Development & Build
+## Local development and build
 
 ### 1. Build and Verify
 
@@ -48,6 +50,10 @@ make premerge-verify
 ./scripts/smoke.sh
 ```
 
+**Sandbox demo (fixture-backed UI data, no radio):** after `make build-cli`, `make demo-seed` then `./bin/mel serve --config demo_sandbox/mel.demo.json`. See [docs/community/SCENARIO_LIBRARY.md](docs/community/SCENARIO_LIBRARY.md).
+
+**Dev container:** [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) (Go 1.24, Node 24, Python 3.12) for VS Code / Codespaces-style setups.
+
 **Node 24 and Python:** `make lint` and `make product-verify` need Node `24.x` and `python3` (or `python`) on `PATH`. From the repo root, after installing [nvm](https://github.com/nvm-sh/nvm):
 
 ```bash
@@ -55,7 +61,7 @@ make premerge-verify
 make lint
 ```
 
-### 2. Frontend Development
+### 2. Frontend development
 
 The control plane dashboard lives in `frontend/`.
 
@@ -75,7 +81,7 @@ Runtime contract:
 - If Node is not 24.x, frontend commands fail fast with a runtime-contract error.
 - `frontend-install` runs `npm ci` deterministically; in a single `make` invocation (`make frontend-verify build-cli`, `make verify`, or `make premerge-verify`), install runs once and downstream checks/build reuse that exact dependency state.
 
-### 3. Verification Standards
+### 3. Verification standards
 
 Every Pull Request must:
 
@@ -88,7 +94,7 @@ Every Pull Request must:
 
 ---
 
-## 🔌 Safe Areas for Expansion
+## Safe areas for expansion
 
 - **Policy & Privacy Logic**: Refine redaction or trust boundary enforcement.
 - **Documentation**: New runbooks or operator workflow improvements.
@@ -97,7 +103,7 @@ Every Pull Request must:
 
 ---
 
-## 🧭 MEL Repo-OS Discipline
+## MEL repo-OS discipline
 
 All non-trivial changes must run through the repo operating system in `docs/repo-os/README.md`.
 
@@ -108,7 +114,7 @@ Minimum expectation per PR:
 - Meet verification obligations from `docs/repo-os/verification-matrix.md`.
 - Pass release reality gate in `docs/repo-os/release-readiness.md` for capability-affecting changes.
 
-## ⚓ Pull Request Checklist
+## Pull request checklist
 
 When submitting a PR, include:
 
