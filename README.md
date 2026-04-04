@@ -60,7 +60,8 @@ For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/ev
 - Release/support system: [`docs/release/RELEASE_CRITERIA.md`](docs/release/RELEASE_CRITERIA.md)
 - Communications hub blueprint: [`docs/architecture/communications-hub-blueprint.md`](docs/architecture/communications-hub-blueprint.md)
 - Operations: [`docs/ops/OPERATIONS_RUNBOOK.md`](docs/ops/OPERATIONS_RUNBOOK.md)
-- Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md)
+- Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md) (includes [launch & demo](docs/runbooks/launch-and-demo.md))
+- Post-launch intake: [`docs/community/post-launch-playbook.md`](docs/community/post-launch-playbook.md)
 - API reference: [`docs/ops/api-reference.md`](docs/ops/api-reference.md)
 - Repo operating system: [`docs/repo-os/README.md`](docs/repo-os/README.md)
 - Repo-local model spec: [`docs/repo-os/model-spec.md`](docs/repo-os/model-spec.md)
@@ -88,7 +89,7 @@ Notes:
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
 
 Then apply the repo-os gates:
-<BLANK_LINE>
+
 - [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
 - [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
 
