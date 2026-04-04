@@ -86,7 +86,7 @@ make smoke
 ```
 
 Notes:
-- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this).
+- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this). Use `. ./scripts/dev-env.sh` from the repo root to select Node 24 via nvm and confirm `python3` exists for `make product-verify`.
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
 
 Then apply the repo-os gates:
