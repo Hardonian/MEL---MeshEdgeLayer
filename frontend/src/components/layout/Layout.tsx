@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'Overview',
       icon: Eye,
       items: [
-        { label: 'Command surface', href: '/', icon: LayoutDashboard },
+        { label: 'Command surface (home)', href: '/', icon: LayoutDashboard },
         { label: 'Status', href: '/status', icon: Activity },
         { label: 'Events', href: '/events', icon: FileText },
       ],
@@ -235,9 +235,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2">
                   <span className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">MEL</span>
                   <span className="hidden rounded-full border border-border/70 bg-card/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:inline-flex">
-                    Console
+                    Operator OS
                   </span>
                 </div>
+                <p className="mt-0.5 hidden max-w-[14rem] text-[10px] leading-snug text-muted-foreground/75 sm:block">
+                  Incident intelligence and governed control — bounded by persisted evidence.
+                </p>
               </div>
             </Link>
           </div>
@@ -396,6 +399,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             focus={focus}
             onDismiss={clearFocus}
           />
+          <TruthContractStrip />
           <div className="mx-auto w-full max-w-8xl page-enter">{children}</div>
         </main>
       </div>
@@ -416,6 +420,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {commandOpen && (
         <CommandPalette onClose={() => setCommandOpen(false)} />
       )}
+    </div>
+  )
+}
+
+function TruthContractStrip() {
+  return (
+    <div
+      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
+      role="note"
+      aria-label="Operator truth contract"
+    >
+      <span className="font-semibold uppercase tracking-[0.14em] text-foreground/90">Truth contract</span>
+      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
+        ·
+      </span>
+      <span>
+        <strong className="font-medium text-foreground/90">Live</strong> = recent persisted ingest.{' '}
+        <strong className="font-medium text-foreground/90">Stale / partial / degraded</strong> stay visible — never folded into
+        &quot;all good&quot;.
+      </span>
+      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
+        ·
+      </span>
+      <span>
+        Topology and maps show <strong className="font-medium text-foreground/90">observed context</strong>, not proof of RF path
+        or delivery unless evidence says so.
+      </span>
+      <Link
+        to="/settings#operator-truth-contract"
+        className="font-semibold text-primary hover:underline sm:ml-auto"
+      >
+        Full wording in Settings
+      </Link>
+      <a
+        href="/docs/repo-os/terminology.md"
+        className="font-semibold text-primary hover:underline"
+      >
+        Canonical terminology (docs)
+      </a>
     </div>
   )
 }
@@ -489,7 +532,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'Command surface', href: '/', keywords: 'home overview dashboard operator workspace' },
+    { label: 'Command surface (home)', href: '/', keywords: 'home overview dashboard operator workspace' },
     { label: 'Status', href: '/status', keywords: 'transport health connection' },
     { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
     { label: 'Topology', href: '/topology', keywords: 'graph network map' },
