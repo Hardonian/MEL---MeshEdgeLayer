@@ -39,6 +39,7 @@ export function Transports() {
     <div className="space-y-6">
       <PageHeader
         title="Transports"
+        subtitle="Mesh operations cockpit"
         description="View ingest evidence, transport health, and degraded conditions."
       />
 

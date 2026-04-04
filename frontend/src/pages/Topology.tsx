@@ -698,6 +698,7 @@ export function Topology() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Topology"
+          subtitle="Mesh operations cockpit"
           description="Graph from stored links (packet relay / destination fields). Not a geographic or RF map unless coordinates are present."
           className="mb-0 border-0 pb-0 sm:mb-0"
         />

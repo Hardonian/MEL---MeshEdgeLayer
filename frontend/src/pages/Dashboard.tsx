@@ -51,6 +51,7 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
+import { FirstRunHintBanner } from '@/components/onboarding/FirstRunHintBanner'
 
 export function Dashboard() {
   const status = useStatus()
@@ -393,6 +394,7 @@ export function Dashboard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Command surface"
+          subtitle="Mesh operations cockpit"
           description="Shift-start overview: attention, evidence posture, and where to go next. Data refreshes on a short poll while this tab is visible."
         />
         <div className="flex flex-col items-end gap-1.5">
@@ -411,6 +413,8 @@ export function Dashboard() {
       </div>
 
       <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
+
+      <FirstRunHintBanner visible={!hasTransports} />
 
       {/* Shift baseline — local browser only */}
       <div className="rounded-2xl border border-border/60 bg-card/40 p-4">
