@@ -53,6 +53,8 @@ Open <http://127.0.0.1:8080>.
 
 For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/evaluate-in-10-minutes.md).
 
+For README or launch-thread captures: [`docs/ops/launch-screenshot-checklist.md`](docs/ops/launch-screenshot-checklist.md).
+
 ## Documentation map
 
 - Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
@@ -85,7 +87,7 @@ make smoke
 ```
 
 Notes:
-- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this).
+- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this). Use `. ./scripts/dev-env.sh` from the repo root to select Node 24 via nvm and confirm `python3` exists for `make product-verify`.
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
 
 Then apply the repo-os gates:

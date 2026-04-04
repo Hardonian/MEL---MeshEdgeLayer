@@ -45,6 +45,13 @@ make test
 ./scripts/smoke.sh
 ```
 
+**Node 24 and Python:** `make lint` and `make product-verify` need Node `24.x` and `python3` (or `python`) on `PATH`. From the repo root, after installing [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+. ./scripts/dev-env.sh   # sources nvm, nvm use, checks Node 24 + Python
+make lint
+```
+
 ### 2. Frontend Development
 
 The control plane dashboard lives in `frontend/`.

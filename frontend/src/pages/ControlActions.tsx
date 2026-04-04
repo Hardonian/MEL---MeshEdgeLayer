@@ -9,6 +9,7 @@ function withReturnParam(targetPath: string, returnPath: string): string {
 import { useControlActions } from '@/hooks/useControlActions'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -91,6 +92,8 @@ export function ControlActions() {
           Refresh
         </button>
       </div>
+
+      <OperatorTruthRibbon summary="Submission, approval, dispatch, and execution are separate lifecycle states. The console reflects stored records and capabilities — it does not bypass governance on the server." />
 
       {ctx.error && (
         <AlertCard variant="warning" title="Operator context unavailable" description={ctx.error} />
