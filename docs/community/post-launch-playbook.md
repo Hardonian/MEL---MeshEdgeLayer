@@ -19,7 +19,7 @@ MEL’s doctrine is **evidence-first** and **no theatre**. This note is for main
 | Security | GitHub **Security** advisories + `SECURITY.md` | No public secrets or precise locations. |
 | Contributor friction | `.github/ISSUE_TEMPLATE/contributor_onboarding.md` | Point to `CONTRIBUTING.md`, `docs/repo-os/README.md`, `make verify` subset. |
 
-Label policy: apply `needs:triage` + one `kind:*` label on intake, then one `area:*` label for doctrine-sensitive reports (`area:degraded-state`, `area:control-safety`, `area:topology-or-status`, `area:environment`). See [`issue-routing-labels.md`](issue-routing-labels.md).
+Label policy: apply `needs:triage` + one `kind:*` label on intake, then one `area:*` label for doctrine-sensitive reports (`area:degraded-state`, `area:control-safety`, `area:topology-or-status`, `area:environment`). For fresh repos/forks, run the bootstrap/sync commands in [`issue-routing-labels.md`](issue-routing-labels.md#label-bootstrap--sync-fresh-repo-or-fork) before first public intake.
 
 ## Maintainer rhythm
 
