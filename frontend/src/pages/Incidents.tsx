@@ -16,6 +16,7 @@ import {
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
 import { countV2QueueRowsMissingLex } from '@/utils/incidentQueueSort'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -294,6 +295,8 @@ export function Incidents() {
           Refresh
         </button>
       </div>
+
+      <OperatorTruthRibbon summary="Priorities and evidence strength come from stored incident intelligence and ingest — not from guessed mesh health. Sparse or degraded markers mean explicit gaps, not hidden certainty." />
 
       {ctx.error && (
         <AlertCard variant="warning" title="Operator context unavailable" description={ctx.error} />

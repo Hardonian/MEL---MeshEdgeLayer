@@ -186,7 +186,7 @@ export function SettingsPage() {
       </Card>
 
       {/* Configuration Reference */}
-      <Card>
+      <Card id="effective-config">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />

@@ -4,6 +4,8 @@ import { GitBranch, RefreshCw, AlertCircle, ZoomIn, ZoomOut, Maximize2, X, Exter
 import type { Incident } from '@/types/api'
 import { readShiftSnapshot } from '@/utils/shiftSnapshot'
 import { topologyLinkTruthSummary, topologyNodeTruthSummary } from '@/utils/evidenceSemantics'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 
 type TopoNode = {
   node_num: number
@@ -661,20 +663,14 @@ export function Topology() {
   ]
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-            <GitBranch className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">Topology</h1>
-            <p className="text-sm text-muted-foreground">
-              Graph from stored links (packet relay / destination fields). Not a geographic or RF map unless coordinates are present.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
+    <div className="mx-auto w-full max-w-7xl space-y-6 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          title="Topology"
+          description="Graph from stored links (packet relay / destination fields). Not a geographic or RF map unless coordinates are present."
+          className="mb-0 border-0 pb-0 sm:mb-0"
+        />
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:pt-1">
           {returnParam.startsWith('/') && (
             <Link to={returnParam} className="text-sm font-semibold text-primary hover:underline">
               ← Back
@@ -683,13 +679,24 @@ export function Topology() {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-background hover:bg-muted text-sm"
+            className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground shadow-inset transition-colors hover:bg-accent/70"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
           </button>
         </div>
       </div>
+
+      <div className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+        <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground">Observed vs inferred: </span>
+          Solid edges reflect packet-derived fields where the API marks them observed; dashed or weak states are graph inference or stale
+          visibility — not proof of end-to-end delivery or RF path.
+        </p>
+      </div>
+
+      <OperatorTruthRibbon summary="Topology is a model of stored observations and inferred graph structure. It cannot certify live connectivity, routing decisions, or coverage without matching ingest evidence." />
 
       {err && (
         <div className="flex items-center gap-2 text-destructive text-sm">

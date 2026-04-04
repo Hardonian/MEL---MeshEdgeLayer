@@ -235,7 +235,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2">
                   <span className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">MEL</span>
                   <span className="hidden rounded-full border border-border/70 bg-card/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:inline-flex">
-                    Console
+                    Operator OS
                   </span>
                 </div>
               </div>

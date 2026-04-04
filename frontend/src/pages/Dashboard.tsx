@@ -26,6 +26,7 @@ import { Badge, HealthBadge, SeverityBadge } from '@/components/ui/Badge'
 import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
@@ -408,6 +409,8 @@ export function Dashboard() {
           </span>
         </div>
       </div>
+
+      <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
 
       {/* Shift baseline — local browser only */}
       <div className="rounded-2xl border border-border/60 bg-card/40 p-4">
