@@ -29,6 +29,7 @@ const NAV_TARGETS: Record<string, string> = {
   p: '/planning',
   c: '/control-actions',
   m: '/messages',
+  v: '/operational-review',
 }
 
 export function useGlobalKeyboardShortcuts(onRefresh?: () => void) {
@@ -444,6 +445,7 @@ export function KeyboardShortcuts() {
         { keys: 'g c', description: 'Go to Control actions' },
         { keys: 'g m', description: 'Go to Messages' },
         { keys: 'g e', description: 'Go to Events' },
+        { keys: 'g v', description: 'Go to Operational review (digest + briefing)' },
         { keys: 'g s', description: 'Go to Settings' },
       ],
     },

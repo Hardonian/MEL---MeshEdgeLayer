@@ -1,7 +1,69 @@
 import { describe, expect, it } from 'vitest'
-import { parseMeshNodeControlAction, parseOperationalStateJson } from './useApi'
+import {
+  parseMeshNodeControlAction,
+  parseOperationalStateJson,
+  parseOperatorBriefingJson,
+  parseOperatorDigestJson,
+} from './useApi'
 
 describe('useApi parsers', () => {
+  it('parses operator operational digest envelope', () => {
+    const parsed = parseOperatorDigestJson({
+      schema_version: 'mel.operator_operational_digest/v1',
+      generated_at: '2026-04-04T12:00:00Z',
+      instance_id: 'abc',
+      window_hours: 24,
+      counts: {
+        open_incidents: 2,
+        critical_open_incidents: 1,
+        high_open_incidents: 0,
+        resolved_last_7_days: 3,
+        control_actions_total: 10,
+        pending_approval_actions: 1,
+        awaiting_executor_actions: 0,
+        operator_notes_total: 4,
+      },
+      window_counts: {
+        incidents_opened: 1,
+        control_actions_created: 2,
+        operator_notes_created: 0,
+      },
+      references: {
+        timeline: '/api/v1/timeline',
+        incidents: '/api/v1/incidents',
+        control_history: '/api/v1/control/history',
+      },
+      truth_notes: ['note'],
+    })
+    expect(parsed).not.toBeNull()
+    expect(parsed?.counts.open_incidents).toBe(2)
+    expect(parsed?.window_counts.control_actions_created).toBe(2)
+  })
+
+  it('parses operator briefing priorities', () => {
+    const parsed = parseOperatorBriefingJson({
+      overall_status: 'Degraded',
+      generated_at: '2026-04-04T12:00:00Z',
+      top_priorities: [
+        {
+          id: 'p1',
+          category: 'transport',
+          severity: 'high',
+          title: 'Broker stale',
+          summary: 'No recent heartbeat',
+          rank: 1,
+          confidence: 0.5,
+          evidence_freshness: 'stale',
+          is_actionable: true,
+          blocks_recovery: false,
+        },
+      ],
+    })
+    expect(parsed).not.toBeNull()
+    expect(parsed?.overall_status).toBe('Degraded')
+    expect(parsed?.top_priorities?.[0]?.title).toBe('Broker stale')
+  })
+
   it('preserves enriched control action approval and governance fields', () => {
     const parsed = parseMeshNodeControlAction({
       id: 'act-1',

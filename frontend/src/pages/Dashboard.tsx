@@ -30,7 +30,19 @@ import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
-import { useStatus, useNodes, useMessages, usePrivacyFindings, useRecommendations, useDeadLetters, useEvents, useDiagnostics, useOperationalState } from '@/hooks/useApi'
+import {
+  useStatus,
+  useNodes,
+  useMessages,
+  usePrivacyFindings,
+  useRecommendations,
+  useDeadLetters,
+  useEvents,
+  useDiagnostics,
+  useOperationalState,
+  useOperatorBriefing,
+  useOperatorDigest,
+} from '@/hooks/useApi'
 import { useIncidents } from '@/hooks/useIncidents'
 import { getHealthState, formatRelativeTime, TransportHealth, NodeInfo } from '@/types/api'
 import type { ShiftSnapshot } from '@/utils/shiftSnapshot'
@@ -64,6 +76,8 @@ export function Dashboard() {
   const diagnostics = useDiagnostics()
   const incidents = useIncidents()
   const operational = useOperationalState()
+  const operatorBriefing = useOperatorBriefing()
+  const operatorDigest = useOperatorDigest()
   const versionInfo = useVersionInfo()
   const operatorCtx = useOperatorContext()
 
@@ -413,6 +427,77 @@ export function Dashboard() {
       </div>
 
       <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
+
+      <section
+        className="rounded-2xl border border-border/60 bg-card/25 p-4"
+        aria-label="Operational memory snapshot"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+              <h2 className="text-sm font-semibold text-foreground">Operational memory snapshot</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Deterministic database counts for this instance plus the same ranked briefing used on the review page.
+              Use it for shift handoff and external ticketing — not as proof of mesh-wide calm.
+            </p>
+            {(operatorDigest.error || operatorBriefing.error) && (
+              <p className="text-[11px] text-warning mt-2">
+                {[operatorDigest.error, operatorBriefing.error].filter(Boolean).join(' ')}
+              </p>
+            )}
+          </div>
+          <Link
+            to="/operational-review"
+            className="shrink-0 rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
+          >
+            Full review →
+          </Link>
+        </div>
+        {operatorDigest.data && (
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+            <div>
+              <dt className="text-muted-foreground">Open incidents</dt>
+              <dd className="font-semibold tabular-nums text-foreground">{operatorDigest.data.counts.open_incidents}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Pending approvals</dt>
+              <dd className="font-semibold tabular-nums text-foreground">
+                {operatorDigest.data.counts.pending_approval_actions}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Resolved (7d)</dt>
+              <dd className="font-semibold tabular-nums text-foreground">
+                {operatorDigest.data.counts.resolved_last_7_days}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Notes (total)</dt>
+              <dd className="font-semibold tabular-nums text-foreground">
+                {operatorDigest.data.counts.operator_notes_total}
+              </dd>
+            </div>
+          </dl>
+        )}
+        {operatorBriefing.data && (
+          <div className="mt-3 border-t border-border/40 pt-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+              Briefing posture
+            </p>
+            <p className="text-sm text-foreground">
+              <span className="font-semibold">{operatorBriefing.data.overall_status}</span>
+              {operatorBriefing.data.top_priorities && operatorBriefing.data.top_priorities[0] && (
+                <span className="text-muted-foreground">
+                  {' '}
+                  — top issue: {operatorBriefing.data.top_priorities[0].title}
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+      </section>
 
       <FirstRunHintBanner visible={!hasTransports} />
 

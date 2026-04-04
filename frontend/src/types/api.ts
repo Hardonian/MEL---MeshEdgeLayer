@@ -65,6 +65,65 @@ export interface ConfigInspectResponse {
   violations?: ConfigSafetyViolation[]
 }
 
+/** GET /api/v1/intelligence/briefing — ranked issues from diagnostics + incidents (bounded heuristics). */
+export interface OperatorBriefingDTO {
+  overall_status: string
+  top_priorities?: Array<{
+    id: string
+    category: string
+    severity: string
+    title: string
+    summary: string
+    rank: number
+    confidence: number
+    evidence_freshness: string
+    is_actionable: boolean
+    blocks_recovery: boolean
+    metadata?: Record<string, unknown>
+  }>
+  likely_causes?: string[]
+  recommended_sequence?: Array<{
+    stage: number
+    action: string
+    justification: string
+    status: string
+    unsafe_early: boolean
+    dependencies?: string[]
+  }>
+  blast_radius_estimate?: string
+  uncertainty_notes?: string[]
+  generated_at: string
+}
+
+/** GET /api/v1/operator/digest — deterministic DB row-count snapshot for this instance. */
+export interface OperatorOperationalDigestDTO {
+  schema_version: string
+  generated_at: string
+  instance_id?: string
+  window_hours: number
+  counts: {
+    open_incidents: number
+    critical_open_incidents: number
+    high_open_incidents: number
+    resolved_last_7_days: number
+    control_actions_total: number
+    pending_approval_actions: number
+    awaiting_executor_actions: number
+    operator_notes_total: number
+  }
+  window_counts: {
+    incidents_opened: number
+    control_actions_created: number
+    operator_notes_created: number
+  }
+  references: {
+    timeline: string
+    incidents: string
+    control_history: string
+  }
+  truth_notes?: string[]
+}
+
 export interface OperatorIntelligencePosture {
   deterministic_incident_intel: string
   deterministic_basis: string

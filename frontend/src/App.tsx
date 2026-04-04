@@ -10,6 +10,7 @@ import { Recommendations } from './pages/Recommendations'
 import { Events } from './pages/Events'
 import { SettingsPage } from './pages/Settings'
 import { Diagnostics } from './pages/Diagnostics'
+import { OperationalReview } from './pages/OperationalReview'
 import { Incidents } from './pages/Incidents'
 import { IncidentDetail } from './pages/IncidentDetail'
 import { ControlActions } from './pages/ControlActions'
@@ -44,6 +45,7 @@ export default function App() {
                 <Route path="/events" element={<Events />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/diagnostics" element={<Diagnostics />} />
+                <Route path="/operational-review" element={<OperationalReview />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
