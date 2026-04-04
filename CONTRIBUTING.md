@@ -67,7 +67,7 @@ Runtime contract:
 ### 3. Verification Standards
 
 Every Pull Request must:
-<BLANK_LINE>
+
 - Pass `make lint`.
 - Pass `make frontend-typecheck`.
 - Pass `make frontend-test`.
@@ -91,7 +91,7 @@ Every Pull Request must:
 All non-trivial changes must run through the repo operating system in `docs/repo-os/README.md`.
 
 Minimum expectation per PR:
-<BLANK_LINE>
+
 - Classify work as Maintenance / Leverage / Moat (`docs/repo-os/change-classification.md`).
 - Run applicable truth/governance/security audits from `docs/repo-os/`.
 - Meet verification obligations from `docs/repo-os/verification-matrix.md`.

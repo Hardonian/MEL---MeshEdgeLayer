@@ -8,3 +8,7 @@
 6. Watch transport health move to `connected_no_ingest` or `ingesting`.
 7. Query `/api/v1/status`, `/api/v1/messages`, and `/metrics`.
 8. If doctor or status show `historical_only`, MEL is telling you that persisted evidence exists without claiming the path is live right now.
+
+## Optional: screenshot pass
+
+Use [`launch-screenshot-checklist.md`](launch-screenshot-checklist.md) to capture surfaces that show **evidence-first** semantics (degraded, sparse, control lifecycle) without overstating transport or topology proof.

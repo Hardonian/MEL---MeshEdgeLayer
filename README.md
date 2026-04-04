@@ -53,6 +53,8 @@ Open <http://127.0.0.1:8080>.
 
 For a guided evaluation path: [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/evaluate-in-10-minutes.md).
 
+For README or launch-thread captures: [`docs/ops/launch-screenshot-checklist.md`](docs/ops/launch-screenshot-checklist.md).
+
 ## Documentation map
 
 - Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
@@ -88,7 +90,7 @@ Notes:
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
 
 Then apply the repo-os gates:
-<BLANK_LINE>
+
 - [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
 - [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
 
