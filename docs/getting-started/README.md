@@ -2,6 +2,8 @@
 
 This path takes you from first install to trustworthy runtime checks.
 
+**Community / role routing:** [Community START_HERE](../community/START_HERE.md) · [Adoption guide](../community/adoption-guide.md) · [Scenario library (demo fixtures)](../community/SCENARIO_LIBRARY.md)
+
 ## Startup path
 
 1. [Installation](installation.md)
