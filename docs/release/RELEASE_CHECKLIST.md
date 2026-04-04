@@ -16,7 +16,8 @@ Use this checklist per release candidate. Do **not** commit it as globally passe
 
 ## Verification gates (run on current commit)
 
-- [ ] Prefer `make premerge-verify` for deterministic chained local verification (single frontend `npm ci` per run).
+- [ ] Prefer `make premerge-verify` for deterministic chained local verification (single frontend `npm ci` per run, enforced by `make check-frontend-install-churn`).
+- [ ] Optional local iteration only: `make premerge-verify-fast` (never substitute for release-grade verification evidence).
 - [ ] `make lint`
 - [ ] `make frontend-typecheck`
 - [ ] `make frontend-test`

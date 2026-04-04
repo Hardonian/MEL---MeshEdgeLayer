@@ -43,6 +43,37 @@ For automated collection, use the script in [Diagnostics Collection](./diagnosti
 
 ---
 
+## Local Verification & Toolchain Issues
+
+### Frontend Make Targets Fail with Node Runtime Contract Errors
+
+**Symptom:** `make frontend-test`, `make frontend-typecheck`, or `make frontend-install` fails before running npm commands.
+
+**Typical error:**
+```text
+[runtime-contract] Node 24.x required for make frontend-*.
+```
+
+**Why this happens:** Direct frontend make entrypoints are deterministic and require your current shell to already be on Node `24.x`.
+
+**Resolution:**
+
+```bash
+# From repo root (preferred):
+. ./scripts/dev-env.sh
+
+# Confirm runtime:
+node -v
+# Expected: v24.x
+
+# Retry command:
+make frontend-test
+```
+
+If `dev-env.sh` cannot activate Node (for example, nvm is missing), install Node 24.x and re-run the command in a fresh shell.
+
+---
+
 ## Configuration Issues
 
 ### Config File Permission Errors

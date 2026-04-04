@@ -8,7 +8,12 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify reality-check product-verify premerge-verify
+RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
+
+.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify \
+	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
+	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
+	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*' -not -path './frontend/node_modules/*')
@@ -16,21 +21,34 @@ fmt:
 vet:
 	$(GO) vet ./...
 
-frontend-install:
-	cd frontend && node ./scripts/require-node24.mjs && npm ci
+frontend-node-contract:
+	./scripts/require-node24.sh --context "make frontend-*"
 
-frontend-lint:
-	cd frontend && node ./scripts/require-node24.mjs && npm run lint
+frontend-install: frontend-node-contract
+	cd frontend && npm ci
 
-frontend-typecheck:
-	cd frontend && node ./scripts/require-node24.mjs && npm run typecheck
+frontend-lint: frontend-install
+	cd frontend && npm run lint
 
-frontend-test:
-	cd frontend && node ./scripts/require-node24.mjs && npm run test
+frontend-typecheck: frontend-install
+	cd frontend && npm run typecheck
 
-frontend-lint frontend-typecheck frontend-test: frontend-install
+frontend-test: frontend-install
+	cd frontend && npm run test
 
 frontend-verify: frontend-lint frontend-typecheck frontend-test
+
+# Fast local-only frontend verification: skips clean install and expects deps already present.
+frontend-lint-fast: frontend-node-contract
+	cd frontend && npm run lint
+
+frontend-typecheck-fast: frontend-node-contract
+	cd frontend && npm run typecheck
+
+frontend-test-fast: frontend-node-contract
+	cd frontend && npm run test
+
+frontend-verify-fast: frontend-lint-fast frontend-typecheck-fast frontend-test-fast
 
 # gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
@@ -41,12 +59,10 @@ test:
 
 build: frontend-build build-agent build-cli
 
-frontend-build:
-	cd frontend && node ./scripts/require-node24.mjs && npm run build
+frontend-build: frontend-install
+	cd frontend && npm run build
 	mkdir -p internal/web/assets
 	cp -r frontend/dist/* internal/web/assets/
-
-frontend-build: frontend-install
 
 build-agent:
 	mkdir -p $(BINDIR)
@@ -87,5 +103,14 @@ reality-check:
 product-verify:
 	./scripts/verify-product-system.sh
 
+release-verify-chain:
+	$(MAKE) $(RELEASE_VERIFY_TARGETS)
+
+check-frontend-install-churn:
+	./scripts/check-frontend-install-churn.sh
+
 premerge-verify:
 	./scripts/verify-release-local.sh
+
+premerge-verify-fast:
+	VERIFY_SKIP_CLEAN_INSTALL=1 ./scripts/verify-release-local.sh

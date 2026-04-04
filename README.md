@@ -85,12 +85,14 @@ make build
 make product-verify
 make smoke
 make premerge-verify
+make premerge-verify-fast
 ```
 
 Notes:
-- Frontend verification requires Node `24.x` (`frontend/.nvmrc`, `frontend/package.json`, and guard script enforce this). Use `. ./scripts/dev-env.sh` from the repo root to select Node 24 via nvm and confirm `python3` exists for `make product-verify`.
+- Direct frontend targets (`make frontend-install`, `make frontend-test`, etc.) now fail fast with a clear runtime-contract error unless your shell is already on Node `24.x`. Use `. ./scripts/dev-env.sh` from repo root to activate Node 24 via nvm.
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
-- `make premerge-verify` runs a deterministic local release-reality sequence with explicit toolchain checks (Go 1.24+, Node 24.x, python3/python) and uses `/usr/local/go/bin/go` when present.
+- `make premerge-verify` remains the deterministic release-reality gate (clean frontend install + full chain). It also runs a churn guard to ensure chained verification keeps exactly one frontend `npm ci`.
+- `make premerge-verify-fast` is explicitly local-only iteration mode (`VERIFY_SKIP_CLEAN_INSTALL=1`); it skips clean frontend install and relies on existing `frontend/node_modules`. Do not use it for release-grade claims.
 
 Then apply the repo-os gates:
 
