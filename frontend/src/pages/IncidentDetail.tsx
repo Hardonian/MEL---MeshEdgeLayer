@@ -59,6 +59,13 @@ import {
   operatorCanReadLinkedControlRows,
 } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
+import {
+  guidanceActionPostureLabel,
+  guidanceDegradedReasonLabel,
+  guidanceEscalationPostureLabel,
+  guidanceEvidencePostureLabel,
+  guidanceSupportPostureLabel,
+} from '@/utils/incidentDecisionPack'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -567,7 +574,7 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Investigation path (in-product)</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          One pass through MEL’s surfaces — you still verify against transports and exports. No implied automation or root-cause
+          One pass through MEL's surfaces — you still verify against transports and exports. No implied automation or root-cause
           certainty.
         </p>
       </CardHeader>
@@ -1658,8 +1665,83 @@ function buildHandoffExportText(inc: Incident): string {
   }
   lines.push('')
   lines.push(`Deep link: /incidents/${inc.id}`)
-  lines.push('This paste export is a snapshot; canonical evidence lives in MEL proofpack / DB. Use “Handoff JSON” or escalation bundle for machine-readable continuity.')
+  lines.push('This paste export is a snapshot; canonical evidence lives in MEL proofpack / DB. Use "Handoff JSON" or escalation bundle for machine-readable continuity.')
   return lines.join('\n')
+}
+
+// ─── Guidance Posture Section ─────────────────────────────────────────────────
+
+/**
+ * Renders the backend-computed guidance posture block from IncidentDecisionPackGuidance.
+ * All fields are pass-through from the backend; no local re-derivation.
+ */
+function GuidancePostureSection({ guidance }: { guidance: NonNullable<IncidentDecisionPack['guidance']> }) {
+  const evidLbl = guidanceEvidencePostureLabel(guidance.evidence_posture)
+  const actionLbl = guidanceActionPostureLabel(guidance.action_posture)
+  const supportLbl = guidanceSupportPostureLabel(guidance.support_posture)
+  const escalationLine = guidanceEscalationPostureLabel(guidance.escalation_posture)
+  const degradedReasons = guidance.degraded ? (guidance.degraded_reasons ?? []) : []
+  const replaySemantic = (guidance.replay_semantic || '').trim()
+  const hasWatches = guidance.mitigation_fragility_watch || guidance.repeated_family_concern
+  const showReplay = replaySemantic || (guidance.replay_summary || '').trim()
+
+  return (
+    <div
+      className="rounded-lg border border-border/50 px-3 py-2 text-xs space-y-2"
+      data-testid="decision-pack-guidance"
+    >
+      <p className="font-semibold text-foreground">Guidance posture (backend-computed)</p>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant={evidLbl.variant}>{evidLbl.label}</Badge>
+        <Badge variant={actionLbl.variant}>{actionLbl.label}</Badge>
+        <Badge variant={supportLbl.variant}>{supportLbl.label}</Badge>
+      </div>
+
+      {guidance.verify_before_action && (
+        <p className="text-[11px] font-medium text-warning">
+          Verify before acting — evidence basis incomplete or action posture guarded.
+        </p>
+      )}
+
+      {hasWatches && (
+        <div className="text-[11px] text-warning space-y-0.5">
+          {guidance.mitigation_fragility_watch && (
+            <p>Mitigation fragility watch: local history shows deterioration or family reopen stress.</p>
+          )}
+          {guidance.repeated_family_concern && (
+            <p>Repeated family concern: signature family shows reopen pattern.</p>
+          )}
+        </div>
+      )}
+
+      {escalationLine && (
+        <p className="text-[11px] text-muted-foreground border-l-2 border-border/50 pl-2">{escalationLine}</p>
+      )}
+
+      {showReplay && (
+        <p className="text-[11px] text-muted-foreground">
+          Replay:{' '}
+          <span className="font-mono">
+            {replaySemantic ? replaySemantic.replace(/_/g, ' ') : ''}
+          </span>
+          {guidance.replay_summary && (
+            <span className="ml-1">{guidance.replay_summary}</span>
+          )}
+        </p>
+      )}
+
+      {degradedReasons.length > 0 && (
+        <div className="rounded bg-warning/10 border border-warning/20 px-2 py-1 text-[11px] text-warning">
+          Pack guidance degraded:{' '}
+          {degradedReasons.map(guidanceDegradedReasonLabel).join(' · ')}
+        </div>
+      )}
+
+      <p className="text-[10px] text-muted-foreground/70">
+        Backend-assembled posture — bounded guidance, not prescriptive. Check replay, topology, and control context before acting.
+      </p>
+    </div>
+  )
 }
 
 function DecisionPackPanel({
@@ -1743,6 +1825,7 @@ function DecisionPackPanel({
 
   const q = pack.queue
   const triage = q?.triage_signals
+  const guidance = pack.guidance
   const readiness = pack.readiness
   const unc = pack.uncertainty
 
@@ -1761,6 +1844,10 @@ function DecisionPackPanel({
             <p className="text-foreground leading-snug">{q.why_surfaced_one_liner}</p>
             {q.ordering_note && <p className="mt-2 text-[11px] text-muted-foreground border-l-2 border-border/50 pl-2">{q.ordering_note}</p>}
           </div>
+        )}
+
+        {guidance && (
+          <GuidancePostureSection guidance={guidance} />
         )}
 
         {triage?.codes?.length ? (
@@ -2203,7 +2290,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
               </Link>{' '}
               when the problem is the runtime itself.{' '}
               <span className="text-warning/90">
-                Avoid leaning on it as “proof” when evidence is sparse — label gaps in your ticket.
+                Avoid leaning on it as "proof" when evidence is sparse — label gaps in your ticket.
               </span>
             </li>
             <li>
