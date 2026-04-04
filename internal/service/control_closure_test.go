@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -256,4 +257,11 @@ func TestGuardedControlChaosLifecycle(t *testing.T) {
 
 	cancel()
 	<-done
+	// SQLite may leave -wal/-shm siblings; remove the DB file so t.TempDir() cleanup
+	// does not fail with "directory not empty" on some Linux/fs combinations.
+	if app.DB != nil && app.DB.Path != "" {
+		_ = os.Remove(app.DB.Path)
+		_ = os.Remove(app.DB.Path + "-wal")
+		_ = os.Remove(app.DB.Path + "-shm")
+	}
 }

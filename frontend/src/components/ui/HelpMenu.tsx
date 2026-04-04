@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { isEditableTarget } from '@/utils/keyboard'
+import { MEL_GITHUB_REPO, melGithubFile } from '@/constants/repoLinks'
 
 // ─── Global keyboard shortcuts hook ──────────────────────────────────────────
 // Exported so Layout can mount it once at the app root.
@@ -93,7 +94,7 @@ const helpLinks: HelpLink[] = [
   },
   {
     label: 'GitHub',
-    href: 'https://github.com/meshtastic/MEL',
+    href: MEL_GITHUB_REPO,
     description: 'Source code and issues',
     icon: 'github',
   },
@@ -105,7 +106,7 @@ const helpLinks: HelpLink[] = [
   },
   {
     label: 'Changelog',
-    href: 'https://github.com/meshtastic/MEL/blob/main/CHANGELOG.md',
+    href: melGithubFile('CHANGELOG.md'),
     description: 'Release notes in the repository',
     icon: 'changelog',
   },

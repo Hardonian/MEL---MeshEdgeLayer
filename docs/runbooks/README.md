@@ -20,6 +20,10 @@ Step-by-step procedures for incidents, degraded ingest, and recovery.
 - [System recovery](recovery.md)
 - [Database maintenance](database-maintenance.md)
 
+## Launch, demo, and adoption
+
+- [Launch and demo (screenshots, golden path)](launch-and-demo.md)
+
 ## Escalation path
 
 1. Run `mel doctor --config <path>`.

@@ -102,6 +102,51 @@ export function SettingsPage() {
         description="Console preferences (this browser), read-only configuration reference, and links to operator documentation."
       />
 
+      <Card id="operator-truth-contract" className="border-primary/12 bg-primary/[0.04]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Operator truth contract (console)</CardTitle>
+          <CardDescription>
+            MEL is evidence-first: the UI shows what the API and database can justify. Nothing here replaces ingest, audit, or
+            approval records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <ul className="list-disc space-y-1.5 pl-4">
+            <li>
+              <strong className="text-foreground">Live vs historical</strong> — &quot;Live&quot; means recent persisted evidence
+              from a configured transport. Historical or imported rows explain context; they are not automatic proof of current
+              runtime.
+            </li>
+            <li>
+              <strong className="text-foreground">Degraded and partial</strong> — gaps, stale timestamps, and incomplete views
+              must remain visible. The console does not upgrade unknowns into green checks.
+            </li>
+            <li>
+              <strong className="text-foreground">Topology and RF</strong> — graphs and maps summarize observed relationships and
+              last-seen context. They do not assert routing, propagation, or delivery success without matching evidence.
+            </li>
+            <li>
+              <strong className="text-foreground">Control actions</strong> — submission, approval, dispatch, execution, and audit
+              are distinct states. Guardrails and denials are part of the trust model, not bugs to hide.
+            </li>
+            <li>
+              <strong className="text-foreground">Assistive inference</strong> — when present, treat suggestions as non-canonical;
+              deterministic records win on conflict.
+            </li>
+          </ul>
+          <p className="text-xs">
+            Canonical definitions:{' '}
+            <a className="font-medium text-primary hover:underline" href="/docs/repo-os/terminology.md">
+              docs/repo-os/terminology.md
+            </a>
+            {' · '}
+            <a className="font-medium text-primary hover:underline" href="/docs/product/HONESTY_AND_BOUNDARIES.md">
+              product honesty boundaries
+            </a>
+          </p>
+        </CardContent>
+      </Card>
+
       <RuntimeTruthStrip version={v} status={status.data} versionLoading={version.loading} statusLoading={status.loading} />
 
       {/* Quick Access */}

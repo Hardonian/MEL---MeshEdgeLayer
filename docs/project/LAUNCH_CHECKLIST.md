@@ -6,9 +6,9 @@ This checklist defines the "Launch Quality Bar" for MEL. No release leaves witho
 
 ## 🏁 Minimum Launch Quality
 
-- [ ] **Build Integrity**: `make build` and `make cross-build` must complete without errors.
-- [ ] **Lint & Style**: `gofmt` and `go vet` must pass across all packages.
-- [ ] **Unit Tests**: `go test ./...` must pass with 0 failures.
+- [ ] **Build Integrity**: `make build` and `make build-cross` must complete without errors.
+- [ ] **Lint & Style**: `make lint` (includes `go vet` and frontend ESLint) must pass.
+- [ ] **Unit Tests**: `make test`, `make frontend-typecheck`, and `make frontend-test` must pass with 0 failures.
 - [ ] **Binary Versioning**: `./bin/mel version` must report the correct Git commit and build time.
 - [ ] **Smoke Test**: `./scripts/smoke.sh` must verify real ingest-to-persistence flow.
 

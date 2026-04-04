@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PYBIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
-if [[ -z "${PYBIN}" ]]; then
-  echo "verify-product-system.sh: need python3 (or python) on PATH" >&2
-  exit 1
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+else
+  echo "verify-product-system: need python3 or python in PATH" >&2
+  exit 127
 fi
 
-"${PYBIN}" - <<'PY'
+"$PYTHON" - <<'PY'
 from pathlib import Path
 import re
 
