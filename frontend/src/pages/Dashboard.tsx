@@ -415,6 +415,7 @@ export function Dashboard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Command surface"
+          subtitle="Mesh operations cockpit"
           description="Shift-start overview: attention, evidence posture, and where to go next. Data refreshes on a short poll while this tab is visible."
         />
         <div className="flex flex-col items-end gap-1.5">

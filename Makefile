@@ -10,7 +10,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 
 RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
 
-.PHONY: fmt vet lint test build build-agent build-cli build-cross verify smoke version demo-verify \
+.PHONY: fmt vet lint test build build-agent build-cli mel-cli-go build-cross verify smoke version demo-verify demo-seed \
 	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
@@ -72,6 +72,11 @@ build-cli: frontend-build
 	mkdir -p $(BINDIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
 
+# Go-only mel binary using committed embedded web assets (no npm / Node gate).
+mel-cli-go:
+	mkdir -p $(BINDIR)
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
+
 build-cross:
 	mkdir -p $(BINDIR)
 	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-amd64 ./cmd/mel
@@ -86,6 +91,17 @@ demo-verify: build-cli
 	$(GO) test ./internal/demo/...
 	./bin/mel demo scenarios >/dev/null
 	./scripts/demo-evidence.sh healthy-private-mesh .tmp/demo-verify.json
+
+# One-command seeded UI dataset for contributors (fixture-backed, not live mesh proof).
+DEMO_SEED_SCENARIO ?= healthy-private-mesh
+DEMO_SEED_CONFIG ?= demo_sandbox/mel.demo.json
+
+demo-seed: mel-cli-go
+	@mkdir -p "$(dir $(DEMO_SEED_CONFIG))"
+	./bin/mel demo init-sandbox --out "$(DEMO_SEED_CONFIG)" >/dev/null
+	chmod 600 "$(DEMO_SEED_CONFIG)"
+	./bin/mel demo seed --scenario "$(DEMO_SEED_SCENARIO)" --config "$(DEMO_SEED_CONFIG)"
+	@echo "Seeded scenario $(DEMO_SEED_SCENARIO) into $(DEMO_SEED_CONFIG). Run: ./bin/mel serve --config $(DEMO_SEED_CONFIG)"
 
 version:
 	@echo "MEL Version Information:"

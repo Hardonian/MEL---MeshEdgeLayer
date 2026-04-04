@@ -282,6 +282,7 @@ export function Incidents() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Incidents"
+          subtitle="Mesh operations cockpit"
           description="Open-work queue: same priority signals as Command surface — review state, control gates, evidence posture, recurrence — then handoff and export paths."
         />
         <button

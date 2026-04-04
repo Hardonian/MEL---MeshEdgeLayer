@@ -18,6 +18,7 @@ export function Nodes() {
       <div className="space-y-6">
         <PageHeader
           title="Nodes"
+          subtitle="Mesh operations cockpit"
           description="Mesh device inventory. All nodes observed by your transports remain listed with the same evidence and timing semantics as the backend."
         />
         <Card className="overflow-hidden">
@@ -76,6 +77,7 @@ export function Nodes() {
     <div className="space-y-6">
       <PageHeader
         title="Nodes"
+        subtitle="Mesh operations cockpit"
         description="Mesh device inventory for this MEL instance. Rows stay grounded in observed mesh data rather than inferred topology state."
         action={<Badge variant="outline">{nodes.length} total</Badge>}
       />

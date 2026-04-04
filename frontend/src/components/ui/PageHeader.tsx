@@ -4,6 +4,8 @@ import { clsx } from 'clsx'
 
 interface PageHeaderProps {
   title: string
+  /** Short cockpit label (e.g. mesh operations) — keep optional to avoid churn on every page. */
+  subtitle?: string
   description?: string
   action?: ReactNode
   breadcrumbs?: {
@@ -15,6 +17,7 @@ interface PageHeaderProps {
 
 export function PageHeader({
   title,
+  subtitle,
   description,
   action,
   breadcrumbs,
@@ -51,6 +54,11 @@ export function PageHeader({
           <h1 className="font-outfit text-[2rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.5rem]">
             {title}
           </h1>
+          {subtitle && (
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
+              {subtitle}
+            </p>
+          )}
           {description && (
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
               {description}

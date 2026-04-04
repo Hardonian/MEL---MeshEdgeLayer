@@ -31,6 +31,7 @@ Use live data when available; otherwise prefer **explicit empty/degraded** state
 ## Scripted checks
 
 ```bash
+make demo-seed      # init sandbox config + seed default scenario (after build-cli); then mel serve on demo_sandbox/mel.demo.json
 make demo-verify    # demo scenarios + evidence script (after build-cli)
 make smoke          # requires ./bin/mel
 ```

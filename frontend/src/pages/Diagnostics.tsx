@@ -49,6 +49,7 @@ export function Diagnostics() {
       <div className="space-y-6">
         <PageHeader
           title="System Diagnostics"
+          subtitle="Mesh operations cockpit"
           description="Liveness vs readiness vs deep checks — wired to live API responses."
         />
         <Loading message="Running system diagnostics…" />
@@ -60,6 +61,7 @@ export function Diagnostics() {
     <div className="space-y-6">
       <PageHeader
         title="System Diagnostics"
+        subtitle="Mesh operations cockpit"
         description="Liveness vs readiness vs deep checks — wired to live API responses."
       />
 
