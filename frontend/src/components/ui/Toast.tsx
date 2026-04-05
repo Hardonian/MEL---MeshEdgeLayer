@@ -85,20 +85,20 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
 
   const colors = {
     success: {
-      rail: 'from-success/55 via-success/20 to-transparent',
-      icon: 'border-success/16 bg-success/12 text-success',
+      rail: 'bg-neon',
+      icon: 'text-neon',
     },
     error: {
-      rail: 'from-critical/55 via-critical/22 to-transparent',
-      icon: 'border-critical/18 bg-critical/12 text-critical',
+      rail: 'bg-neon-hot',
+      icon: 'text-neon-hot',
     },
     warning: {
-      rail: 'from-warning/55 via-warning/22 to-transparent',
-      icon: 'border-warning/18 bg-warning/12 text-warning',
+      rail: 'bg-neon-warn',
+      icon: 'text-neon-warn',
     },
     info: {
-      rail: 'from-info/55 via-info/22 to-transparent',
-      icon: 'border-info/18 bg-info/12 text-info',
+      rail: 'bg-neon-alt',
+      icon: 'text-neon-alt',
     },
   } as const
 
@@ -111,15 +111,15 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
       role="status"
       aria-live="polite"
     >
-      <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', tone.rail)} aria-hidden />
-      <div className="flex items-start gap-3">
-        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-md border shadow-inset', tone.icon)}>
-          <Icon className="h-5 w-5" aria-hidden="true" />
+      <div className={clsx('absolute inset-y-0 left-0 w-0.5 opacity-60', tone.rail)} aria-hidden />
+      <div className="flex items-start gap-2 pl-2">
+        <div className={clsx('mt-0.5 shrink-0', tone.icon)}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground">{toast.title}</p>
+          <p className="text-mel-sm font-bold text-foreground">{toast.title}</p>
           {toast.message && (
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{toast.message}</p>
+            <p className="mt-0.5 text-mel-xs text-muted-foreground">{toast.message}</p>
           )}
         </div>
         <button

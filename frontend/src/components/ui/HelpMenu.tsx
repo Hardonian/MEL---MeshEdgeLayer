@@ -247,7 +247,7 @@ export function HelpMenu() {
         aria-label="Help menu"
         className={clsx(
           'inline-flex h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all duration-150',
-          'border-border/70 bg-card/80 text-muted-foreground shadow-inset hover:border-primary/16 hover:bg-accent/65 hover:text-foreground',
+          'border-border/70 bg-card/80 text-muted-foreground hover:border-primary/16 hover:bg-accent/65 hover:text-foreground',
           'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isOpen && 'border-primary/18 bg-accent/70 text-foreground'
         )}

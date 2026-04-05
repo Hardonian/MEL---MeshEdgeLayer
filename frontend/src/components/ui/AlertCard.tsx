@@ -14,40 +14,20 @@ interface AlertCardProps {
   children?: ReactNode
 }
 
-const variantStyles: Record<AlertVariant, { container: string; icon: string; rail: string }> = {
-  info: {
-    container: 'border-info/20 bg-info/8',
-    icon: 'border-info/16 bg-info/12 text-info',
-    rail: 'from-info/40 via-info/16 to-transparent',
-  },
-  warning: {
-    container: 'border-warning/24 bg-warning/10',
-    icon: 'border-warning/18 bg-warning/12 text-warning',
-    rail: 'from-warning/46 via-warning/16 to-transparent',
-  },
-  success: {
-    container: 'border-success/24 bg-success/10',
-    icon: 'border-success/18 bg-success/12 text-success',
-    rail: 'from-success/42 via-success/16 to-transparent',
-  },
-  error: {
-    container: 'border-critical/24 bg-critical/10',
-    icon: 'border-critical/18 bg-critical/12 text-critical',
-    rail: 'from-critical/42 via-critical/16 to-transparent',
-  },
-  critical: {
-    container: 'border-critical/28 bg-critical/12',
-    icon: 'border-critical/20 bg-critical/14 text-critical',
-    rail: 'from-critical/52 via-critical/20 to-transparent',
-  },
+const variantStyles: Record<AlertVariant, { container: string; prefix: string; rail: string }> = {
+  info: { container: 'border-neon-alt/20 bg-neon-alt/4', prefix: 'INFO', rail: 'bg-neon-alt' },
+  warning: { container: 'border-neon-warn/20 bg-neon-warn/4', prefix: 'WARN', rail: 'bg-neon-warn' },
+  success: { container: 'border-neon/20 bg-neon/4', prefix: 'OK', rail: 'bg-neon' },
+  error: { container: 'border-neon-hot/20 bg-neon-hot/4', prefix: 'ERR', rail: 'bg-neon-hot' },
+  critical: { container: 'border-neon-hot/25 bg-neon-hot/6', prefix: '!!CRIT', rail: 'bg-neon-hot' },
 }
 
 const defaultIcons: Record<AlertVariant, ReactNode> = {
-  info: <Info className="h-5 w-5" />,
-  warning: <AlertTriangle className="h-5 w-5" />,
-  success: <CheckCircle2 className="h-5 w-5" />,
-  error: <XCircle className="h-5 w-5" />,
-  critical: <AlertTriangle className="h-5 w-5" />,
+  info: <Info className="h-4 w-4" />,
+  warning: <AlertTriangle className="h-4 w-4" />,
+  success: <CheckCircle2 className="h-4 w-4" />,
+  error: <XCircle className="h-4 w-4" />,
+  critical: <AlertTriangle className="h-4 w-4" />,
 }
 
 export function AlertCard({
@@ -62,27 +42,19 @@ export function AlertCard({
   const styles = variantStyles[variant]
 
   return (
-    <div
-      className={clsx(
-        'surface-panel relative overflow-hidden rounded-md p-4 sm:p-5',
-        styles.container,
-        className
-      )}
-    >
-      <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', styles.rail)} aria-hidden />
-      <div className="flex items-start gap-3">
-        <div className={clsx('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border shadow-inset', styles.icon)}>
-          {icon || defaultIcons[variant]}
-        </div>
+    <div className={clsx('surface-panel relative overflow-hidden p-3', styles.container, className)}>
+      <div className={clsx('absolute inset-y-0 left-0 w-0.5', styles.rail, 'opacity-60')} aria-hidden />
+      <div className="flex items-start gap-2 pl-2">
+        <div className="mt-0.5 shrink-0 text-inherit">{icon || defaultIcons[variant]}</div>
         <div className="min-w-0 flex-1">
           {title && (
-            <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+            <h4 className="text-mel-sm font-bold text-foreground">
+              <span className="text-inherit">[{styles.prefix}]</span> {title}
+            </h4>
           )}
           {(description || children) && (
-            <div className="mt-1.5 space-y-2">
-              {description && (
-                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-              )}
+            <div className="mt-1 space-y-1">
+              {description && <p className="text-mel-xs text-muted-foreground">{description}</p>}
               {children}
             </div>
           )}
@@ -103,16 +75,8 @@ export function InlineAlert({ variant = 'info', children, className }: InlineAle
   const styles = variantStyles[variant]
 
   return (
-    <div
-      className={clsx(
-        'surface-inset flex items-center gap-3 rounded-md px-3 py-2.5 text-sm',
-        styles.container,
-        className
-      )}
-    >
-      <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-md border shadow-inset', styles.icon)}>
-        {defaultIcons[variant]}
-      </span>
+    <div className={clsx('surface-inset flex items-center gap-2 px-3 py-2 text-mel-sm', styles.container, className)}>
+      <span className="font-bold">[{styles.prefix}]</span>
       <span className="min-w-0 flex-1">{children}</span>
     </div>
   )

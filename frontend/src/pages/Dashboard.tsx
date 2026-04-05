@@ -1185,7 +1185,7 @@ function SectionCardHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
-        <div className={clsx('flex h-8 w-8 items-center justify-center rounded-md border shadow-inset', iconClassName)}>
+        <div className={clsx('flex h-8 w-8 items-center justify-center rounded-md border', iconClassName)}>
           {icon}
         </div>
         <div>
@@ -1214,7 +1214,7 @@ function TransportListItem({ transport }: { transport: TransportHealth }) {
         <div className="flex min-w-0 items-center gap-2.5">
           <div
             className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border shadow-inset',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border',
               healthState === 'healthy'
                 ? 'border-success/18 bg-success/12 text-success'
                 : healthState === 'degraded'
@@ -1262,7 +1262,7 @@ function RecommendationListItem({
     <div className="flex items-start gap-2.5 rounded-sm border border-border/50 bg-card/40 px-3 py-2.5">
       <div
         className={clsx(
-          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border shadow-inset',
+          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border',
           recommendation.actionable
             ? 'border-warning/18 bg-warning/12 text-warning'
             : 'border-border/70 bg-card/75 text-muted-foreground'

@@ -79,7 +79,7 @@ export function Recommendations() {
           <CardHeader className="border-b border-border/50 pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning shadow-inset">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning">
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <CardTitle className="text-[14px]">Actionable</CardTitle>
@@ -145,7 +145,7 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
     )}>
       <div className="flex items-start gap-3">
         <div className={clsx(
-          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border shadow-inset',
+          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border',
           recommendation.actionable ? 'border-warning/18 bg-warning/12 text-warning' : 'border-border/60 bg-card/60 text-muted-foreground'
         )}>
           {categoryIcons[recommendation.category?.toLowerCase() || ''] || defaultIcon}

@@ -79,7 +79,7 @@ export function Status() {
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/16 bg-primary/12 text-primary shadow-inset">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/16 bg-primary/12 text-primary">
               <Activity className="h-5 w-5" />
             </div>
             <div>
@@ -133,7 +133,7 @@ export function Status() {
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/16 bg-info/12 text-info shadow-inset">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/16 bg-info/12 text-info">
                 <Wifi className="h-5 w-5" />
               </div>
               <div>
@@ -167,7 +167,7 @@ export function Status() {
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-card/75 text-muted-foreground shadow-inset">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-card/75 text-muted-foreground">
               <HelpCircle className="h-5 w-5" />
             </div>
             <div>
@@ -219,7 +219,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
         <div className="flex min-w-0 items-start gap-3">
           <div
             className={clsx(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border shadow-inset',
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border',
               healthState === 'healthy'
                 ? 'border-success/18 bg-success/12 text-success'
                 : healthState === 'degraded'
@@ -231,7 +231,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-display text-lg font-semibold tracking-[-0.03em] text-foreground">{transport.name}</h3>
+              <h3 className="font-mono text-lg font-semibold tracking-[-0.03em] text-foreground">{transport.name}</h3>
               <TransportBadge type={transport.type} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">

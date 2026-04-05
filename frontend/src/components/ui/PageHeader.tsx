@@ -23,24 +23,16 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div
-      className={clsx(
-        'mb-5 border-b border-border/50 pb-4 sm:mb-6 sm:pb-5',
-        className
-      )}
-    >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className={clsx('mb-4 border-b border-border/50 pb-3', className)}>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <nav className="mb-2 flex flex-wrap items-center gap-1.5 font-mono text-mel-xs text-muted-foreground">
+            <nav className="mb-1.5 flex flex-wrap items-center gap-1 text-mel-xs text-muted-foreground">
               {breadcrumbs.map((crumb, index) => (
-                <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
-                  {index > 0 && <span className="text-muted-foreground/40">/</span>}
+                <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
+                  {index > 0 && <span className="text-muted-foreground/30">/</span>}
                   {crumb.href ? (
-                    <Link
-                      to={crumb.href}
-                      className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
+                    <Link to={crumb.href} className="hover:text-neon focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                       {crumb.label}
                     </Link>
                   ) : (
@@ -50,18 +42,14 @@ export function PageHeader({
               ))}
             </nav>
           )}
-          <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+          <h1 className="mel-prompt text-base font-bold uppercase tracking-[0.04em] text-foreground">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-1 mel-label text-muted-foreground/70">
-              {subtitle}
-            </p>
+            <p className="mt-0.5 text-mel-xs text-muted-foreground/60"># {subtitle}</p>
           )}
           {description && (
-            <p className="mt-1.5 max-w-3xl prose-body text-mel-sm text-muted-foreground">
-              {description}
-            </p>
+            <p className="mt-1 max-w-3xl text-mel-sm text-muted-foreground">{description}</p>
           )}
         </div>
         {action && (

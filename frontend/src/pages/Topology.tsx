@@ -231,12 +231,12 @@ function runSimulation(
 }
 
 function nodeColor(n: TopoNode): string {
-  if (n.stale || n.health_state === 'stale') return 'hsl(38 90% 45%)'
-  if (n.health_state === 'healthy') return 'hsl(142 65% 38%)'
-  if (n.health_state === 'isolated') return 'hsl(280 50% 52%)'
-  if (n.health_state === 'degraded') return 'hsl(28 90% 48%)'
-  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(200 55% 42%)'
-  return 'hsl(210 65% 46%)'
+  if (n.stale || n.health_state === 'stale') return 'hsl(42 100% 55%)'
+  if (n.health_state === 'healthy') return 'hsl(160 100% 50%)'
+  if (n.health_state === 'isolated') return 'hsl(270 55% 60%)'
+  if (n.health_state === 'degraded') return 'hsl(42 100% 55%)'
+  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(190 90% 50%)'
+  return 'hsl(160 80% 45%)'
 }
 
 function nodeLabel(n: TopoNode): string {
@@ -711,7 +711,7 @@ export function Topology() {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground shadow-inset transition-colors hover:bg-accent/70"
+            className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent/70"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
@@ -913,7 +913,7 @@ export function Topology() {
                 tabIndex={0}
                 viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
                 className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-b-sm"
-                style={{ background: 'hsl(var(--panel-muted))' }}
+                style={{ background: 'hsl(0 0% 2%)' }}
                 role="application"
                 aria-label="Topology graph: nodes and inferred links from ingest. Use arrow keys to pan when focused."
                 onWheel={onWheel}

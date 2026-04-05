@@ -42,21 +42,21 @@ export default {
         },
         success: {
           DEFAULT: "hsl(var(--success))",
-          foreground: "hsl(142, 71%, 98%)",
+          foreground: "hsl(var(--success) / 0.15)",
         },
         warning: {
           DEFAULT: "hsl(var(--warning))",
-          foreground: "hsl(38, 92%, 98%)",
+          foreground: "hsl(var(--warning) / 0.15)",
         },
         critical: {
           DEFAULT: "hsl(var(--critical))",
-          foreground: "hsl(0, 84%, 98%)",
+          foreground: "hsl(var(--critical) / 0.15)",
         },
         info: {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
-        // MEL semantic state colors
+        // MEL semantic
         observed: "hsl(var(--observed))",
         inferred: "hsl(var(--inferred))",
         stale: "hsl(var(--stale))",
@@ -64,7 +64,13 @@ export default {
         active: "hsl(var(--active))",
         degraded: "hsl(var(--degraded))",
         unsupported: "hsl(var(--unsupported))",
-        // Chrome
+        // Neon system
+        neon: {
+          DEFAULT: "hsl(var(--neon))",
+          alt: "hsl(var(--neon-alt))",
+          hot: "hsl(var(--neon-hot))",
+          warn: "hsl(var(--neon-warn))",
+        },
         chrome: {
           bg: "hsl(var(--chrome-bg))",
           border: "hsl(var(--chrome-border))",
@@ -73,20 +79,20 @@ export default {
       borderRadius: {
         lg: "calc(var(--radius) + 2px)",
         md: "var(--radius)",
-        sm: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 1px)",
       },
       fontFamily: {
-        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        sans: ['IBM Plex Mono', 'JetBrains Mono', 'Menlo', 'monospace'],
         mono: ['IBM Plex Mono', 'JetBrains Mono', 'Menlo', 'monospace'],
-        display: ['Manrope', 'system-ui', 'sans-serif'],
+        display: ['IBM Plex Mono', 'JetBrains Mono', 'Menlo', 'monospace'],
       },
       fontSize: {
-        'mel-xs': ['10px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
-        'mel-sm': ['11px', { lineHeight: '1.4', letterSpacing: '0.02em' }],
-        'mel-base': ['13px', { lineHeight: '1.6', letterSpacing: '0.01em' }],
-        'mel-label': ['10px', { lineHeight: '1.2', letterSpacing: '0.14em', fontWeight: '600' }],
-        'mel-metric': ['1.5rem', { lineHeight: '1.1', letterSpacing: '-0.03em', fontWeight: '700' }],
-        'mel-metric-lg': ['2rem', { lineHeight: '1.1', letterSpacing: '-0.04em', fontWeight: '700' }],
+        'mel-xs': ['9px', { lineHeight: '1.3', letterSpacing: '0.06em' }],
+        'mel-sm': ['10px', { lineHeight: '1.4', letterSpacing: '0.03em' }],
+        'mel-base': ['12px', { lineHeight: '1.55', letterSpacing: '0.02em' }],
+        'mel-label': ['9px', { lineHeight: '1.2', letterSpacing: '0.16em', fontWeight: '700' }],
+        'mel-metric': ['1.25rem', { lineHeight: '1.1', letterSpacing: '-0.03em', fontWeight: '700' }],
+        'mel-metric-lg': ['1.75rem', { lineHeight: '1.1', letterSpacing: '-0.04em', fontWeight: '700' }],
       },
       spacing: {
         '18': '4.5rem',
@@ -96,12 +102,14 @@ export default {
         '8xl': '88rem',
       },
       boxShadow: {
-        panel: '0 1px 3px hsl(var(--shell-shadow) / 0.12)',
-        float: '0 4px 16px hsl(var(--shell-shadow) / 0.2)',
-        chrome: '0 1px 3px hsl(var(--shell-shadow) / 0.15)',
-        inset: 'inset 0 1px 0 hsl(var(--foreground) / 0.04)',
-        glow: '0 0 12px hsl(var(--primary) / 0.15)',
-        'glow-strong': '0 0 20px hsl(var(--primary) / 0.25)',
+        panel: 'none',
+        float: '0 0 20px hsl(var(--neon) / 0.08)',
+        chrome: 'none',
+        inset: 'none',
+        glow: '0 0 10px hsl(var(--neon) / 0.12)',
+        'glow-strong': '0 0 20px hsl(var(--neon) / 0.2), 0 0 40px hsl(var(--neon) / 0.08)',
+        'glow-hot': '0 0 10px hsl(var(--neon-hot) / 0.15)',
+        'neon-border': 'inset 0 0 8px hsl(var(--neon) / 0.05)',
       },
     },
   },

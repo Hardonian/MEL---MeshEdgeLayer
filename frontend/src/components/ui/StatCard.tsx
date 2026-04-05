@@ -16,29 +16,29 @@ interface StatCardProps {
 
 const variantStyles = {
   default: {
-    icon: 'border-primary/20 bg-primary/10 text-primary',
-    accent: 'bg-primary',
-    trend: 'text-muted-foreground',
+    icon: 'border-neon/20 text-neon',
+    value: 'text-neon neon-glow',
+    accent: 'bg-neon',
   },
   success: {
-    icon: 'border-success/20 bg-success/10 text-success',
-    accent: 'bg-success',
-    trend: 'text-success',
+    icon: 'border-neon/20 text-neon',
+    value: 'text-neon neon-glow',
+    accent: 'bg-neon',
   },
   warning: {
-    icon: 'border-warning/25 bg-warning/10 text-warning',
-    accent: 'bg-warning',
-    trend: 'text-warning',
+    icon: 'border-neon-warn/20 text-neon-warn',
+    value: 'text-neon-warn neon-glow-warn',
+    accent: 'bg-neon-warn',
   },
   critical: {
-    icon: 'border-critical/25 bg-critical/10 text-critical',
-    accent: 'bg-critical',
-    trend: 'text-critical',
+    icon: 'border-neon-hot/20 text-neon-hot',
+    value: 'text-neon-hot neon-glow-hot',
+    accent: 'bg-neon-hot',
   },
   info: {
-    icon: 'border-info/25 bg-info/10 text-info',
-    accent: 'bg-info',
-    trend: 'text-info',
+    icon: 'border-neon-alt/20 text-neon-alt',
+    value: 'text-neon-alt',
+    accent: 'bg-neon-alt',
   },
 } as const
 
@@ -51,38 +51,28 @@ export function StatCard({
   variant = 'default',
   className,
 }: StatCardProps) {
-  const variantStyle = variantStyles[variant]
+  const v = variantStyles[variant]
 
   return (
-    <div
-      className={clsx(
-        'surface-panel interactive-lift group overflow-hidden p-4',
-        className
-      )}
-    >
-      {/* Top accent line */}
-      <div className={clsx('absolute inset-x-0 top-0 h-px', variantStyle.accent, 'opacity-30')} aria-hidden />
+    <div className={clsx('surface-panel interactive-lift overflow-hidden p-3', className)}>
+      {/* Neon accent top line */}
+      <div className={clsx('absolute inset-x-0 top-0 h-px', v.accent, 'opacity-40')} aria-hidden />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>
-          <p className="mel-metric mt-2 text-mel-metric text-foreground">{value}</p>
+          <p className={clsx('mel-metric mt-1.5 text-mel-metric', v.value)}>{value}</p>
           {description && (
-            <p className="mt-1 prose-body text-mel-xs text-muted-foreground">{description}</p>
+            <p className="mt-1 text-mel-xs text-muted-foreground">{description}</p>
           )}
           {trend && (
-            <p className={clsx('mt-2 font-mono text-mel-xs font-semibold', variantStyle.trend)}>
+            <p className={clsx('mt-1.5 text-mel-xs font-bold', v.value)}>
               {trend.value > 0 ? '+' : ''}{trend.value}% {trend.label}
             </p>
           )}
         </div>
         {icon && (
-          <div
-            className={clsx(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border',
-              variantStyle.icon
-            )}
-          >
+          <div className={clsx('flex h-7 w-7 shrink-0 items-center justify-center border', v.icon)}>
             {icon}
           </div>
         )}

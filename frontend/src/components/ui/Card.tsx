@@ -9,10 +9,7 @@ interface CardProps {
 
 export function Card({ children, className, id }: CardProps) {
   return (
-    <div
-      id={id}
-      className={clsx('surface-panel text-card-foreground', className)}
-    >
+    <div id={id} className={clsx('surface-panel text-card-foreground', className)}>
       {children}
     </div>
   )
@@ -25,8 +22,8 @@ interface CardHeaderProps {
 
 export function CardHeader({ children, className }: CardHeaderProps) {
   return (
-    <div className={clsx('flex flex-col gap-1 px-4 py-4 sm:px-5', className)}>
-      {children}
+    <div className={clsx('mel-chrome-title', className)}>
+      <div className="flex flex-col gap-0.5 py-0.5">{children}</div>
     </div>
   )
 }
@@ -38,7 +35,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className }: CardTitleProps) {
   return (
-    <h3 className={clsx('font-display text-sm font-bold tracking-tight text-foreground', className)}>
+    <h3 className={clsx('text-mel-sm font-bold uppercase tracking-[0.08em] text-foreground', className)}>
       {children}
     </h3>
   )
@@ -51,7 +48,7 @@ interface CardDescriptionProps {
 
 export function CardDescription({ children, className }: CardDescriptionProps) {
   return (
-    <p className={clsx('prose-body text-mel-sm text-muted-foreground', className)}>
+    <p className={clsx('text-mel-xs text-muted-foreground', className)}>
       {children}
     </p>
   )
@@ -64,7 +61,7 @@ interface CardContentProps {
 
 export function CardContent({ children, className }: CardContentProps) {
   return (
-    <div className={clsx('px-4 pb-4 pt-0 sm:px-5 sm:pb-5', className)}>
+    <div className={clsx('px-3 pb-3 pt-2', className)}>
       {children}
     </div>
   )
@@ -77,7 +74,7 @@ interface CardFooterProps {
 
 export function CardFooter({ children, className }: CardFooterProps) {
   return (
-    <div className={clsx('flex items-center px-4 pb-4 pt-0 sm:px-5 sm:pb-5', className)}>
+    <div className={clsx('flex items-center border-t border-border/50 px-3 py-2', className)}>
       {children}
     </div>
   )

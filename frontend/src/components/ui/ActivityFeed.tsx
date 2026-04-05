@@ -39,17 +39,17 @@ const typeConfig: Record<
 }
 
 const levelStyles: Record<FeedItem['level'], string> = {
-  critical: 'border-l-critical/60',
-  warning: 'border-l-warning/60',
-  info: 'border-l-info/50',
+  critical: 'border-l-neon-hot/60',
+  warning: 'border-l-neon-warn/60',
+  info: 'border-l-neon-alt/50',
   neutral: 'border-l-border/50',
 }
 
 const levelDotStyles: Record<FeedItem['level'], string> = {
-  critical: 'bg-critical',
-  warning: 'bg-warning',
-  info: 'bg-info',
-  neutral: 'bg-muted-foreground/40',
+  critical: 'bg-neon-hot text-neon-hot',
+  warning: 'bg-neon-warn text-neon-warn',
+  info: 'bg-neon-alt text-neon-alt',
+  neutral: 'bg-muted-foreground/40 text-muted-foreground',
 }
 
 interface ActivityFeedProps {
@@ -76,11 +76,11 @@ export function ActivityFeed({
   if (sorted.length === 0) {
     return (
       <div className={clsx('flex flex-col items-center gap-2 py-8 text-center', className)}>
-        <div className="flex h-10 w-10 items-center justify-center rounded-md border border-success/20 bg-success/8 text-success">
+        <div className="text-neon/40">
           <Activity className="h-5 w-5" />
         </div>
-        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        <p className="text-xs text-muted-foreground/60">
+        <p className="text-mel-sm text-muted-foreground">-- {emptyMessage} --</p>
+        <p className="text-mel-xs text-muted-foreground/40">
           Activity appears here when MEL observes changes, incidents, or actions.
         </p>
       </div>
