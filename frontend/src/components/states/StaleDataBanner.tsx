@@ -19,10 +19,10 @@ export function StaleDataBanner({
 
   return (
     <div
-      className="surface-inset mb-4 flex items-start gap-3 rounded-[1rem] border-warning/24 bg-warning/10 p-4"
+      className="surface-inset mb-4 flex items-start gap-3 rounded-md border-warning/24 bg-warning/10 p-4"
       role="alert"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-warning/18 bg-warning/12 text-warning shadow-inset">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning shadow-inset">
         <AlertCircle className="h-5 w-5" aria-hidden />
       </div>
       <div className="min-w-0">

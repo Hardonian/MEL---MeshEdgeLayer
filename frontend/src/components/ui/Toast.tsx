@@ -107,13 +107,13 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
 
   return (
     <div
-      className="surface-panel animate-toast-in relative overflow-hidden rounded-[1.1rem] p-4"
+      className="surface-panel animate-toast-in relative overflow-hidden rounded-md p-4"
       role="status"
       aria-live="polite"
     >
       <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', tone.rail)} aria-hidden />
       <div className="flex items-start gap-3">
-        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inset', tone.icon)}>
+        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-md border shadow-inset', tone.icon)}>
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -124,7 +124,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
         </div>
         <button
           onClick={() => onRemove(toast.id)}
-          className="icon-button h-8 min-h-8 w-8 min-w-8 rounded-xl"
+          className="icon-button h-8 min-h-8 w-8 min-w-8 rounded-md"
           aria-label="Dismiss notification"
         >
           <X className="h-4 w-4" />

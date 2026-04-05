@@ -92,11 +92,11 @@ export function Control() {
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
+                <div className="p-3 bg-muted/30 rounded-sm border border-border/50">
                   <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Executor queue depth</div>
                   <div className="text-2xl font-bold font-mono">{status?.queue_depth || 0} / {status?.queue_capacity || 0}</div>
                 </div>
-                <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
+                <div className="p-3 bg-muted/30 rounded-sm border border-border/50">
                   <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">In-flight actions</div>
                   <div className="text-2xl font-bold font-mono">{status?.active_actions || 0}</div>
                 </div>
@@ -155,7 +155,7 @@ export function Control() {
           <CardContent>
             <div className="text-xl font-mono font-semibold">{opState?.approval_backlog ?? pendingApprovals.length}</div>
             {opState?.approval_backlog !== undefined && opState.approval_backlog !== pendingApprovals.length && (
-              <p className="text-[11px] text-warning mt-1">
+              <p className="text-mel-sm text-warning mt-1">
                 Backlog snapshot differs from visible rows ({pendingApprovals.length}) due to API filtering/windowing.
               </p>
             )}
@@ -170,24 +170,24 @@ export function Control() {
               {executorState === 'active' ? 'active' : executorState === 'inactive' ? 'inactive/stale' : 'unknown'}
             </div>
             {(queueDepth !== null || queueCapacity !== null) && (
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-mel-sm text-muted-foreground mt-1">
                 Approved waiting executor: {queueDepth ?? '—'} · Pending (non-approved): {queueCapacity ?? '—'}
               </p>
             )}
             {awaitingApproval !== null && (
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-mel-sm text-muted-foreground mt-1">
                 Awaiting second-operator approval: {awaitingApproval}
               </p>
             )}
             {(executorLastSeen || snapshotAt) && (
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-mel-sm text-muted-foreground mt-1">
                 {executorLastSeen ? `Executor heartbeat: ${formatOperatorTime(executorLastSeen)}` : ''}
                 {executorLastSeen && snapshotAt ? ' · ' : ''}
                 {snapshotAt ? `Snapshot: ${formatOperatorTime(snapshotAt)}` : ''}
               </p>
             )}
             {executor?.executor_presence_note ? (
-              <p className="text-[11px] text-muted-foreground mt-1">{executor.executor_presence_note}</p>
+              <p className="text-mel-sm text-muted-foreground mt-1">{executor.executor_presence_note}</p>
             ) : null}
           </CardContent>
         </Card>
@@ -224,11 +224,11 @@ export function Control() {
               const targetLine = str(ov?.target_summary) || [pa.target_node, pa.target_transport || pa.transport_name].filter(Boolean).join(' · ') || '—'
               const sod = ov?.sod_blocks_self === true
               return (
-              <div key={pa.id} className="rounded-lg border border-border/60 p-3 text-sm">
+              <div key={pa.id} className="rounded-sm border border-border/60 p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="font-mono text-xs font-semibold">{pa.action_type || 'mesh action'}</span>
-                  <code className="text-[10px] px-1.5 py-0.5 bg-muted rounded">{pa.id}</code>
-                  <Badge variant="warning" className="text-[10px]">{str(ov?.approval_status) || 'awaiting approver'}</Badge>
+                  <code className="text-mel-xs px-1.5 py-0.5 bg-muted rounded">{pa.id}</code>
+                  <Badge variant="warning" className="text-mel-xs">{str(ov?.approval_status) || 'awaiting approver'}</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <div><span className="text-foreground font-medium">Target summary:</span> {targetLine}</div>
@@ -240,7 +240,7 @@ export function Control() {
                     <div className="text-muted-foreground">Self-approval blocked for this row — use another operator id.</div>
                   ) : null}
                   {incidentFromAction(pa) ? (
-                    <div><span className="text-foreground font-medium">Linked incident:</span> <code className="text-[10px] bg-muted px-1 rounded">{incidentFromAction(pa)}</code></div>
+                    <div><span className="text-foreground font-medium">Linked incident:</span> <code className="text-mel-xs bg-muted px-1 rounded">{incidentFromAction(pa)}</code></div>
                   ) : null}
                   {pa.evidence_bundle_id ? (
                     <div><span className="text-foreground font-medium">Evidence bundle:</span> {pa.evidence_bundle_id}</div>
@@ -374,25 +374,25 @@ export function Control() {
                 const incId = incidentFromAction(action)
 
                 return (
-                  <div key={action.id} className="rounded-lg border p-4 hover:bg-muted/30 transition-colors">
+                  <div key={action.id} className="rounded-sm border p-4 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {icon}
                         <span className="font-semibold">{action.action_type || action.command || 'mesh action'}</span>
-                        <code className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">
+                        <code className="text-mel-xs px-1.5 py-0.5 bg-muted rounded text-muted-foreground">
                           {action.id.slice(0, 8)}
                         </code>
                         {action.advisory_only && (
-                          <Badge variant="outline" className="text-[10px] h-4 font-normal">Advisory</Badge>
+                          <Badge variant="outline" className="text-mel-xs h-4 font-normal">Advisory</Badge>
                         )}
                         {action.execution_mode === 'approval_required' && (
-                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-warning/40">second-operator gate</Badge>
+                          <Badge variant="outline" className="text-mel-xs h-4 font-normal border-warning/40">second-operator gate</Badge>
                         )}
                         {breakGlass && (
-                          <Badge variant="outline" className="text-[10px] h-4 font-normal border-critical/40 text-critical">break-glass</Badge>
+                          <Badge variant="outline" className="text-mel-xs h-4 font-normal border-critical/40 text-critical">break-glass</Badge>
                         )}
                       </div>
-                      <Badge variant={badgeVariant} className="capitalize text-[10px]">{badgeText}</Badge>
+                      <Badge variant={badgeVariant} className="capitalize text-mel-xs">{badgeText}</Badge>
                     </div>
                     
                     <div className="mt-3 bg-muted/20 dark:bg-black/20 p-3 rounded-md border border-border/50">
@@ -433,7 +433,7 @@ export function Control() {
                         {incId ? (
                           <div className="md:col-span-2">
                             <span className="font-medium mr-1 text-foreground">Linked incident:</span>
-                            <code className="text-[10px] bg-muted px-1 rounded">{incId}</code>
+                            <code className="text-mel-xs bg-muted px-1 rounded">{incId}</code>
                           </div>
                         ) : null}
                         <div className="md:col-span-2 lg:col-span-1">

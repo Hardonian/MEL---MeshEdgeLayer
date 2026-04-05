@@ -305,7 +305,7 @@ export function Incidents() {
       )}
 
       {versionInfo.error && (
-        <p className="text-xs text-warning border border-warning/25 rounded-lg px-3 py-2 bg-warning/5" role="status">
+        <p className="text-xs text-warning border border-warning/25 rounded-sm px-3 py-2 bg-warning/5" role="status">
           Version / export policy not loaded ({versionInfo.error}). Queue “why” lines may omit export gates — confirm under Settings before
           choosing proofpack or escalation.
         </p>
@@ -314,7 +314,7 @@ export function Incidents() {
       {!versionInfo.loading && (
         <div
           className={clsx(
-            'rounded-xl border px-3 py-2.5 text-xs',
+            'rounded-md border px-3 py-2.5 text-xs',
             exportReadiness.semantic === 'available'
               ? 'border-success/25 bg-success/5 text-muted-foreground'
               : exportReadiness.semantic === 'policy_limited'
@@ -330,12 +330,12 @@ export function Incidents() {
           <span className="font-semibold text-foreground">Export / bundle readiness: </span>
           {exportReadiness.summary}
           {exportReadiness.evidenceBasis.length > 0 && (
-            <p className="mt-1 text-[10px] font-mono text-muted-foreground/90 break-all">
+            <p className="mt-1 text-mel-xs font-mono text-muted-foreground/90 break-all">
               evidence_basis: {exportReadiness.evidenceBasis.slice(0, 4).join(' · ')}
             </p>
           )}
           {exportReadiness.blockers.length > 0 && (
-            <ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+            <ul className="mt-2 list-disc pl-4 text-mel-sm text-muted-foreground space-y-0.5">
               {exportReadiness.blockers.map((b) => (
                 <li key={b.code}>
                   <span className="font-mono text-foreground/80">{b.code}</span>
@@ -348,13 +348,13 @@ export function Incidents() {
       )}
 
       {openIncidents.some((i) => i.triage_signals?.queue_ordering_contract) && (
-        <p className="text-[11px] text-muted-foreground border border-border/40 rounded-lg px-3 py-2" data-testid="workbench-queue-contract-note">
+        <p className="text-mel-sm text-muted-foreground border border-border/40 rounded-sm px-3 py-2" data-testid="workbench-queue-contract-note">
           Open rows use server <span className="font-mono">triage_signals.queue_sort_key_lex</span> when present (workbench v2); otherwise{' '}
           <span className="font-mono">queue_sort_primary</span> then recency — same contract as incident detail; presentation-only toggles stay local.
         </p>
       )}
       {v2QueueRowsMissingLex > 0 && (
-        <p className="text-[11px] text-warning border border-warning/30 bg-warning/5 rounded-lg px-3 py-2" role="status">
+        <p className="text-mel-sm text-warning border border-warning/30 bg-warning/5 rounded-sm px-3 py-2" role="status">
           Queue ordering degraded for {v2QueueRowsMissingLex} open incident{v2QueueRowsMissingLex > 1 ? 's' : ''}: server reports
           <span className="font-mono"> open_incident_workbench_v2 </span>
           without
@@ -363,7 +363,7 @@ export function Incidents() {
       )}
 
       {focusIncidentId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-info/25 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-info/25 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
           <span>
             Returned to workbench row <span className="font-mono text-foreground">{focusIncidentId.slice(0, 14)}…</span>
           </span>
@@ -374,7 +374,7 @@ export function Incidents() {
       )}
 
       {!canHandoff && !ctx.loading && (
-        <div className="flex items-center gap-2 rounded-xl border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-md border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
           <Eye className="h-3.5 w-3.5 text-info" />
           Read-only view. Your credentials do not include incident_handoff_write.
         </div>
@@ -383,16 +383,16 @@ export function Incidents() {
       {/* Summary stats */}
       <div className="flex flex-wrap gap-3">
         <div className={clsx(
-          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]',
+          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em]',
           openIncidents.length > 0 ? 'border-warning/25 bg-warning/8 text-warning' : 'border-success/20 bg-success/8 text-success'
         )}>
           <span className={clsx('h-1.5 w-1.5 rounded-full', openIncidents.length > 0 ? 'bg-warning' : 'bg-success')} />
           {openIncidents.length} open
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {closedIncidents.length} resolved
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {incidents.length} total
         </div>
       </div>
@@ -411,7 +411,7 @@ export function Incidents() {
         <div className="space-y-4">
           <div
             id="mel-incident-workbench"
-            className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
+            className="rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
             data-testid="incident-workbench-strip"
           >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -419,11 +419,11 @@ export function Incidents() {
                 <ListOrdered className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Workbench order
               </span>
-              <span className="text-[11px]">
+              <span className="text-mel-sm">
                 Matches Command surface: follow-up / control gates → sparse or degraded intel → recurrence → rest by last update.
               </span>
             </div>
-            <p className="mt-1.5 text-[11px] leading-snug">
+            <p className="mt-1.5 text-mel-sm leading-snug">
               <span className="text-foreground font-medium">{needsAttention.length}</span> row{needsAttention.length === 1 ? '' : 's'} in
               “needs attention” (explicit review, control gates, partial action visibility / degraded action trace, sparse or degraded
               intel, or history-without-linkage signals).{' '}
@@ -431,7 +431,7 @@ export function Incidents() {
               same deterministic rules.
             </p>
             {!canReadLinkedActions && !ctx.loading && ctx.error == null && (
-              <p className="mt-2 text-[11px] text-warning border border-warning/20 rounded-lg px-2 py-1.5 bg-warning/5" role="status">
+              <p className="mt-2 text-mel-sm text-warning border border-warning/20 rounded-sm px-2 py-1.5 bg-warning/5" role="status">
                 Linked control rows are hidden without read_actions — ordering still uses refs on the record; open the control queue to see
                 FK-linked work.
               </p>
@@ -442,7 +442,7 @@ export function Incidents() {
             <section className="space-y-3" aria-labelledby="mel-workbench-needs-heading">
               <h2
                 id="mel-workbench-needs-heading"
-                className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-warning"
+                className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-warning"
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Needs attention first
@@ -469,7 +469,7 @@ export function Incidents() {
             <section className="space-y-3" aria-labelledby="mel-workbench-backlog-heading">
               <h2
                 id="mel-workbench-backlog-heading"
-                className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+                className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
               >
                 <Clock className="h-3.5 w-3.5" />
                 Open backlog
@@ -514,7 +514,7 @@ export function Incidents() {
 
       {closedIncidents.length > 0 && (
         <section className="space-y-3 pt-2">
-          <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <h2 className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Resolved incidents
           </h2>
@@ -581,7 +581,7 @@ function ProofpackDownloadButton({
   return (
     <div className="flex flex-col gap-1.5">
       {exportBlocked && exportBlockedReason && (
-        <p className="text-xs text-warning border border-warning/25 rounded-lg px-2 py-1.5 bg-warning/5" role="status">
+        <p className="text-xs text-warning border border-warning/25 rounded-sm px-2 py-1.5 bg-warning/5" role="status">
           {exportBlockedReason}
         </p>
       )}
@@ -600,7 +600,7 @@ function ProofpackDownloadButton({
         <Download className="h-3.5 w-3.5" />
         {state === 'loading' ? 'Assembling...' : 'Export proofpack'}
       </button>
-      <span className="text-[10px] text-muted-foreground/60">
+      <span className="text-mel-xs text-muted-foreground/60">
         Snapshot at request-time. Review evidence_gaps. For continuity without proof, use handoff on the incident page.
       </span>
       {state === 'error' && errorMsg && (
@@ -747,7 +747,7 @@ function IncidentCard({
             {!muted &&
               triageBadgeLabels(inc.triage_signals?.codes).map((label) => (
                 <span key={label} title="From incident.triage_signals — deterministic API, not hidden scoring">
-                  <Badge variant="outline" className="text-[10px] normal-case">
+                  <Badge variant="outline" className="text-mel-xs normal-case">
                     {label}
                   </Badge>
                 </span>
@@ -768,7 +768,7 @@ function IncidentCard({
             )}
             <Link
               to={`/incidents/${inc.id}?return=${encodeURIComponent(workbenchReturn)}`}
-              className="ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline min-h-[44px] sm:min-h-0 px-1 touch-manipulation"
+              className="ml-1 inline-flex items-center gap-1 text-mel-sm font-semibold text-primary hover:underline min-h-[44px] sm:min-h-0 px-1 touch-manipulation"
               title="Open incident detail page"
             >
               <ArrowRight className="h-3 w-3" />
@@ -789,7 +789,7 @@ function IncidentCard({
 
         {!muted && actionVis.explanation && actionVis.kind !== 'linked_observed' && (
           <div
-            className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-[11px] text-muted-foreground"
+            className="rounded-sm border border-border/40 bg-background/40 px-3 py-2 text-mel-sm text-muted-foreground"
             data-testid="incident-workbench-action-visibility"
             role="status"
           >
@@ -817,42 +817,42 @@ function IncidentCard({
           <div className="flex flex-wrap gap-2" role="navigation" aria-label="Incident shortcuts">
             <Link
               to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}#mel-investigation-path`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Compass className="h-3 w-3 shrink-0" aria-hidden />
               Path
             </Link>
             <Link
               to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}&replay=1`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Activity className="h-3 w-3 shrink-0" aria-hidden />
               Replay
             </Link>
             <Link
               to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <GitBranch className="h-3 w-3 shrink-0" aria-hidden />
               Topology{topoNum != null ? ` ${topoNum}` : ''}
             </Link>
             <Link
               to={`/planning?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <ClipboardList className="h-3 w-3 shrink-0" aria-hidden />
               Planning
             </Link>
             <Link
               to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Zap className="h-3 w-3 shrink-0" aria-hidden />
               Controls
             </Link>
             <Link
               to={`${incidentDetailReturnPath}#shift-continuity-handoff`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-[11px] font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Download className="h-3 w-3 shrink-0" aria-hidden />
               Handoff / export
@@ -861,7 +861,7 @@ function IncidentCard({
         )}
 
         {memoryLine && !muted && (
-          <p className="text-[11px] text-muted-foreground border-l-2 border-border/60 pl-2.5" data-testid="incident-workbench-memory-scan">
+          <p className="text-mel-sm text-muted-foreground border-l-2 border-border/60 pl-2.5" data-testid="incident-workbench-memory-scan">
             <span className="font-semibold text-foreground">Outcome memory (scan): </span>
             {memoryLine}
             <span className="text-muted-foreground/70"> — association only; open detail for caveats.</span>
@@ -870,7 +870,7 @@ function IncidentCard({
 
         {memoryDecisionCue && (
           <p
-            className="text-[11px] text-foreground border-l-2 border-warning/40 pl-2.5"
+            className="text-mel-sm text-foreground border-l-2 border-warning/40 pl-2.5"
             data-testid="incident-workbench-memory-decision"
           >
             <span className="font-semibold">What history changes next: </span>
@@ -879,7 +879,7 @@ function IncidentCard({
         )}
 
         {inc.reopened_from_incident_id && (
-          <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+          <div className="rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Reopened</span>
             {inc.reopened_at && <span> · {formatRelativeTime(inc.reopened_at)}</span>}
             {' — '}
@@ -911,7 +911,7 @@ function IncidentCard({
               )}
             </div>
             {(intel.sparsity_markers?.length ?? 0) > 0 && (
-              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs">
+              <div className="rounded-sm border border-border/50 bg-muted/20 px-3 py-2 text-xs">
                 <p className="font-medium text-foreground">Intelligence limited by available evidence</p>
                 <p className="mt-0.5 text-muted-foreground">
                   Sparse signals — treat similarity and outcome memory as weakly supported until more evidence arrives.
@@ -941,7 +941,7 @@ function IncidentCard({
             {/* Handoff summary */}
             <DetailSection title="Handoff summary" icon={<FileText className="h-3.5 w-3.5" />}>
               <div className={clsx(
-                'rounded-lg border px-3 py-2 text-sm',
+                'rounded-sm border px-3 py-2 text-sm',
                 hasHandoffText ? 'border-border/60 bg-card/50 text-foreground' : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground'
               )}>
                 {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
@@ -967,7 +967,7 @@ function IncidentCard({
                   {pending.map((id) => (
                     <div
                       key={id}
-                      className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5"
+                      className="flex items-center gap-2 rounded-sm border border-border/60 bg-card/50 px-2.5 py-1.5"
                     >
                       <code className="text-xs">{id.slice(0, 16)}...</code>
                       <button
@@ -989,7 +989,7 @@ function IncidentCard({
 
             {/* Intelligence deep dive */}
             {hasIntel && (
-              <div className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4">
+              <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   <Eye className="h-3.5 w-3.5" />
                   Incident intelligence
@@ -1000,7 +1000,7 @@ function IncidentCard({
                   <DetailSection title="Similar prior incidents" icon={<Link2 className="h-3.5 w-3.5" />}>
                     <div className="space-y-1.5">
                       {intel.similar_incidents!.map((s) => (
-                        <div key={s.incident_id} className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                        <div key={s.incident_id} className="flex items-center gap-3 rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs">
                           <span className="font-mono text-muted-foreground">{s.incident_id.slice(0, 12)}</span>
                           {s.title && <span className="flex-1 truncate text-foreground">{s.title}</span>}
                           {s.state && <Badge variant={s.state === 'resolved' ? 'success' : 'secondary'}>{s.state}</Badge>}
@@ -1039,7 +1039,7 @@ function IncidentCard({
                         <EvidenceGapBanner gaps={intel.wireless_context.evidence_gaps!.slice(0, 3)} />
                       )}
                       {(intel.wireless_context.unsupported?.length ?? 0) > 0 && (
-                        <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground">
+                        <div className="rounded-sm border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground">
                           <span className="font-medium text-foreground">Unsupported scope:</span>{' '}
                           {intel.wireless_context.unsupported!.map((u) => `${u.domain} ${u.scope}`).join(', ')}
                         </div>
@@ -1053,7 +1053,7 @@ function IncidentCard({
                   <DetailSection title="Investigate next" icon={<HelpCircle className="h-3.5 w-3.5" />}>
                     <div className="space-y-1.5">
                       {intel.investigate_next!.slice(0, 3).map((g) => (
-                        <div key={g.id} className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                        <div key={g.id} className="rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs">
                           <p className="font-medium text-foreground">{g.title}</p>
                           <p className="mt-0.5 text-muted-foreground">{g.rationale}</p>
                         </div>
@@ -1065,12 +1065,12 @@ function IncidentCard({
                 {/* Action outcome memory */}
                 {(intel.action_outcome_memory?.length ?? 0) > 0 && (
                   <DetailSection title="Historical action outcomes" icon={<Zap className="h-3.5 w-3.5" />}>
-                    <p className="mb-2 text-[11px] text-muted-foreground">
+                    <p className="mb-2 text-mel-sm text-muted-foreground">
                       Historical observations from similar incidents. Association only — does not establish causality.
                     </p>
                     <div className="space-y-2">
                       {intel.action_outcome_memory!.map((m) => (
-                        <div key={m.action_type} className="rounded-lg border border-border/50 bg-card/40 p-3 text-xs">
+                        <div key={m.action_type} className="rounded-sm border border-border/50 bg-card/40 p-3 text-xs">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
                             <Badge variant="outline">n={m.sample_size}</Badge>
@@ -1121,7 +1121,7 @@ function IncidentCard({
 
                 {/* Degraded intelligence warning */}
                 {intel.degraded && (
-                  <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs">
+                  <div className="rounded-sm border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                       <div>
@@ -1135,7 +1135,7 @@ function IncidentCard({
                           <ul className="mt-1.5 space-y-0.5">
                             {intel.degraded_reasons!.map((reason) => (
                               <li key={reason} className="text-muted-foreground">
-                                <code className="rounded bg-muted/60 px-1 py-0.5 text-[10px]">{reason}</code>{' '}
+                                <code className="rounded bg-muted/60 px-1 py-0.5 text-mel-xs">{reason}</code>{' '}
                                 {humanizeReasonCode(reason)}
                               </li>
                             ))}
@@ -1147,7 +1147,7 @@ function IncidentCard({
                 )}
 
                 {intel.generated_at && (
-                  <p className="text-[10px] text-muted-foreground/50">
+                  <p className="text-mel-xs text-muted-foreground/50">
                     Intelligence generated {formatTimestamp(intel.generated_at)}
                   </p>
                 )}
@@ -1179,7 +1179,7 @@ function DetailSection({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {icon}
         {title}
       </div>
@@ -1190,7 +1190,7 @@ function DetailSection({
 
 function EvidenceGapBanner({ gaps, label = 'Evidence gap' }: { gaps: string[]; label?: string }) {
   return (
-    <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+    <div className="rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
       <span className="font-medium text-foreground">{label}:</span>{' '}
       {gaps.join(', ')}
     </div>

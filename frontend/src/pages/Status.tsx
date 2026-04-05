@@ -79,7 +79,7 @@ export function Status() {
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/16 bg-primary/12 text-primary shadow-inset">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/16 bg-primary/12 text-primary shadow-inset">
               <Activity className="h-5 w-5" />
             </div>
             <div>
@@ -133,7 +133,7 @@ export function Status() {
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-info/16 bg-info/12 text-info shadow-inset">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/16 bg-info/12 text-info shadow-inset">
                 <Wifi className="h-5 w-5" />
               </div>
               <div>
@@ -167,7 +167,7 @@ export function Status() {
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-card/75 text-muted-foreground shadow-inset">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-card/75 text-muted-foreground shadow-inset">
               <HelpCircle className="h-5 w-5" />
             </div>
             <div>
@@ -207,7 +207,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
     <div
       id={transportSectionId(transport.name)}
       className={clsx(
-        'surface-panel surface-panel-muted interactive-lift overflow-hidden rounded-[1.1rem] p-4 sm:p-5 scroll-mt-24',
+        'surface-panel surface-panel-muted interactive-lift overflow-hidden rounded-md p-4 sm:p-5 scroll-mt-24',
         healthState === 'healthy'
           ? 'border-success/20'
           : healthState === 'degraded'
@@ -219,7 +219,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
         <div className="flex min-w-0 items-start gap-3">
           <div
             className={clsx(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-inset',
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border shadow-inset',
               healthState === 'healthy'
                 ? 'border-success/18 bg-success/12 text-success'
                 : healthState === 'degraded'
@@ -231,7 +231,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">{transport.name}</h3>
+              <h3 className="font-display text-lg font-semibold tracking-[-0.03em] text-foreground">{transport.name}</h3>
               <TransportBadge type={transport.type} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -244,16 +244,16 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
           </div>
         </div>
 
-        <div className="surface-inset flex flex-wrap items-center gap-3 rounded-2xl px-3 py-2">
+        <div className="surface-inset flex flex-wrap items-center gap-3 rounded-md px-3 py-2">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last activity</p>
+            <p className="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last activity</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
               {transport.last_heartbeat_at ? formatRelativeTime(transport.last_heartbeat_at) : 'Never'}
             </p>
           </div>
           <div className="hidden h-8 w-px bg-border/60 sm:block" />
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Guidance</p>
+            <p className="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Guidance</p>
             <p className="mt-1 text-sm text-foreground">{transport.guidance || 'No additional guidance reported.'}</p>
           </div>
         </div>
@@ -291,7 +291,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
         <div className="mt-4 grid gap-4 border-t border-border/50 pt-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
           <div className="space-y-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Health score</p>
+              <p className="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Health score</p>
               <div className="mt-2 flex items-center gap-3">
                 <ProgressBar
                   value={transport.health.score}
@@ -317,7 +317,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
           </div>
 
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Active alerts</p>
+            <p className="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Active alerts</p>
             {transport.active_alerts && transport.active_alerts.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 {transport.active_alerts.map((alert, i) => (
@@ -327,7 +327,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
                 ))}
               </div>
             ) : (
-              <div className="surface-inset mt-2 rounded-2xl border-success/18 bg-success/10 px-3 py-3 text-sm font-medium text-success">
+              <div className="surface-inset mt-2 rounded-md border-success/18 bg-success/10 px-3 py-3 text-sm font-medium text-success">
                 None
               </div>
             )}
@@ -340,7 +340,7 @@ function TransportDetailCard({ transport }: { transport: TransportHealth }) {
           <InlineAlert variant="critical">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last error</p>
+                <p className="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last error</p>
                 <p className="mt-1 break-all font-mono text-xs leading-relaxed text-foreground">{transport.last_error}</p>
               </div>
             </div>
@@ -367,11 +367,11 @@ function StatBox({
   return (
     <div
       className={clsx(
-        'surface-inset rounded-2xl px-3 py-3',
+        'surface-inset rounded-md px-3 py-3',
         highlight && 'border-critical/22 bg-critical/10'
       )}
     >
-      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="mb-1 flex items-center gap-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {icon}
         {label}
       </div>
@@ -397,7 +397,7 @@ function HealthExplanation({
   } as const
 
   return (
-    <div className={clsx('surface-inset rounded-[1rem] p-4', tones[status])}>
+    <div className={clsx('surface-inset rounded-md p-4', tones[status])}>
       <div className="flex items-center gap-2">
         <HealthBadge health={status} />
       </div>

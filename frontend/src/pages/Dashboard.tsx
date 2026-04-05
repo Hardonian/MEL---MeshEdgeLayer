@@ -424,12 +424,12 @@ export function Dashboard() {
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="uppercase tracking-[0.18em]">Near-live poll</Badge>
             {status.lastUpdated && (
-              <span className="text-[11px] text-muted-foreground/60">
+              <span className="text-mel-sm text-muted-foreground/60">
                 {formatRelativeTime(status.lastUpdated.toISOString())}
               </span>
             )}
           </div>
-          <span className="text-[10px] text-muted-foreground/70 max-w-[280px] text-right">
+          <span className="text-mel-xs text-muted-foreground/70 max-w-[280px] text-right">
             Refreshed {refreshCount} time{refreshCount === 1 ? '' : 's'} this session (browser tab).
           </span>
         </div>
@@ -438,7 +438,7 @@ export function Dashboard() {
       <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
 
       <section
-        className="rounded-2xl border border-border/60 bg-card/25 p-4"
+        className="rounded-md border border-border/60 bg-card/25 p-4"
         aria-label="Operational memory snapshot"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -452,14 +452,14 @@ export function Dashboard() {
               Use it for shift handoff and external ticketing — not as proof of mesh-wide calm.
             </p>
             {(operatorDigest.error || operatorBriefing.error) && (
-              <p className="text-[11px] text-warning mt-2">
+              <p className="text-mel-sm text-warning mt-2">
                 {[operatorDigest.error, operatorBriefing.error].filter(Boolean).join(' ')}
               </p>
             )}
           </div>
           <Link
             to="/operational-review"
-            className="shrink-0 rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
+            className="shrink-0 rounded-md border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
           >
             Full review →
           </Link>
@@ -492,7 +492,7 @@ export function Dashboard() {
         )}
         {operatorBriefing.data && (
           <div className="mt-3 border-t border-border/40 pt-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+            <p className="text-mel-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
               Briefing posture
             </p>
             <p className="text-sm text-foreground">
@@ -511,10 +511,10 @@ export function Dashboard() {
       <FirstRunHintBanner visible={!hasTransports} />
 
       {/* Shift baseline — local browser only */}
-      <div className="rounded-2xl border border-border/60 bg-card/40 p-4">
+      <div className="rounded-md border border-border/60 bg-card/40 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex gap-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 text-muted-foreground">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-muted-foreground">
               <ClipboardList className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -539,7 +539,7 @@ export function Dashboard() {
           <button
             type="button"
             onClick={markShiftBaseline}
-            className="shrink-0 rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
+            className="shrink-0 rounded-md border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/50 transition-colors"
           >
             Mark “caught up” baseline
           </button>
@@ -552,20 +552,20 @@ export function Dashboard() {
           shiftDelta.openIncidentsChangedSince.length > 0 ||
           shiftDelta.noLongerOpenSinceBaseline.length > 0) && (
           <div
-            className="rounded-2xl border border-border/60 bg-card/30 p-4"
+            className="rounded-md border border-border/60 bg-card/30 p-4"
             aria-label="Open work relative to your saved baseline"
           >
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
               <p className="text-sm font-semibold text-foreground">Open work vs your baseline</p>
-              <span className="text-[10px] text-muted-foreground/80">
+              <span className="text-mel-xs text-muted-foreground/80">
                 Same-browser anchor only — not shared across operators.
               </span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {shiftDelta.stillOpenSinceBaseline.length > 0 && (
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                  <p className="text-mel-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
                     Still open (was open at baseline)
                   </p>
                   <ul className="space-y-1">
@@ -589,10 +589,10 @@ export function Dashboard() {
               )}
               {shiftDelta.openIncidentsChangedSince.length > 0 && (
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">
+                  <p className="text-mel-sm font-semibold uppercase tracking-[0.14em] text-warning mb-1.5">
                     Open + touched since baseline
                   </p>
-                  <p className="text-[11px] text-muted-foreground mb-1.5">
+                  <p className="text-mel-sm text-muted-foreground mb-1.5">
                     Updated while still open — prioritize review and handoff notes.
                   </p>
                   <ul className="space-y-1">
@@ -611,10 +611,10 @@ export function Dashboard() {
               )}
               {shiftDelta.noLongerOpenSinceBaseline.length > 0 && (
                 <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                  <p className="text-mel-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
                     No longer open (since baseline)
                   </p>
-                  <p className="text-[11px] text-muted-foreground mb-1.5">
+                  <p className="text-mel-sm text-muted-foreground mb-1.5">
                     State changed to resolved/closed in MEL — not proof the underlying mesh issue ended; verify in
                     incident record.
                   </p>
@@ -632,13 +632,13 @@ export function Dashboard() {
       {/* Shift order — ranked attention with honest “why now” */}
       {recurrenceTeasers.length > 0 && (
         <section
-          className="rounded-2xl border border-border/60 bg-card/30 p-4"
+          className="rounded-md border border-border/60 bg-card/30 p-4"
           aria-label="Open incidents with pattern or case memory"
         >
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <TrendingUp className="h-4 w-4 text-warning shrink-0" />
             <h2 className="text-sm font-semibold text-foreground">Case memory on open work</h2>
-            <span className="text-[10px] text-muted-foreground/80">
+            <span className="text-mel-xs text-muted-foreground/80">
               Deterministic signals from this instance — not ML or causal proof.
             </span>
           </div>
@@ -662,17 +662,17 @@ export function Dashboard() {
 
       {shiftAttentionRows.length > 0 && (
         <section
-          className="rounded-2xl border border-border/60 bg-card/35 p-4"
+          className="rounded-md border border-border/60 bg-card/35 p-4"
           aria-label="Shift-start attention order"
         >
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Compass className="h-4 w-4 text-muted-foreground shrink-0" />
             <h2 className="text-sm font-semibold text-foreground">Shift order (work this pass)</h2>
-            <span className="text-[10px] text-muted-foreground/80">
+            <span className="text-mel-xs text-muted-foreground/80">
               Single-operator ordering from live posture — not a team queue.
             </span>
           </div>
-          <ol className="space-y-2 list-decimal list-inside marker:text-[11px] marker:text-muted-foreground/70">
+          <ol className="space-y-2 list-decimal list-inside marker:text-mel-sm marker:text-muted-foreground/70">
             {shiftAttentionRows.slice(0, 10).map((row) => (
               <li key={row.key} className="text-sm">
                 <Link
@@ -688,7 +688,7 @@ export function Dashboard() {
             ))}
           </ol>
           {explicitFollowUpOpenCount > 0 && (
-            <p className="mt-3 text-[11px] text-muted-foreground border-t border-border/40 pt-2">
+            <p className="mt-3 text-mel-sm text-muted-foreground border-t border-border/40 pt-2">
               {explicitFollowUpOpenCount} open incident{explicitFollowUpOpenCount > 1 ? 's' : ''} in follow-up / review workflow
               states — see incidents list for full set.
             </p>
@@ -699,7 +699,7 @@ export function Dashboard() {
       {/* Retention / export posture (instance truth) */}
       {!versionInfo.loading && versionInfo.data?.platform_posture && (
         <div
-          className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground"
+          className="rounded-md border border-border/50 bg-muted/10 px-3 py-2 text-mel-sm text-muted-foreground"
           role="region"
           aria-label="Retention and export policy from this instance"
         >
@@ -718,9 +718,9 @@ export function Dashboard() {
 
       {/* System Pulse — what needs attention */}
       {attentionCount > 0 && (
-        <div className="rounded-2xl border border-warning/25 bg-warning/5 p-4">
+        <div className="rounded-md border border-warning/25 bg-warning/5 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-warning/25 bg-warning/12 text-warning">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-warning/25 bg-warning/12 text-warning">
               <AlertTriangle className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -773,9 +773,9 @@ export function Dashboard() {
 
       {/* Calm state — when everything is quiet */}
       {attentionCount === 0 && !isLoading && hasTransports && (
-        <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
+        <div className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/50 bg-card/60 text-muted-foreground">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-card/60 text-muted-foreground">
               <Compass className="h-4 w-4" />
             </div>
             <div>
@@ -795,7 +795,7 @@ export function Dashboard() {
             </div>
           </div>
           <div className="border-t border-border/40 pt-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+            <p className="text-mel-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
               Still worth a pass (quiet console)
             </p>
             <ul className="text-xs text-muted-foreground space-y-1.5">
@@ -845,7 +845,7 @@ export function Dashboard() {
       {(sparseIncidents.length > 0 || !connectedTransport || pendingApprovals.length > 0) && (
         <div className="grid gap-3 md:grid-cols-2">
           {sparseIncidents.length > 0 && (
-            <div className="rounded-2xl border border-warning/25 bg-warning/5 p-4">
+            <div className="rounded-md border border-warning/25 bg-warning/5 p-4">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-warning mb-2">
                 <HelpCircle className="h-3.5 w-3.5" />
                 Sparse or degraded incident evidence
@@ -862,7 +862,7 @@ export function Dashboard() {
                     >
                       {inc.title || inc.id.slice(0, 12)}
                     </Link>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-mel-sm text-muted-foreground">
                       {inc.intelligence?.evidence_strength ?? 'unknown'} evidence
                       {inc.intelligence?.degraded ? ' · degraded intel' : ''}
                     </span>
@@ -876,7 +876,7 @@ export function Dashboard() {
               )}
             </div>
           )}
-          <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
+          <div className="rounded-md border border-border/60 bg-card/50 p-4">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
               <Clock className="h-3.5 w-3.5" />
               Suggested next checks
@@ -1026,7 +1026,7 @@ export function Dashboard() {
                     <Link
                       key={inc.id}
                       to={`/incidents/${encodeURIComponent(inc.id)}`}
-                      className="block rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:bg-accent/50"
+                      className="block rounded-sm border border-border/60 bg-card/50 p-3 transition-colors hover:bg-accent/50"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -1034,7 +1034,7 @@ export function Dashboard() {
                             {inc.title || inc.id.slice(0, 8)}
                           </p>
                           {inc.intelligence?.signature_match_count && inc.intelligence.signature_match_count > 1 && (
-                            <p className="mt-0.5 text-[11px] text-warning">
+                            <p className="mt-0.5 text-mel-sm text-warning">
                               Seen {inc.intelligence.signature_match_count} times before
                             </p>
                           )}
@@ -1100,8 +1100,8 @@ export function Dashboard() {
           {/* Dead letters alert */}
           {deadLetterCount > 0 && (
             <Link to="/dead-letters" className="block">
-              <div className="flex items-center gap-3 rounded-2xl border border-warning/20 bg-warning/5 p-3 transition-colors hover:bg-warning/8">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-warning/12 text-warning">
+              <div className="flex items-center gap-3 rounded-md border border-warning/20 bg-warning/5 p-3 transition-colors hover:bg-warning/8">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-warning/12 text-warning">
                   <Inbox className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1185,19 +1185,19 @@ function SectionCardHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
-        <div className={clsx('flex h-8 w-8 items-center justify-center rounded-xl border shadow-inset', iconClassName)}>
+        <div className={clsx('flex h-8 w-8 items-center justify-center rounded-md border shadow-inset', iconClassName)}>
           {icon}
         </div>
         <div>
           <CardTitle className="text-[14px]">{title}</CardTitle>
-          <CardDescription className="mt-0.5 text-[11px] text-muted-foreground">
+          <CardDescription className="mt-0.5 text-mel-sm text-muted-foreground">
             {description}
           </CardDescription>
         </div>
       </div>
       <Link
         to={href}
-        className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
       >
         View <ArrowRight className="h-3 w-3" />
       </Link>
@@ -1214,7 +1214,7 @@ function TransportListItem({ transport }: { transport: TransportHealth }) {
         <div className="flex min-w-0 items-center gap-2.5">
           <div
             className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-inset',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border shadow-inset',
               healthState === 'healthy'
                 ? 'border-success/18 bg-success/12 text-success'
                 : healthState === 'degraded'
@@ -1226,7 +1226,7 @@ function TransportListItem({ transport }: { transport: TransportHealth }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold text-foreground">{transport.name}</p>
-            <p className="truncate text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{transport.type}</p>
+            <p className="truncate text-mel-sm uppercase tracking-[0.14em] text-muted-foreground">{transport.type}</p>
           </div>
         </div>
         <div className="ml-2 flex items-center gap-2">
@@ -1239,13 +1239,13 @@ function TransportListItem({ transport }: { transport: TransportHealth }) {
 
 function NodeCompactItem({ node }: { node: NodeInfo }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2.5">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary text-secondary-foreground">
+    <div className="flex items-center gap-2.5 rounded-md border border-border/60 bg-card/50 px-3 py-2.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border/60 bg-secondary text-secondary-foreground">
         <Radio className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium text-foreground">{node.long_name || 'Unknown'}</p>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-mel-sm text-muted-foreground">
           {formatRelativeTime(node.last_seen)}
         </p>
       </div>
@@ -1259,10 +1259,10 @@ function RecommendationListItem({
   recommendation: { message: string; category?: string; actionable: boolean }
 }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-card/40 px-3 py-2.5">
+    <div className="flex items-start gap-2.5 rounded-sm border border-border/50 bg-card/40 px-3 py-2.5">
       <div
         className={clsx(
-          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border shadow-inset',
+          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border shadow-inset',
           recommendation.actionable
             ? 'border-warning/18 bg-warning/12 text-warning'
             : 'border-border/70 bg-card/75 text-muted-foreground'

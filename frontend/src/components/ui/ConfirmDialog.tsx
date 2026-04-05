@@ -103,7 +103,7 @@ export function ConfirmDialog({
 
       <div
         ref={dialogRef}
-        className="surface-panel animate-expand-in relative w-full max-w-md overflow-hidden rounded-[1.25rem]"
+        className="surface-panel animate-expand-in relative w-full max-w-md overflow-hidden rounded-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -114,7 +114,7 @@ export function ConfirmDialog({
         <div className="flex items-start gap-4 p-6">
           <div
             className={clsx(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-inset',
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border shadow-inset',
               variant === 'danger'
                 ? 'border-critical/18 bg-critical/12 text-critical'
                 : 'border-primary/18 bg-primary/12 text-primary'
@@ -123,7 +123,7 @@ export function ConfirmDialog({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="font-outfit text-xl font-semibold tracking-[-0.03em] text-foreground">
+            <h2 id={titleId} className="font-display text-xl font-semibold tracking-[-0.03em] text-foreground">
               {title}
             </h2>
             {description && (

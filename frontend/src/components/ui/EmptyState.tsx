@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { clsx } from 'clsx'
-import { Inbox, Info, AlertCircle, Search, Wifi, Settings } from 'lucide-react'
+import { Inbox, Info, AlertCircle, Search, Wifi, Settings, Terminal } from 'lucide-react'
 
 export type EmptyStateType = 'default' | 'no-data' | 'not-found' | 'disconnected' | 'not-configured' | 'error'
 
@@ -15,27 +15,27 @@ interface EmptyStateProps {
 
 const typeConfig: Record<EmptyStateType, { icon: ReactNode; iconClass?: string }> = {
   default: {
-    icon: <Inbox className="h-10 w-10" />,
+    icon: <Inbox className="h-8 w-8" />,
     iconClass: 'text-primary',
   },
   'no-data': {
-    icon: <Inbox className="h-10 w-10" />,
+    icon: <Terminal className="h-8 w-8" />,
     iconClass: 'text-primary',
   },
   'not-found': {
-    icon: <Search className="h-10 w-10" />,
+    icon: <Search className="h-8 w-8" />,
     iconClass: 'text-info',
   },
   disconnected: {
-    icon: <Wifi className="h-10 w-10" />,
+    icon: <Wifi className="h-8 w-8" />,
     iconClass: 'text-muted-foreground',
   },
   'not-configured': {
-    icon: <Settings className="h-10 w-10" />,
+    icon: <Settings className="h-8 w-8" />,
     iconClass: 'text-muted-foreground',
   },
   error: {
-    icon: <AlertCircle className="h-10 w-10" />,
+    icon: <AlertCircle className="h-8 w-8" />,
     iconClass: 'text-critical',
   },
 }
@@ -53,22 +53,22 @@ export function EmptyState({
   return (
     <div
       className={clsx(
-        'surface-panel surface-panel-muted flex flex-col items-center justify-center gap-4 rounded-[1.1rem] border-dashed p-8 text-center sm:p-10',
+        'surface-panel surface-panel-muted flex flex-col items-center justify-center gap-3 border-dashed p-6 text-center sm:p-8',
         className
       )}
     >
       <div
         className={clsx(
-          'flex h-16 w-16 items-center justify-center rounded-[1.25rem] border border-border/70 bg-card/70 shadow-inset',
+          'flex h-12 w-12 items-center justify-center rounded-md border border-border/60 bg-card/60',
           config.iconClass
         )}
       >
         {config.icon}
       </div>
-      <div className="max-w-md space-y-1.5">
-        <h3 className="font-outfit text-lg font-semibold tracking-[-0.02em] text-foreground">{title}</h3>
+      <div className="max-w-md space-y-1">
+        <h3 className="font-display text-sm font-bold tracking-tight text-foreground">{title}</h3>
         {description && (
-          <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+          <p className="prose-body text-mel-sm text-muted-foreground">{description}</p>
         )}
         {details && <div className="pt-1">{details}</div>}
       </div>
@@ -89,18 +89,15 @@ export function NoTransportsConfigured({
       description="Add transport configuration to your MEL config file to start receiving mesh data."
       action={
         onConfigure ? (
-          <button
-            onClick={onConfigure}
-            className="button-primary"
-          >
+          <button onClick={onConfigure} className="button-primary">
             Configure transports
           </button>
         ) : undefined
       }
       details={
-        <div className="space-y-1 text-xs text-muted-foreground">
-          <p>Supported transports: MQTT, TCP, Serial</p>
-          <p>See the Configuration Guide for setup details.</p>
+        <div className="space-y-0.5 font-mono text-mel-xs text-muted-foreground">
+          <p>Supported: MQTT, TCP, Serial</p>
+          <p>See Configuration Guide for setup.</p>
         </div>
       }
     />
@@ -112,7 +109,7 @@ export function NoNodesYet() {
     <EmptyState
       type="no-data"
       title="No nodes observed yet"
-      description="Node inventory is empty because no live mesh observations have been stored yet. This is expected when transports are idle or disconnected."
+      description="Node inventory is empty — no live mesh observations stored. Expected when transports are idle or disconnected."
     />
   )
 }
@@ -122,20 +119,20 @@ export function NoMessagesYet() {
     <EmptyState
       type="no-data"
       title="No messages yet"
-      description="No live message observations have been stored yet. This is expected when transports are idle or disconnected."
+      description="No live message observations stored. Expected when transports are idle or disconnected."
     />
   )
 }
 
 export function SystemHealthy({ message = 'All systems operational' }: { message?: string }) {
   return (
-    <div className="surface-inset flex items-start gap-3 rounded-[1rem] border-success/20 bg-success/10 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-success/16 bg-success/12 shadow-inset">
-        <Info className="h-5 w-5 text-success" aria-hidden />
+    <div className="surface-inset flex items-start gap-3 border-success/20 bg-success/6 p-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-success/20 bg-success/10">
+        <Info className="h-4 w-4 text-success" aria-hidden />
       </div>
       <div className="min-w-0">
-        <p className="font-semibold text-success">{message}</p>
-        <p className="text-sm leading-relaxed text-muted-foreground">Nothing to act on in this panel right now.</p>
+        <p className="font-mono text-mel-sm font-semibold text-success">{message}</p>
+        <p className="prose-body text-mel-xs text-muted-foreground">Nothing to act on in this panel.</p>
       </div>
     </div>
   )

@@ -64,14 +64,14 @@ export function AlertCard({
   return (
     <div
       className={clsx(
-        'surface-panel relative overflow-hidden rounded-[1.1rem] p-4 sm:p-5',
+        'surface-panel relative overflow-hidden rounded-md p-4 sm:p-5',
         styles.container,
         className
       )}
     >
       <div className={clsx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', styles.rail)} aria-hidden />
       <div className="flex items-start gap-3">
-        <div className={clsx('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inset', styles.icon)}>
+        <div className={clsx('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border shadow-inset', styles.icon)}>
           {icon || defaultIcons[variant]}
         </div>
         <div className="min-w-0 flex-1">
@@ -105,12 +105,12 @@ export function InlineAlert({ variant = 'info', children, className }: InlineAle
   return (
     <div
       className={clsx(
-        'surface-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm',
+        'surface-inset flex items-center gap-3 rounded-md px-3 py-2.5 text-sm',
         styles.container,
         className
       )}
     >
-      <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-inset', styles.icon)}>
+      <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-md border shadow-inset', styles.icon)}>
         {defaultIcons[variant]}
       </span>
       <span className="min-w-0 flex-1">{children}</span>

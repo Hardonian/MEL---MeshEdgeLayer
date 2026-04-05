@@ -4,7 +4,6 @@ import { clsx } from 'clsx'
 
 interface PageHeaderProps {
   title: string
-  /** Short cockpit label (e.g. mesh operations) — keep optional to avoid churn on every page. */
   subtitle?: string
   description?: string
   action?: ReactNode
@@ -26,17 +25,17 @@ export function PageHeader({
   return (
     <div
       className={clsx(
-        'mb-6 border-b border-border/60 pb-5 sm:mb-8 sm:pb-6',
+        'mb-5 border-b border-border/50 pb-4 sm:mb-6 sm:pb-5',
         className
       )}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <nav className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <nav className="mb-2 flex flex-wrap items-center gap-1.5 font-mono text-mel-xs text-muted-foreground">
               {breadcrumbs.map((crumb, index) => (
-                <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
-                  {index > 0 && <span className="text-muted-foreground/50">/</span>}
+                <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
+                  {index > 0 && <span className="text-muted-foreground/40">/</span>}
                   {crumb.href ? (
                     <Link
                       to={crumb.href}
@@ -51,16 +50,16 @@ export function PageHeader({
               ))}
             </nav>
           )}
-          <h1 className="font-outfit text-[2rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.5rem]">
+          <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
+            <p className="mt-1 mel-label text-muted-foreground/70">
               {subtitle}
             </p>
           )}
           {description && (
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
+            <p className="mt-1.5 max-w-3xl prose-body text-mel-sm text-muted-foreground">
               {description}
             </p>
           )}

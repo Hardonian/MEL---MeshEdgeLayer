@@ -10,24 +10,25 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'border-primary/18 bg-primary/10 text-primary',
-  success: 'border-success/20 bg-success/10 text-success',
-  warning: 'border-warning/24 bg-warning/10 text-warning',
-  critical: 'border-critical/24 bg-critical/10 text-critical',
-  secondary: 'border-border/70 bg-muted/70 text-muted-foreground',
-  outline: 'border-border/75 bg-card/65 text-foreground',
-  info: 'border-info/20 bg-info/10 text-info',
+  default: 'border-primary/20 bg-primary/8 text-primary',
+  success: 'border-success/25 bg-success/8 text-success',
+  warning: 'border-warning/25 bg-warning/8 text-warning',
+  critical: 'border-critical/25 bg-critical/8 text-critical',
+  secondary: 'border-border/60 bg-muted/50 text-muted-foreground',
+  outline: 'border-border/60 bg-card/50 text-foreground',
+  info: 'border-info/20 bg-info/8 text-info',
 }
 
 function BadgeDot({ className }: { className?: string }) {
-  return <span aria-hidden className={clsx('h-1.5 w-1.5 rounded-full', className)} />
+  return <span aria-hidden className={clsx('h-1.5 w-1.5 rounded-full', className)} style={{ boxShadow: '0 0 4px currentColor' }} />
 }
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {
   return (
     <span
       className={clsx(
-        'inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold leading-none shadow-inset transition-colors sm:text-[11px]',
+        'inline-flex min-h-5 items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
+        'tracking-[0.08em]',
         variantStyles[variant],
         className
       )}
@@ -62,7 +63,7 @@ export function HealthBadge({ health, showLabel = true }: { health: HealthVarian
   }[health]
 
   return (
-    <Badge variant={variantMap[health]} className="uppercase tracking-[0.16em]">
+    <Badge variant={variantMap[health]}>
       {showLabel && <BadgeDot className={dotClass} />}
       {label}
     </Badge>
@@ -87,7 +88,7 @@ export function SeverityBadge({ severity }: { severity: SeverityVariant }) {
   }[severity]
 
   return (
-    <Badge variant={variantMap[severity]} className="uppercase tracking-[0.16em]">
+    <Badge variant={variantMap[severity]}>
       {severity === 'critical' && <BadgeDot className="bg-critical" />}
       {label}
     </Badge>
@@ -119,7 +120,7 @@ export function ConnectionBadge({ state }: { state: ConnectionState }) {
   }[state]
 
   return (
-    <Badge variant={variantMap[state]} className="uppercase tracking-[0.16em]">
+    <Badge variant={variantMap[state]}>
       <BadgeDot className={dotClass} />
       {label}
     </Badge>
@@ -144,7 +145,7 @@ export function PriorityBadge({ priority }: { priority: PriorityVariant }) {
   }[priority]
 
   return (
-    <Badge variant={variantMap[priority]} className="uppercase tracking-[0.16em]">
+    <Badge variant={variantMap[priority]}>
       {label}
     </Badge>
   )
@@ -162,7 +163,7 @@ export function TransportBadge({ type }: { type: string }) {
   const variant = variantMap[type.toLowerCase()] || 'outline'
 
   return (
-    <Badge variant={variant} className="uppercase tracking-[0.16em]">
+    <Badge variant={variant}>
       {type.toUpperCase()}
     </Badge>
   )

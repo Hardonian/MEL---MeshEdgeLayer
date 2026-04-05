@@ -246,7 +246,7 @@ export function HelpMenu() {
         onClick={() => setIsOpen((o) => !o)}
         aria-label="Help menu"
         className={clsx(
-          'inline-flex h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all duration-150',
+          'inline-flex h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all duration-150',
           'border-border/70 bg-card/80 text-muted-foreground shadow-inset hover:border-primary/16 hover:bg-accent/65 hover:text-foreground',
           'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isOpen && 'border-primary/18 bg-accent/70 text-foreground'
@@ -275,7 +275,7 @@ export function HelpMenu() {
           <div
             ref={menuRef}
             id={menuId}
-            className="surface-panel absolute right-0 z-50 mt-2 w-[min(100vw-2rem,18rem)] overflow-hidden rounded-[1.1rem]"
+            className="surface-panel absolute right-0 z-50 mt-2 w-[min(100vw-2rem,18rem)] overflow-hidden rounded-md"
             role="menu"
             aria-labelledby="mel-help-menu-trigger"
           >
@@ -290,7 +290,7 @@ export function HelpMenu() {
                     target={isExternal ? '_blank' : undefined}
                     rel={isExternal ? 'noopener noreferrer' : undefined}
                     className={clsx(
-                      'flex items-start gap-3 rounded-xl border border-transparent p-3 transition-all duration-150',
+                      'flex items-start gap-3 rounded-md border border-transparent p-3 transition-all duration-150',
                       'hover:border-border/60 hover:bg-accent/65 hover:text-accent-foreground',
                       'outline-none focus-visible:ring-2 focus-visible:ring-ring'
                     )}
@@ -318,7 +318,7 @@ export function HelpMenu() {
                 role="menuitem"
                 tabIndex={-1}
                 className={clsx(
-                  'flex w-full items-start gap-3 rounded-xl border border-transparent p-3 text-left transition-all duration-150',
+                  'flex w-full items-start gap-3 rounded-md border border-transparent p-3 text-left transition-all duration-150',
                   'hover:border-border/60 hover:bg-accent/65 hover:text-accent-foreground',
                   'outline-none focus-visible:ring-2 focus-visible:ring-ring'
                 )}
@@ -328,8 +328,8 @@ export function HelpMenu() {
                 <span className="font-medium text-foreground">Keyboard shortcuts</span>
               </button>
             </div>
-            <p className="border-t border-border/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-              Press <kbd className="rounded-md border border-border/70 bg-card/70 px-1.5 py-0.5 font-mono text-[10px] text-foreground">?</kbd> outside fields to open shortcuts.
+            <p className="border-t border-border/60 px-3 py-2 text-mel-sm leading-snug text-muted-foreground">
+              Press <kbd className="rounded-md border border-border/70 bg-card/70 px-1.5 py-0.5 font-mono text-mel-xs text-foreground">?</kbd> outside fields to open shortcuts.
             </p>
           </div>
         </>
@@ -352,7 +352,7 @@ export function HelpMenu() {
               aria-modal="true"
               aria-labelledby={shortcutsTitleId}
               aria-describedby={shortcutsDescId}
-              className="surface-panel relative z-[61] w-full max-w-md rounded-[1.25rem] p-6"
+              className="surface-panel relative z-[61] w-full max-w-md rounded-md p-6"
             >
               <h2 id={shortcutsTitleId} className="text-lg font-semibold text-foreground">
                 Keyboard shortcuts
@@ -459,7 +459,7 @@ export function KeyboardShortcuts() {
           <ul className="space-y-2">
             {group.shortcuts.map((s) => (
               <li key={s.keys} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{s.keys}</kbd>
+                <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-mel-sm">{s.keys}</kbd>
                 <span className="min-w-0 text-muted-foreground">{s.description}</span>
               </li>
             ))}

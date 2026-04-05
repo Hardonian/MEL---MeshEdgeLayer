@@ -58,14 +58,14 @@ export function OperationalReview() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {digest.lastUpdated && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-mel-xs text-muted-foreground">
                   {formatRelativeTime(digest.lastUpdated.toISOString())}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => void digest.refresh()}
-                className="rounded-lg border border-border/70 px-2 py-1 text-[11px] font-semibold hover:bg-muted/50"
+                className="rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50"
               >
                 Refresh
               </button>
@@ -73,7 +73,7 @@ export function OperationalReview() {
                 type="button"
                 disabled={!digest.data}
                 onClick={downloadDigest}
-                className="inline-flex items-center gap-1 rounded-lg border border-border/70 px-2 py-1 text-[11px] font-semibold hover:bg-muted/50 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50 disabled:opacity-50"
               >
                 <Download className="h-3 w-3" aria-hidden />
                 JSON
@@ -113,7 +113,7 @@ export function OperationalReview() {
                   <dd className="font-semibold tabular-nums">{digest.data.counts.awaiting_executor_actions}</dd>
                 </div>
                 <div className="col-span-2 sm:col-span-3 border-t border-border/40 pt-2 mt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+                  <p className="text-mel-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
                     Last {digest.data.window_hours}h (primary timestamps)
                   </p>
                   <div className="grid grid-cols-3 gap-2">
@@ -134,7 +134,7 @@ export function OperationalReview() {
               </dl>
             )}
             {digest.data?.truth_notes && digest.data.truth_notes.length > 0 && (
-              <ul className="text-[11px] text-muted-foreground list-disc list-inside space-y-1">
+              <ul className="text-mel-sm text-muted-foreground list-disc list-inside space-y-1">
                 {digest.data.truth_notes.map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
@@ -175,14 +175,14 @@ export function OperationalReview() {
                 </Badge>
               )}
               {briefing.lastUpdated && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-mel-xs text-muted-foreground">
                   {formatRelativeTime(briefing.lastUpdated.toISOString())}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => void briefing.refresh()}
-                className="rounded-lg border border-border/70 px-2 py-1 text-[11px] font-semibold hover:bg-muted/50"
+                className="rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50"
               >
                 Refresh
               </button>
@@ -200,10 +200,10 @@ export function OperationalReview() {
             ) : (
               <ol className="space-y-2 list-decimal list-inside text-sm">
                 {top.map((p) => (
-                  <li key={p.id} className="marker:text-[11px] marker:text-muted-foreground">
+                  <li key={p.id} className="marker:text-mel-sm marker:text-muted-foreground">
                     <span className="font-medium text-foreground">{p.title}</span>
                     <span className="text-muted-foreground text-xs block sm:inline sm:ml-1"> — {p.summary}</span>
-                    <span className="text-[10px] text-muted-foreground block">
+                    <span className="text-mel-xs text-muted-foreground block">
                       {p.severity} · evidence {p.evidence_freshness}
                       {p.is_actionable ? ' · actionable' : ''}
                     </span>
@@ -212,7 +212,7 @@ export function OperationalReview() {
               </ol>
             )}
             {(briefing.data?.uncertainty_notes?.length ?? 0) > 0 && (
-              <ul className="text-[11px] text-muted-foreground list-disc list-inside space-y-1 border-t border-border/40 pt-2">
+              <ul className="text-mel-sm text-muted-foreground list-disc list-inside space-y-1 border-t border-border/40 pt-2">
                 {briefing.data!.uncertainty_notes!.map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}

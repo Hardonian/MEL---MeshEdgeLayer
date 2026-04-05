@@ -50,7 +50,7 @@ export function Privacy() {
           action={
             <button
               onClick={refresh}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
+              className="rounded-sm bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
             >
               Retry
             </button>
@@ -231,7 +231,7 @@ function FindingCard({ finding }: { finding: PrivacyFinding }) {
 
   return (
     <div className={clsx(
-      'rounded-lg border p-4',
+      'rounded-sm border p-4',
       severityColors[finding.severity]
     )}>
       <div className="flex items-start gap-3">
@@ -272,7 +272,7 @@ function PrivacyCategory({
   description: string 
 }) {
   return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+    <div className="flex items-start gap-3 p-3 rounded-sm bg-muted/30">
       <div className="shrink-0 text-muted-foreground">
         {icon}
       </div>

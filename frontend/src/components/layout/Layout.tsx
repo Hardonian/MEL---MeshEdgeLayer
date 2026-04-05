@@ -27,6 +27,7 @@ import {
   Wrench,
   Crosshair,
   ClipboardList,
+  Terminal,
 } from 'lucide-react'
 
 interface NavItem {
@@ -71,7 +72,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'Overview',
       icon: Eye,
       items: [
-        { label: 'Command surface (home)', href: '/', icon: LayoutDashboard },
+        { label: 'Command surface', href: '/', icon: LayoutDashboard },
         { label: 'Status', href: '/status', icon: Activity },
         { label: 'Events', href: '/events', icon: FileText },
       ],
@@ -100,7 +101,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { label: 'Control actions', href: '/control-actions', icon: Zap },
         { label: 'Planning', href: '/planning', icon: Compass },
         {
-          label: 'Operational review',
+          label: 'Op review',
           href: '/operational-review',
           icon: ClipboardList,
         },
@@ -113,7 +114,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      label: 'Trust & safety',
+      label: 'Trust',
       icon: Shield,
       items: [
         {
@@ -170,7 +171,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refreshAll])
 
-  // Escape / command palette only — g+r navigation lives in useGlobalKeyboardShortcuts (HelpMenu) to avoid double handlers.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -187,20 +187,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const transportStatusLabel = status.loading
-    ? 'Loading transport state'
+    ? 'Loading...'
     : !hasTransports
-      ? 'No transport configured'
+      ? 'No transport'
       : hasConnectedTransport
-        ? 'Transport connected'
-        : 'No active transport'
-
-  const transportStatusClasses = clsx(
-    'status-pill hidden md:inline-flex',
-    status.loading && 'border-border/80 text-muted-foreground',
-    !status.loading && !hasTransports && 'border-border/80 text-muted-foreground',
-    !status.loading && hasTransports && hasConnectedTransport && 'border-success/30 text-foreground',
-    !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/30 text-foreground'
-  )
+        ? 'Connected'
+        : 'Disconnected'
 
   const transportDotClasses = clsx(
     'status-dot',
@@ -211,64 +203,69 @@ export function Layout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-panel focus:outline-none focus:ring-2 focus:ring-ring"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-xs focus:shadow-panel focus:outline-none focus:ring-2 focus:ring-ring"
       >
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-50 px-3 pt-3 md:px-4">
-        <div className="surface-toolbar mx-auto flex h-14 max-w-[min(100%,96rem)] items-center justify-between px-3 sm:px-4">
+      {/* ─── Top Chrome Bar ─── */}
+      <header className="sticky top-0 z-50 border-b border-chrome-border bg-chrome-bg/95 backdrop-blur-md">
+        <div className="mx-auto flex h-11 max-w-[96rem] items-center justify-between px-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="icon-button md:hidden"
               aria-label="Toggle menu"
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
 
             <Link
               to="/"
-              className="group flex items-center gap-3 rounded-xl outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="group flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/14 text-primary shadow-[0_14px_28px_-20px_hsl(var(--primary)/0.72)] transition-transform duration-200 group-hover:-translate-y-0.5">
-                <Radio className="h-4 w-4" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/25 bg-primary/12 text-primary">
+                <Radio className="h-3.5 w-3.5" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">MEL</span>
-                  <span className="hidden rounded-full border border-border/70 bg-card/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:inline-flex">
-                    Operator OS
-                  </span>
-                </div>
-                <p className="mt-0.5 hidden max-w-[14rem] text-[10px] leading-snug text-muted-foreground/75 sm:block">
-                  Incident intelligence and governed control — bounded by persisted evidence.
-                </p>
+              <div className="flex items-center gap-2">
+                <span className="font-display text-sm font-bold tracking-tight text-foreground">MEL</span>
+                <span className="hidden text-mel-xs text-muted-foreground/60 sm:inline">//</span>
+                <span className="hidden font-mono text-mel-xs text-muted-foreground/60 sm:inline">MeshEdgeLayer</span>
               </div>
             </Link>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className={transportStatusClasses}>
+            {/* Transport status */}
+            <div className={clsx(
+              'status-pill hidden md:inline-flex',
+              status.loading && 'border-border/60 text-muted-foreground',
+              !status.loading && !hasTransports && 'border-border/60 text-muted-foreground',
+              !status.loading && hasTransports && hasConnectedTransport && 'border-success/25 text-success',
+              !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/25 text-warning'
+            )}>
               <span className={transportDotClasses} aria-hidden />
               {transportStatusLabel}
             </div>
-            <div className="status-pill hidden lg:inline-flex">
-              {api.refreshMeta.mode === 'near_live_polling' ? 'Near-live polling (10s)' : 'Background polling (60s)'}
+
+            {/* Polling mode */}
+            <div className="status-pill hidden border-border/50 text-muted-foreground lg:inline-flex">
+              {api.refreshMeta.mode === 'near_live_polling' ? '10s poll' : '60s poll'}
             </div>
 
+            {/* Command palette trigger */}
             <button
               type="button"
               onClick={() => setCommandOpen(true)}
-              className="hidden items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-1.5 text-xs text-muted-foreground shadow-inset transition-all hover:border-primary/18 hover:bg-accent/72 hover:text-foreground md:inline-flex"
+              className="hidden items-center gap-1.5 rounded-md border border-border/50 bg-card/50 px-2.5 py-1 font-mono text-mel-xs text-muted-foreground transition-colors hover:border-primary/20 hover:text-foreground md:inline-flex"
               title="Search commands (Ctrl+K)"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Search...</span>
-              <kbd className="ml-1 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              <Search className="h-3 w-3" />
+              <span>Search</span>
+              <kbd className="ml-1 rounded-sm border border-border/60 bg-muted/50 px-1 py-0.5 font-mono text-[9px]">
                 {'\u2318'}K
               </kbd>
             </button>
@@ -278,10 +275,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => void handleRefresh()}
               disabled={refreshBusy}
               className="icon-button"
-              aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data from API'}
-              title={refreshBusy ? 'Refreshing...' : 'Re-fetch dashboard data from the API'}
+              aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data'}
+              title={refreshBusy ? 'Refreshing...' : 'Re-fetch data from API'}
             >
-              <RefreshCw className={clsx('h-4 w-4', refreshBusy && 'animate-spin')} aria-hidden />
+              <RefreshCw className={clsx('h-3.5 w-3.5', refreshBusy && 'animate-spin')} aria-hidden />
             </button>
 
             <HelpMenu />
@@ -290,23 +287,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex">
+        {/* ─── Side Navigation ─── */}
         <aside
           className={clsx(
-            'fixed inset-y-0 left-0 z-40 w-[17rem] transform px-3 pb-3 pt-[4.5rem] transition-transform duration-200 ease-out md:translate-x-0 md:px-3',
+            'fixed inset-y-0 left-0 z-40 w-[15rem] transform border-r border-chrome-border bg-chrome-bg pt-11 transition-transform duration-200 ease-out md:translate-x-0',
             isMobile && isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
-          <div className="surface-panel surface-panel-strong flex h-full flex-col overflow-hidden">
-            <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-3 pt-4" aria-label="Primary">
+          <nav className="flex h-full flex-col overflow-y-auto px-2 pb-2 pt-3" aria-label="Primary">
+            <div className="flex-1 space-y-4">
               {navGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="mb-1.5 flex items-center gap-2 px-2">
-                    <group.icon className="h-3 w-3 text-muted-foreground/60" aria-hidden />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-                      {group.label}
-                    </span>
+                  <div className="mb-1 flex items-center gap-1.5 px-2">
+                    <group.icon className="h-3 w-3 text-muted-foreground/50" aria-hidden />
+                    <span className="mel-label">{group.label}</span>
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="space-y-px">
                     {group.items.map((item) => {
                       const isActive =
                         location.pathname === item.href ||
@@ -317,28 +313,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           key={item.href}
                           to={item.href}
                           className={clsx(
-                            'group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+                            'group flex items-center gap-2 rounded-md border px-2 py-1.5 text-mel-sm font-medium outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ring',
                             isActive
-                              ? 'border-primary/22 bg-primary/12 text-foreground shadow-[0_14px_24px_-20px_hsl(var(--primary)/0.55)]'
-                              : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/65 hover:text-foreground'
+                              ? 'border-primary/20 bg-primary/10 text-foreground'
+                              : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                           )}
                           aria-current={isActive ? 'page' : undefined}
                         >
-                          <span
-                            className={clsx(
-                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
-                              isActive
-                                ? 'border-primary/20 bg-primary/16 text-primary'
-                                : 'border-border/60 bg-card/60 text-muted-foreground group-hover:border-primary/12 group-hover:text-foreground'
-                            )}
-                          >
-                            <item.icon className="h-3.5 w-3.5" />
-                          </span>
+                          <item.icon className={clsx(
+                            'h-3.5 w-3.5 shrink-0',
+                            isActive ? 'text-primary' : 'text-muted-foreground/60 group-hover:text-foreground'
+                          )} />
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.badge !== undefined && (
                             <span
                               className={clsx(
-                                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none',
+                                'flex h-4 min-w-4 items-center justify-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none',
                                 item.badgeVariant === 'critical'
                                   ? 'bg-critical/15 text-critical'
                                   : item.badgeVariant === 'warning'
@@ -355,50 +345,46 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               ))}
-            </nav>
+            </div>
 
-            <div className="border-t border-border/60 p-2.5">
+            {/* Bottom: Settings + Instance ID */}
+            <div className="border-t border-border/50 pt-2">
               <Link
                 to="/settings"
                 className={clsx(
-                  'group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+                  'group flex items-center gap-2 rounded-md border px-2 py-1.5 text-mel-sm font-medium outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ring',
                   location.pathname === '/settings'
-                    ? 'border-primary/22 bg-primary/12 text-foreground'
-                    : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/65 hover:text-foreground'
+                    ? 'border-primary/20 bg-primary/10 text-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 )}
               >
-                <span
-                  className={clsx(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
-                    location.pathname === '/settings'
-                      ? 'border-primary/20 bg-primary/16 text-primary'
-                      : 'border-border/60 bg-card/60 text-muted-foreground group-hover:border-primary/12 group-hover:text-foreground'
-                  )}
-                >
-                  <Settings className="h-3.5 w-3.5" aria-hidden />
-                </span>
-                Settings &amp; reference
+                <Settings className={clsx(
+                  'h-3.5 w-3.5 shrink-0',
+                  location.pathname === '/settings' ? 'text-primary' : 'text-muted-foreground/60'
+                )} aria-hidden />
+                Settings
               </Link>
               {!status.loading && instanceId && (
-                <div className="mt-2 px-2.5 text-[10px] text-muted-foreground/60" title={instanceId}>
-                  <span className="font-mono">{truncateMiddle(instanceId, 28)}</span>
+                <div className="mt-1.5 px-2 font-mono text-[9px] text-muted-foreground/40" title={instanceId}>
+                  {truncateMiddle(instanceId, 28)}
                 </div>
               )}
             </div>
-          </div>
+          </nav>
         </aside>
 
         {isMobile && isMobileMenuOpen && (
           <div
-            className="fixed inset-0 z-30 bg-background/72 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
+        {/* ─── Main Content ─── */}
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 pb-10 pt-4 outline-none md:ml-[17rem] md:px-6 md:pt-5"
+          className="flex-1 px-4 pb-8 pt-4 outline-none md:ml-[15rem] md:px-5 md:pt-4"
         >
           <WorkspaceFocusBar
             pathname={location.pathname}
@@ -411,18 +397,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {!status.loading && productScope && (
-        <footer className="px-4 pb-4 md:pl-[18.5rem] md:pr-6">
-          <div className="mx-auto flex max-w-8xl items-center gap-3 px-1 text-[10px] text-muted-foreground/50">
-            {productScope && (
-              <span>
-                <code className="font-mono">{productScope}</code>
-              </span>
-            )}
+        <footer className="px-4 pb-3 md:pl-[16rem] md:pr-5">
+          <div className="mx-auto flex max-w-8xl items-center gap-2 px-1 font-mono text-[9px] text-muted-foreground/35">
+            <Terminal className="h-3 w-3" aria-hidden />
+            <code>{productScope}</code>
           </div>
         </footer>
       )}
 
-      {/* Command Palette */}
       {commandOpen && (
         <CommandPalette onClose={() => setCommandOpen(false)} />
       )}
@@ -433,38 +415,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
 function TruthContractStrip() {
   return (
     <div
-      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
+      className="mb-4 flex flex-col gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-mel-xs leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
       role="note"
       aria-label="Operator truth contract"
     >
-      <span className="font-semibold uppercase tracking-[0.14em] text-foreground/90">Truth contract</span>
-      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
-        ·
+      <span className="mel-label text-foreground/80">Truth contract</span>
+      <span className="hidden sm:inline text-muted-foreground/40" aria-hidden>//</span>
+      <span className="prose-body text-mel-xs">
+        <strong className="font-medium text-foreground/80">Live</strong> = recent persisted ingest.{' '}
+        <strong className="font-medium text-foreground/80">Stale / partial / degraded</strong> stay visible.
       </span>
-      <span>
-        <strong className="font-medium text-foreground/90">Live</strong> = recent persisted ingest.{' '}
-        <strong className="font-medium text-foreground/90">Stale / partial / degraded</strong> stay visible — never folded into
-        &quot;all good&quot;.
-      </span>
-      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
-        ·
-      </span>
-      <span>
-        Topology and maps show <strong className="font-medium text-foreground/90">observed context</strong>, not proof of RF path
-        or delivery unless evidence says so.
+      <span className="hidden sm:inline text-muted-foreground/40" aria-hidden>//</span>
+      <span className="prose-body text-mel-xs">
+        Topology shows <strong className="font-medium text-foreground/80">observed context</strong>, not proof of RF path.
       </span>
       <Link
         to="/settings#operator-truth-contract"
-        className="font-semibold text-primary hover:underline sm:ml-auto"
+        className="font-mono text-mel-xs font-semibold text-primary hover:underline sm:ml-auto"
       >
-        Full wording in Settings
+        Full wording →
       </Link>
-      <a
-        href="/docs/repo-os/terminology.md"
-        className="font-semibold text-primary hover:underline"
-      >
-        Canonical terminology (docs)
-      </a>
     </div>
   )
 }
@@ -485,44 +455,44 @@ function WorkspaceFocusBar({
 
   return (
     <div
-      className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2 text-xs"
+      className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-mel-sm"
       role="region"
       aria-label="Current workspace focus"
     >
       <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-      <span className="font-semibold text-foreground shrink-0">Workspace focus:</span>
+      <span className="font-semibold text-foreground shrink-0">Focus:</span>
       <Link
         to={`/incidents/${encodeURIComponent(focus.incidentId)}`}
-        className="min-w-0 flex-1 font-medium text-primary hover:underline truncate sm:flex-none"
+        className="min-w-0 flex-1 font-mono font-medium text-primary hover:underline truncate sm:flex-none"
       >
         {focus.incidentTitle?.trim() || focus.incidentId.slice(0, 14)}
       </Link>
-      <span className="text-muted-foreground/80 hidden sm:inline">
-        set {formatRelativeTime(focus.savedAt)} (this browser)
+      <span className="font-mono text-mel-xs text-muted-foreground/60 hidden sm:inline">
+        set {formatRelativeTime(focus.savedAt)}
       </span>
-      <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+      <div className="flex flex-wrap items-center gap-1 sm:ml-auto">
         <Link
           to={`/incidents/${encodeURIComponent(focus.incidentId)}?replay=1`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          className="rounded-sm border border-border/50 bg-card/50 px-2 py-0.5 font-mono text-mel-xs font-semibold text-muted-foreground hover:text-foreground"
         >
           Replay
         </Link>
         <Link
           to={`/topology?incident=${encodeURIComponent(focus.incidentId)}&filter=incident_focus`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          className="rounded-sm border border-border/50 bg-card/50 px-2 py-0.5 font-mono text-mel-xs font-semibold text-muted-foreground hover:text-foreground"
         >
           Topology
         </Link>
         <Link
           to={`/incidents/${encodeURIComponent(focus.incidentId)}#shift-continuity-handoff`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          className="rounded-sm border border-border/50 bg-card/50 px-2 py-0.5 font-mono text-mel-xs font-semibold text-muted-foreground hover:text-foreground"
         >
           Handoff
         </Link>
         <button
           type="button"
           onClick={onDismiss}
-          className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-sm border border-border/50 px-2 py-0.5 font-mono text-mel-xs font-semibold text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           aria-label="Clear workspace focus"
         >
           <X className="h-3 w-3" aria-hidden />
@@ -538,17 +508,13 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'Command surface (home)', href: '/', keywords: 'home overview dashboard operator workspace' },
-    {
-      label: 'Instance briefing (scroll on home)',
-      href: '/#mel-instance-briefing',
-      keywords: 'briefing intelligence priorities digest shift review',
-    },
+    { label: 'Command surface', href: '/', keywords: 'home overview dashboard operator workspace' },
+    { label: 'Instance briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities digest' },
     { label: 'Status', href: '/status', keywords: 'transport health connection' },
     { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
     { label: 'Topology', href: '/topology', keywords: 'graph network map' },
     { label: 'Planning', href: '/planning', keywords: 'resilience playbook' },
-    { label: 'Operational review', href: '/operational-review', keywords: 'digest shift summary briefing counts' },
+    { label: 'Operational review', href: '/operational-review', keywords: 'digest shift summary' },
     { label: 'Messages', href: '/messages', keywords: 'packets traffic' },
     { label: 'Dead letters', href: '/dead-letters', keywords: 'failed errors' },
     { label: 'Incidents', href: '/incidents', keywords: 'alerts disruptions' },
@@ -577,30 +543,30 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="fixed inset-0 bg-background/60 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-background/70 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_24px_64px_-16px_hsl(var(--shell-shadow)/0.7)]"
+        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden rounded-md border border-border bg-card shadow-float"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Command palette"
       >
-        <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2.5">
+          <Terminal className="h-3.5 w-3.5 text-primary" />
           <input
             type="text"
             placeholder="Go to page..."
-            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+            className="flex-1 bg-transparent font-mono text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/50"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
-          <kbd className="rounded border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
             Esc
           </kbd>
         </div>
-        <div className="max-h-[40vh] overflow-y-auto p-2">
+        <div className="max-h-[40vh] overflow-y-auto p-1.5">
           {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+            <div className="px-3 py-6 text-center font-mono text-mel-sm text-muted-foreground">
               No matching pages
             </div>
           ) : (
@@ -608,12 +574,13 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               <Link
                 key={page.href}
                 to={page.href}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent/70 focus:bg-accent/70 focus:outline-none"
+                className="flex items-center gap-2.5 rounded-sm px-2.5 py-2 font-mono text-mel-sm text-foreground transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none"
                 onClick={onClose}
               >
+                <span className="text-muted-foreground/50">&gt;</span>
                 <span className="flex-1">{page.label}</span>
                 {location.pathname === page.href && (
-                  <span className="text-[10px] text-muted-foreground">current</span>
+                  <span className="font-mono text-[9px] text-primary">current</span>
                 )}
               </Link>
             ))

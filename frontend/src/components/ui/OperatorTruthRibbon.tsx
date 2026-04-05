@@ -16,7 +16,7 @@ export function OperatorTruthRibbon({ summary, className }: OperatorTruthRibbonP
   return (
     <div
       className={clsx(
-        'flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3',
+        'flex flex-col gap-2 rounded-md border border-border/70 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3',
         className,
       )}
       role="note"
@@ -24,14 +24,14 @@ export function OperatorTruthRibbon({ summary, className }: OperatorTruthRibbonP
     >
       <div className="flex min-w-0 flex-1 items-start gap-2">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+        <p className="text-mel-sm leading-relaxed text-muted-foreground sm:text-xs">
           <span className="font-semibold text-foreground">Truth contract: </span>
           {summary}
         </p>
       </div>
       <Link
         to="/settings#effective-config"
-        className="shrink-0 text-[11px] font-semibold text-primary hover:underline sm:text-xs"
+        className="shrink-0 text-mel-sm font-semibold text-primary hover:underline sm:text-xs"
       >
         Runtime posture &amp; config →
       </Link>

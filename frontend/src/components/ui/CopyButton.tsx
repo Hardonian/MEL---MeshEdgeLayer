@@ -46,7 +46,7 @@ export function CopyButton({
         type="button"
         onClick={handleCopy}
         className={clsx(
-          'inline-flex items-center gap-1.5 rounded-xl border border-border/70 bg-card/75 px-2 py-1.5 text-xs font-medium text-muted-foreground shadow-inset outline-none transition-all duration-150 hover:border-primary/16 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-card/75 px-2 py-1.5 text-xs font-medium text-muted-foreground shadow-inset outline-none transition-all duration-150 hover:border-primary/16 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           copied && 'border-success/18 bg-success/10 text-success',
           className
         )}
