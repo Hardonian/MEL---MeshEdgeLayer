@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   Activity,
   Radio,
@@ -63,9 +63,11 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
-import { FirstRunHintBanner } from '@/components/onboarding/FirstRunHintBanner'
+import { hrefForBriefingPriority } from '@/utils/operatorBriefingLinks'
 
 export function Dashboard() {
+  const location = useLocation()
+  const briefingSectionRef = useRef<HTMLElement | null>(null)
   const status = useStatus()
   const nodes = useNodes()
   const { data: messagesData, loading: messagesLoading, error: messagesError } = useMessages()
@@ -168,6 +170,13 @@ export function Dashboard() {
     prevAttemptRef.current = t
     setRefreshCount((c) => c + 1)
   }, [status.lastUpdated])
+
+  useEffect(() => {
+    if (location.hash !== '#mel-instance-briefing') return
+    requestAnimationFrame(() => {
+      briefingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [location.hash])
 
   const openIncidents = useMemo(
     () =>

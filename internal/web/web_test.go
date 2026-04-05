@@ -532,6 +532,37 @@ func TestPanelEndpointExposesCompactOperatorView(t *testing.T) {
 	}
 }
 
+func TestOperatorBriefingEndpoint(t *testing.T) {
+	srv := newTestServer(t, nil, nil, func() models.OperatorBriefingDTO {
+		return models.OperatorBriefingDTO{
+			APIVersion:    "v1",
+			TruthBasis:    []string{"unit test fixture"},
+			OverallStatus: "Healthy",
+			GeneratedAt:   "2026-04-04T12:00:00Z",
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/intelligence/briefing", nil)
+	rec := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["api_version"] != "v1" {
+		t.Fatalf("expected api_version v1, got %#v", payload["api_version"])
+	}
+	tb, ok := payload["truth_basis"].([]any)
+	if !ok || len(tb) == 0 {
+		t.Fatalf("expected truth_basis array, got %#v", payload["truth_basis"])
+	}
+	if payload["overall_status"] != "Healthy" {
+		t.Fatalf("expected overall_status Healthy, got %#v", payload["overall_status"])
+	}
+}
+
 func TestFleetImportBatchEndpointsExposeOfflineAuditDetails(t *testing.T) {
 	const batchID = "batch-web-1"
 	srv := newTestServer(t, nil, func(database *db.DB) {
@@ -616,7 +647,8 @@ func TestFleetImportBatchEndpointsExposeOfflineAuditDetails(t *testing.T) {
 	}
 }
 
-func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *Server {
+// briefing, when passed, wires GET /api/v1/intelligence/briefing for tests that need a non-placeholder response.
+func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB), briefing ...func() models.OperatorBriefingDTO) *Server {
 	t.Helper()
 	cfg := config.Default()
 	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
@@ -632,6 +664,10 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB)) *
 	}
 	if seed != nil {
 		seed(database)
+	}
+	var operatorBriefing func() models.OperatorBriefingDTO
+	if len(briefing) > 0 && briefing[0] != nil {
+		operatorBriefing = briefing[0]
 	}
 	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return health },

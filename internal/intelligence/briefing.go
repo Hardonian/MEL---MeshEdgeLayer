@@ -32,7 +32,17 @@ func GenerateBriefing(priorities []models.PriorityItem, recommendations []Recomm
 		notes = append(notes, "Focus on recovery sequencing to clear blockers first")
 	}
 
+	truthBasis := []string{
+		"Open incidents and diagnostic findings from this instance (SQLite-backed where available).",
+		"Rank and recovery sequence are deterministic heuristics over those inputs — not RF/path proof or ML inference.",
+	}
+	if len(priorities) == 0 {
+		truthBasis = append(truthBasis, "No open incident or high-signal diagnostic rows in the briefing window — overall posture reflects absence of ranked issues, not proof of mesh health.")
+	}
+
 	return models.OperatorBriefingDTO{
+		APIVersion:          "v1",
+		TruthBasis:          truthBasis,
 		OverallStatus:       status,
 		TopPriorities:       priorities,
 		LikelyCauses:        dedupe(causes),

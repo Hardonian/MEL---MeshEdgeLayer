@@ -210,3 +210,34 @@ Minimum bar:
 - Use `make build`, `make lint`, `make test`, and `make smoke` as standard verification entry points.
 - In this environment, some pre-existing failures may exist; report them honestly, do not mask with selective claims.
 - Use `sqlite3` CLI for deterministic DB checks/migrations when needed.
+
+## Cursor Cloud specific instructions
+
+### Toolchain versions
+
+- **Go 1.24+** is required (`go.mod` specifies `go 1.24`). The VM update script installs it to `/usr/local/go`. The Makefile automatically prefers `/usr/local/go/bin/go` when present.
+- **Node.js 24.x** is required (enforced by `.nvmrc` and guard scripts in `scripts/require-node24.sh` and `frontend/scripts/require-node24.mjs`). The update script installs it via nvm. You must source nvm before running any Node/frontend commands: `. "$HOME/.nvm/nvm.sh" && nvm use 24`.
+
+### Running services
+
+- **Backend (`mel serve`)**: After `make build`, run `./bin/mel serve --config configs/mel.generated.json`. Serves API + embedded web UI on port 8080. Config file must have `chmod 600` permissions.
+- **Frontend dev server**: `cd frontend && npm run dev` starts Vite on port 3000, proxying `/api` to `127.0.0.1:8080`. Requires the backend to be running.
+- **Config initialization**: `./bin/mel init --config .tmp/mel.json --force` creates a fresh config. Then `chmod 600` the generated config before `mel serve`.
+- **Demo data**: `./bin/mel demo seed --scenario healthy-private-mesh --config configs/mel.generated.json --force` seeds realistic mesh data for UI testing.
+
+### Verification commands (see README.md for full list)
+
+| Command | What it does |
+|---|---|
+| `make lint` | Go vet + frontend ESLint |
+| `make test` | Go tests (`go test ./...`) |
+| `make frontend-test-fast` | Frontend Vitest (skips clean install) |
+| `make build` | Frontend build + Go binary compilation |
+| `make smoke` | End-to-end smoke tests (requires built binary) |
+
+### Gotchas
+
+- The system Go (`/usr/bin/go`) is typically 1.22 which is too old; always ensure `/usr/local/go/bin/go` is on PATH or let the Makefile resolve it.
+- `mel doctor` exit code 1 is expected on fresh installs with no transports; warnings about stale components are normal without active devices.
+- `npm ci` in `frontend/` runs a `preinstall` guard that rejects non-24.x Node versions. If nvm is not sourced, frontend targets will fail with a clear error.
+- Optional services (NATS, MinIO, Coturn, Ollama) are defined in `examples/deployment/docker-compose.yml` under profiles. They are not required for core development.

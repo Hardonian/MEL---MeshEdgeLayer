@@ -222,7 +222,13 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	operatorBriefingFn := operatorBriefing
 	if operatorBriefingFn == nil {
 		operatorBriefingFn = func() models.OperatorBriefingDTO {
-			return models.OperatorBriefingDTO{OverallStatus: "unknown", GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
+			now := time.Now().UTC().Format(time.RFC3339)
+			return models.OperatorBriefingDTO{
+				APIVersion:    "v1",
+				TruthBasis:    []string{"Briefing provider not wired; this is a placeholder response from the HTTP layer."},
+				OverallStatus: "unknown",
+				GeneratedAt:   now,
+			}
 		}
 	}
 	operationalDigestFn := operationalDigest
