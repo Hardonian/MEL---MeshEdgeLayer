@@ -231,12 +231,12 @@ function runSimulation(
 }
 
 function nodeColor(n: TopoNode): string {
-  if (n.stale || n.health_state === 'stale') return 'hsl(38 90% 45%)'
-  if (n.health_state === 'healthy') return 'hsl(142 65% 38%)'
-  if (n.health_state === 'isolated') return 'hsl(280 50% 52%)'
-  if (n.health_state === 'degraded') return 'hsl(28 90% 48%)'
-  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(200 55% 42%)'
-  return 'hsl(210 65% 46%)'
+  if (n.stale || n.health_state === 'stale') return 'hsl(42 100% 55%)'
+  if (n.health_state === 'healthy') return 'hsl(160 100% 50%)'
+  if (n.health_state === 'isolated') return 'hsl(270 55% 60%)'
+  if (n.health_state === 'degraded') return 'hsl(42 100% 55%)'
+  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(190 90% 50%)'
+  return 'hsl(160 80% 45%)'
 }
 
 function nodeLabel(n: TopoNode): string {
@@ -270,7 +270,7 @@ function TopologyTruthBoundary({
 }) {
   return (
     <section
-      className="sticky top-14 z-20 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-primary/10"
+      className="sticky top-14 z-20 rounded-md border border-primary/25 bg-primary/10 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-primary/10"
       role="region"
       aria-label="Topology truth boundary"
       data-testid="topology-truth-boundary"
@@ -711,7 +711,7 @@ export function Topology() {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground shadow-inset transition-colors hover:bg-accent/70"
+            className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent/70"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
@@ -719,7 +719,7 @@ export function Topology() {
         </div>
       </div>
 
-      <div className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+      <div className="flex items-start gap-3 rounded-md border border-primary/15 bg-primary/5 p-3">
         <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
         <p className="text-xs leading-relaxed text-muted-foreground">
           <span className="font-semibold text-foreground">Observed vs inferred: </span>
@@ -740,7 +740,7 @@ export function Topology() {
 
       {incidentIdParam && (
         <div
-          className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          className="rounded-sm border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
           role="region"
           aria-label="Incident context for topology"
         >
@@ -819,7 +819,7 @@ export function Topology() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="rounded-md border bg-card overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-muted/20">
               <div>
                 <h2 className="text-sm font-medium">Topology graph</h2>
@@ -862,7 +862,7 @@ export function Topology() {
               <LegendItem color="hsl(280 50% 52%)" label="Isolated" />
               <LegendItem color="hsl(210 65% 46%)" label="Unknown" />
               <LegendItem color="hsl(200 55% 42%)" label="Weak / inferred-only" />
-              <span className="text-[10px] text-muted-foreground ml-auto max-w-[min(100%,280px)] sm:max-w-none sm:ml-auto">
+              <span className="text-mel-xs text-muted-foreground ml-auto max-w-[min(100%,280px)] sm:max-w-none sm:ml-auto">
                 Solid line = packet-observed edge · dashed = inferred · thin = relay-dependent · double ring = newer last_seen vs your baseline
               </span>
             </div>
@@ -872,14 +872,14 @@ export function Topology() {
               role="toolbar"
               aria-label="Filter nodes in graph"
             >
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
+              <span className="text-mel-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
               {FILTER_OPTIONS.map((f) => (
                 <button
                   key={f.id}
                   type="button"
                   onClick={() => setFilterAndUrl(f.id)}
                   title={f.hint}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`rounded-full border px-2.5 py-1 text-mel-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     nodeFilter === f.id
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground hover:bg-muted/60'
@@ -888,7 +888,7 @@ export function Topology() {
                   {f.label}
                 </button>
               ))}
-              <span className="text-[10px] text-muted-foreground ml-auto text-right max-w-[min(100%,320px)] sm:max-w-none">
+              <span className="text-mel-xs text-muted-foreground ml-auto text-right max-w-[min(100%,320px)] sm:max-w-none">
                 Showing {filteredNodes.length}/{nodes.length} nodes
                 {nodeFilter === 'changed_since_visit' && topologyChangedSinceVisit.size === 0 && (
                   <span className="block text-warning">No matches — mark “caught up” on the command surface to record topology baselines.</span>
@@ -912,7 +912,8 @@ export function Topology() {
                 ref={svgRef}
                 tabIndex={0}
                 viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-                className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-b-xl"
+                className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-b-sm"
+                style={{ background: 'hsl(0 0% 2%)' }}
                 role="application"
                 aria-label="Topology graph: nodes and inferred links from ingest. Use arrow keys to pan when focused."
                 onWheel={onWheel}
@@ -1008,8 +1009,11 @@ export function Topology() {
                         x={p.x + r + 3}
                         y={p.y + 4}
                         fontSize={n.stale ? '9' : '10'}
+                        fontFamily="'IBM Plex Mono', monospace"
+                        fontWeight="500"
+                        letterSpacing="0.02em"
                         fill="currentColor"
-                        fillOpacity={n.stale ? 0.55 : 0.9}
+                        fillOpacity={n.stale ? 0.45 : 0.85}
                         className="select-none pointer-events-none"
                       >
                         {label}
@@ -1022,7 +1026,7 @@ export function Topology() {
           </div>
 
           {(intel?.view_mode === 'map' || intel?.view_mode === 'map_partial') && mapPoints.length > 0 && (
-            <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="rounded-md border bg-card p-4 space-y-3">
               <div>
                 <h2 className="text-sm font-medium mb-1">Location layer (redacted coordinates)</h2>
                 <p className="text-xs text-muted-foreground">
@@ -1050,7 +1054,7 @@ export function Topology() {
           )}
         </div>
 
-        <div className="rounded-xl border bg-card p-4 min-h-[200px]">
+        <div className="rounded-md border bg-card p-4 min-h-[200px]">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium">Node drilldown</h2>
             {selected && (
@@ -1074,7 +1078,7 @@ export function Topology() {
       </div>
 
       {(intel?.analysis?.recommendations?.length ?? 0) > 0 && (
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-md border bg-card p-4">
           <h2 className="text-sm font-medium mb-2">Evidence-based recommendations</h2>
           <ul className="text-sm space-y-2">
             {intel!.analysis!.recommendations!.slice(0, 12).map((r) => (
@@ -1119,11 +1123,11 @@ function TopologyOperatorAnalysisPanel({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-3" data-testid="topology-operator-analysis">
+    <div className="rounded-md border bg-card p-4 space-y-3" data-testid="topology-operator-analysis">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-medium text-foreground">Fault domains &amp; impact (graph-bounded)</h2>
-          <p className="text-[11px] text-muted-foreground mt-0.5 max-w-3xl">
+          <p className="text-mel-sm text-muted-foreground mt-0.5 max-w-3xl">
             Connected components and stale regions from stored topology_links — not RF or geographic causality. Use with transport health and
             incident evidence.
             {staleness?.node_stale_minutes != null && (
@@ -1132,7 +1136,7 @@ function TopologyOperatorAnalysisPanel({
               </span>
             )}
           </p>
-          <p className="text-[11px] text-foreground/85 border-l-2 border-warning/30 pl-2 mt-2 max-w-3xl leading-snug" role="note">
+          <p className="text-mel-sm text-foreground/85 border-l-2 border-warning/30 pl-2 mt-2 max-w-3xl leading-snug" role="note">
             Pattern support only: absent edges or quiet clusters do not prove “nothing is nearby” on air; map-like layout is ingest-evidence, not
             propagation certainty.
           </p>
@@ -1148,9 +1152,9 @@ function TopologyOperatorAnalysisPanel({
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {weak.length > 0 && (
-          <div className="rounded-lg border border-border/60 p-3">
+          <div className="rounded-sm border border-border/60 p-3">
             <p className="text-xs font-semibold text-foreground mb-1">Weaker clusters</p>
-            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+            <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {weak.slice(0, 6).map((c) => (
                 <li key={c.id}>
                   <span className="font-mono text-foreground">{c.id}</span> · state {c.state} · nodes {c.node_nums.length} · edges{' '}
@@ -1161,22 +1165,22 @@ function TopologyOperatorAnalysisPanel({
           </div>
         )}
         {staleRegs.length > 0 && (
-          <div className="rounded-lg border border-warning/25 bg-warning/5 p-3">
+          <div className="rounded-sm border border-warning/25 bg-warning/5 p-3">
             <p className="text-xs font-semibold text-foreground mb-1">Stale regions</p>
-            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+            <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {staleRegs.slice(0, 5).map((r, i) => (
                 <li key={i}>
                   {r.node_nums.length} nodes · stale ratio {(r.stale_ratio * 100).toFixed(0)}%
-                  {r.last_fresh_at && <span className="block text-[10px]">last fresh hint: {r.last_fresh_at}</span>}
+                  {r.last_fresh_at && <span className="block text-mel-xs">last fresh hint: {r.last_fresh_at}</span>}
                 </li>
               ))}
             </ul>
           </div>
         )}
         {bottlenecks.length > 0 && (
-          <div className="rounded-lg border border-border/60 p-3 sm:col-span-2 lg:col-span-1">
+          <div className="rounded-sm border border-border/60 p-3 sm:col-span-2 lg:col-span-1">
             <p className="text-xs font-semibold text-foreground mb-1">Bottlenecks (graph shape)</p>
-            <ul className="text-[11px] text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
+            <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {bottlenecks.slice(0, 6).map((b, i) => (
                 <li key={i}>
                   <span className="font-medium text-foreground">{b.type.replace(/_/g, ' ')}</span> ({b.severity}) — {b.explanation}
@@ -1187,7 +1191,7 @@ function TopologyOperatorAnalysisPanel({
         )}
       </div>
       {(isolated.length > 0 || bridges.length > 0) && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-mel-sm text-muted-foreground">
           {isolated.length > 0 && (
             <span>
               Isolated in graph: {isolated.slice(0, 12).join(', ')}
@@ -1209,7 +1213,7 @@ function TopologyOperatorAnalysisPanel({
 function MeshIntelPanel({ intel }: { intel: MeshIntelligence }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-md border bg-card">
       <button
         type="button"
         className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
@@ -1277,7 +1281,7 @@ function MeshIntelPanel({ intel }: { intel: MeshIntelligence }) {
               </ul>
             </div>
           )}
-          {intel.evidence_model && <p className="text-[11px] text-muted-foreground border-t pt-3">{intel.evidence_model}</p>}
+          {intel.evidence_model && <p className="text-mel-sm text-muted-foreground border-t pt-3">{intel.evidence_model}</p>}
         </div>
       )}
     </div>
@@ -1303,9 +1307,9 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
         <span>{d.scored_state}</span>
         <span className="text-muted-foreground">({d.scored_health.toFixed(2)})</span>
       </div>
-      <p className="text-[11px] text-muted-foreground border-l-2 border-muted pl-2">{truth}</p>
+      <p className="text-mel-sm text-muted-foreground border-l-2 border-muted pl-2">{truth}</p>
       {(d.node.first_seen_at || d.node.last_seen_at) && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-mel-sm text-muted-foreground">
           {d.node.first_seen_at && (
             <>
               <dt className="font-medium text-foreground/80">First seen</dt>
@@ -1321,7 +1325,7 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
         </dl>
       )}
       {(d.node.trust_class || d.node.source_connector) && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-mel-sm text-muted-foreground">
           Trust: {d.node.trust_class?.replace(/_/g, ' ') ?? '—'}
           {d.node.source_connector ? ` · connector ${d.node.source_connector}` : ''}
         </p>
@@ -1346,7 +1350,7 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
       {(d.links?.length ?? 0) > 0 && (
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-1">Adjacent edges</div>
-          <ul className="text-[10px] space-y-1 max-h-32 overflow-y-auto font-mono text-muted-foreground">
+          <ul className="text-mel-xs space-y-1 max-h-32 overflow-y-auto font-mono text-muted-foreground">
             {d.links!.slice(0, 8).map((l) => (
               <li key={l.edge_id}>
                 →{l.dst_node_num} {topologyLinkTruthSummary(l)}
@@ -1395,17 +1399,17 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border bg-card p-3">
+    <div className="rounded-sm border bg-card p-3">
       <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className="text-lg font-semibold mt-1 leading-snug">{value}</div>
-      <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint}</div>
+      <div className="text-mel-sm text-muted-foreground mt-1 leading-snug">{hint}</div>
     </div>
   )
 }
 
 function LegendItem({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-mel-xs text-muted-foreground">
       <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
       {label}
     </div>
@@ -1595,7 +1599,7 @@ function MapGoogleBasemap({
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] text-warning">
+      <p className="text-mel-sm text-warning">
         Third-party map: your browser loads Google Maps. Key is delivered to this session from the MEL API — restrict the key by HTTP referrer and
         treat remote/unauthenticated exposure as a credential leak risk.
       </p>

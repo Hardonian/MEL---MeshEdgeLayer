@@ -4,7 +4,6 @@ import { clsx } from 'clsx'
 
 interface PageHeaderProps {
   title: string
-  /** Short cockpit label (e.g. mesh operations) — keep optional to avoid churn on every page. */
   subtitle?: string
   description?: string
   action?: ReactNode
@@ -24,24 +23,16 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div
-      className={clsx(
-        'mb-6 border-b border-border/60 pb-5 sm:mb-8 sm:pb-6',
-        className
-      )}
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className={clsx('mb-4 border-b border-border/50 pb-3', className)}>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <nav className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <nav className="mb-1.5 flex flex-wrap items-center gap-1 text-mel-xs text-muted-foreground">
               {breadcrumbs.map((crumb, index) => (
-                <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
-                  {index > 0 && <span className="text-muted-foreground/50">/</span>}
+                <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
+                  {index > 0 && <span className="text-muted-foreground/30">/</span>}
                   {crumb.href ? (
-                    <Link
-                      to={crumb.href}
-                      className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
+                    <Link to={crumb.href} className="hover:text-neon focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                       {crumb.label}
                     </Link>
                   ) : (
@@ -51,18 +42,14 @@ export function PageHeader({
               ))}
             </nav>
           )}
-          <h1 className="font-outfit text-[2rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.5rem]">
+          <h1 className="mel-prompt text-base font-bold uppercase tracking-[0.04em] text-foreground">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
-              {subtitle}
-            </p>
+            <p className="mt-0.5 text-mel-xs text-muted-foreground/60"># {subtitle}</p>
           )}
           {description && (
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
-              {description}
-            </p>
+            <p className="mt-1 max-w-3xl text-mel-sm text-muted-foreground">{description}</p>
           )}
         </div>
         {action && (

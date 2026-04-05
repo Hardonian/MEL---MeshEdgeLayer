@@ -100,14 +100,14 @@ export function ControlActions() {
       )}
 
       {!ctx.loading && !canRead && (
-        <div className="flex items-center gap-2 rounded-xl border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-md border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
           <Eye className="h-3.5 w-3.5 text-info" />
           Limited visibility. Your session may lack read_actions capability.
         </div>
       )}
 
       {incidentFromUrl && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/15 px-4 py-2.5 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-muted/15 px-4 py-2.5 text-sm">
           <span className="text-muted-foreground">Filtered to incident</span>
           <code className="font-mono text-xs bg-muted/40 px-2 py-0.5 rounded">{incidentFromUrl}</code>
           <Link
@@ -131,7 +131,7 @@ export function ControlActions() {
       )}
 
       <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filter by lifecycle state">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Lifecycle</span>
+        <span className="mel-label text-muted-foreground">Lifecycle</span>
         {LIFECYCLE_FILTERS.map((f) => (
           <button
             key={f.value || 'all'}
@@ -273,7 +273,7 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
             {(!incidentQuery || incidentQuery !== a.incident_id) && (
               <Link
                 to={`/control-actions?incident=${encodeURIComponent(a.incident_id)}`}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1 text-mel-sm font-medium text-muted-foreground hover:text-foreground"
               >
                 Filter list to this incident
               </Link>
@@ -292,7 +292,7 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
         </button>
 
         {expanded && (
-          <div className="animate-fade-in space-y-2 rounded-xl border border-border/50 bg-muted/10 p-3">
+          <div className="animate-fade-in space-y-2 rounded-md border border-border/50 bg-muted/10 p-3">
             <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2 lg:grid-cols-3">
               <MetaRow label="Lifecycle" value={a.lifecycle_state} />
               <MetaRow label="Result" value={a.result} />
@@ -307,13 +307,13 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
               {a.approval_policy_source && <MetaRow label="Policy source" value={a.approval_policy_source} />}
               {a.approval_basis && a.approval_basis.length > 0 && (
                 <div className="sm:col-span-2 lg:col-span-3">
-                  <dt className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Approval basis</dt>
+                  <dt className="text-mel-sm uppercase tracking-[0.14em] text-muted-foreground">Approval basis</dt>
                   <dd className="mt-0.5 font-mono text-foreground">{a.approval_basis.join(', ')}</dd>
                 </div>
               )}
             </dl>
             {a.outcome_detail && (
-              <div className="rounded-lg border border-border/50 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Outcome:</span> {a.outcome_detail}
               </div>
             )}
@@ -327,7 +327,7 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
 function MetaRow({ label, value }: { label: string; value?: string }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</dt>
+      <dt className="text-mel-sm uppercase tracking-[0.14em] text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 text-foreground">{value || '\u2014'}</dd>
     </div>
   )

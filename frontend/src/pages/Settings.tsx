@@ -218,7 +218,7 @@ export function SettingsPage() {
             </div>
           </fieldset>
 
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className="rounded-sm border border-border bg-muted/30 p-4">
             <p className="text-sm font-medium text-foreground">Keyboard shortcuts</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Use the Help menu in the header for documentation links and the full list.
@@ -515,7 +515,7 @@ function RuntimeTruthStrip({
         {(versionLoading || statusLoading) && <p className="text-xs text-muted-foreground">Loading runtime endpoints…</p>}
         {!versionLoading && !statusLoading && (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Topology model</p>
               <p className="mt-1 text-muted-foreground">
                 {version?.topology_model_enabled === undefined
@@ -525,7 +525,7 @@ function RuntimeTruthStrip({
                     : 'Disabled — topology pages stay informative but the graph store is not active.'}
               </p>
             </div>
-            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Transports</p>
               <p className="mt-1 text-muted-foreground">
                 {!anyConfigured && 'None configured — ingest cannot run until transports exist in config.'}
@@ -535,7 +535,7 @@ function RuntimeTruthStrip({
                     : `${transports.length} configured; none connected in this poll — evidence may be stale or idle.`)}
               </p>
             </div>
-            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Schema / config</p>
               <p className="mt-1 text-muted-foreground">
                 Migrations:{' '}
@@ -545,13 +545,13 @@ function RuntimeTruthStrip({
                   <span className="text-warning">mismatch or unknown — check diagnostics</span>
                 )}
                 {fp && (
-                  <span className="block font-mono text-[10px] mt-0.5 text-muted-foreground/80 truncate" title={fp}>
+                  <span className="block font-mono text-mel-xs mt-0.5 text-muted-foreground/80 truncate" title={fp}>
                     fingerprint {fp.slice(0, 16)}…
                   </span>
                 )}
               </p>
             </div>
-            <div className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Where to verify</p>
               <ul className="mt-1 space-y-0.5 text-muted-foreground">
                 <li>
@@ -590,7 +590,7 @@ function ConfigItem({
     <div
       role="group"
       aria-label={`Config key ${name}, read-only reference`}
-      className="rounded-lg border border-border p-3"
+      className="rounded-sm border border-border p-3"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <code className="break-all text-sm font-mono">{name}</code>
@@ -614,7 +614,7 @@ function InfoCard({
   description: string
 }) {
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-sm border border-border p-4">
       <p className="text-sm text-muted-foreground">{title}</p>
       <p className="mt-1 break-words text-lg font-semibold">{value}</p>
       <p className="text-xs text-muted-foreground">{description}</p>
@@ -639,7 +639,7 @@ type QuickAccessCardProps =
 function QuickAccessCard(props: QuickAccessCardProps) {
   const { icon, title, description } = props
   const className =
-    'flex items-start gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+    'flex items-start gap-3 rounded-sm border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   const inner = (
     <>
@@ -683,7 +683,7 @@ function DocLink({
     <a
       id={id}
       href={href}
-      className="flex items-start gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex items-start gap-3 rounded-sm border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       <span>
@@ -776,7 +776,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <RunningItem name="Delete scope" value={exp.delete_scope.join(', ')} source="evidence_export_delete.delete_scope" note="What can be deleted" />
             )}
             {exp.delete_caveat && (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+              <div className="sm:col-span-2 lg:col-span-3 rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Caveat: </span>{exp.delete_caveat}
               </div>
             )}
@@ -803,7 +803,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <p className="text-xs text-muted-foreground font-medium">Providers</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {posture.inference_providers.map((p) => (
-                  <div key={p.name} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 text-xs">
+                  <div key={p.name} className="flex items-center justify-between rounded-sm border border-border/60 px-3 py-2 text-xs">
                     <div>
                       <span className="font-medium text-foreground">{p.name}</span>
                       <span className="ml-2 text-muted-foreground">{p.endpoint_configured ? 'endpoint configured' : 'no endpoint'}</span>
@@ -821,17 +821,17 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <p className="text-xs text-muted-foreground font-medium">Assist policies</p>
               <div className="space-y-1.5">
                 {posture.assist_policies.map((p) => (
-                  <div key={p.task_class} className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-xs">
+                  <div key={p.task_class} className="flex flex-wrap items-center gap-2 rounded-sm border border-border/50 px-3 py-2 text-xs">
                     <span className="font-mono text-foreground">{p.task_class.replace(/_/g, ' ')}</span>
                     <Badge variant={availabilityVariant(p.availability)}>{p.availability}</Badge>
                     <span className="text-muted-foreground">{p.execution_mode}</span>
                     <span className="text-muted-foreground">{p.provider}</span>
                     <span className="text-muted-foreground">{p.hardware}</span>
                     {p.non_canonical_truth && (
-                      <Badge variant="outline" className="text-[10px]">non-canonical</Badge>
+                      <Badge variant="outline" className="text-mel-xs">non-canonical</Badge>
                     )}
                     {p.fallback_reason && (
-                      <span className="text-warning text-[10px]">{p.fallback_reason}</span>
+                      <span className="text-warning text-mel-xs">{p.fallback_reason}</span>
                     )}
                   </div>
                 ))}
@@ -896,9 +896,9 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               />
             </div>
             {(posture.operator_intelligence_posture.assist_input_contracts?.length ?? 0) > 0 && (
-              <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+              <div className="mt-4 rounded-sm border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
                 <p className="font-semibold text-foreground mb-1">Future bounded assist — canonical inputs (design contract)</p>
-                <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px]">
+                <ul className="list-disc pl-4 space-y-0.5 font-mono text-mel-xs">
                   {posture.operator_intelligence_posture.assist_input_contracts!.map((c) => (
                     <li key={c}>{c}</li>
                   ))}
@@ -932,14 +932,14 @@ function RunningItem({
   variant?: 'success' | 'warning' | 'secondary' | 'outline'
 }) {
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="rounded-sm border border-border p-3">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-foreground">{name}</span>
         {variant && <Badge variant={variant} className="shrink-0 text-xs">{value}</Badge>}
       </div>
       {!variant && <p className="text-base font-semibold text-foreground">{value}</p>}
       <p className="mt-1 text-xs text-muted-foreground">{note}</p>
-      <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">{source}</p>
+      <p className="mt-0.5 font-mono text-mel-xs text-muted-foreground/60">{source}</p>
     </div>
   )
 }

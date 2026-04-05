@@ -66,7 +66,7 @@ export const SupportBundleExport: React.FC = () => {
       {!versionInfo.loading && (
         <div
           className={clsx(
-            'mb-4 rounded-lg border px-3 py-2 text-xs',
+            'mb-4 rounded-sm border px-3 py-2 text-xs',
             exportReadiness.semantic === 'available'
               ? 'border-success/25 bg-success/5 text-muted-foreground'
               : exportReadiness.semantic === 'policy_limited'
@@ -82,7 +82,7 @@ export const SupportBundleExport: React.FC = () => {
           <span className="font-semibold text-foreground">Export / artifact readiness (same as proofpack): </span>
           {exportReadiness.summary}
           {exportReadiness.blockers.length > 0 && (
-            <ul className="mt-1.5 list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+            <ul className="mt-1.5 list-disc pl-4 text-mel-sm text-muted-foreground space-y-0.5">
               {exportReadiness.blockers.map((b) => (
                 <li key={b.code}>
                   <span className="font-mono text-foreground/80">{b.code}</span>

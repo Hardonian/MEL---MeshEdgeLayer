@@ -79,7 +79,7 @@ export function Recommendations() {
           <CardHeader className="border-b border-border/50 pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-warning/18 bg-warning/12 text-warning shadow-inset">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning">
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <CardTitle className="text-[14px]">Actionable</CardTitle>
@@ -138,14 +138,14 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
 
   return (
     <div className={clsx(
-      'rounded-xl border p-3',
+      'rounded-md border p-3',
       recommendation.actionable
         ? 'border-warning/25 bg-warning/5'
         : 'border-border/50 bg-card/40'
     )}>
       <div className="flex items-start gap-3">
         <div className={clsx(
-          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border shadow-inset',
+          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border',
           recommendation.actionable ? 'border-warning/18 bg-warning/12 text-warning' : 'border-border/60 bg-card/60 text-muted-foreground'
         )}>
           {categoryIcons[recommendation.category?.toLowerCase() || ''] || defaultIcon}
@@ -161,7 +161,7 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
           </div>
           <p className="text-[13px] leading-relaxed text-foreground">{recommendation.message}</p>
           {recommendation.action && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+            <div className="mt-2 flex items-center gap-2 rounded-sm border border-border/50 bg-muted/30 px-3 py-2">
               <code className="flex-1 text-xs font-mono text-foreground">{recommendation.action}</code>
               <CopyButton value={recommendation.action} label="Copy command" />
             </div>

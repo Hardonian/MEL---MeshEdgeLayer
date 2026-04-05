@@ -39,17 +39,17 @@ const typeConfig: Record<
 }
 
 const levelStyles: Record<FeedItem['level'], string> = {
-  critical: 'border-l-critical/60',
-  warning: 'border-l-warning/60',
-  info: 'border-l-info/50',
+  critical: 'border-l-neon-hot/60',
+  warning: 'border-l-neon-warn/60',
+  info: 'border-l-neon-alt/50',
   neutral: 'border-l-border/50',
 }
 
 const levelDotStyles: Record<FeedItem['level'], string> = {
-  critical: 'bg-critical',
-  warning: 'bg-warning',
-  info: 'bg-info',
-  neutral: 'bg-muted-foreground/40',
+  critical: 'bg-neon-hot text-neon-hot',
+  warning: 'bg-neon-warn text-neon-warn',
+  info: 'bg-neon-alt text-neon-alt',
+  neutral: 'bg-muted-foreground/40 text-muted-foreground',
 }
 
 interface ActivityFeedProps {
@@ -76,11 +76,11 @@ export function ActivityFeed({
   if (sorted.length === 0) {
     return (
       <div className={clsx('flex flex-col items-center gap-2 py-8 text-center', className)}>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-success/20 bg-success/8 text-success">
+        <div className="text-neon/40">
           <Activity className="h-5 w-5" />
         </div>
-        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        <p className="text-xs text-muted-foreground/60">
+        <p className="text-mel-sm text-muted-foreground">-- {emptyMessage} --</p>
+        <p className="text-mel-xs text-muted-foreground/40">
           Activity appears here when MEL observes changes, incidents, or actions.
         </p>
       </div>
@@ -95,7 +95,7 @@ export function ActivityFeed({
         const inner = (
           <div
             className={clsx(
-              'group flex items-start gap-3 rounded-lg border-l-2 px-3 py-2.5 transition-colors',
+              'group flex items-start gap-3 rounded-sm border-l-2 px-3 py-2 transition-colors',
               levelStyles[item.level],
               item.href
                 ? 'cursor-pointer hover:bg-accent/50'
@@ -123,7 +123,7 @@ export function ActivityFeed({
                 </p>
               )}
             </div>
-            <div className="ml-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70">
+            <div className="ml-2 flex shrink-0 items-center gap-1 text-mel-sm text-muted-foreground/70">
               <Clock className="h-3 w-3" />
               {formatRelativeTime(item.timestamp)}
             </div>
@@ -131,7 +131,7 @@ export function ActivityFeed({
         )
 
         return item.href ? (
-          <Link key={item.id} to={item.href} className="block outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+          <Link key={item.id} to={item.href} className="block outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
             {inner}
           </Link>
         ) : (

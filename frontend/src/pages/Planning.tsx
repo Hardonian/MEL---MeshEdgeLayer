@@ -459,7 +459,7 @@ export function Planning() {
     <div className={denseLayout ? 'p-4 space-y-4 max-w-6xl mx-auto' : 'p-6 space-y-6 max-w-6xl mx-auto'}>
       {incidentIdParam && (
         <div
-          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+          className="rounded-sm border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
           role="region"
           aria-label="Planning context incident"
         >
@@ -528,7 +528,7 @@ export function Planning() {
           <button
             type="button"
             onClick={() => setDenseLayout((d) => !d)}
-            className="shrink-0 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
+            className="shrink-0 rounded-sm border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
             aria-pressed={denseLayout}
           >
             {denseLayout ? 'Comfortable layout' : 'Dense layout'}
@@ -579,12 +579,12 @@ export function Planning() {
       <div data-testid="planning-decision-board">
         <Card className={`border-border/80 ${denseLayout ? 'p-3' : 'p-4'}`}>
         <h3 className={`font-semibold mb-2 ${denseLayout ? 'text-sm' : ''}`}>Decision board</h3>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className="text-mel-sm text-muted-foreground mb-3">
           Scan-first layout: what is known vs unknown vs unsupported, then what to check next. Does not add simulation beyond the planning bundle.
         </p>
         <div className={`grid gap-3 ${denseLayout ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
-          <div className="rounded-lg border border-border/60 p-2.5">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Known (from bundle)</p>
+          <div className="rounded-sm border border-border/60 p-2.5">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Known (from bundle)</p>
             <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
               <li>Transport: {bundle.transport_connected ? 'connected' : 'not connected'}</li>
               <li>Topology model: {bundle.topology_enabled ? 'enabled' : 'disabled'}</li>
@@ -592,8 +592,8 @@ export function Planning() {
               <li>Resilience confidence: {bundle.resilience.confidence.level}</li>
             </ul>
           </div>
-          <div className="rounded-lg border border-warning/20 bg-warning/5 p-2.5">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Unknown / confounded</p>
+          <div className="rounded-sm border border-warning/20 bg-warning/5 p-2.5">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Unknown / confounded</p>
             {board.unknowns.length === 0 ? (
               <p className="text-xs text-muted-foreground">No extra unknown flags beyond the evidence banner.</p>
             ) : (
@@ -604,8 +604,8 @@ export function Planning() {
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-border/60 p-2.5">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Unsupported / gated</p>
+          <div className="rounded-sm border border-border/60 p-2.5">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Unsupported / gated</p>
             {board.unsupported.length === 0 ? (
               <p className="text-xs text-muted-foreground">No explicit unsupported gates in this view.</p>
             ) : (
@@ -616,8 +616,8 @@ export function Planning() {
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Weak assumptions</p>
+          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Weak assumptions</p>
             {board.weakAssumptions.length === 0 ? (
               <p className="text-xs text-muted-foreground">—</p>
             ) : (
@@ -628,8 +628,8 @@ export function Planning() {
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Inferred tradeoffs (graph)</p>
+          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Inferred tradeoffs (graph)</p>
             {board.inferredTradeoffs.length === 0 ? (
               <p className="text-xs text-muted-foreground">—</p>
             ) : (
@@ -640,8 +640,8 @@ export function Planning() {
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Missing evidence inputs</p>
+          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Missing evidence inputs</p>
             {board.missingEvidence.length === 0 ? (
               <p className="text-xs text-muted-foreground">None listed on resilience confidence.</p>
             ) : (
@@ -652,8 +652,8 @@ export function Planning() {
               </ul>
             )}
           </div>
-          <div className="rounded-lg border border-primary/15 bg-primary/5 p-2.5 sm:col-span-2 lg:col-span-3">
-            <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1">Recommended next check</p>
+          <div className="rounded-sm border border-primary/15 bg-primary/5 p-2.5 sm:col-span-2 lg:col-span-3">
+            <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Recommended next check</p>
             <ul className="text-xs text-foreground list-disc list-inside space-y-0.5">
               {board.nextCheck.slice(0, 5).map((u, i) => (
                 <li key={i}>{u}</li>
@@ -704,7 +704,7 @@ export function Planning() {
                 </div>
               )}
               {(bn.uncertainty_notes?.length ?? 0) > 0 && (
-                <ul className="mt-2 text-[11px] text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
+                <ul className="mt-2 text-mel-sm text-muted-foreground list-disc list-inside" data-testid="planning-uncertainty-notes">
                   {(bn.uncertainty_notes ?? []).map((x, i) => (
                     <li key={i}>{x}</li>
                   ))}
@@ -726,7 +726,7 @@ export function Planning() {
               <dd>{bundle.resilience.confidence.level}</dd>
             </dl>
             <p className="mt-2 text-xs leading-snug">{bundle.resilience.next_best_move_summary}</p>
-            <ul className="mt-2 list-disc list-inside text-[11px] text-muted-foreground space-y-0.5 max-h-28 overflow-y-auto">
+            <ul className="mt-2 list-disc list-inside text-mel-sm text-muted-foreground space-y-0.5 max-h-28 overflow-y-auto">
               {bundle.resilience.fragility_explanation.map((x, i) => (
                 <li key={i}>{x}</li>
               ))}
@@ -745,10 +745,10 @@ export function Planning() {
                       <span className="font-medium text-foreground">
                         {r.rank}. {r.title}
                       </span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      <Badge variant="outline" className="text-mel-xs px-1.5 py-0">
                         {r.verdict}
                       </Badge>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      <Badge variant="secondary" className="text-mel-xs px-1.5 py-0">
                         {r.benefit_band}
                       </Badge>
                     </div>
@@ -874,7 +874,7 @@ export function Planning() {
               <li key={a.id} className="border-b border-border/40 pb-2 last:border-0">
                 <div className="flex flex-wrap gap-2 items-center">
                   <Badge variant={a.severity === 'warning' ? 'warning' : 'secondary'}>{a.severity}</Badge>
-                  <span className="font-mono text-[11px]">{a.reason}</span>
+                  <span className="font-mono text-mel-sm">{a.reason}</span>
                 </div>
                 <p className="mt-1">{a.summary}</p>
               </li>
@@ -922,7 +922,7 @@ export function Planning() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] text-muted-foreground">Evidence model: {comparison.evidence_classification}</p>
+              <p className="text-mel-sm text-muted-foreground">Evidence model: {comparison.evidence_classification}</p>
             </div>
           )}
         </Card>
@@ -938,7 +938,7 @@ export function Planning() {
             <ul className="mt-3 space-y-2 text-xs md:text-sm">
               {executions.map((ex) => (
                 <li key={ex.execution_id} className="border-b border-border/40 pb-2">
-                  <span className="font-mono text-[11px]">{ex.execution_id}</span>
+                  <span className="font-mono text-mel-sm">{ex.execution_id}</span>
                   <span className="text-muted-foreground"> — {ex.status} — {ex.started_at}</span>
                 </li>
               ))}
@@ -950,14 +950,14 @@ export function Planning() {
       <Card className="p-3 md:p-4">
         <div className="flex items-center justify-between gap-2 mb-2" ref={(el) => (sectionRefs.current.playbooks = el)}>
           <h3 className="font-semibold text-sm">Playbooks</h3>
-          <p className="text-[11px] text-muted-foreground">Field-guide summaries with bounded observations.</p>
+          <p className="text-mel-sm text-muted-foreground">Field-guide summaries with bounded observations.</p>
         </div>
         {bundle.playbooks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No playbooks for this state.</p>
         ) : (
           <div className="space-y-3">
             {bundle.playbooks.map((pb) => (
-              <div key={pb.class} className="rounded-lg border border-border p-3">
+              <div key={pb.class} className="rounded-sm border border-border p-3">
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <h4 className="font-medium text-sm">{pb.title}</h4>
                   <Badge variant="outline">{pb.class}</Badge>
@@ -992,7 +992,7 @@ export function Planning() {
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">Computed {bundle.computed_at}</p>
+        <p className="text-mel-sm text-muted-foreground mt-2">Computed {bundle.computed_at}</p>
       </Card>
     </div>
   )

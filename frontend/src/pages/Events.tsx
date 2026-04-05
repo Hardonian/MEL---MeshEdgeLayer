@@ -177,7 +177,7 @@ function EventRow({ event }: { event: AuditLog }) {
   }[level] || 'border-l-border/40'
 
   return (
-    <div className={clsx('flex items-start gap-3 rounded-lg border-l-2 px-3 py-2.5 transition-colors hover:bg-accent/40', borderClass)}>
+    <div className={clsx('flex items-start gap-3 rounded-sm border-l-2 px-3 py-2.5 transition-colors hover:bg-accent/40', borderClass)}>
       <div className="mt-1.5 flex items-center gap-2">
         <span className={clsx('h-1.5 w-1.5 rounded-full', dotClass)} />
       </div>
@@ -185,13 +185,13 @@ function EventRow({ event }: { event: AuditLog }) {
         <div className="flex items-baseline gap-2">
           <p className="text-[13px] text-foreground">{event.message}</p>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/70">
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-mel-sm text-muted-foreground/70">
           <span>{event.category || 'system'}</span>
           <span>&middot;</span>
           <span>{event.level || 'info'}</span>
         </div>
       </div>
-      <div className="ml-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/60">
+      <div className="ml-2 flex shrink-0 items-center gap-1 text-mel-sm text-muted-foreground/60">
         <Clock className="h-3 w-3" />
         {formatRelativeTime(event.created_at)}
       </div>

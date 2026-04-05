@@ -23,7 +23,7 @@ export function Transports() {
           action={
             <button
               onClick={refresh}
-              className="rounded-lg bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
+              className="rounded-sm bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
             >
               Retry
             </button>

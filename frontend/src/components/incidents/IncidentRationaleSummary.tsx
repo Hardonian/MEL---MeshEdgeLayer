@@ -32,7 +32,7 @@ export function IncidentRationaleSummary({
 
   if (!whySurfaced && !whyNow && !changedLine && !replaySummary && degradedReasons.length === 0) {
     return (
-      <div className={`rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground ${className || ''}`} role="status">
+      <div className={`rounded-sm border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground ${className || ''}`} role="status">
         <span className="font-semibold text-foreground">Backend rationale unavailable: </span>
         This row has no decision-pack why/change fields in this response. Treat ordering as partial and open detail for evidence basis.
       </div>
@@ -40,7 +40,7 @@ export function IncidentRationaleSummary({
   }
 
   return (
-    <section className={`rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-xs space-y-1.5 ${className || ''}`} data-testid="incident-rationale-summary">
+    <section className={`rounded-sm border border-border/50 bg-muted/15 px-3 py-2 text-xs space-y-1.5 ${className || ''}`} data-testid="incident-rationale-summary">
       {whySurfaced && (
         <p>
           <span className="font-semibold text-foreground">Why surfaced: </span>
@@ -65,7 +65,7 @@ export function IncidentRationaleSummary({
           {degradedReasons.slice(0, 3).map(toWords).join(', ')}
         </p>
       )}
-      <p className="text-[10px] text-muted-foreground/80">Backend-computed rationale and replay posture; bounded guidance, not delivery/path proof.</p>
+      <p className="text-mel-xs text-muted-foreground/80">Backend-computed rationale and replay posture; bounded guidance, not delivery/path proof.</p>
     </section>
   )
 }

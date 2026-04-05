@@ -60,7 +60,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const instanceId = status.data?.instance?.instance_id
   const productScope = status.data?.product?.product_scope
 
-  // Compute live counts for nav badges
   const deadLetterCount = api.deadLetters.data?.length ?? 0
   const diagCount = api.diagnostics.data?.filter((d) => d.severity === 'critical' || d.severity === 'high').length ?? 0
   const privacyCount = api.privacyFindings.data?.filter((p) => p.severity === 'critical' || p.severity === 'high').length ?? 0
@@ -68,23 +67,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navGroups: NavGroup[] = [
     {
-      label: 'Overview',
+      label: 'overview',
       icon: Eye,
       items: [
-        { label: 'Command surface (home)', href: '/', icon: LayoutDashboard },
-        { label: 'Status', href: '/status', icon: Activity },
-        { label: 'Events', href: '/events', icon: FileText },
+        { label: 'command', href: '/', icon: LayoutDashboard },
+        { label: 'status', href: '/status', icon: Activity },
+        { label: 'events', href: '/events', icon: FileText },
       ],
     },
     {
-      label: 'Mesh',
+      label: 'mesh',
       icon: Radio,
       items: [
-        { label: 'Nodes', href: '/nodes', icon: Radio },
-        { label: 'Topology', href: '/topology', icon: GitBranch },
-        { label: 'Messages', href: '/messages', icon: MessageSquare },
+        { label: 'nodes', href: '/nodes', icon: Radio },
+        { label: 'topology', href: '/topology', icon: GitBranch },
+        { label: 'messages', href: '/messages', icon: MessageSquare },
         {
-          label: 'Dead letters',
+          label: 'dead-letters',
           href: '/dead-letters',
           icon: Inbox,
           badge: deadLetterCount > 0 ? deadLetterCount : undefined,
@@ -93,19 +92,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      label: 'Operations',
+      label: 'ops',
       icon: Wrench,
       items: [
-        { label: 'Incidents', href: '/incidents', icon: AlertTriangle },
-        { label: 'Control actions', href: '/control-actions', icon: Zap },
-        { label: 'Planning', href: '/planning', icon: Compass },
+        { label: 'incidents', href: '/incidents', icon: AlertTriangle },
+        { label: 'control', href: '/control-actions', icon: Zap },
+        { label: 'planning', href: '/planning', icon: Compass },
+        { label: 'review', href: '/operational-review', icon: ClipboardList },
         {
-          label: 'Operational review',
-          href: '/operational-review',
-          icon: ClipboardList,
-        },
-        {
-          label: 'Recommendations',
+          label: 'recs',
           href: '/recommendations',
           icon: Activity,
           badge: recsCount > 0 ? recsCount : undefined,
@@ -113,18 +108,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      label: 'Trust & safety',
+      label: 'trust',
       icon: Shield,
       items: [
         {
-          label: 'Diagnostics',
+          label: 'diagnostics',
           href: '/diagnostics',
           icon: Shield,
           badge: diagCount > 0 ? diagCount : undefined,
           badgeVariant: diagCount > 0 ? 'critical' as const : undefined,
         },
         {
-          label: 'Privacy',
+          label: 'privacy',
           href: '/privacy',
           icon: Shield,
           badge: privacyCount > 0 ? privacyCount : undefined,
@@ -135,9 +130,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ]
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
@@ -149,128 +142,97 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const handleRefresh = useCallback(async () => {
     setRefreshBusy(true)
-    try {
-      await refreshAll()
-    } finally {
-      setRefreshBusy(false)
-    }
+    try { await refreshAll() } finally { setRefreshBusy(false) }
   }, [refreshAll])
 
-  // Global keyboard shortcuts: g+letter nav, r=refresh
   useGlobalKeyboardShortcuts(handleRefresh)
 
-  // Page Visibility API: refresh when tab becomes visible after being hidden
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void refreshAll()
-      }
+      if (document.visibilityState === 'visible') void refreshAll()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refreshAll])
 
-  // Escape / command palette only — g+r navigation lives in useGlobalKeyboardShortcuts (HelpMenu) to avoid double handlers.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsMobileMenuOpen(false)
-        setCommandOpen(false)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setCommandOpen((prev) => !prev)
-      }
+      if (e.key === 'Escape') { setIsMobileMenuOpen(false); setCommandOpen(false) }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCommandOpen((p) => !p) }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const transportStatusLabel = status.loading
-    ? 'Loading transport state'
+  const transportLabel = status.loading
+    ? 'LOADING'
     : !hasTransports
-      ? 'No transport configured'
+      ? 'NO_TRANSPORT'
       : hasConnectedTransport
-        ? 'Transport connected'
-        : 'No active transport'
+        ? 'CONNECTED'
+        : 'DISCONNECTED'
 
-  const transportStatusClasses = clsx(
-    'status-pill hidden md:inline-flex',
-    status.loading && 'border-border/80 text-muted-foreground',
-    !status.loading && !hasTransports && 'border-border/80 text-muted-foreground',
-    !status.loading && hasTransports && hasConnectedTransport && 'border-success/30 text-foreground',
-    !status.loading && hasTransports && !hasConnectedTransport && 'border-warning/30 text-foreground'
-  )
-
-  const transportDotClasses = clsx(
-    'status-dot',
-    status.loading && 'bg-muted-foreground text-muted-foreground',
-    !status.loading && !hasTransports && 'bg-muted-foreground text-muted-foreground',
-    !status.loading && hasTransports && hasConnectedTransport && 'animate-pulse-slow bg-success text-success',
-    !status.loading && hasTransports && !hasConnectedTransport && 'bg-warning text-warning'
-  )
+  const transportColor = status.loading
+    ? 'text-muted-foreground'
+    : !hasTransports
+      ? 'text-muted-foreground'
+      : hasConnectedTransport
+        ? 'text-neon neon-glow'
+        : 'text-neon-warn neon-glow-warn'
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background mel-grid-bg">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-panel focus:outline-none focus:ring-2 focus:ring-ring"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:bg-background focus:px-2 focus:py-1 focus:text-mel-sm focus:outline-none focus:ring-1 focus:ring-ring"
       >
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-50 px-3 pt-3 md:px-4">
-        <div className="surface-toolbar mx-auto flex h-14 max-w-[min(100%,96rem)] items-center justify-between px-3 sm:px-4">
+      {/* ╔══ TOP STATUS BAR — tmux style ══╗ */}
+      <header className="sticky top-0 z-50 border-b border-chrome-border bg-chrome-bg">
+        <div className="mx-auto flex h-8 max-w-[96rem] items-center justify-between px-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="icon-button md:hidden"
               aria-label="Toggle menu"
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {isMobileMenuOpen ? <X className="h-3 w-3" /> : <Menu className="h-3 w-3" />}
             </button>
 
             <Link
               to="/"
-              className="group flex items-center gap-3 rounded-xl outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="group flex items-center gap-2 outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/14 text-primary shadow-[0_14px_28px_-20px_hsl(var(--primary)/0.72)] transition-transform duration-200 group-hover:-translate-y-0.5">
-                <Radio className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-outfit text-lg font-semibold tracking-[-0.03em] text-foreground">MEL</span>
-                  <span className="hidden rounded-full border border-border/70 bg-card/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:inline-flex">
-                    Operator OS
-                  </span>
-                </div>
-                <p className="mt-0.5 hidden max-w-[14rem] text-[10px] leading-snug text-muted-foreground/75 sm:block">
-                  Incident intelligence and governed control — bounded by persisted evidence.
-                </p>
-              </div>
+              <span className="text-neon neon-glow font-bold text-[13px]">MEL</span>
+              <span className="text-muted-foreground/40">│</span>
+              <span className="text-mel-xs text-muted-foreground/50 hidden sm:inline">mesh::edge::layer</span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <div className={transportStatusClasses}>
-              <span className={transportDotClasses} aria-hidden />
-              {transportStatusLabel}
-            </div>
-            <div className="status-pill hidden lg:inline-flex">
-              {api.refreshMeta.mode === 'near_live_polling' ? 'Near-live polling (10s)' : 'Background polling (60s)'}
-            </div>
+          <div className="flex items-center gap-2">
+            {/* Transport status */}
+            <span className={clsx('text-mel-xs font-bold hidden md:inline', transportColor)}>
+              [{transportLabel}]
+            </span>
 
+            {/* Poll rate */}
+            <span className="text-mel-xs text-muted-foreground hidden lg:inline">
+              {api.refreshMeta.mode === 'near_live_polling' ? 'poll:10s' : 'poll:60s'}
+            </span>
+
+            <span className="text-muted-foreground/30 hidden md:inline">│</span>
+
+            {/* Command palette */}
             <button
               type="button"
               onClick={() => setCommandOpen(true)}
-              className="hidden items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-1.5 text-xs text-muted-foreground shadow-inset transition-all hover:border-primary/18 hover:bg-accent/72 hover:text-foreground md:inline-flex"
-              title="Search commands (Ctrl+K)"
+              className="hidden md:inline-flex items-center gap-1 text-mel-xs text-muted-foreground hover:text-neon transition-colors"
+              title="Search (Ctrl+K)"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Search...</span>
-              <kbd className="ml-1 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                {'\u2318'}K
-              </kbd>
+              <Search className="h-3 w-3" />
+              <span>ctrl+k</span>
             </button>
 
             <button
@@ -278,10 +240,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => void handleRefresh()}
               disabled={refreshBusy}
               className="icon-button"
-              aria-label={refreshBusy ? 'Refreshing data' : 'Refresh console data from API'}
-              title={refreshBusy ? 'Refreshing...' : 'Re-fetch dashboard data from the API'}
+              aria-label="Refresh"
             >
-              <RefreshCw className={clsx('h-4 w-4', refreshBusy && 'animate-spin')} aria-hidden />
+              <RefreshCw className={clsx('h-3 w-3', refreshBusy && 'animate-spin')} aria-hidden />
             </button>
 
             <HelpMenu />
@@ -290,23 +251,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex">
+        {/* ╔══ SIDE NAV — file tree style ══╗ */}
         <aside
           className={clsx(
-            'fixed inset-y-0 left-0 z-40 w-[17rem] transform px-3 pb-3 pt-[4.5rem] transition-transform duration-200 ease-out md:translate-x-0 md:px-3',
+            'fixed inset-y-0 left-0 z-40 w-[13rem] transform border-r border-chrome-border bg-chrome-bg pt-8 transition-transform duration-150 ease-out md:translate-x-0',
             isMobile && isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
-          <div className="surface-panel surface-panel-strong flex h-full flex-col overflow-hidden">
-            <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-3 pt-4" aria-label="Primary">
+          <nav className="flex h-full flex-col overflow-y-auto px-1.5 pb-2 pt-2" aria-label="Primary">
+            <div className="flex-1 space-y-3">
               {navGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="mb-1.5 flex items-center gap-2 px-2">
-                    <group.icon className="h-3 w-3 text-muted-foreground/60" aria-hidden />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-                      {group.label}
-                    </span>
+                  <div className="mb-0.5 px-2 text-mel-xs font-bold uppercase tracking-[0.16em] text-muted-foreground/50">
+                    <span className="text-neon/40">▸</span> {group.label}/
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="space-y-px">
                     {group.items.map((item) => {
                       const isActive =
                         location.pathname === item.href ||
@@ -317,36 +276,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           key={item.href}
                           to={item.href}
                           className={clsx(
-                            'group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+                            'group flex items-center gap-1.5 border-l-2 px-2 py-1 text-mel-sm font-medium outline-none transition-colors duration-75 focus-visible:ring-1 focus-visible:ring-ring',
                             isActive
-                              ? 'border-primary/22 bg-primary/12 text-foreground shadow-[0_14px_24px_-20px_hsl(var(--primary)/0.55)]'
-                              : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/65 hover:text-foreground'
+                              ? 'border-neon bg-neon/6 text-neon'
+                              : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                           )}
                           aria-current={isActive ? 'page' : undefined}
                         >
-                          <span
-                            className={clsx(
-                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
-                              isActive
-                                ? 'border-primary/20 bg-primary/16 text-primary'
-                                : 'border-border/60 bg-card/60 text-muted-foreground group-hover:border-primary/12 group-hover:text-foreground'
-                            )}
-                          >
-                            <item.icon className="h-3.5 w-3.5" />
-                          </span>
+                          <item.icon className={clsx(
+                            'h-3 w-3 shrink-0',
+                            isActive ? 'text-neon' : 'text-muted-foreground/40'
+                          )} />
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.badge !== undefined && (
                             <span
                               className={clsx(
-                                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none',
+                                'text-mel-xs font-bold',
                                 item.badgeVariant === 'critical'
-                                  ? 'bg-critical/15 text-critical'
+                                  ? 'text-neon-hot'
                                   : item.badgeVariant === 'warning'
-                                    ? 'bg-warning/15 text-warning'
-                                    : 'bg-primary/15 text-primary'
+                                    ? 'text-neon-warn'
+                                    : 'text-neon'
                               )}
                             >
-                              {item.badge}
+                              [{item.badge}]
                             </span>
                           )}
                         </Link>
@@ -355,50 +308,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               ))}
-            </nav>
+            </div>
 
-            <div className="border-t border-border/60 p-2.5">
+            <div className="border-t border-border/50 pt-1.5">
               <Link
                 to="/settings"
                 className={clsx(
-                  'group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-[13px] font-medium outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring',
+                  'group flex items-center gap-1.5 border-l-2 px-2 py-1 text-mel-sm font-medium outline-none transition-colors duration-75 focus-visible:ring-1 focus-visible:ring-ring',
                   location.pathname === '/settings'
-                    ? 'border-primary/22 bg-primary/12 text-foreground'
-                    : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/65 hover:text-foreground'
+                    ? 'border-neon bg-neon/6 text-neon'
+                    : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
-                <span
-                  className={clsx(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
-                    location.pathname === '/settings'
-                      ? 'border-primary/20 bg-primary/16 text-primary'
-                      : 'border-border/60 bg-card/60 text-muted-foreground group-hover:border-primary/12 group-hover:text-foreground'
-                  )}
-                >
-                  <Settings className="h-3.5 w-3.5" aria-hidden />
-                </span>
-                Settings &amp; reference
+                <Settings className="h-3 w-3 shrink-0 text-muted-foreground/40" aria-hidden />
+                settings
               </Link>
               {!status.loading && instanceId && (
-                <div className="mt-2 px-2.5 text-[10px] text-muted-foreground/60" title={instanceId}>
-                  <span className="font-mono">{truncateMiddle(instanceId, 28)}</span>
+                <div className="mt-1 px-2 text-[8px] text-muted-foreground/30 truncate" title={instanceId}>
+                  {truncateMiddle(instanceId, 24)}
                 </div>
               )}
             </div>
-          </div>
+          </nav>
         </aside>
 
         {isMobile && isMobileMenuOpen && (
           <div
-            className="fixed inset-0 z-30 bg-background/72 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-30 bg-background/90 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
+        {/* ╔══ MAIN CONTENT AREA ══╗ */}
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 pb-10 pt-4 outline-none md:ml-[17rem] md:px-6 md:pt-5"
+          className="flex-1 px-3 pb-6 pt-3 outline-none md:ml-[13rem] md:px-4 md:pt-3"
         >
           <WorkspaceFocusBar
             pathname={location.pathname}
@@ -410,22 +355,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
+      {/* ╔══ BOTTOM STATUS LINE ══╗ */}
       {!status.loading && productScope && (
-        <footer className="px-4 pb-4 md:pl-[18.5rem] md:pr-6">
-          <div className="mx-auto flex max-w-8xl items-center gap-3 px-1 text-[10px] text-muted-foreground/50">
-            {productScope && (
-              <span>
-                <code className="font-mono">{productScope}</code>
-              </span>
-            )}
+        <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-chrome-border bg-chrome-bg px-3 md:pl-[13.5rem]">
+          <div className="mx-auto flex h-6 max-w-8xl items-center gap-3 text-[9px] text-muted-foreground/40">
+            <span className="text-neon/40">$</span>
+            <code>{productScope}</code>
+            <span className="ml-auto">MEL::MeshEdgeLayer</span>
+            <span className="animate-terminal-blink text-neon/60">█</span>
           </div>
         </footer>
       )}
 
-      {/* Command Palette */}
-      {commandOpen && (
-        <CommandPalette onClose={() => setCommandOpen(false)} />
-      )}
+      {commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} />}
     </div>
   )
 }
@@ -433,38 +375,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
 function TruthContractStrip() {
   return (
     <div
-      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
+      className="mb-3 border border-border bg-panel-muted px-3 py-1.5 text-mel-xs text-muted-foreground flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2"
       role="note"
       aria-label="Operator truth contract"
     >
-      <span className="font-semibold uppercase tracking-[0.14em] text-foreground/90">Truth contract</span>
-      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
-        ·
-      </span>
+      <span className="text-neon font-bold">[TRUTH]</span>
       <span>
-        <strong className="font-medium text-foreground/90">Live</strong> = recent persisted ingest.{' '}
-        <strong className="font-medium text-foreground/90">Stale / partial / degraded</strong> stay visible — never folded into
-        &quot;all good&quot;.
+        <strong className="text-foreground/80">Live</strong> = recent persisted ingest.{' '}
+        <strong className="text-foreground/80">Stale/partial/degraded</strong> stay visible.
       </span>
-      <span className="hidden sm:inline text-muted-foreground/50" aria-hidden>
-        ·
-      </span>
+      <span className="text-muted-foreground/30 hidden sm:inline">│</span>
       <span>
-        Topology and maps show <strong className="font-medium text-foreground/90">observed context</strong>, not proof of RF path
-        or delivery unless evidence says so.
+        Topology = <strong className="text-foreground/80">observed context</strong>, not RF proof.
       </span>
       <Link
         to="/settings#operator-truth-contract"
-        className="font-semibold text-primary hover:underline sm:ml-auto"
+        className="text-mel-xs font-bold text-neon hover:underline sm:ml-auto"
       >
-        Full wording in Settings
+        → full contract
       </Link>
-      <a
-        href="/docs/repo-os/terminology.md"
-        className="font-semibold text-primary hover:underline"
-      >
-        Canonical terminology (docs)
-      </a>
     </div>
   )
 }
@@ -485,48 +414,46 @@ function WorkspaceFocusBar({
 
   return (
     <div
-      className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2 text-xs"
+      className="mb-3 flex flex-wrap items-center gap-2 border border-neon/20 bg-neon/4 px-3 py-1.5 text-mel-sm"
       role="region"
       aria-label="Current workspace focus"
     >
-      <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-      <span className="font-semibold text-foreground shrink-0">Workspace focus:</span>
+      <Crosshair className="h-3 w-3 shrink-0 text-neon" aria-hidden />
+      <span className="font-bold text-neon">[FOCUS]</span>
       <Link
         to={`/incidents/${encodeURIComponent(focus.incidentId)}`}
-        className="min-w-0 flex-1 font-medium text-primary hover:underline truncate sm:flex-none"
+        className="font-bold text-neon hover:underline truncate"
       >
         {focus.incidentTitle?.trim() || focus.incidentId.slice(0, 14)}
       </Link>
-      <span className="text-muted-foreground/80 hidden sm:inline">
-        set {formatRelativeTime(focus.savedAt)} (this browser)
+      <span className="text-mel-xs text-muted-foreground/50 hidden sm:inline">
+        set {formatRelativeTime(focus.savedAt)}
       </span>
-      <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
-        <Link
-          to={`/incidents/${encodeURIComponent(focus.incidentId)}?replay=1`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-        >
-          Replay
-        </Link>
-        <Link
-          to={`/topology?incident=${encodeURIComponent(focus.incidentId)}&filter=incident_focus`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-        >
-          Topology
-        </Link>
-        <Link
-          to={`/incidents/${encodeURIComponent(focus.incidentId)}#shift-continuity-handoff`}
-          className="rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-        >
-          Handoff
-        </Link>
+      <div className="flex flex-wrap items-center gap-1 sm:ml-auto">
+        {(['Replay', 'Topology', 'Handoff'] as const).map((action) => {
+          const hrefs = {
+            Replay: `/incidents/${encodeURIComponent(focus.incidentId)}?replay=1`,
+            Topology: `/topology?incident=${encodeURIComponent(focus.incidentId)}&filter=incident_focus`,
+            Handoff: `/incidents/${encodeURIComponent(focus.incidentId)}#shift-continuity-handoff`,
+          }
+          return (
+            <Link
+              key={action}
+              to={hrefs[action]}
+              className="border border-border bg-card px-1.5 py-0.5 text-mel-xs font-bold text-muted-foreground hover:text-neon hover:border-neon/30 transition-colors"
+            >
+              {action.toLowerCase()}
+            </Link>
+          )
+        })}
         <button
           type="button"
           onClick={onDismiss}
-          className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          className="inline-flex items-center gap-0.5 border border-border px-1.5 py-0.5 text-mel-xs font-bold text-muted-foreground hover:text-neon-hot hover:border-neon-hot/30 transition-colors"
           aria-label="Clear workspace focus"
         >
-          <X className="h-3 w-3" aria-hidden />
-          Clear
+          <X className="h-2.5 w-2.5" aria-hidden />
+          clear
         </button>
       </div>
     </div>
@@ -538,33 +465,29 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'Command surface (home)', href: '/', keywords: 'home overview dashboard operator workspace' },
-    {
-      label: 'Instance briefing (scroll on home)',
-      href: '/#mel-instance-briefing',
-      keywords: 'briefing intelligence priorities digest shift review',
-    },
-    { label: 'Status', href: '/status', keywords: 'transport health connection' },
-    { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
-    { label: 'Topology', href: '/topology', keywords: 'graph network map' },
-    { label: 'Planning', href: '/planning', keywords: 'resilience playbook' },
-    { label: 'Operational review', href: '/operational-review', keywords: 'digest shift summary briefing counts' },
-    { label: 'Messages', href: '/messages', keywords: 'packets traffic' },
-    { label: 'Dead letters', href: '/dead-letters', keywords: 'failed errors' },
-    { label: 'Incidents', href: '/incidents', keywords: 'alerts disruptions' },
-    { label: 'Control actions', href: '/control-actions', keywords: 'approve reject execute' },
-    { label: 'Recommendations', href: '/recommendations', keywords: 'suggestions optimize' },
-    { label: 'Events', href: '/events', keywords: 'audit log history' },
-    { label: 'Diagnostics', href: '/diagnostics', keywords: 'health checks findings' },
-    { label: 'Privacy', href: '/privacy', keywords: 'security audit compliance' },
-    { label: 'Settings', href: '/settings', keywords: 'config preferences reference' },
+    { label: 'command', href: '/', keywords: 'home overview dashboard' },
+    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
+    { label: 'status', href: '/status', keywords: 'transport health' },
+    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
+    { label: 'topology', href: '/topology', keywords: 'graph network map' },
+    { label: 'planning', href: '/planning', keywords: 'resilience playbook' },
+    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift' },
+    { label: 'messages', href: '/messages', keywords: 'packets traffic' },
+    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors' },
+    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions' },
+    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject' },
+    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions' },
+    { label: 'events', href: '/events', keywords: 'audit log' },
+    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks' },
+    { label: 'privacy', href: '/privacy', keywords: 'security audit' },
+    { label: 'settings', href: '/settings', keywords: 'config prefs' },
   ]
 
   const lowerQuery = query.toLowerCase()
   const filtered = query
     ? allPages.filter(
         (p) =>
-          p.label.toLowerCase().includes(lowerQuery) ||
+          p.label.includes(lowerQuery) ||
           p.keywords.includes(lowerQuery) ||
           p.href.includes(lowerQuery)
       )
@@ -576,44 +499,44 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   }, [location.pathname])
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="fixed inset-0 bg-background/60 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[12vh]" onClick={onClose}>
+      <div className="fixed inset-0 bg-background/85" />
       <div
-        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_24px_64px_-16px_hsl(var(--shell-shadow)/0.7)]"
+        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden border border-neon/30 bg-card shadow-glow-strong"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Command palette"
       >
-        <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
+        {/* Terminal prompt input */}
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <span className="text-neon font-bold text-mel-sm">$</span>
           <input
             type="text"
-            placeholder="Go to page..."
-            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+            placeholder="goto..."
+            className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/40 caret-neon"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
-          <kbd className="rounded border border-border/80 bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            Esc
-          </kbd>
+          <span className="text-mel-xs text-muted-foreground/40">ESC</span>
         </div>
-        <div className="max-h-[40vh] overflow-y-auto p-2">
+        <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-              No matching pages
+            <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground">
+              -- no match --
             </div>
           ) : (
             filtered.map((page) => (
               <Link
                 key={page.href}
                 to={page.href}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent/70 focus:bg-accent/70 focus:outline-none"
+                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-neon/6 hover:text-neon focus:bg-neon/6 focus:text-neon focus:outline-none"
                 onClick={onClose}
               >
+                <span className="text-muted-foreground/40">→</span>
                 <span className="flex-1">{page.label}</span>
                 {location.pathname === page.href && (
-                  <span className="text-[10px] text-muted-foreground">current</span>
+                  <span className="text-[8px] text-neon">[current]</span>
                 )}
               </Link>
             ))

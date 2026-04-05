@@ -19,19 +19,16 @@ export function StaleDataBanner({
 
   return (
     <div
-      className="surface-inset mb-4 flex items-start gap-3 rounded-[1rem] border-warning/24 bg-warning/10 p-4"
+      className="surface-inset mb-3 flex items-start gap-2 border-neon-warn/20 bg-neon-warn/4 p-3"
       role="alert"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-warning/18 bg-warning/12 text-warning shadow-inset">
-        <AlertCircle className="h-5 w-5" aria-hidden />
-      </div>
+      <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-neon-warn" aria-hidden />
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-foreground">
-          Stale data: {componentName}
-        </h3>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          No recent updates received. Last verified activity:{' '}
-          <strong className="font-medium text-foreground">{formatOperatorTime(lastSuccessfulIngest)}</strong>.
+        <p className="text-mel-sm font-bold text-foreground">
+          <span className="text-neon-warn">[STALE]</span> {componentName}
+        </p>
+        <p className="mt-0.5 text-mel-xs text-muted-foreground">
+          No recent updates. last_verified: <strong className="text-foreground">{formatOperatorTime(lastSuccessfulIngest)}</strong>
         </p>
       </div>
     </div>
