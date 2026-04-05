@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { clsx } from 'clsx'
 import { GitBranch, RefreshCw, AlertCircle, ZoomIn, ZoomOut, Maximize2, X, ExternalLink } from 'lucide-react'
 import type { Incident } from '@/types/api'
 import { readShiftSnapshot } from '@/utils/shiftSnapshot'
@@ -230,13 +231,16 @@ function runSimulation(
   return result
 }
 
+/** Fill colors — hsl(var(--…)) tracks design tokens in index.css */
 function nodeColor(n: TopoNode): string {
-  if (n.stale || n.health_state === 'stale') return 'hsl(42 100% 55%)'
-  if (n.health_state === 'healthy') return 'hsl(160 100% 50%)'
-  if (n.health_state === 'isolated') return 'hsl(270 55% 60%)'
-  if (n.health_state === 'degraded') return 'hsl(42 100% 55%)'
-  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(190 90% 50%)'
-  return 'hsl(160 80% 45%)'
+  if (n.stale || n.health_state === 'stale') return 'hsl(var(--signal-stale))'
+  if (n.health_state === 'healthy') return 'hsl(var(--signal-live))'
+  if (n.health_state === 'isolated') return 'hsl(var(--signal-topology-isolated))'
+  if (n.health_state === 'degraded') return 'hsl(var(--signal-degraded))'
+  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') {
+    return 'hsl(var(--signal-observed))'
+  }
+  return 'hsl(var(--signal-live))'
 }
 
 function nodeLabel(n: TopoNode): string {
@@ -270,7 +274,7 @@ function TopologyTruthBoundary({
 }) {
   return (
     <section
-      className="sticky top-14 z-20 rounded-md border border-primary/25 bg-primary/10 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-primary/10"
+      className="sticky top-14 z-20 mel-panel-inset border-signal-observed/30 bg-signal-observed/8"
       role="region"
       aria-label="Topology truth boundary"
       data-testid="topology-truth-boundary"
@@ -711,17 +715,17 @@ export function Topology() {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent/70"
+            className="button-secondary inline-flex items-center gap-2 py-2"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+            refresh
           </button>
         </div>
       </div>
 
-      <div className="flex items-start gap-3 rounded-md border border-primary/15 bg-primary/5 p-3">
-        <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-        <p className="text-xs leading-relaxed text-muted-foreground">
+      <div className="mel-panel-inset flex items-start gap-3 border-signal-observed/25 bg-signal-observed/5 p-3">
+        <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-signal-observed" aria-hidden />
+        <p className="text-mel-sm leading-relaxed text-muted-foreground">
           <span className="font-semibold text-foreground">Observed vs inferred: </span>
           Solid edges reflect packet-derived fields where the API marks them observed; dashed or weak states are graph inference or stale
           visibility — not proof of end-to-end delivery or RF path.
@@ -787,7 +791,7 @@ export function Topology() {
       )}
 
       {intel && !intelDisabled && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             label="View mode"
             value={intel.view_mode || '—'}
@@ -819,19 +823,19 @@ export function Topology() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-md border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-muted/20">
+          <div className="surface-panel overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-panel-strong">
               <div>
-                <h2 className="text-sm font-medium">Topology graph</h2>
-                <p className="text-xs text-muted-foreground">
-                  Force-directed layout · click node to inspect · scroll/drag to navigate
+                <h2 className="font-mono text-mel-label text-foreground">topology_graph</h2>
+                <p className="mt-0.5 text-mel-xs text-muted-foreground">
+                  force layout · click node · scroll/drag pan
                 </p>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-px">
                 <button
                   type="button"
                   onClick={() => zoomBy(0.85)}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="icon-button"
                   title="Zoom in"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
@@ -839,7 +843,7 @@ export function Topology() {
                 <button
                   type="button"
                   onClick={() => zoomBy(1.18)}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="icon-button"
                   title="Zoom out"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
@@ -847,7 +851,7 @@ export function Topology() {
                 <button
                   type="button"
                   onClick={resetView}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="icon-button"
                   title="Reset view"
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
@@ -855,39 +859,40 @@ export function Topology() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 border-b border-border/40 bg-muted/10">
-              <LegendItem color="hsl(142 65% 38%)" label="Healthy" />
-              <LegendItem color="hsl(38 90% 45%)" label="Stale" />
-              <LegendItem color="hsl(28 90% 48%)" label="Degraded" />
-              <LegendItem color="hsl(280 50% 52%)" label="Isolated" />
-              <LegendItem color="hsl(210 65% 46%)" label="Unknown" />
-              <LegendItem color="hsl(200 55% 42%)" label="Weak / inferred-only" />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/50 px-3 py-2 bg-panel-muted/50">
+              <LegendItem color="hsl(var(--signal-live))" label="Healthy" />
+              <LegendItem color="hsl(var(--signal-stale))" label="Stale" />
+              <LegendItem color="hsl(var(--signal-degraded))" label="Degraded" />
+              <LegendItem color="hsl(var(--signal-topology-isolated))" label="Isolated" />
+              <LegendItem color="hsl(var(--signal-frozen))" label="Unknown" />
+              <LegendItem color="hsl(var(--signal-observed))" label="Weak / inferred-only" />
               <span className="text-mel-xs text-muted-foreground ml-auto max-w-[min(100%,280px)] sm:max-w-none sm:ml-auto">
                 Solid line = packet-observed edge · dashed = inferred · thin = relay-dependent · double ring = newer last_seen vs your baseline
               </span>
             </div>
 
             <div
-              className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border/40 bg-card/30"
+              className="flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2 bg-panel-muted/30"
               role="toolbar"
               aria-label="Filter nodes in graph"
             >
-              <span className="text-mel-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
+              <span className="font-mono text-mel-xs font-bold uppercase tracking-wide text-muted-foreground">focus</span>
+              <div className="mel-segment flex flex-wrap" role="group" aria-label="Node filter">
               {FILTER_OPTIONS.map((f) => (
                 <button
                   key={f.id}
                   type="button"
                   onClick={() => setFilterAndUrl(f.id)}
                   title={f.hint}
-                  className={`rounded-full border px-2.5 py-1 text-mel-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    nodeFilter === f.id
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:bg-muted/60'
-                  }`}
+                  className={clsx(
+                    'mel-segment-item',
+                    nodeFilter === f.id ? 'mel-segment-item-active' : 'mel-segment-item-inactive'
+                  )}
                 >
                   {f.label}
                 </button>
               ))}
+              </div>
               <span className="text-mel-xs text-muted-foreground ml-auto text-right max-w-[min(100%,320px)] sm:max-w-none">
                 Showing {filteredNodes.length}/{nodes.length} nodes
                 {nodeFilter === 'changed_since_visit' && topologyChangedSinceVisit.size === 0 && (
@@ -912,8 +917,7 @@ export function Topology() {
                 ref={svgRef}
                 tabIndex={0}
                 viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-                className="w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-b-sm"
-                style={{ background: 'hsl(0 0% 2%)' }}
+                className="mel-topology-svg w-full max-h-[480px] cursor-grab active:cursor-grabbing select-none text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 role="application"
                 aria-label="Topology graph: nodes and inferred links from ingest. Use arrow keys to pan when focused."
                 onWheel={onWheel}
@@ -1026,10 +1030,11 @@ export function Topology() {
           </div>
 
           {(intel?.view_mode === 'map' || intel?.view_mode === 'map_partial') && mapPoints.length > 0 && (
-            <div className="rounded-md border bg-card p-4 space-y-3">
+            <div className="surface-panel overflow-hidden">
+              <div className="mel-chrome-title">location_layer</div>
+              <div className="space-y-3 px-3 pb-3 pt-2">
               <div>
-                <h2 className="text-sm font-medium mb-1">Location layer (redacted coordinates)</h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-mel-sm text-muted-foreground">
                   Points use server redacted lat/lon only. This is not RF proof or surveyed survey-grade placement.
                   {googleMapsEligible
                     ? ' Optional Google basemap loads third-party tiles when enabled in config (privacy.map_reporting_allowed + features.google_maps_in_topology_ui + API key env).'
@@ -1050,13 +1055,14 @@ export function Topology() {
                   onSelectNode={(num) => void selectNode(num, { syncUrl: true })}
                 />
               )}
+              </div>
             </div>
           )}
         </div>
 
-        <div className="rounded-md border bg-card p-4 min-h-[200px]">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium">Node drilldown</h2>
+        <div className="surface-panel min-h-[200px] overflow-hidden">
+          <div className="mel-chrome-title flex justify-between gap-2">
+            <span>node_drilldown</span>
             {selected && (
               <button
                 type="button"
@@ -1064,23 +1070,25 @@ export function Topology() {
                   setSelected(null)
                   syncSelectToUrl(null)
                 }}
-                className="rounded p-1 text-muted-foreground hover:text-foreground"
+                className="icon-button -my-0.5 h-6 min-h-0 min-w-0 px-1"
                 aria-label="Clear node selection"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
-          {selLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {!selLoading && !selected && <p className="text-sm text-muted-foreground">Select a node on the graph.</p>}
+          <div className="px-3 pb-3 pt-2">
+          {selLoading && <p className="text-mel-sm text-muted-foreground">Loading…</p>}
+          {!selLoading && !selected && <p className="text-mel-sm text-muted-foreground">Select a node on the graph.</p>}
           {selected && <NodeDrillPanel drill={selected} />}
+          </div>
         </div>
       </div>
 
       {(intel?.analysis?.recommendations?.length ?? 0) > 0 && (
-        <div className="rounded-md border bg-card p-4">
-          <h2 className="text-sm font-medium mb-2">Evidence-based recommendations</h2>
-          <ul className="text-sm space-y-2">
+        <div className="surface-panel overflow-hidden">
+          <div className="mel-chrome-title">evidence_recommendations</div>
+          <ul className="space-y-2 px-3 pb-3 pt-2 text-mel-sm">
             {intel!.analysis!.recommendations!.slice(0, 12).map((r) => (
               <li key={r.id} className="border-b border-border/50 pb-2 last:border-0">
                 <div>{r.summary}</div>
@@ -1123,10 +1131,12 @@ function TopologyOperatorAnalysisPanel({
   }
 
   return (
-    <div className="rounded-md border bg-card p-4 space-y-3" data-testid="topology-operator-analysis">
+    <div className="surface-panel space-y-3 overflow-hidden" data-testid="topology-operator-analysis">
+      <div className="mel-chrome-title">fault_domains</div>
+      <div className="space-y-3 px-3 pb-3 pt-1">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-medium text-foreground">Fault domains &amp; impact (graph-bounded)</h2>
+          <h2 className="font-display text-sm font-semibold text-foreground">Fault domains &amp; impact (graph-bounded)</h2>
           <p className="text-mel-sm text-muted-foreground mt-0.5 max-w-3xl">
             Connected components and stale regions from stored topology_links — not RF or geographic causality. Use with transport health and
             incident evidence.
@@ -1152,7 +1162,7 @@ function TopologyOperatorAnalysisPanel({
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {weak.length > 0 && (
-          <div className="rounded-sm border border-border/60 p-3">
+          <div className="mel-panel-inset border-border/60">
             <p className="text-xs font-semibold text-foreground mb-1">Weaker clusters</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {weak.slice(0, 6).map((c) => (
@@ -1165,7 +1175,7 @@ function TopologyOperatorAnalysisPanel({
           </div>
         )}
         {staleRegs.length > 0 && (
-          <div className="rounded-sm border border-warning/25 bg-warning/5 p-3">
+          <div className="mel-panel-inset border-signal-stale/30 bg-signal-stale/[0.06]">
             <p className="text-xs font-semibold text-foreground mb-1">Stale regions</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {staleRegs.slice(0, 5).map((r, i) => (
@@ -1178,7 +1188,7 @@ function TopologyOperatorAnalysisPanel({
           </div>
         )}
         {bottlenecks.length > 0 && (
-          <div className="rounded-sm border border-border/60 p-3 sm:col-span-2 lg:col-span-1">
+          <div className="mel-panel-inset border-border/60 sm:col-span-2 lg:col-span-1">
             <p className="text-xs font-semibold text-foreground mb-1">Bottlenecks (graph shape)</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {bottlenecks.slice(0, 6).map((b, i) => (
@@ -1206,6 +1216,7 @@ function TopologyOperatorAnalysisPanel({
           )}
         </p>
       )}
+      </div>
     </div>
   )
 }
@@ -1213,17 +1224,17 @@ function TopologyOperatorAnalysisPanel({
 function MeshIntelPanel({ intel }: { intel: MeshIntelligence }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-md border bg-card">
+    <div className="surface-panel overflow-hidden">
       <button
         type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+        className="flex w-full items-center justify-between border-b border-border bg-panel-strong px-3 py-2 text-left font-mono text-mel-label text-foreground outline-none transition-colors hover:bg-muted/30 focus-visible:ring-1 focus-visible:ring-ring"
         onClick={() => setOpen((o) => !o)}
       >
-        <span>Mesh deployment intelligence</span>
-        <span className="text-xs text-muted-foreground">{open ? 'collapse' : 'expand'}</span>
+        <span>mesh_intelligence</span>
+        <span className="font-mono text-mel-xs text-muted-foreground">{open ? '−' : '+'}</span>
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-4 border-t border-border/60">
+        <div className="space-y-4 border-t border-border/50 px-3 pb-3 pt-3">
           <p className="text-xs text-muted-foreground pt-3">
             Derived from observed packets and graph — not RF proof. Advisory only; MEL does not change routing.
           </p>
@@ -1399,10 +1410,10 @@ function NodeDrillPanel({ drill: d }: { drill: NodeDrill }) {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-sm border bg-card p-3">
-      <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-semibold mt-1 leading-snug">{value}</div>
-      <div className="text-mel-sm text-muted-foreground mt-1 leading-snug">{hint}</div>
+    <div className="surface-panel interactive-lift p-3">
+      <p className="mel-label">{label}</p>
+      <p className="font-data text-mel-metric mt-1.5 text-foreground tabular-nums">{value}</p>
+      <p className="text-mel-xs text-muted-foreground mt-1 leading-snug">{hint}</p>
     </div>
   )
 }

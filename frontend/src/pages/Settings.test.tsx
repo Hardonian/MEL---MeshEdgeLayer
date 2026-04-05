@@ -62,7 +62,7 @@ describe('Settings config inspect truth rendering', () => {
       expect(screen.getByText('Config fingerprint:')).toBeTruthy()
     })
 
-    const unreadableBadges = screen.getAllByText('unreadable')
+    const unreadableBadges = screen.getAllByText(/\[unreadable\]/i)
     expect(unreadableBadges.length).toBeGreaterThan(0)
     expect(screen.getAllByText('true').length).toBeGreaterThan(0)
   })

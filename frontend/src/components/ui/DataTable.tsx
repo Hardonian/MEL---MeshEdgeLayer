@@ -72,7 +72,7 @@ export function DataTable<T>({
                   key={column.key}
                   scope="col"
                   className={clsx(
-                    'whitespace-nowrap px-3 py-2 text-left text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground',
+                    'whitespace-nowrap px-3 py-2 text-left font-mono text-mel-xs font-bold uppercase tracking-wide text-muted-foreground',
                     column.className
                   )}
                 >
