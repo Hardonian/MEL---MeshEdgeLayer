@@ -231,12 +231,12 @@ function runSimulation(
 }
 
 function nodeColor(n: TopoNode): string {
-  if (n.stale || n.health_state === 'stale') return 'hsl(38 90% 45%)'
-  if (n.health_state === 'healthy') return 'hsl(142 65% 38%)'
-  if (n.health_state === 'isolated') return 'hsl(280 50% 52%)'
-  if (n.health_state === 'degraded') return 'hsl(28 90% 48%)'
-  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(200 55% 42%)'
-  return 'hsl(210 65% 46%)'
+  if (n.stale || n.health_state === 'stale') return 'hsl(var(--state-stale))'
+  if (n.health_state === 'healthy') return 'hsl(var(--state-success))'
+  if (n.health_state === 'isolated') return 'hsl(var(--state-inferred))'
+  if (n.health_state === 'degraded') return 'hsl(var(--state-degraded))'
+  if (n.health_state === 'inferred_only' || n.health_state === 'weakly_observed') return 'hsl(var(--state-observed))'
+  return 'hsl(var(--state-normal))'
 }
 
 function nodeLabel(n: TopoNode): string {
@@ -855,14 +855,14 @@ export function Topology() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 border-b border-border/40 bg-muted/10">
-              <LegendItem color="hsl(142 65% 38%)" label="Healthy" />
-              <LegendItem color="hsl(38 90% 45%)" label="Stale" />
-              <LegendItem color="hsl(28 90% 48%)" label="Degraded" />
-              <LegendItem color="hsl(280 50% 52%)" label="Isolated" />
-              <LegendItem color="hsl(210 65% 46%)" label="Unknown" />
-              <LegendItem color="hsl(200 55% 42%)" label="Weak / inferred-only" />
-              <span className="text-[10px] text-muted-foreground ml-auto max-w-[min(100%,280px)] sm:max-w-none sm:ml-auto">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/40 bg-muted/10 px-4 py-2">
+              <LegendItem color="hsl(var(--state-success))" label="Healthy" />
+              <LegendItem color="hsl(var(--state-stale))" label="Stale" />
+              <LegendItem color="hsl(var(--state-degraded))" label="Degraded" />
+              <LegendItem color="hsl(var(--state-inferred))" label="Isolated" />
+              <LegendItem color="hsl(var(--state-normal))" label="Unknown" />
+              <LegendItem color="hsl(var(--state-observed))" label="Weak / inferred-only" />
+              <span className="ml-auto max-w-[min(100%,280px)] font-mono text-[10px] text-muted-foreground sm:ml-auto sm:max-w-none">
                 Solid line = packet-observed edge · dashed = inferred · thin = relay-dependent · double ring = newer last_seen vs your baseline
               </span>
             </div>
@@ -872,7 +872,7 @@ export function Topology() {
               role="toolbar"
               aria-label="Filter nodes in graph"
             >
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Focus</span>
               {FILTER_OPTIONS.map((f) => (
                 <button
                   key={f.id}

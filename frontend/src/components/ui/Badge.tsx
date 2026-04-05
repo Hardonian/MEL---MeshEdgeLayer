@@ -1,7 +1,21 @@
 import { ReactNode } from 'react'
 import { clsx } from 'clsx'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'critical' | 'secondary' | 'outline' | 'info'
+type BadgeVariant =
+  | 'default'
+  | 'success'
+  | 'warning'
+  | 'critical'
+  | 'secondary'
+  | 'outline'
+  | 'info'
+  | 'observed'
+  | 'inferred'
+  | 'stale'
+  | 'degraded'
+  | 'active'
+  | 'frozen'
+  | 'unsupported'
 
 interface BadgeProps {
   children: ReactNode
@@ -11,12 +25,19 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: 'border-primary/18 bg-primary/10 text-primary',
-  success: 'border-success/20 bg-success/10 text-success',
-  warning: 'border-warning/24 bg-warning/10 text-warning',
-  critical: 'border-critical/24 bg-critical/10 text-critical',
+  success: 'state-chip state-success',
+  warning: 'state-chip state-warning',
+  critical: 'state-chip state-critical',
   secondary: 'border-border/70 bg-muted/70 text-muted-foreground',
   outline: 'border-border/75 bg-card/65 text-foreground',
   info: 'border-info/20 bg-info/10 text-info',
+  observed: 'state-chip state-observed',
+  inferred: 'state-chip state-inferred',
+  stale: 'state-chip state-stale',
+  degraded: 'state-chip state-degraded',
+  active: 'state-chip state-active',
+  frozen: 'state-chip state-frozen',
+  unsupported: 'state-chip state-unsupported',
 }
 
 function BadgeDot({ className }: { className?: string }) {

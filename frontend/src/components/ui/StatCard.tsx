@@ -63,10 +63,10 @@ export function StatCard({
       <div className={clsx('absolute inset-x-0 top-0 h-px bg-gradient-to-r', variantStyle.accent)} aria-hidden />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             {title}
           </p>
-          <p className="mt-3 text-[1.9rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.15rem]">
+          <p className="mt-3 font-mono text-[1.9rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.15rem]">
             {value}
           </p>
           {description && (

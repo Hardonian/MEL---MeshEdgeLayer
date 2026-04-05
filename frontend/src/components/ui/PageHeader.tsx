@@ -26,14 +26,14 @@ export function PageHeader({
   return (
     <div
       className={clsx(
-        'mb-6 border-b border-border/60 pb-5 sm:mb-8 sm:pb-6',
+        'mb-6 rounded-2xl border border-border/60 bg-card/35 px-4 pb-5 pt-4 shadow-inset sm:mb-8 sm:px-5 sm:pb-6',
         className
       )}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <nav className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <nav className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {breadcrumbs.map((crumb, index) => (
                 <span key={`${crumb.label}-${index}`} className="flex items-center gap-2">
                   {index > 0 && <span className="text-muted-foreground/50">/</span>}
@@ -51,11 +51,11 @@ export function PageHeader({
               ))}
             </nav>
           )}
-          <h1 className="font-outfit text-[2rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.5rem]">
+          <h1 className="font-outfit text-[1.8rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[2.2rem]">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
+            <p className="mt-1 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80">
               {subtitle}
             </p>
           )}

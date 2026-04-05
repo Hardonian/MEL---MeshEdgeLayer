@@ -211,7 +211,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="min-h-screen">
+    <div className="operator-shell min-h-screen">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-panel focus:outline-none focus:ring-2 focus:ring-ring"
@@ -244,7 +244,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     Operator OS
                   </span>
                 </div>
-                <p className="mt-0.5 hidden max-w-[14rem] text-[10px] leading-snug text-muted-foreground/75 sm:block">
+                <p className="mt-0.5 hidden max-w-[14rem] font-mono text-[10px] leading-snug text-muted-foreground/75 sm:block">
                   Incident intelligence and governed control — bounded by persisted evidence.
                 </p>
               </div>
@@ -268,7 +268,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <Search className="h-3.5 w-3.5" />
               <span>Search...</span>
-              <kbd className="ml-1 rounded border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              <kbd className="operator-kbd ml-1">
                 {'\u2318'}K
               </kbd>
             </button>
@@ -302,7 +302,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div key={group.label}>
                   <div className="mb-1.5 flex items-center gap-2 px-2">
                     <group.icon className="h-3 w-3 text-muted-foreground/60" aria-hidden />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
                       {group.label}
                     </span>
                   </div>
@@ -381,7 +381,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               {!status.loading && instanceId && (
                 <div className="mt-2 px-2.5 text-[10px] text-muted-foreground/60" title={instanceId}>
-                  <span className="font-mono">{truncateMiddle(instanceId, 28)}</span>
+                  <span className="font-mono tracking-wide">{truncateMiddle(instanceId, 28)}</span>
                 </div>
               )}
             </div>
@@ -415,7 +415,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-8xl items-center gap-3 px-1 text-[10px] text-muted-foreground/50">
             {productScope && (
               <span>
-                <code className="font-mono">{productScope}</code>
+                <code className="font-mono tracking-wide">{productScope}</code>
               </span>
             )}
           </div>
@@ -433,7 +433,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 function TruthContractStrip() {
   return (
     <div
-      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
+      className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1"
       role="note"
       aria-label="Operator truth contract"
     >
