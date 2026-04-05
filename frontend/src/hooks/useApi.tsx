@@ -16,9 +16,8 @@ import type {
   ActiveMaintenanceWindow,
   ControlRealityMatrixItem,
   MeshNodeControlAction,
-  OperatorBriefingResponse,
-  OperatorBriefingPriority,
-  OperatorBriefingRecoveryStep,
+  OperatorBriefingDTO,
+  OperatorOperationalDigestDTO,
 } from '@/types/api'
 import { parseDiagnosticsFindingsFromApi, type DiagnosticsApiFinding } from '@/utils/apiResilience'
 
@@ -143,88 +142,142 @@ function parseControlHistoryJson(raw: unknown): ControlHistoryResponse {
   return { actions }
 }
 
-export function parseOperatorBriefingJson(raw: unknown): OperatorBriefingResponse {
-  if (!isRecord(raw)) {
-    return {
-      api_version: '',
-      truth_basis: [],
-      overall_status: 'unknown',
-      top_priorities: [],
-      likely_causes: [],
-      recommended_sequence: [],
-      blast_radius_estimate: '',
-      uncertainty_notes: [],
-      generated_at: '',
-    }
+export function parseOperatorDigestJson(raw: unknown): OperatorOperationalDigestDTO | null {
+  if (!isRecord(raw)) return null
+  const schema_version = raw.schema_version
+  const generated_at = raw.generated_at
+  const window_hours = raw.window_hours
+  if (typeof schema_version !== 'string' || typeof generated_at !== 'string' || typeof window_hours !== 'number') {
+    return null
   }
-  const prioritiesRaw = raw.top_priorities
-  const top_priorities: OperatorBriefingPriority[] = Array.isArray(prioritiesRaw)
-    ? prioritiesRaw
-        .map((p): OperatorBriefingPriority | null => {
-          if (!isRecord(p)) return null
-          return {
-            id: typeof p.id === 'string' ? p.id : '',
-            category: typeof p.category === 'string' ? p.category : '',
-            severity: typeof p.severity === 'string' ? p.severity : '',
-            title: typeof p.title === 'string' ? p.title : '',
-            summary: typeof p.summary === 'string' ? p.summary : '',
-            rank: typeof p.rank === 'number' ? p.rank : 0,
-            confidence: typeof p.confidence === 'number' ? p.confidence : 0,
-            evidence_freshness: typeof p.evidence_freshness === 'string' ? p.evidence_freshness : '',
-            is_actionable: p.is_actionable === true,
-            blocks_recovery: p.blocks_recovery === true,
-            resource_kind: typeof p.resource_kind === 'string' ? p.resource_kind : undefined,
-            metadata: isRecord(p.metadata) ? p.metadata : undefined,
-          }
-        })
-        .filter((x): x is OperatorBriefingPriority => x !== null)
-    : []
-
-  const seqRaw = raw.recommended_sequence
-  const recommended_sequence: OperatorBriefingRecoveryStep[] = Array.isArray(seqRaw)
-    ? seqRaw
-        .map((s): OperatorBriefingRecoveryStep | null => {
-          if (!isRecord(s)) return null
-          return {
-            stage: typeof s.stage === 'number' ? s.stage : 0,
-            action: typeof s.action === 'string' ? s.action : '',
-            justification: typeof s.justification === 'string' ? s.justification : '',
-            status: typeof s.status === 'string' ? s.status : '',
-            unsafe_early: s.unsafe_early === true,
-            dependencies: Array.isArray(s.dependencies)
-              ? s.dependencies.filter((d): d is string => typeof d === 'string')
-              : undefined,
-          }
-        })
-        .filter((x): x is OperatorBriefingRecoveryStep => x !== null)
-    : []
-
-  const truthRaw = raw.truth_basis
-  const truth_basis = Array.isArray(truthRaw)
+  const countsRaw = raw.counts
+  const winRaw = raw.window_counts
+  const refRaw = raw.references
+  if (!isRecord(countsRaw) || !isRecord(winRaw) || !isRecord(refRaw)) return null
+  const truthRaw = raw.truth_notes
+  const truth_notes = Array.isArray(truthRaw)
     ? truthRaw.filter((x): x is string => typeof x === 'string')
-    : []
+    : undefined
+  return {
+    schema_version,
+    generated_at,
+    instance_id: typeof raw.instance_id === 'string' ? raw.instance_id : undefined,
+    window_hours,
+    counts: {
+      open_incidents: typeof countsRaw.open_incidents === 'number' ? countsRaw.open_incidents : 0,
+      critical_open_incidents:
+        typeof countsRaw.critical_open_incidents === 'number' ? countsRaw.critical_open_incidents : 0,
+      high_open_incidents: typeof countsRaw.high_open_incidents === 'number' ? countsRaw.high_open_incidents : 0,
+      resolved_last_7_days:
+        typeof countsRaw.resolved_last_7_days === 'number' ? countsRaw.resolved_last_7_days : 0,
+      control_actions_total:
+        typeof countsRaw.control_actions_total === 'number' ? countsRaw.control_actions_total : 0,
+      pending_approval_actions:
+        typeof countsRaw.pending_approval_actions === 'number' ? countsRaw.pending_approval_actions : 0,
+      awaiting_executor_actions:
+        typeof countsRaw.awaiting_executor_actions === 'number' ? countsRaw.awaiting_executor_actions : 0,
+      operator_notes_total:
+        typeof countsRaw.operator_notes_total === 'number' ? countsRaw.operator_notes_total : 0,
+    },
+    window_counts: {
+      incidents_opened: typeof winRaw.incidents_opened === 'number' ? winRaw.incidents_opened : 0,
+      control_actions_created:
+        typeof winRaw.control_actions_created === 'number' ? winRaw.control_actions_created : 0,
+      operator_notes_created:
+        typeof winRaw.operator_notes_created === 'number' ? winRaw.operator_notes_created : 0,
+    },
+    references: {
+      timeline: typeof refRaw.timeline === 'string' ? refRaw.timeline : '/api/v1/timeline',
+      incidents: typeof refRaw.incidents === 'string' ? refRaw.incidents : '/api/v1/incidents',
+      control_history:
+        typeof refRaw.control_history === 'string' ? refRaw.control_history : '/api/v1/control/history',
+    },
+    truth_notes,
+  }
+}
 
+export function parseOperatorBriefingJson(raw: unknown): OperatorBriefingDTO | null {
+  if (!isRecord(raw)) return null
+  const overall_status = raw.overall_status
+  const generated_at = raw.generated_at
+  if (typeof overall_status !== 'string' || typeof generated_at !== 'string') return null
   const likelyRaw = raw.likely_causes
   const likely_causes = Array.isArray(likelyRaw)
     ? likelyRaw.filter((x): x is string => typeof x === 'string')
-    : []
-
-  const uncRaw = raw.uncertainty_notes
-  const uncertainty_notes = Array.isArray(uncRaw)
-    ? uncRaw.filter((x): x is string => typeof x === 'string')
-    : []
-
+    : undefined
+  const notesRaw = raw.uncertainty_notes
+  const uncertainty_notes = Array.isArray(notesRaw)
+    ? notesRaw.filter((x): x is string => typeof x === 'string')
+    : undefined
+  const blast_radius_estimate =
+    typeof raw.blast_radius_estimate === 'string' ? raw.blast_radius_estimate : undefined
+  const topRaw = raw.top_priorities
+  const top_priorities = Array.isArray(topRaw)
+    ? topRaw
+        .map((p) => {
+          if (!isRecord(p)) return null
+          const id = p.id
+          const category = p.category
+          const severity = p.severity
+          const title = p.title
+          const summary = p.summary
+          if (
+            typeof id !== 'string' ||
+            typeof category !== 'string' ||
+            typeof severity !== 'string' ||
+            typeof title !== 'string' ||
+            typeof summary !== 'string'
+          ) {
+            return null
+          }
+          return {
+            id,
+            category,
+            severity,
+            title,
+            summary,
+            rank: typeof p.rank === 'number' ? p.rank : 0,
+            confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+            evidence_freshness: typeof p.evidence_freshness === 'string' ? p.evidence_freshness : 'unknown',
+            is_actionable: p.is_actionable === true,
+            blocks_recovery: p.blocks_recovery === true,
+            metadata: isRecord(p.metadata) ? p.metadata : undefined,
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+    : undefined
+  const seqRaw = raw.recommended_sequence
+  const recommended_sequence = Array.isArray(seqRaw)
+    ? seqRaw
+        .map((s) => {
+          if (!isRecord(s)) return null
+          const action = s.action
+          const justification = s.justification
+          const status = s.status
+          if (typeof action !== 'string' || typeof justification !== 'string' || typeof status !== 'string') {
+            return null
+          }
+          return {
+            stage: typeof s.stage === 'number' ? s.stage : 0,
+            action,
+            justification,
+            status,
+            unsafe_early: s.unsafe_early === true,
+            dependencies: Array.isArray(s.dependencies)
+              ? s.dependencies.filter((x): x is string => typeof x === 'string')
+              : undefined,
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+    : undefined
   return {
-    api_version: typeof raw.api_version === 'string' ? raw.api_version : '',
-    truth_basis,
-    overall_status: typeof raw.overall_status === 'string' ? raw.overall_status : 'unknown',
+    overall_status,
+    generated_at,
     top_priorities,
     likely_causes,
     recommended_sequence,
-    blast_radius_estimate:
-      typeof raw.blast_radius_estimate === 'string' ? raw.blast_radius_estimate : '',
+    blast_radius_estimate,
     uncertainty_notes,
-    generated_at: typeof raw.generated_at === 'string' ? raw.generated_at : '',
   }
 }
 
@@ -353,9 +406,10 @@ interface ApiContextValue {
   diagnostics: ApiState<DiagnosticsApiFinding[]>
   refreshDiagnostics: () => Promise<void>
 
-  // Operator briefing (incidents + diagnostics rank; GET /api/v1/intelligence/briefing)
-  operatorBriefing: ApiState<OperatorBriefingResponse>
+  operatorBriefing: ApiState<OperatorBriefingDTO>
   refreshOperatorBriefing: () => Promise<void>
+  operatorDigest: ApiState<OperatorOperationalDigestDTO>
+  refreshOperatorDigest: () => Promise<void>
   
   // Global refresh
   refreshAll: () => Promise<void>
@@ -382,7 +436,13 @@ export function ApiProvider({ children }: { children: ReactNode }) {
     error: null,
     lastUpdated: null,
   })
-  const [operatorBriefing, setOperatorBriefing] = useState<ApiState<OperatorBriefingResponse>>({
+  const [operatorBriefing, setOperatorBriefing] = useState<ApiState<OperatorBriefingDTO>>({
+    data: null,
+    loading: true,
+    error: null,
+    lastUpdated: null,
+  })
+  const [operatorDigest, setOperatorDigest] = useState<ApiState<OperatorOperationalDigestDTO>>({
     data: null,
     loading: true,
     error: null,
@@ -502,17 +562,32 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`${API_BASE}/v1/intelligence/briefing`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const raw: unknown = await res.json()
-      setOperatorBriefing({
-        data: parseOperatorBriefingJson(raw),
-        loading: false,
-        error: null,
-        lastUpdated: new Date(),
-      })
+      const parsed = parseOperatorBriefingJson(raw)
+      if (!parsed) throw new Error('Invalid briefing response')
+      setOperatorBriefing({ data: parsed, loading: false, error: null, lastUpdated: new Date() })
     } catch (e) {
       setOperatorBriefing((s) => ({
         ...s,
         loading: false,
         error: e instanceof Error ? e.message : 'Failed to fetch operator briefing',
+      }))
+    }
+  }, [])
+
+  const refreshOperatorDigest = useCallback(async () => {
+    setOperatorDigest((s) => ({ ...s, loading: true, error: null }))
+    try {
+      const res = await fetch(`${API_BASE}/v1/operator/digest`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const raw: unknown = await res.json()
+      const parsed = parseOperatorDigestJson(raw)
+      if (!parsed) throw new Error('Invalid digest response')
+      setOperatorDigest({ data: parsed, loading: false, error: null, lastUpdated: new Date() })
+    } catch (e) {
+      setOperatorDigest((s) => ({
+        ...s,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Failed to fetch operational digest',
       }))
     }
   }, [])
@@ -529,8 +604,20 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshEvents(),
       refreshDiagnostics(),
       refreshOperatorBriefing(),
+      refreshOperatorDigest(),
     ])
-  }, [refreshStatus, refreshNodes, refreshMessages, refreshDeadLetters, refreshPrivacy, refreshRecommendations, refreshEvents, refreshDiagnostics, refreshOperatorBriefing])
+  }, [
+    refreshStatus,
+    refreshNodes,
+    refreshMessages,
+    refreshDeadLetters,
+    refreshPrivacy,
+    refreshRecommendations,
+    refreshEvents,
+    refreshDiagnostics,
+    refreshOperatorBriefing,
+    refreshOperatorDigest,
+  ])
 
   // Initial load
   useEffect(() => {
@@ -589,6 +676,8 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshDiagnostics,
       operatorBriefing,
       refreshOperatorBriefing,
+      operatorDigest,
+      refreshOperatorDigest,
       refreshAll,
       refreshMeta: {
         mode: refreshMode,
@@ -652,6 +741,11 @@ export function useDiagnostics() {
 export function useOperatorBriefing() {
   const { operatorBriefing, refreshOperatorBriefing } = useApi()
   return { ...operatorBriefing, refresh: refreshOperatorBriefing }
+}
+
+export function useOperatorDigest() {
+  const { operatorDigest, refreshOperatorDigest } = useApi()
+  return { ...operatorDigest, refresh: refreshOperatorDigest }
 }
 
 export function useControlStatus() {

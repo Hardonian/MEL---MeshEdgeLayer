@@ -26,6 +26,7 @@ import {
   Eye,
   Wrench,
   Crosshair,
+  ClipboardList,
 } from 'lucide-react'
 
 interface NavItem {
@@ -98,6 +99,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { label: 'Incidents', href: '/incidents', icon: AlertTriangle },
         { label: 'Control actions', href: '/control-actions', icon: Zap },
         { label: 'Planning', href: '/planning', icon: Compass },
+        {
+          label: 'Operational review',
+          href: '/operational-review',
+          icon: ClipboardList,
+        },
         {
           label: 'Recommendations',
           href: '/recommendations',
@@ -542,6 +548,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     { label: 'Nodes', href: '/nodes', keywords: 'devices mesh radio' },
     { label: 'Topology', href: '/topology', keywords: 'graph network map' },
     { label: 'Planning', href: '/planning', keywords: 'resilience playbook' },
+    { label: 'Operational review', href: '/operational-review', keywords: 'digest shift summary briefing counts' },
     { label: 'Messages', href: '/messages', keywords: 'packets traffic' },
     { label: 'Dead letters', href: '/dead-letters', keywords: 'failed errors' },
     { label: 'Incidents', href: '/incidents', keywords: 'alerts disruptions' },

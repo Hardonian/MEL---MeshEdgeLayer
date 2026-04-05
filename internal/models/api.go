@@ -887,6 +887,41 @@ type OperatorBriefingDTO struct {
 	GeneratedAt         string         `json:"generated_at"`
 }
 
+// OperatorOperationalDigestDTO is a deterministic, evidence-backed snapshot for shift review and integrations.
+// Counts are from this instance's SQLite database only — not fleet-wide or live transport proof.
+type OperatorOperationalDigestDTO struct {
+	SchemaVersion string `json:"schema_version"`
+	GeneratedAt   string `json:"generated_at"`
+	InstanceID    string `json:"instance_id"`
+
+	WindowHours int `json:"window_hours"`
+
+	Counts struct {
+		OpenIncidents           int `json:"open_incidents"`
+		CriticalOpenIncidents   int `json:"critical_open_incidents"`
+		HighOpenIncidents       int `json:"high_open_incidents"`
+		ResolvedLast7Days       int `json:"resolved_last_7_days"`
+		ControlActionsTotal     int `json:"control_actions_total"`
+		PendingApprovalActions  int `json:"pending_approval_actions"`
+		AwaitingExecutorActions int `json:"awaiting_executor_actions"`
+		OperatorNotesTotal      int `json:"operator_notes_total"`
+	} `json:"counts"`
+
+	Window struct {
+		IncidentsOpened       int `json:"incidents_opened"`
+		ControlActionsCreated int `json:"control_actions_created"`
+		OperatorNotesCreated  int `json:"operator_notes_created"`
+	} `json:"window_counts"`
+
+	References struct {
+		Timeline       string `json:"timeline"`
+		Incidents      string `json:"incidents"`
+		ControlHistory string `json:"control_history"`
+	} `json:"references"`
+
+	TruthNotes []string `json:"truth_notes,omitempty"`
+}
+
 // PriorityItem is a ranked operational problem for the API
 type PriorityItem struct {
 	ID                string         `json:"id"`
