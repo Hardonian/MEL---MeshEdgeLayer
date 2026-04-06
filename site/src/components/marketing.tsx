@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
 
 export const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -33,14 +34,17 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="container footerGrid">
           <p>
             MEL is a local-first operator OS for incident intelligence and trusted control in mesh and edge
-            environments.
+            environments. Licensed under GPLv3 — see{' '}
+            <a href={repoBlob('LICENSE')}>LICENSE</a> in the repo.
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>
             <Link href="/help">Help</Link>
             <Link href="/contribute">Contribute</Link>
             <Link href="/acknowledgements">Dependencies</Link>
-            <a href="https://github.com/mel-project/mel">GitHub</a>
+            <a href={REPO_URL}>GitHub</a>
+            <a href={REPO_ISSUES_URL}>Issues</a>
+            <a href={repoBlob('docs/getting-started/README.md')}>Docs</a>
           </div>
         </div>
       </footer>

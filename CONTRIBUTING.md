@@ -69,7 +69,7 @@ The control plane dashboard lives in `frontend/`.
 cd frontend
 nvm use # reads .nvmrc (Node 24.x required)
 npm install
-npm run dev      # Start dev server (Vite default: http://localhost:5173)
+npm run dev      # Start dev server (Vite: http://localhost:3000, proxies /api to mel)
 npm run lint     # Check styling
 npm run typecheck
 npm test         # Run vitest suite
@@ -125,5 +125,8 @@ When submitting a PR, include:
 
 **We optimize for a clean, deterministic repository.** If a change increases noise, it will be rejected in favor of a simpler, more coherent solution.
 
-MEL is licensed under the **Apache-2.0 License**.
+MEL is licensed under the **GNU General Public License v3.0**; see the [`LICENSE`](LICENSE) file in the repository root.
+
 © 2026 Hardonian / MeshEdgeLayer Contributors.
+
+**Public marketing site (`site/`):** Next.js app for orientation only (not the operator console). Verify with `make site-verify` or `cd site && npm ci && npm run lint && npm run typecheck && npm run build`. Use Node 24.x (same contract as `frontend/`).

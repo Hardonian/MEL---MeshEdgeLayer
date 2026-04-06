@@ -1,4 +1,5 @@
 import { PageHeader, Section } from '@/components/marketing';
+import { repoBlob } from '@/lib/repo';
 
 export default function AcknowledgementsPage() {
   return (
@@ -11,8 +12,11 @@ export default function AcknowledgementsPage() {
       <Section title="Built with">
         <div className="grid">
           <article className="card">
-            <h3>Go runtime and stdlib</h3>
-            <p>Core daemon and CLI prioritize deterministic Go runtime behavior with stdlib-first discipline.</p>
+            <h3>Go runtime</h3>
+            <p>
+              Daemon and CLI are Go 1.24+. Third-party modules are listed in <code>go.mod</code> (not stdlib-only — e.g.
+              SQLite via <code>modernc.org/sqlite</code>, TUI libraries for CLI surfaces).
+            </p>
           </article>
           <article className="card">
             <h3>React operator UI stack</h3>
@@ -36,10 +40,15 @@ export default function AcknowledgementsPage() {
         </p>
       </Section>
 
-      <Section title="License and openness posture">
+      <Section title="License">
         <p>
-          MEL is open source (GPL-3.0 in this repository) and contributor-facing docs are treated as first-class runtime
-          support surfaces, not afterthoughts.
+          The repository is licensed under the{' '}
+          <a href={repoBlob('LICENSE')}>GNU General Public License v3.0</a>. This public site is part of the same repo and
+          the same license applies unless a subdirectory states otherwise (it does not).
+        </p>
+        <p>
+          Canonical dependency notes:{' '}
+          <a href={repoBlob('docs/community/dependency-license-inventory.md')}>dependency-license-inventory.md</a>.
         </p>
       </Section>
     </>

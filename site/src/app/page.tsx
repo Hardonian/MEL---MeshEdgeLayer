@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PrincipleList, Section, TerminalBlock } from '@/components/marketing';
+import { REPO_URL, repoBlob } from '@/lib/repo';
 
 const principles = [
   { name: 'Evidence before narrative', detail: 'Runtime records and audit events are canonical; commentary follows evidence.' },
@@ -20,13 +21,19 @@ export default function HomePage() {
         </p>
         <div className="ctaRow">
           <Link href="/quickstart" className="btn primary">
-            Quick start in 90 seconds
+            Run MEL locally
           </Link>
           <Link href="/contribute" className="btn">
-            Contribute to MEL
+            Contribute
           </Link>
-          <a href="https://meshtastic.org/docs/introduction" className="btn">
-            Meshtastic reference
+          <a href={REPO_URL} className="btn">
+            Source
+          </a>
+          <a href={repoBlob('docs/getting-started/README.md')} className="btn">
+            Docs
+          </a>
+          <a href="https://meshtastic.org/docs/introduction" className="btn" rel="noreferrer">
+            Meshtastic docs
           </a>
         </div>
       </section>
@@ -55,7 +62,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <Section title="Field-ready capabilities">
+      <Section title="Operator console emphasis">
         <div className="grid">
           <article className="card">
             <h3>Incident timeline and queue</h3>

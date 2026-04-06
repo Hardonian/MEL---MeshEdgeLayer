@@ -1,4 +1,5 @@
 import { PageHeader, Section } from '@/components/marketing';
+import { repoBlob } from '@/lib/repo';
 
 export default function HelpPage() {
   return (
@@ -50,7 +51,12 @@ export default function HelpPage() {
         <ul>
           <li>Run `./bin/mel doctor --config ...` for host and runtime checks.</li>
           <li>Check `/api/v1/status`, `/readyz`, and `/api/v1/readyz` before assuming healthy ingest.</li>
-          <li>Use docs in `docs/ops/troubleshooting.md` and `docs/runbooks/` for targeted recovery paths.</li>
+          <li>
+            Canonical docs:{' '}
+            <a href={repoBlob('docs/ops/troubleshooting.md')}>troubleshooting</a>,{' '}
+            <a href={repoBlob('docs/runbooks/README.md')}>runbooks</a>,{' '}
+            <a href={repoBlob('docs/repo-os/terminology.md')}>terminology</a>.
+          </li>
         </ul>
       </Section>
     </>

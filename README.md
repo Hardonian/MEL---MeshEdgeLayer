@@ -120,6 +120,11 @@ Issue templates include **field report**, **hardware compatibility**, **scenario
 - **Go**: 1.24+ (see `go.mod`).
 - **Node**: 24.x for frontend targets (`.nvmrc`, `frontend/.nvmrc`). Run `. ./scripts/dev-env.sh` from repo root when using nvm.
 - **Dev container**: [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) for VS Code / Codespaces-style environments (Go + Node + Python + `sqlite3`).
+- **Public marketing site**: Next.js app in [`site/`](site/README.md) (orientation only — not the operator console). Verify with `make site-verify`.
+
+## License
+
+MEL is released under the **GNU General Public License v3.0**; see [`LICENSE`](LICENSE).
 
 ## Verification entry points
 
@@ -129,6 +134,7 @@ Use these before making release-strength claims:
 make lint
 make frontend-typecheck
 make frontend-test
+make site-typecheck
 make test
 make build
 make product-verify
@@ -141,8 +147,9 @@ make premerge-verify-fast
 Notes:
 
 - Direct frontend targets (`make frontend-install`, `make frontend-test`, etc.) fail fast unless your shell is on Node `24.x`. Use `. ./scripts/dev-env.sh` from repo root to activate Node 24 via nvm.
+- `make lint` includes operator UI (`frontend/`) and public site (`site/`) ESLint; each runs its own `npm ci` via `frontend-install` / `site-install`.
 - `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
-- `make premerge-verify` is the deterministic release-reality gate (clean frontend install + full chain). It runs a churn guard so chained verification keeps exactly one frontend `npm ci`.
+- `make premerge-verify` is the deterministic release-reality gate (clean installs + full chain). The churn guard expects exactly one `npm ci` per Node workspace (`frontend/` and `site/`).
 - `make premerge-verify-fast` is local-only iteration mode (`VERIFY_SKIP_CLEAN_INSTALL=1`); it skips clean frontend install. Do not use it for release-grade claims.
 
 Then apply the repo-os gates:

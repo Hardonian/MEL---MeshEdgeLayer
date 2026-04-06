@@ -1,4 +1,5 @@
 import { PageHeader, Section, PrincipleList } from '@/components/marketing';
+import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
 
 const contributionPrinciples = [
   { name: 'No theatre', detail: 'No fake transport support, no fake live state, no overclaiming UI language.' },
@@ -34,9 +35,21 @@ export default function ContributePage() {
 
       <Section title="Local dev workflow orientation">
         <ul>
-          <li>Start with `CONTRIBUTING.md`, `AGENTS.md`, and role paths in `docs/community/`.</li>
-          <li>Run verification chain: `make lint`, `make test`, `make build`, and `make smoke` before strong claims.</li>
-          <li>Use Node 24.x for frontend targets; use Go 1.24+ for runtime targets.</li>
+          <li>
+            Read <a href={repoBlob('CONTRIBUTING.md')}>CONTRIBUTING.md</a>,{' '}
+            <a href={repoBlob('AGENTS.md')}>AGENTS.md</a>, and{' '}
+            <a href={repoBlob('docs/community/START_HERE.md')}>docs/community/START_HERE.md</a>.
+          </li>
+          <li>
+            Before strong claims: <code>make lint</code>, <code>make test</code>, <code>make build</code>,{' '}
+            <code>make smoke</code> (see repo README verification section).
+          </li>
+          <li>
+            Node 24.x for <code>frontend/</code> and <code>site/</code>; Go 1.24+ for the daemon and CLI.
+          </li>
+          <li>
+            <a href={REPO_URL}>Repository</a> · <a href={REPO_ISSUES_URL}>Open an issue</a>
+          </li>
         </ul>
       </Section>
 

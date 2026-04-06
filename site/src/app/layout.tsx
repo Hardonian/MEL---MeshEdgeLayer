@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { SiteShell } from '@/components/marketing';
+import { getSiteOrigin } from '@/lib/site-url';
+
+const siteUrl = getSiteOrigin();
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://mel.local'),
+  metadataBase: siteUrl,
   title: {
     default: 'MEL — MeshEdgeLayer',
     template: '%s | MEL',
@@ -13,8 +16,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'MEL — MeshEdgeLayer',
     description:
-      'Truthful incident intelligence and trusted control for mesh operations. Evidence-first, local-first, privacy-first.',
+      'Truthful incident intelligence and trusted control for mesh operations. Evidence-first, local-first, explicit degraded states.',
     type: 'website',
+    url: siteUrl.href,
   },
   robots: {
     index: true,
