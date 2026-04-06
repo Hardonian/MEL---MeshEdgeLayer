@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation, matchPath } from 'react-router-dom'
+import { Link, useLocation, matchPath, useSearchParams } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
@@ -482,50 +482,76 @@ function paletteHrefMatchesLocation(href: string): boolean {
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const location = useLocation()
+  const [searchParams] = useSearchParams()
 
   const incidentMatch = matchPath({ path: '/incidents/:id', end: true }, location.pathname)
-  const incidentId = incidentMatch?.params.id
+  const pathIncidentId = incidentMatch?.params.id
+  const queryIncidentId = searchParams.get('incident')?.trim() || undefined
+  const crossSurfaceIncident =
+    location.pathname.startsWith('/planning') ||
+    location.pathname.startsWith('/control-actions') ||
+    location.pathname.startsWith('/topology')
+  const incidentId = pathIncidentId ?? (crossSurfaceIncident && queryIncidentId ? queryIncidentId : undefined)
+  const incidentGroup = pathIncidentId ? 'This incident' : 'Incident context'
 
   const contextLinks: PaletteLink[] = incidentId
     ? [
         {
-          group: 'This incident',
+          group: incidentGroup,
+          label: 'Incident detail',
+          href: `/incidents/${encodeURIComponent(incidentId)}`,
+          keywords: 'incident record summary',
+        },
+        {
+          group: incidentGroup,
           label: 'Replay / timeline',
           href: `/incidents/${encodeURIComponent(incidentId)}?replay=1`,
           keywords: 'replay timeline chronology history',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
           label: 'Operational summary (anchor)',
           href: `/incidents/${encodeURIComponent(incidentId)}#incident-operational-summary`,
           keywords: 'summary header severity state',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
           label: 'Decision pack (anchor)',
           href: `/incidents/${encodeURIComponent(incidentId)}#mel-incident-decision-pack`,
           keywords: 'decision pack adjudication guidance',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
           label: 'Handoff & export (anchor)',
           href: `/incidents/${encodeURIComponent(incidentId)}#shift-continuity-handoff`,
           keywords: 'handoff escalation continuity export json',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
           label: 'Linked control actions (anchor)',
           href: `/incidents/${encodeURIComponent(incidentId)}#linked-control-actions`,
           keywords: 'control queue approval execution linked',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
+          label: 'Investigation path (anchor)',
+          href: `/incidents/${encodeURIComponent(incidentId)}#mel-investigation-path`,
+          keywords: 'investigation path workflow',
+        },
+        {
+          group: incidentGroup,
           label: 'Topology (incident focus)',
           href: `/topology?incident=${encodeURIComponent(incidentId)}&filter=incident_focus`,
           keywords: 'topology graph map focus',
         },
         {
-          group: 'This incident',
+          group: incidentGroup,
+          label: 'Planning (same incident)',
+          href: `/planning?incident=${encodeURIComponent(incidentId)}`,
+          keywords: 'planning resilience board',
+        },
+        {
+          group: incidentGroup,
           label: 'Control queue (filtered)',
           href: `/control-actions?incident=${encodeURIComponent(incidentId)}`,
           keywords: 'approve reject pending',
