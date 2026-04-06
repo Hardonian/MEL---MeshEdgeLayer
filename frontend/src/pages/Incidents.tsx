@@ -17,6 +17,7 @@ import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadin
 import { countV2QueueRowsMissingLex } from '@/utils/incidentQueueSort'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
+import { MelPageSection, MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -150,24 +151,32 @@ function filenameFromDisposition(contentDisposition: string | null, fallback: st
   }
 }
 
-function evidenceStrengthVariant(strength: string | undefined): 'success' | 'warning' | 'secondary' {
-  if (strength === 'strong') return 'success'
-  if (strength === 'moderate') return 'warning'
-  return 'secondary'
+function evidenceStrengthTruthSemantic(strength: string | undefined): string {
+  if (strength === 'strong') return 'complete'
+  if (strength === 'moderate') return 'partial'
+  if (strength === 'sparse') return 'degraded'
+  return 'unknown'
 }
 
-function replaySemanticBadgeVariant(semantic: Incident['replay_summary'] extends infer T ? T extends { semantic?: infer U } ? U : never : never): 'warning' | 'secondary' | 'outline' {
+function replaySemanticTruthSemantic(
+  semantic: Incident['replay_summary'] extends infer T ? T extends { semantic?: infer U } ? U : never : never,
+): string {
   switch (semantic) {
     case 'active_changing':
+      return 'live'
     case 'sparse':
+      return 'degraded'
     case 'partial':
+      return 'partial'
     case 'unavailable':
-      return 'warning'
+      return 'unsupported'
     case 'cooling_off':
     case 'quiet_recently':
-      return 'secondary'
+      return 'stale'
+    case 'no_history':
+      return 'frozen'
     default:
-      return 'outline'
+      return 'unknown'
   }
 }
 
@@ -312,17 +321,17 @@ export function Incidents() {
       )}
 
       {!versionInfo.loading && (
-        <div
-          className={clsx(
-            'rounded-md border px-3 py-2.5 text-xs',
+        <MelPanelInset
+          tone={
             exportReadiness.semantic === 'available'
-              ? 'border-success/25 bg-success/5 text-muted-foreground'
+              ? 'observed'
               : exportReadiness.semantic === 'policy_limited'
-                ? 'border-critical/30 bg-critical/5 text-foreground'
+                ? 'critical'
                 : exportReadiness.semantic === 'degraded'
-                  ? 'border-warning/30 bg-warning/5 text-foreground'
-                  : 'border-warning/25 bg-warning/5 text-foreground',
-          )}
+                  ? 'degraded'
+                  : 'warning'
+          }
+          className="text-xs text-foreground"
           role="status"
           aria-live="polite"
           data-testid="workbench-export-readiness"
@@ -344,58 +353,59 @@ export function Incidents() {
               ))}
             </ul>
           )}
-        </div>
+        </MelPanelInset>
       )}
 
       {openIncidents.some((i) => i.triage_signals?.queue_ordering_contract) && (
-        <p className="text-mel-sm text-muted-foreground border border-border/40 rounded-sm px-3 py-2" data-testid="workbench-queue-contract-note">
+        <MelPanelInset className="text-mel-sm text-muted-foreground" data-testid="workbench-queue-contract-note">
           Open rows use server <span className="font-mono">triage_signals.queue_sort_key_lex</span> when present (workbench v2); otherwise{' '}
           <span className="font-mono">queue_sort_primary</span> then recency — same contract as incident detail; presentation-only toggles stay local.
-        </p>
+        </MelPanelInset>
       )}
       {v2QueueRowsMissingLex > 0 && (
-        <p className="text-mel-sm text-warning border border-warning/30 bg-warning/5 rounded-sm px-3 py-2" role="status">
+        <MelPanelInset tone="warning" className="text-mel-sm text-foreground" role="status">
           Queue ordering degraded for {v2QueueRowsMissingLex} open incident{v2QueueRowsMissingLex > 1 ? 's' : ''}: server reports
           <span className="font-mono"> open_incident_workbench_v2 </span>
           without
           <span className="font-mono"> queue_sort_key_lex</span>. MEL keeps those rows behind fully keyed rows and labels this as partial truth.
-        </p>
+        </MelPanelInset>
       )}
 
       {focusIncidentId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-info/25 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+        <MelPanelInset tone="info" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>
             Returned to workbench row <span className="font-mono text-foreground">{focusIncidentId.slice(0, 14)}…</span>
           </span>
           <button type="button" onClick={clearFocusParam} className="text-primary font-semibold hover:underline min-h-[44px] sm:min-h-0 px-1">
             Clear highlight
           </button>
-        </div>
+        </MelPanelInset>
       )}
 
       {!canHandoff && !ctx.loading && (
-        <div className="flex items-center gap-2 rounded-md border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
+        <MelPanelInset tone="info" className="flex items-center gap-2 text-xs text-muted-foreground">
           <Eye className="h-3.5 w-3.5 text-info" />
           Read-only view. Your credentials do not include incident_handoff_write.
-        </div>
+        </MelPanelInset>
       )}
 
       {/* Summary stats */}
-      <div className="flex flex-wrap gap-3">
-        <div className={clsx(
-          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em]',
-          openIncidents.length > 0 ? 'border-warning/25 bg-warning/8 text-warning' : 'border-success/20 bg-success/8 text-success'
-        )}>
-          <span className={clsx('h-1.5 w-1.5 rounded-full', openIncidents.length > 0 ? 'bg-warning' : 'bg-success')} />
-          {openIncidents.length} open
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {closedIncidents.length} resolved
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {incidents.length} total
-        </div>
-      </div>
+      <MelPanelInset className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-2">
+          <span
+            className={clsx(
+              'h-1.5 w-1.5 shrink-0 rounded-full border border-current',
+              openIncidents.length > 0 ? 'bg-signal-partial text-signal-partial' : 'bg-signal-complete text-signal-complete',
+            )}
+            aria-hidden
+          />
+          <MelTruthBadge semantic={openIncidents.length > 0 ? 'partial' : 'complete'}>
+            {openIncidents.length} open
+          </MelTruthBadge>
+        </span>
+        <MelTruthBadge semantic="stale">{closedIncidents.length} resolved</MelTruthBadge>
+        <MelTruthBadge semantic="unknown">{incidents.length} total</MelTruthBadge>
+      </MelPanelInset>
 
       {openIncidents.length === 0 ? (
         <EmptyState
@@ -409,9 +419,9 @@ export function Incidents() {
         />
       ) : (
         <div className="space-y-4">
-          <div
+          <MelPanelInset
             id="mel-incident-workbench"
-            className="rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
+            className="text-xs text-muted-foreground"
             data-testid="incident-workbench-strip"
           >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -436,17 +446,19 @@ export function Incidents() {
                 FK-linked work.
               </p>
             )}
-          </div>
+          </MelPanelInset>
 
           {needsAttention.length > 0 && (
-            <section className="space-y-3" aria-labelledby="mel-workbench-needs-heading">
-              <h2
-                id="mel-workbench-needs-heading"
-                className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-warning"
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Needs attention first
-              </h2>
+            <MelPageSection
+              id="mel-workbench-needs"
+              title={
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Needs attention first
+                </>
+              }
+              titleClassName="flex items-center gap-2 text-warning tracking-[0.2em]"
+            >
               <div className="space-y-4">
                 {needsAttention.map((inc) => (
                   <IncidentCard
@@ -462,18 +474,20 @@ export function Incidents() {
                   />
                 ))}
               </div>
-            </section>
+            </MelPageSection>
           )}
 
           {backlog.length > 0 && (
-            <section className="space-y-3" aria-labelledby="mel-workbench-backlog-heading">
-              <h2
-                id="mel-workbench-backlog-heading"
-                className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-              >
-                <Clock className="h-3.5 w-3.5" />
-                Open backlog
-              </h2>
+            <MelPageSection
+              id="mel-workbench-backlog"
+              title={
+                <>
+                  <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Open backlog
+                </>
+              }
+              titleClassName="flex items-center gap-2 text-muted-foreground tracking-[0.2em]"
+            >
               <div className="space-y-4">
                 {backlog.map((inc) => (
                   <IncidentCard
@@ -489,7 +503,7 @@ export function Incidents() {
                   />
                 ))}
               </div>
-            </section>
+            </MelPageSection>
           )}
 
           {needsAttention.length === 0 && backlog.length === 0 && openSortedFull.length > 0 && (
@@ -513,17 +527,23 @@ export function Incidents() {
       )}
 
       {closedIncidents.length > 0 && (
-        <section className="space-y-3 pt-2">
-          <h2 className="flex items-center gap-2 text-mel-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Resolved incidents
-          </h2>
+        <MelPageSection
+          id="mel-incidents-resolved"
+          className="pt-2"
+          title={
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Resolved incidents
+            </>
+          }
+          titleClassName="flex items-center gap-2 text-muted-foreground tracking-[0.2em]"
+        >
           <div className="space-y-3">
             {closedIncidents.map((inc) => (
               <IncidentCard key={inc.id} incident={inc} muted />
             ))}
           </div>
-        </section>
+        </MelPageSection>
       )}
     </div>
   )
@@ -700,9 +720,9 @@ function IncidentCard({
             {inc.state && <Badge variant={stateVariant as 'success' | 'outline'}>{inc.state}</Badge>}
             {inc.severity && <Badge variant={severityVariant as 'critical' | 'warning' | 'secondary'}>{inc.severity}</Badge>}
             {hasIntel && (
-              <Badge variant={evidenceStrengthVariant(intel.evidence_strength)}>
+              <MelTruthBadge semantic={evidenceStrengthTruthSemantic(intel.evidence_strength)}>
                 {intel.evidence_strength} evidence
-              </Badge>
+              </MelTruthBadge>
             )}
             {seenBefore && (
               <Badge variant="warning">
@@ -754,9 +774,9 @@ function IncidentCard({
               ))}
             {!muted && replay?.semantic && (
               <span title={replayTitle}>
-                <Badge variant={replaySemanticBadgeVariant(replay.semantic)}>
+                <MelTruthBadge semantic={replaySemanticTruthSemantic(replay.semantic)}>
                   {replaySemanticLabel(replay.semantic)}
-                </Badge>
+                </MelTruthBadge>
               </span>
             )}
             {pending.length > 0 && actionVis.kind !== 'references_only' && (

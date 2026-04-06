@@ -2,7 +2,8 @@ import { useStatus } from '@/hooks/useApi'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loading } from '@/components/ui/StateViews'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
+import { TransportBadge } from '@/components/ui/Badge'
+import { MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 
@@ -21,10 +22,7 @@ export function Transports() {
           title="Unable to load transports"
           description={error}
           action={
-            <button
-              onClick={refresh}
-              className="rounded-sm bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
-            >
+            <button type="button" onClick={refresh} className="button-danger">
               Retry
             </button>
           }
@@ -48,43 +46,44 @@ export function Transports() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {transports.map((transport) => {
-            let derivedState = 'Unknown';
-            let stateVariant: 'default' | 'success' | 'warning' | 'critical' | 'info' = 'default';
-            
-            const isDisconnected = transport.effective_state === 'disconnected';
-            const hbDate = transport.last_heartbeat_at ? new Date(transport.last_heartbeat_at) : null;
-            const now = new Date();
-            const heartbeatMs = hbDate ? now.getTime() - hbDate.getTime() : Infinity;
-            
+            let derivedState = 'Unknown'
+            let stateSemantic = 'unknown'
+
+            const isDisconnected = transport.effective_state === 'disconnected'
+            const hbDate = transport.last_heartbeat_at ? new Date(transport.last_heartbeat_at) : null
+            const now = new Date()
+            const heartbeatMs = hbDate ? now.getTime() - hbDate.getTime() : Infinity
+
             if (isDisconnected) {
-              derivedState = 'Disconnected';
-              stateVariant = 'critical';
+              derivedState = 'Disconnected'
+              stateSemantic = 'critical'
             } else if (transport.consecutive_timeouts > 0 || heartbeatMs > 5 * 60 * 1000) {
-              derivedState = 'Stalled';
-              stateVariant = 'warning';
+              derivedState = 'Stalled'
+              stateSemantic = 'degraded'
             } else {
-              const ingestDate = transport.last_ingest_at ? new Date(transport.last_ingest_at) : null;
-              const ingestMs = ingestDate ? now.getTime() - ingestDate.getTime() : Infinity;
+              const ingestDate = transport.last_ingest_at ? new Date(transport.last_ingest_at) : null
+              const ingestMs = ingestDate ? now.getTime() - ingestDate.getTime() : Infinity
               if (ingestMs > 5 * 60 * 1000) {
-                derivedState = 'Idle';
-                stateVariant = 'default';
+                derivedState = 'Idle'
+                stateSemantic = 'stale'
               } else {
-                derivedState = 'Active';
-                stateVariant = 'success';
+                derivedState = 'Active'
+                stateSemantic = 'live'
               }
             }
 
             return (
               <Card key={transport.name}>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <span>{transport.name}</span>
-                    <Badge variant={stateVariant}>
-                      {derivedState}
-                    </Badge>
+                  <CardTitle className="flex items-center justify-between gap-2 text-base">
+                    <span className="min-w-0 truncate">{transport.name}</span>
+                    <MelTruthBadge semantic={stateSemantic}>{derivedState}</MelTruthBadge>
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    {transport.type} transport — runtime state: {transport.runtime_state || 'unknown'}
+                  <CardDescription className="flex flex-wrap items-center gap-2 text-xs">
+                    <TransportBadge type={transport.type} />
+                    <span className="text-muted-foreground">
+                      runtime: <span className="font-mono text-foreground/90">{transport.runtime_state || 'unknown'}</span>
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -108,9 +107,9 @@ export function Transports() {
                       <span className="font-medium">{transport.last_ingest_at ? new Date(transport.last_ingest_at).toLocaleTimeString() : 'Never'}</span>
                     </div>
                     {(transport.consecutive_timeouts > 0 || transport.last_error) && (
-                      <div className="mt-2 rounded border border-critical/25 bg-critical/10 p-2 text-xs text-foreground">
+                      <MelPanelInset tone="critical" className="mt-2 text-xs text-foreground" role="status">
                         {transport.last_error || `Timeouts: ${transport.consecutive_timeouts}`}
-                      </div>
+                      </MelPanelInset>
                     )}
                   </div>
                 </CardContent>

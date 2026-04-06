@@ -10,6 +10,7 @@ import { useControlActions } from '@/hooks/useControlActions'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
+import { MelPanelInset, MelSegment, MelSegmentItem } from '@/components/ui/operator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -100,14 +101,14 @@ export function ControlActions() {
       )}
 
       {!ctx.loading && !canRead && (
-        <div className="flex items-center gap-2 rounded-md border border-info/20 bg-info/5 px-4 py-2.5 text-xs text-muted-foreground">
-          <Eye className="h-3.5 w-3.5 text-info" />
+        <MelPanelInset tone="info" className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Eye className="h-3.5 w-3.5 text-signal-observed shrink-0" aria-hidden />
           Limited visibility. Your session may lack read_actions capability.
-        </div>
+        </MelPanelInset>
       )}
 
       {incidentFromUrl && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-muted/15 px-4 py-2.5 text-sm">
+        <MelPanelInset className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Filtered to incident</span>
           <code className="font-mono text-xs bg-muted/40 px-2 py-0.5 rounded">{incidentFromUrl}</code>
           <Link
@@ -127,29 +128,22 @@ export function ControlActions() {
           >
             Open incident →
           </Link>
-        </div>
+        </MelPanelInset>
       )}
 
-      <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filter by lifecycle state">
-        <span className="mel-label text-muted-foreground">Lifecycle</span>
+      <MelSegment label="Lifecycle" radiogroupLabel="Filter by lifecycle state">
         {LIFECYCLE_FILTERS.map((f) => (
-          <button
+          <MelSegmentItem
             key={f.value || 'all'}
-            type="button"
             role="radio"
             aria-checked={filter === f.value}
             onClick={() => setFilter(f.value)}
-            className={clsx(
-              'rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              filter === f.value
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted'
-            )}
+            active={filter === f.value}
           >
             {f.label}
-          </button>
+          </MelSegmentItem>
         ))}
-      </div>
+      </MelSegment>
 
       {rows.length === 0 ? (
         <EmptyState

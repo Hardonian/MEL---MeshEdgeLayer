@@ -1,6 +1,7 @@
 import { useControlStatus, useControlHistory, useOperationalState } from '@/hooks/useApi'
 import { useOperatorContext } from '@/hooks/useOperatorContext'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
 import { Loading } from '@/components/ui/StateViews'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +13,13 @@ import { ShieldAlert, CheckCircle2, XCircle, Clock, Send, ShieldCheck, Zap, Info
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
+}
+
+function automationModeTruthSemantic(mode: string | undefined): string {
+  if (mode === 'frozen') return 'frozen'
+  if (mode === 'maintenance') return 'degraded'
+  if (mode === 'normal') return 'live'
+  return 'unknown'
 }
 
 function incidentFromAction(a: MeshNodeControlAction): string {
@@ -92,14 +100,14 @@ export function Control() {
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-muted/30 rounded-sm border border-border/50">
+                <MelPanelInset className="p-3">
                   <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Executor queue depth</div>
                   <div className="text-2xl font-bold font-mono">{status?.queue_depth || 0} / {status?.queue_capacity || 0}</div>
-                </div>
-                <div className="p-3 bg-muted/30 rounded-sm border border-border/50">
+                </MelPanelInset>
+                <MelPanelInset className="p-3">
                   <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">In-flight actions</div>
                   <div className="text-2xl font-bold font-mono">{status?.active_actions || 0}</div>
-                </div>
+                </MelPanelInset>
               </div>
             </div>
           </CardContent>
@@ -135,9 +143,9 @@ export function Control() {
             <CardTitle className="text-sm">Automation posture</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant={opState?.automation_mode === 'frozen' ? 'critical' : opState?.automation_mode === 'maintenance' ? 'warning' : 'success'}>
+            <MelTruthBadge semantic={automationModeTruthSemantic(opState?.automation_mode)}>
               {opState?.automation_mode || 'unknown'}
-            </Badge>
+            </MelTruthBadge>
           </CardContent>
         </Card>
         <Card>
@@ -224,7 +232,7 @@ export function Control() {
               const targetLine = str(ov?.target_summary) || [pa.target_node, pa.target_transport || pa.transport_name].filter(Boolean).join(' · ') || '—'
               const sod = ov?.sod_blocks_self === true
               return (
-              <div key={pa.id} className="rounded-sm border border-border/60 p-3 text-sm">
+              <MelPanelInset key={pa.id} className="p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="font-mono text-xs font-semibold">{pa.action_type || 'mesh action'}</span>
                   <code className="text-mel-xs px-1.5 py-0.5 bg-muted rounded">{pa.id}</code>
@@ -246,7 +254,7 @@ export function Control() {
                     <div><span className="text-foreground font-medium">Evidence bundle:</span> {pa.evidence_bundle_id}</div>
                   ) : null}
                 </div>
-              </div>
+              </MelPanelInset>
             )})}
           </CardContent>
         </Card>
