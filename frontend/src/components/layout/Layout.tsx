@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, matchPath, useSearchParams } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
@@ -591,7 +591,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             autoFocus
             aria-label="Command palette filter"
           />
-          <span className="text-mel-xs text-muted-foreground/40">ESC</span>
+          <span className="text-mel-xs text-muted-foreground/40">esc</span>
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (

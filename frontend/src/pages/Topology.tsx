@@ -275,11 +275,12 @@ function TopologyTruthBoundary({
 }) {
   return (
     <section
-      className="sticky top-14 z-20 mel-panel-inset border-signal-observed/30 bg-signal-observed/8"
+      className="sticky top-14 z-20"
       role="region"
       aria-label="Topology truth boundary"
       data-testid="topology-truth-boundary"
     >
+      <MelPanelInset tone="observed" className="border-signal-observed/30 bg-signal-observed/8">
       <p className="text-xs leading-relaxed text-muted-foreground">
         <span className="font-semibold text-foreground">Topology truth boundary: </span>
         observed operational context plus bounded inference from stored links.
@@ -291,6 +292,7 @@ function TopologyTruthBoundary({
           </>
         ) : null}
       </p>
+      </MelPanelInset>
     </section>
   )
 }
@@ -724,14 +726,14 @@ export function Topology() {
         </div>
       </div>
 
-      <div className="mel-panel-inset flex items-start gap-3 border-signal-observed/25 bg-signal-observed/5 p-3">
+      <MelPanelInset tone="observed" className="flex items-start gap-3 p-3">
         <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-signal-observed" aria-hidden />
         <p className="text-mel-sm leading-relaxed text-muted-foreground">
           <span className="font-semibold text-foreground">Observed vs inferred: </span>
           Solid edges reflect packet-derived fields where the API marks them observed; dashed or weak states are graph inference or stale
           visibility — not proof of end-to-end delivery or RF path.
         </p>
-      </div>
+      </MelPanelInset>
       <TopologyTruthBoundary inferredEdgeCount={inferredEdgeCount} staleEdgeCount={staleEdgeCount} />
 
       <OperatorTruthRibbon summary="Topology is a model of stored observations and inferred graph structure. It cannot certify live connectivity, routing decisions, or coverage without matching ingest evidence." />
@@ -1166,7 +1168,7 @@ function TopologyOperatorAnalysisPanel({
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {weak.length > 0 && (
-          <div className="mel-panel-inset border-border/60">
+          <MelPanelInset tone="dense">
             <p className="text-xs font-semibold text-foreground mb-1">Weaker clusters</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {weak.slice(0, 6).map((c) => (
@@ -1176,10 +1178,10 @@ function TopologyOperatorAnalysisPanel({
                 </li>
               ))}
             </ul>
-          </div>
+          </MelPanelInset>
         )}
         {staleRegs.length > 0 && (
-          <div className="mel-panel-inset border-signal-stale/30 bg-signal-stale/[0.06]">
+          <MelPanelInset tone="stale">
             <p className="text-xs font-semibold text-foreground mb-1">Stale regions</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {staleRegs.slice(0, 5).map((r, i) => (
@@ -1189,10 +1191,10 @@ function TopologyOperatorAnalysisPanel({
                 </li>
               ))}
             </ul>
-          </div>
+          </MelPanelInset>
         )}
         {bottlenecks.length > 0 && (
-          <div className="mel-panel-inset border-border/60 sm:col-span-2 lg:col-span-1">
+          <MelPanelInset tone="dense" className="sm:col-span-2 lg:col-span-1">
             <p className="text-xs font-semibold text-foreground mb-1">Bottlenecks (graph shape)</p>
             <ul className="text-mel-sm text-muted-foreground space-y-1.5 max-h-36 overflow-y-auto">
               {bottlenecks.slice(0, 6).map((b, i) => (
@@ -1201,7 +1203,7 @@ function TopologyOperatorAnalysisPanel({
                 </li>
               ))}
             </ul>
-          </div>
+          </MelPanelInset>
         )}
       </div>
       {(isolated.length > 0 || bridges.length > 0) && (
@@ -1618,7 +1620,9 @@ function MapGoogleBasemap({
         Third-party map: your browser loads Google Maps. Key is delivered to this session from the MEL API — restrict the key by HTTP referrer and
         treat remote/unauthenticated exposure as a credential leak risk.
       </p>
-      <div ref={containerRef} className="w-full h-[280px] rounded-md border border-border/60 overflow-hidden bg-muted/20" />
+      <MelPanelInset tone="dense" className="h-[280px] w-full overflow-hidden bg-muted/20 p-0">
+        <div ref={containerRef} className="h-full w-full" />
+      </MelPanelInset>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { CopyButton } from '@/components/ui/CopyButton'
 import { Recommendation } from '@/types/api'
 import { Lightbulb, ArrowRight, Zap, Settings, AlertTriangle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
+import { MelPanelInset } from '@/components/ui/operator'
 
 
 export function Recommendations() {

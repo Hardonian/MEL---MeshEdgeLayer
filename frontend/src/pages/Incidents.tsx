@@ -17,7 +17,7 @@ import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadin
 import { countV2QueueRowsMissingLex } from '@/utils/incidentQueueSort'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
-import { MelPageSection, MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
+import { MelPageSection, MelPanel, MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -808,8 +808,9 @@ function IncidentCard({
         )}
 
         {!muted && actionVis.explanation && actionVis.kind !== 'linked_observed' && (
-          <div
-            className="rounded-sm border border-border/40 bg-background/40 px-3 py-2 text-mel-sm text-muted-foreground"
+          <MelPanelInset
+            tone="default"
+            className="border-border/40 bg-background/40 text-mel-sm text-muted-foreground"
             data-testid="incident-workbench-action-visibility"
             role="status"
           >
@@ -826,7 +827,7 @@ function IncidentCard({
                 </Link>
               </>
             )}
-          </div>
+          </MelPanelInset>
         )}
 
         {inc.summary && (
@@ -834,45 +835,45 @@ function IncidentCard({
         )}
 
         {!muted && (
-          <div className="flex flex-wrap gap-2" role="navigation" aria-label="Incident shortcuts">
+          <div className="surface-toolbar flex flex-wrap gap-2 px-2 py-2" role="navigation" aria-label="Incident shortcuts">
             <Link
               to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}#mel-investigation-path`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Compass className="h-3 w-3 shrink-0" aria-hidden />
               Path
             </Link>
             <Link
               to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(workbenchReturn)}&replay=1`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Activity className="h-3 w-3 shrink-0" aria-hidden />
               Replay
             </Link>
             <Link
               to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <GitBranch className="h-3 w-3 shrink-0" aria-hidden />
               Topology{topoNum != null ? ` ${topoNum}` : ''}
             </Link>
             <Link
               to={`/planning?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <ClipboardList className="h-3 w-3 shrink-0" aria-hidden />
               Planning
             </Link>
             <Link
               to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(incidentDetailReturnPath)}`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Zap className="h-3 w-3 shrink-0" aria-hidden />
               Controls
             </Link>
             <Link
               to={`${incidentDetailReturnPath}#shift-continuity-handoff`}
-              className="inline-flex items-center gap-1 rounded-sm border border-border/60 bg-card/50 px-2.5 py-2 text-mel-sm font-semibold text-primary hover:bg-muted/40 min-h-[44px] sm:min-h-0 touch-manipulation"
+              className="inline-flex items-center gap-1 mel-segment-item mel-segment-item-inactive px-2.5 py-2 text-mel-sm font-semibold text-primary min-h-[44px] sm:min-h-0 touch-manipulation"
             >
               <Download className="h-3 w-3 shrink-0" aria-hidden />
               Handoff / export
@@ -899,14 +900,14 @@ function IncidentCard({
         )}
 
         {inc.reopened_from_incident_id && (
-          <div className="rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+          <MelPanelInset tone="warning" className="text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Reopened</span>
             {inc.reopened_at && <span> · {formatRelativeTime(inc.reopened_at)}</span>}
             {' — '}
             <Link to={`/incidents/${encodeURIComponent(inc.reopened_from_incident_id)}`} className="font-mono text-primary hover:underline">
               prior {inc.reopened_from_incident_id.slice(0, 12)}…
             </Link>
-          </div>
+          </MelPanelInset>
         )}
 
         {/* Quick intelligence snapshot — always visible */}
@@ -931,7 +932,7 @@ function IncidentCard({
               )}
             </div>
             {(intel.sparsity_markers?.length ?? 0) > 0 && (
-              <div className="rounded-sm border border-border/50 bg-muted/20 px-3 py-2 text-xs">
+              <MelPanelInset tone="default" className="bg-muted/20 text-xs">
                 <p className="font-medium text-foreground">Intelligence limited by available evidence</p>
                 <p className="mt-0.5 text-muted-foreground">
                   Sparse signals — treat similarity and outcome memory as weakly supported until more evidence arrives.
@@ -941,7 +942,7 @@ function IncidentCard({
                     <li key={m}>{sparsityMarkerLabel(m)}</li>
                   ))}
                 </ul>
-              </div>
+              </MelPanelInset>
             )}
           </div>
         )}
@@ -960,12 +961,15 @@ function IncidentCard({
           <div className="space-y-4 animate-fade-in">
             {/* Handoff summary */}
             <DetailSection title="Handoff summary" icon={<FileText className="h-3.5 w-3.5" />}>
-              <div className={clsx(
-                'rounded-sm border px-3 py-2 text-sm',
-                hasHandoffText ? 'border-border/60 bg-card/50 text-foreground' : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground'
-              )}>
+              <MelPanelInset
+                tone={hasHandoffText ? 'dense' : 'default'}
+                className={clsx(
+                  'py-2 text-sm',
+                  hasHandoffText ? 'text-foreground' : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground',
+                )}
+              >
                 {hasHandoffText ? inc.handoff_summary : 'No handoff summary recorded.'}
-              </div>
+              </MelPanelInset>
             </DetailSection>
 
             {/* Proofpack export */}
@@ -985,9 +989,10 @@ function IncidentCard({
               <DetailSection title="Referenced action IDs" icon={<Zap className="h-3.5 w-3.5" />}>
                 <div className="flex flex-wrap gap-2">
                   {pending.map((id) => (
-                    <div
+                    <MelPanelInset
                       key={id}
-                      className="flex items-center gap-2 rounded-sm border border-border/60 bg-card/50 px-2.5 py-1.5"
+                      tone="dense"
+                      className="flex items-center gap-2 py-1.5"
                     >
                       <code className="text-xs">{id.slice(0, 16)}...</code>
                       <button
@@ -998,7 +1003,7 @@ function IncidentCard({
                       >
                         <ClipboardCopy className="h-3 w-3" />
                       </button>
-                    </div>
+                    </MelPanelInset>
                   ))}
                 </div>
                 <Link to="/control-actions" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
@@ -1009,7 +1014,7 @@ function IncidentCard({
 
             {/* Intelligence deep dive */}
             {hasIntel && (
-              <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+              <MelPanel muted className="space-y-3 p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   <Eye className="h-3.5 w-3.5" />
                   Incident intelligence
@@ -1020,12 +1025,12 @@ function IncidentCard({
                   <DetailSection title="Similar prior incidents" icon={<Link2 className="h-3.5 w-3.5" />}>
                     <div className="space-y-1.5">
                       {intel.similar_incidents!.map((s) => (
-                        <div key={s.incident_id} className="flex items-center gap-3 rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                        <MelPanelInset key={s.incident_id} tone="dense" className="flex items-center gap-3 text-xs">
                           <span className="font-mono text-muted-foreground">{s.incident_id.slice(0, 12)}</span>
                           {s.title && <span className="flex-1 truncate text-foreground">{s.title}</span>}
                           {s.state && <Badge variant={s.state === 'resolved' ? 'success' : 'secondary'}>{s.state}</Badge>}
                           {s.occurred_at && <span className="text-muted-foreground/60">{formatRelativeTime(s.occurred_at)}</span>}
-                        </div>
+                        </MelPanelInset>
                       ))}
                     </div>
                   </DetailSection>
@@ -1059,10 +1064,10 @@ function IncidentCard({
                         <EvidenceGapBanner gaps={intel.wireless_context.evidence_gaps!.slice(0, 3)} />
                       )}
                       {(intel.wireless_context.unsupported?.length ?? 0) > 0 && (
-                        <div className="rounded-sm border border-border/60 bg-muted/20 px-3 py-2 text-muted-foreground">
+                        <MelPanelInset tone="default" className="bg-muted/20 text-muted-foreground">
                           <span className="font-medium text-foreground">Unsupported scope:</span>{' '}
                           {intel.wireless_context.unsupported!.map((u) => `${u.domain} ${u.scope}`).join(', ')}
-                        </div>
+                        </MelPanelInset>
                       )}
                     </div>
                   </DetailSection>
@@ -1073,10 +1078,10 @@ function IncidentCard({
                   <DetailSection title="Investigate next" icon={<HelpCircle className="h-3.5 w-3.5" />}>
                     <div className="space-y-1.5">
                       {intel.investigate_next!.slice(0, 3).map((g) => (
-                        <div key={g.id} className="rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs">
+                        <MelPanelInset key={g.id} tone="dense" className="text-xs">
                           <p className="font-medium text-foreground">{g.title}</p>
                           <p className="mt-0.5 text-muted-foreground">{g.rationale}</p>
-                        </div>
+                        </MelPanelInset>
                       ))}
                     </div>
                   </DetailSection>
@@ -1090,7 +1095,7 @@ function IncidentCard({
                     </p>
                     <div className="space-y-2">
                       {intel.action_outcome_memory!.map((m) => (
-                        <div key={m.action_type} className="rounded-sm border border-border/50 bg-card/40 p-3 text-xs">
+                        <MelPanelInset key={m.action_type} tone="dense" className="p-3 text-xs">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-medium text-foreground">{m.action_label || m.action_type}</span>
                             <Badge variant="outline">n={m.sample_size}</Badge>
@@ -1113,7 +1118,7 @@ function IncidentCard({
                           {(m.caveats?.length ?? 0) > 0 && (
                             <EvidenceGapBanner gaps={m.caveats!} label="Caveat" />
                           )}
-                        </div>
+                        </MelPanelInset>
                       ))}
                     </div>
                   </DetailSection>
@@ -1141,9 +1146,9 @@ function IncidentCard({
 
                 {/* Degraded intelligence warning */}
                 {intel.degraded && (
-                  <div className="rounded-sm border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs">
+                  <MelPanelInset tone="warning" className="py-2.5 text-xs">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
                       <div>
                         <p className="font-medium text-foreground">
                           Intelligence limited by available evidence
@@ -1163,7 +1168,7 @@ function IncidentCard({
                         )}
                       </div>
                     </div>
-                  </div>
+                  </MelPanelInset>
                 )}
 
                 {intel.generated_at && (
@@ -1171,7 +1176,7 @@ function IncidentCard({
                     Intelligence generated {formatTimestamp(intel.generated_at)}
                   </p>
                 )}
-              </div>
+              </MelPanel>
             )}
 
             {/* Metadata row */}
@@ -1210,9 +1215,9 @@ function DetailSection({
 
 function EvidenceGapBanner({ gaps, label = 'Evidence gap' }: { gaps: string[]; label?: string }) {
   return (
-    <div className="rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+    <MelPanelInset tone="warning" className="text-xs text-muted-foreground">
       <span className="font-medium text-foreground">{label}:</span>{' '}
       {gaps.join(', ')}
-    </div>
+    </MelPanelInset>
   )
 }

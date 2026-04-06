@@ -99,10 +99,20 @@ export function MelPanel({
 }
 
 const insetToneClasses: Record<
-  'default' | 'observed' | 'degraded' | 'critical' | 'info' | 'warning' | 'stale',
+  | 'default'
+  | 'dense'
+  | 'observed'
+  | 'degraded'
+  | 'critical'
+  | 'info'
+  | 'warning'
+  | 'stale',
   string
 > = {
+  /** Default inset — muted panel */
   default: 'border-border/80 bg-muted/25',
+  /** Dense list / metadata row — matches console list chrome */
+  dense: 'border-border/50 bg-card/40',
   observed: 'border-signal-observed/25 bg-signal-observed/5',
   degraded: 'border-signal-degraded/30 bg-signal-degraded/[0.06]',
   critical: 'border-signal-critical/30 bg-signal-critical/[0.06]',

@@ -90,8 +90,9 @@ export function Nodes() {
           title="Total Nodes"
           value={nodes.length}
           description="Devices observed on the mesh"
-          icon={<Radio className="h-5 w-5" />}
+          icon={<Radio className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Recently Active"
@@ -102,15 +103,17 @@ export function Nodes() {
             return lastSeen > hourAgo
           }).length}
           description="Active in the last hour"
-          icon={<Clock className="h-5 w-5" />}
+          icon={<Clock className="h-4 w-4" />}
           variant="success"
+          rhythm="console"
         />
         <StatCard
           title="Known Gateways"
           value={new Set(nodes.filter((n) => n.last_gateway_id).map((n) => n.last_gateway_id)).size}
           description="Unique gateway nodes"
-          icon={<MapPin className="h-5 w-5" />}
+          icon={<MapPin className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
       </div>
 

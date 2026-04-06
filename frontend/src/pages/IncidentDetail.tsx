@@ -685,7 +685,7 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
+        <div className="surface-toolbar flex flex-wrap gap-2 px-2 py-2 border-border/60">
           <Link
             to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}&replay=1`}
             className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium"
@@ -773,9 +773,9 @@ function ProofpackButton({
   return (
     <div className="flex flex-col gap-1.5">
       {exportBlocked && (
-        <p className="text-xs text-warning border border-warning/25 rounded-sm px-2 py-1.5 bg-warning/5" role="status">
+        <MelPanelInset tone="warning" className="text-xs" role="status">
           {exportBlockedReason || 'Evidence export disabled or unavailable — proofpack request would likely fail.'}
-        </p>
+        </MelPanelInset>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -908,15 +908,15 @@ function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo:
         </MelPanelInset>
       )}
       {ctrlData == null && canReadActions && (
-        <p className="text-xs text-muted-foreground border border-border/40 rounded-sm px-2 py-1.5">
+        <MelPanelInset tone="default" className="text-xs text-muted-foreground">
           Control capability matrix not loaded — reversibility and advisory cues may be incomplete until status returns.
-        </p>
+        </MelPanelInset>
       )}
       {matrixCoverage > 0 && (
-        <p className="text-xs text-warning border border-warning/20 rounded-sm px-2 py-1.5 bg-warning/5">
+        <MelPanelInset tone="warning" className="text-xs">
           {matrixCoverage} linked action type{matrixCoverage > 1 ? 's' : ''} report no actuator on this instance — execution may be
           blocked by capability, not only approval.
-        </p>
+        </MelPanelInset>
       )}
       {linked.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -1123,7 +1123,7 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
           <ul className="space-y-0.5">
             {allGaps.slice(0, 6).map((g, i) => (
               <li key={i} className="flex items-start gap-1.5 text-muted-foreground">
-                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-warning" />
+                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-warning" aria-hidden />
                 {g}
               </li>
             ))}
@@ -2845,15 +2845,15 @@ export function IncidentDetail() {
           <button
             type="button"
             onClick={handleReplayOpen}
-            className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-2 surface-toolbar px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors"
           >
             <GitBranch className="h-4 w-4" />
             Load incident replay / timeline
           </button>
         ) : replayLoading ? (
-          <div className="rounded-md border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
+          <MelPanelInset tone="default" className="bg-muted/10 p-4 text-sm text-muted-foreground">
             Assembling replay…
-          </div>
+          </MelPanelInset>
         ) : replayError ? (
           <AlertCard variant="warning" title="Replay unavailable" description={replayError} />
         ) : replay ? (
@@ -2869,7 +2869,7 @@ export function IncidentDetail() {
 
       {/* Recommendation outcomes (from replay) */}
       {replay && (replay.recommendation_outcomes?.length ?? 0) > 0 && !outcomesInTimeline && (
-        <div className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3">
+        <MelPanel muted className="space-y-3 p-4">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Recommendation outcomes recorded
@@ -2885,7 +2885,7 @@ export function IncidentDetail() {
               </MelDenseRow>
             ))}
           </div>
-        </div>
+        </MelPanel>
       )}
     </div>
   )

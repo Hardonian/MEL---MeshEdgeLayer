@@ -924,28 +924,31 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* KPI cards */}
+      {/* Workbench signals — chrome-weight strip */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 stagger-children">
         <StatCard
           title="Connection"
           value={connectedTransport ? 'Connected' : 'Disconnected'}
           description={connectedTransport ? connectedTransport.name : 'No active transport'}
-          icon={connectedTransport ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+          icon={connectedTransport ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
           variant={connectedTransport ? 'success' : 'warning'}
+          rhythm="console"
         />
         <StatCard
           title="Nodes"
           value={nodes.data?.length || 0}
           description={nodes.data?.length === 0 ? 'Awaiting mesh observations' : 'Mesh devices detected'}
-          icon={<Radio className="h-5 w-5" />}
+          icon={<Radio className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Messages"
           value={messagesData?.length || status.data?.messages || 0}
           description="Runtime message count"
-          icon={<MessageSquare className="h-5 w-5" />}
+          icon={<MessageSquare className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
         <StatCard
           title="Transport health"
@@ -959,8 +962,9 @@ export function Dashboard() {
                   ? `${unhealthyTransports} unhealthy`
                   : 'All transports healthy'
           }
-          icon={<TrendingUp className="h-5 w-5" />}
+          icon={<TrendingUp className="h-4 w-4" />}
           variant={healthyTransports === totalTransports && hasTransports ? 'success' : healthyTransports > 0 ? 'warning' : 'default'}
+          rhythm="console"
         />
       </div>
 
