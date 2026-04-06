@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import {
+  MelDenseRow,
   MelPanelInset,
+  MelPanelSection,
   MelPageSection,
   MelSegment,
   MelSegmentItem,
@@ -55,5 +57,26 @@ describe('MelSurfaces', () => {
     const { container } = render(<MelTruthBadge semantic="complete">OK</MelTruthBadge>)
     const badge = container.querySelector('.border-signal-complete\\/35')
     expect(badge).toBeTruthy()
+  })
+
+  it('MelPanelSection renders chrome title and body region', () => {
+    render(
+      <MelPanelSection heading="Panel title" description="Helper" data-testid="mps">
+        <p>inner</p>
+      </MelPanelSection>,
+    )
+    expect(screen.getByText('Panel title')).toBeTruthy()
+    expect(screen.getByText('Helper')).toBeTruthy()
+    expect(screen.getByText('inner')).toBeTruthy()
+  })
+
+  it('MelDenseRow applies warning tone classes', () => {
+    render(
+      <MelDenseRow tone="warning" data-testid="row">
+        x
+      </MelDenseRow>,
+    )
+    const el = screen.getByTestId('row')
+    expect(el.className).toContain('border-signal-partial')
   })
 })
