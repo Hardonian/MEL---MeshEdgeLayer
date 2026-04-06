@@ -1,7 +1,8 @@
 import { useMessages } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MelPanel, MelPanelInset } from '@/components/ui/operator'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -20,12 +21,12 @@ export function Messages() {
           title="Messages"
           description="Recent mesh message observations captured by your transports."
         />
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Messages</CardTitle>
-            <CardDescription>Messages observed on the mesh</CardDescription>
+        <MelPanel className="overflow-hidden">
+          <CardHeader className="px-4 pt-4">
+            <CardTitle>Recent messages</CardTitle>
+            <CardDescription>Observations from connected ingest paths</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4">
             <DataTable<Message>
               data={[]}
               columns={[
@@ -40,7 +41,7 @@ export function Messages() {
               isLoading={true}
             />
           </CardContent>
-        </Card>
+        </MelPanel>
       </div>
     )
   }
@@ -53,10 +54,7 @@ export function Messages() {
           title="Unable to load messages"
           description={error}
           action={
-            <button
-              onClick={refresh}
-              className="rounded-sm bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
-            >
+            <button type="button" onClick={refresh} className="button-danger">
               Retry
             </button>
           }
@@ -74,7 +72,7 @@ export function Messages() {
     <div className="space-y-6">
       <PageHeader
         title="Messages"
-        description="Recent mesh message observations captured by your transports."
+        description="Observations from ingest on this instance. The list is a bounded window of stored packets, not a live stream or routing proof."
       />
 
       {/* Stats */}
@@ -106,23 +104,25 @@ export function Messages() {
         />
       </div>
 
-      {/* Messages Table */}
-      <Card>
-        <CardHeader className="pb-4">
+      <MelPanelInset className="text-mel-sm text-muted-foreground" role="note">
+        Counts and rows reflect what this gateway persisted — not proof of current RF path or delivery beyond ingest evidence.
+      </MelPanelInset>
+
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="pb-4 px-4 pt-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Recent Messages</CardTitle>
+              <CardTitle>Recent messages</CardTitle>
               <CardDescription>
-                {messages.length > 0 
-                  ? `Last ${messages.length} messages observed on the mesh`
-                  : 'Messages observed on the mesh'
-                }
+                {messages.length > 0
+                  ? `Showing ${messages.length} stored observation${messages.length === 1 ? '' : 's'} (windowed list)`
+                  : 'No observations in this view yet'}
               </CardDescription>
             </div>
-            <Badge variant="outline">{messages.length} messages</Badge>
+            <Badge variant="outline">{messages.length} in view</Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           {messages.length === 0 ? (
             <NoMessagesYet />
           ) : (
@@ -195,7 +195,7 @@ export function Messages() {
             />
           )}
         </CardContent>
-      </Card>
+      </MelPanel>
     </div>
   )
 }

@@ -1,14 +1,15 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useEvents } from '@/hooks/useApi'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
+import { MelPanel, MelSegment, MelSegmentItem } from '@/components/ui/operator'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatRelativeTime, AuditLog } from '@/types/api'
-import { ScrollText, AlertTriangle, AlertCircle, FileText, Clock, RefreshCw, Filter } from 'lucide-react'
+import { ScrollText, AlertTriangle, AlertCircle, FileText, Clock, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const LEVEL_FILTERS = ['all', 'error', 'warning', 'info', 'debug'] as const
@@ -66,7 +67,7 @@ export function Events() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Events"
-          description="System audit logs. Track what happens in your MEL instance over time."
+          description="Audit log for this MEL instance. Entries reflect persisted records, not proof of live mesh or transport state."
         />
         <button onClick={refresh} className="button-secondary">
           <RefreshCw className="h-4 w-4" />
@@ -105,30 +106,22 @@ export function Events() {
         />
       </div>
 
-      {/* Level filter */}
-      <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filter by level">
-        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+      <MelSegment label="Level" radiogroupLabel="Filter events by log level">
         {LEVEL_FILTERS.map((level) => (
-          <button
+          <MelSegmentItem
             key={level}
-            type="button"
             role="radio"
             aria-checked={levelFilter === level}
             onClick={() => setLevelFilter(level)}
-            className={clsx(
-              'rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              levelFilter === level
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted'
-            )}
+            active={levelFilter === level}
           >
-            {level === 'all' ? `All (${events.length})` : `${level} (${events.filter(e => e.level?.toLowerCase() === level).length})`}
-          </button>
+            {level === 'all' ? `All (${events.length})` : `${level} (${events.filter((e) => e.level?.toLowerCase() === level).length})`}
+          </MelSegmentItem>
         ))}
-      </div>
+      </MelSegment>
 
-      <Card>
-        <CardHeader className="border-b border-border/50 pb-3">
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-3 px-4 pt-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-[14px]">
               {levelFilter === 'all' ? 'All events' : `${levelFilter} events`}
@@ -136,13 +129,13 @@ export function Events() {
             <Badge variant="outline">{filtered.length} shown</Badge>
           </div>
         </CardHeader>
-        <CardContent className="pt-3">
+        <CardContent className="pt-3 px-4 pb-4">
           {filtered.length === 0 ? (
             <EmptyState
               type="no-data"
               title="No events match"
               description={events.length === 0
-                ? 'No audit logs have been recorded yet. Events appear as MEL processes mesh data.'
+                ? 'No audit rows in the database for this view yet. New entries appear as the instance records activity.'
                 : `No ${levelFilter}-level events in current data.`
               }
             />
@@ -154,7 +147,7 @@ export function Events() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </MelPanel>
     </div>
   )
 }
