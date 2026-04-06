@@ -50,7 +50,7 @@ make check-frontend-install-churn
 if [[ "${VERIFY_SKIP_CLEAN_INSTALL:-0}" == "1" ]]; then
   echo "[verify-release-local] Running FAST local-only verification sequence (VERIFY_SKIP_CLEAN_INSTALL=1)"
   ./scripts/repo-os-reality-check.sh
-  make product-verify frontend-verify-fast test build-cli smoke
+  make product-verify frontend-verify-fast site-verify-fast test build-cli smoke
   pass "FAST local-only verification completed (not release-grade; skipped clean frontend install)"
   exit 0
 fi

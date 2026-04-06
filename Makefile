@@ -8,11 +8,12 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
+RELEASE_VERIFY_TARGETS := product-verify frontend-verify site-verify test build-cli smoke
 
 .PHONY: fmt vet lint test build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
 	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
+	site-node-contract site-install site-lint site-typecheck site-build site-verify site-verify-fast \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
 
 fmt:
@@ -40,14 +41,43 @@ frontend-verify: frontend-lint frontend-typecheck frontend-test
 
 # Fast local-only frontend verification: skips clean install and expects deps already present.
 # Verification chain (truthful scope):
-#   - make lint          → go vet + frontend lint (frontend-install)
+#   - make lint          → go vet + frontend lint + public site lint (each npm project: own npm ci)
 #   - make test          → Go tests only
 #   - make frontend-verify / frontend-verify-fast → ESLint + tsc + vitest (install vs no-install)
+#   - make site-verify / site-verify-fast → public Next.js site: ESLint + tsc + production build
 #   - make build         → frontend build + copies dist → internal/web/assets/ + Go mel binary
 #   - make mel-cli-go    → Go binary only; uses committed embedded assets (no npm)
 #   - make smoke         → scripts/smoke.sh (needs ./bin/mel from build-cli/build)
-#   - make premerge-verify → scripts/verify-release-local.sh (release-grade: clean npm ci once + full chain)
+#   - make premerge-verify → scripts/verify-release-local.sh (release-grade: chained verification incl. frontend + site npm ci)
 #   - make premerge-verify-fast → same script with VERIFY_SKIP_CLEAN_INSTALL=1 (iteration only; not release-grade)
+site-node-contract:
+	./scripts/require-node24.sh --context "make site-*"
+
+site-install: site-node-contract
+	cd site && npm ci
+
+site-lint: site-install
+	cd site && npm run lint
+
+site-typecheck: site-install
+	cd site && npm run typecheck
+
+site-build: site-install
+	cd site && npm run build
+
+site-verify: site-lint site-typecheck site-build
+
+site-lint-fast: site-node-contract
+	cd site && npm run lint
+
+site-typecheck-fast: site-node-contract
+	cd site && npm run typecheck
+
+site-build-fast: site-node-contract
+	cd site && npm run build
+
+site-verify-fast: site-lint-fast site-typecheck-fast site-build-fast
+
 frontend-lint-fast: frontend-node-contract
 	cd frontend && npm run lint
 
@@ -61,7 +91,7 @@ frontend-verify-fast: frontend-lint-fast frontend-typecheck-fast frontend-test-f
 
 # gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
-lint: vet frontend-lint
+lint: vet frontend-lint site-lint
 
 test:
 	$(GO) test ./...

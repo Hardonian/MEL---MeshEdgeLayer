@@ -216,12 +216,13 @@ Minimum bar:
 ### Toolchain versions
 
 - **Go 1.24+** is required (`go.mod` specifies `go 1.24`). The VM update script installs it to `/usr/local/go`. The Makefile automatically prefers `/usr/local/go/bin/go` when present.
-- **Node.js 24.x** is required (enforced by `.nvmrc` and guard scripts in `scripts/require-node24.sh` and `frontend/scripts/require-node24.mjs`). The update script installs it via nvm. You must source nvm before running any Node/frontend commands: `. "$HOME/.nvm/nvm.sh" && nvm use 24`.
+- **Node.js 24.x** is required (enforced by `.nvmrc` and guard scripts in `scripts/require-node24.sh` and `frontend/scripts/require-node24.mjs`). The update script installs it via nvm. You must source nvm before running any Node/frontend or `site/` commands: `. "$HOME/.nvm/nvm.sh" && nvm use 24`.
 
 ### Running services
 
 - **Backend (`mel serve`)**: After `make build`, run `./bin/mel serve --config configs/mel.generated.json`. Serves API + embedded web UI on port 8080. Config file must have `chmod 600` permissions.
 - **Frontend dev server**: `cd frontend && npm run dev` starts Vite on port 3000, proxying `/api` to `127.0.0.1:8080`. Requires the backend to be running.
+- **Public site dev server**: `cd site && npm run dev` starts Next.js (default port 3000; stop other listeners on that port first). Orientation pages only, not the operator console.
 - **Config initialization**: `./bin/mel init --config .tmp/mel.json --force` creates a fresh config. Then `chmod 600` the generated config before `mel serve`.
 - **Demo data**: `./bin/mel demo seed --scenario healthy-private-mesh --config configs/mel.generated.json --force` seeds realistic mesh data for UI testing.
 
@@ -229,9 +230,10 @@ Minimum bar:
 
 | Command | What it does |
 |---|---|
-| `make lint` | Go vet + frontend ESLint |
+| `make lint` | Go vet + `frontend/` ESLint + `site/` ESLint |
 | `make test` | Go tests (`go test ./...`) |
 | `make frontend-test-fast` | Frontend Vitest (skips clean install) |
+| `make site-verify` | Public site: `npm ci` + ESLint + `tsc` + `next build` |
 | `make build` | Frontend build + Go binary compilation |
 | `make smoke` | End-to-end smoke tests (requires built binary) |
 
