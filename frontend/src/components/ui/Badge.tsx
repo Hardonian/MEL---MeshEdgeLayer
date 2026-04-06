@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { clsx } from 'clsx'
 
-type BadgeVariant =
+export type BadgeVariant =
   | 'default'
   | 'success'
   | 'warning'
@@ -17,6 +17,7 @@ type BadgeVariant =
   | 'unsupported'
   | 'degraded'
   | 'partial'
+  | 'complete'
 
 interface BadgeProps {
   children: ReactNode
@@ -39,6 +40,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   unsupported: 'border-signal-unsupported/40 text-signal-unsupported bg-signal-unsupported/8',
   degraded: 'border-signal-degraded/35 text-signal-degraded bg-signal-degraded/8',
   partial: 'border-signal-partial/35 text-signal-partial bg-signal-partial/8',
+  complete: 'border-signal-complete/35 text-signal-complete bg-signal-complete/8',
 }
 
 function BadgeDot({ className }: { className?: string }) {

@@ -92,6 +92,7 @@ export default {
           frozen: "hsl(var(--signal-frozen))",
           unsupported: "hsl(var(--signal-unsupported))",
           complete: "hsl(var(--signal-complete))",
+          partial: "hsl(var(--signal-partial))",
         },
       },
       borderRadius: {

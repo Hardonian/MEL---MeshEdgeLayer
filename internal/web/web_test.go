@@ -672,7 +672,9 @@ func newTestServer(t *testing.T, health []transport.Health, seed func(*db.DB), b
 	return New(cfg, logging.New("info", false), database, meshstate.New(), events.New(),
 		func() []transport.Health { return health },
 		func() []policy.Recommendation { return nil },
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil,
+		operatorBriefing,
+		nil,
 		func() investigation.Summary { return investigation.Summary{} })
 }
 

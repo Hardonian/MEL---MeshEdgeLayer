@@ -11,7 +11,7 @@ describe('OperatorTruthRibbon', () => {
       </MemoryRouter>,
     )
     expect(screen.getByText(/Test truth line/)).toBeTruthy()
-    const link = screen.getByRole('link', { name: /Runtime posture/i })
+    const link = screen.getByRole('link', { name: /Runtime posture/ })
     expect(link.getAttribute('href')).toBe('/settings#effective-config')
   })
 })

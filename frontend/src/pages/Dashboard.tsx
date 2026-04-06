@@ -27,6 +27,7 @@ import { AlertCard, InlineAlert } from '@/components/ui/AlertCard'
 import { Loading } from '@/components/ui/StateViews'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
+import { MelPanel, MelPanelInset, MelTruthBadge } from '@/components/ui/operator'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
 import { FirstRunHintBanner } from '@/components/onboarding/FirstRunHintBanner'
@@ -64,6 +65,14 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
+
+function dashEvidenceSemantic(strength: string | undefined): string {
+  if (strength === 'strong') return 'complete'
+  if (strength === 'moderate') return 'partial'
+  if (strength === 'sparse') return 'degraded'
+  return 'unknown'
+}
+
 export function Dashboard() {
   const location = useLocation()
   const briefingSectionRef = useRef<HTMLElement | null>(null)
@@ -436,10 +445,7 @@ export function Dashboard() {
 
       <OperatorTruthRibbon summary="This surface summarizes persisted ingest, incidents, and audit signals. It does not prove RF coverage, routing success, or live paths beyond what the API exposes." />
 
-      <section
-        className="rounded-md border border-border/60 bg-card/25 p-4"
-        aria-label="Operational memory snapshot"
-      >
+      <MelPanel className="p-4" aria-label="Operational memory snapshot">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -505,12 +511,12 @@ export function Dashboard() {
             </p>
           </div>
         )}
-      </section>
+      </MelPanel>
 
       <FirstRunHintBanner visible={!hasTransports} />
 
       {/* Shift baseline — local browser only */}
-      <div className="rounded-md border border-border/60 bg-card/40 p-4">
+      <MelPanelInset className="p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex gap-3 min-w-0">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-muted-foreground">
@@ -543,17 +549,14 @@ export function Dashboard() {
             Mark “caught up” baseline
           </button>
         </div>
-      </div>
+      </MelPanelInset>
 
       {/* Open work vs baseline — operational continuity (browser-local) */}
       {hasShiftBaseline &&
         (shiftDelta.stillOpenSinceBaseline.length > 0 ||
           shiftDelta.openIncidentsChangedSince.length > 0 ||
           shiftDelta.noLongerOpenSinceBaseline.length > 0) && (
-          <div
-            className="rounded-md border border-border/60 bg-card/30 p-4"
-            aria-label="Open work relative to your saved baseline"
-          >
+          <MelPanel className="p-4" aria-label="Open work relative to your saved baseline">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
               <p className="text-sm font-semibold text-foreground">Open work vs your baseline</p>
@@ -623,17 +626,14 @@ export function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </MelPanel>
         )}
 
       <StaleDataBanner lastSuccessfulIngest={consoleStaleTs} componentName="Operator console / transports" />
 
       {/* Shift order — ranked attention with honest “why now” */}
       {recurrenceTeasers.length > 0 && (
-        <section
-          className="rounded-md border border-border/60 bg-card/30 p-4"
-          aria-label="Open incidents with pattern or case memory"
-        >
+        <MelPanel className="p-4" aria-label="Open incidents with pattern or case memory">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <TrendingUp className="h-4 w-4 text-warning shrink-0" />
             <h2 className="text-sm font-semibold text-foreground">Case memory on open work</h2>
@@ -656,14 +656,11 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-        </section>
+        </MelPanel>
       )}
 
       {shiftAttentionRows.length > 0 && (
-        <section
-          className="rounded-md border border-border/60 bg-card/35 p-4"
-          aria-label="Shift-start attention order"
-        >
+        <MelPanel className="p-4" aria-label="Shift-start attention order">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Compass className="h-4 w-4 text-muted-foreground shrink-0" />
             <h2 className="text-sm font-semibold text-foreground">Shift order (work this pass)</h2>
@@ -692,16 +689,12 @@ export function Dashboard() {
               states — see incidents list for full set.
             </p>
           )}
-        </section>
+        </MelPanel>
       )}
 
       {/* Retention / export posture (instance truth) */}
       {!versionInfo.loading && versionInfo.data?.platform_posture && (
-        <div
-          className="rounded-md border border-border/50 bg-muted/10 px-3 py-2 text-mel-sm text-muted-foreground"
-          role="region"
-          aria-label="Retention and export policy from this instance"
-        >
+        <MelPanelInset className="text-mel-sm text-muted-foreground" role="region" aria-label="Retention and export policy from this instance">
           <span className="font-semibold text-foreground">Instance policy cues: </span>
           {retentionDays != null && (
             <span>default retention window ~{retentionDays} day audit horizon (see Settings for full matrix). </span>
@@ -712,12 +705,12 @@ export function Dashboard() {
           <Link to="/settings" className="text-primary font-medium hover:underline ml-1">
             Settings → runtime truth
           </Link>
-        </div>
+        </MelPanelInset>
       )}
 
       {/* System Pulse — what needs attention */}
       {attentionCount > 0 && (
-        <div className="rounded-md border border-warning/25 bg-warning/5 p-4">
+        <MelPanelInset tone="warning" className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md border border-warning/25 bg-warning/12 text-warning">
               <AlertTriangle className="h-4 w-4" />
@@ -767,12 +760,12 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
+        </MelPanelInset>
       )}
 
       {/* Calm state — when everything is quiet */}
       {attentionCount === 0 && !isLoading && hasTransports && (
-        <div className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3">
+        <MelPanelInset className="space-y-3 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-card/60 text-muted-foreground">
               <Compass className="h-4 w-4" />
@@ -837,14 +830,14 @@ export function Dashboard() {
               </li>
             </ul>
           </div>
-        </div>
+        </MelPanelInset>
       )}
 
       {/* Evidence gaps + next steps */}
       {(sparseIncidents.length > 0 || !connectedTransport || pendingApprovals.length > 0) && (
         <div className="grid gap-3 md:grid-cols-2">
           {sparseIncidents.length > 0 && (
-            <div className="rounded-md border border-warning/25 bg-warning/5 p-4">
+            <MelPanelInset tone="warning" className="p-4">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-warning mb-2">
                 <HelpCircle className="h-3.5 w-3.5" />
                 Sparse or degraded incident evidence
@@ -873,9 +866,9 @@ export function Dashboard() {
                   View all incidents →
                 </Link>
               )}
-            </div>
+            </MelPanelInset>
           )}
-          <div className="rounded-md border border-border/60 bg-card/50 p-4">
+          <MelPanelInset className="p-4">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
               <Clock className="h-3.5 w-3.5" />
               Suggested next checks
@@ -927,7 +920,7 @@ export function Dashboard() {
                 {' — '}resilience posture from topology bounds (not RF simulation).
               </li>
             </ul>
-          </div>
+          </MelPanelInset>
         </div>
       )}
 
@@ -1040,7 +1033,9 @@ export function Dashboard() {
                         </div>
                         <div className="flex gap-1.5">
                           {inc.severity && <Badge variant={inc.severity === 'critical' ? 'critical' : inc.severity === 'high' ? 'warning' : 'secondary'}>{inc.severity}</Badge>}
-                          <Badge variant="secondary">{inc.intelligence?.evidence_strength ?? 'unknown'}</Badge>
+                          <MelTruthBadge semantic={dashEvidenceSemantic(inc.intelligence?.evidence_strength)}>
+                            {inc.intelligence?.evidence_strength ?? 'unknown'}
+                          </MelTruthBadge>
                         </div>
                       </div>
                     </Link>
@@ -1099,7 +1094,7 @@ export function Dashboard() {
           {/* Dead letters alert */}
           {deadLetterCount > 0 && (
             <Link to="/dead-letters" className="block">
-              <div className="flex items-center gap-3 rounded-md border border-warning/20 bg-warning/5 p-3 transition-colors hover:bg-warning/8">
+              <MelPanelInset tone="warning" className="flex items-center gap-3 p-3 transition-colors hover:bg-signal-partial/10">
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-warning/12 text-warning">
                   <Inbox className="h-4 w-4" />
                 </div>
@@ -1110,7 +1105,7 @@ export function Dashboard() {
                   <p className="text-xs text-muted-foreground">Messages that failed processing</p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
+              </MelPanelInset>
             </Link>
           )}
 
