@@ -80,29 +80,33 @@ export function Events() {
           title="Total"
           value={events.length}
           description="Events in current view"
-          icon={<ScrollText className="h-5 w-5" />}
+          icon={<ScrollText className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Errors"
           value={errorCount}
           description="Error-level events"
-          icon={<AlertCircle className="h-5 w-5" />}
+          icon={<AlertCircle className="h-4 w-4" />}
           variant={errorCount > 0 ? 'critical' : 'success'}
+          rhythm="console"
         />
         <StatCard
           title="Warnings"
           value={warningCount}
           description="Warning-level events"
-          icon={<AlertTriangle className="h-5 w-5" />}
+          icon={<AlertTriangle className="h-4 w-4" />}
           variant={warningCount > 0 ? 'warning' : 'default'}
+          rhythm="console"
         />
         <StatCard
           title="Categories"
           value={categories.length}
           description="Unique event sources"
-          icon={<FileText className="h-5 w-5" />}
+          icon={<FileText className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
       </div>
 
