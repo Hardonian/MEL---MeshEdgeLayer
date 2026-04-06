@@ -1,7 +1,22 @@
 import { ReactNode } from 'react'
 import { clsx } from 'clsx'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'critical' | 'secondary' | 'outline' | 'info'
+type BadgeVariant =
+  | 'default'
+  | 'success'
+  | 'warning'
+  | 'critical'
+  | 'secondary'
+  | 'outline'
+  | 'info'
+  /** Truth / evidence layer — prefer these for operator semantics */
+  | 'observed'
+  | 'inferred'
+  | 'stale'
+  | 'frozen'
+  | 'unsupported'
+  | 'degraded'
+  | 'partial'
 
 interface BadgeProps {
   children: ReactNode
@@ -10,24 +25,37 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'border-neon/30 text-neon',
-  success: 'border-neon/30 text-neon',
-  warning: 'border-neon-warn/30 text-neon-warn',
-  critical: 'border-neon-hot/30 text-neon-hot',
-  secondary: 'border-border text-muted-foreground',
-  outline: 'border-border text-foreground',
-  info: 'border-neon-alt/30 text-neon-alt',
+  default: 'border-neon/30 text-neon bg-neon/6',
+  success: 'border-neon/30 text-neon bg-neon/6',
+  warning: 'border-neon-warn/30 text-neon-warn bg-neon-warn/6',
+  critical: 'border-neon-hot/30 text-neon-hot bg-neon-hot/6',
+  secondary: 'border-border text-muted-foreground bg-muted/20',
+  outline: 'border-border text-foreground bg-transparent',
+  info: 'border-neon-alt/30 text-neon-alt bg-neon-alt/6',
+  observed: 'border-signal-observed/35 text-signal-observed bg-signal-observed/8',
+  inferred: 'border-signal-inferred/35 text-signal-inferred bg-signal-inferred/8',
+  stale: 'border-signal-stale/40 text-signal-stale bg-signal-stale/8',
+  frozen: 'border-signal-frozen/35 text-signal-frozen bg-signal-frozen/8',
+  unsupported: 'border-signal-unsupported/40 text-signal-unsupported bg-signal-unsupported/8',
+  degraded: 'border-signal-degraded/35 text-signal-degraded bg-signal-degraded/8',
+  partial: 'border-signal-partial/35 text-signal-partial bg-signal-partial/8',
 }
 
 function BadgeDot({ className }: { className?: string }) {
-  return <span aria-hidden className={clsx('h-1.5 w-1.5 rounded-full', className)} style={{ boxShadow: '0 0 6px currentColor' }} />
+  return (
+    <span
+      aria-hidden
+      className={clsx('h-1.5 w-1.5 rounded-full', className)}
+      style={{ boxShadow: '0 0 4px hsl(currentColor / 0.45)' }}
+    />
+  )
 }
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-[0.1em]',
+        'inline-flex items-center gap-1 border px-1.5 py-0.5 font-mono text-mel-xs font-bold uppercase leading-none tracking-wide',
         variantStyles[variant],
         className
       )}
@@ -134,8 +162,8 @@ export function TransportBadge({ type }: { type: string }) {
     mqtt: 'info',
     tcp: 'default',
     serial: 'secondary',
-    http: 'outline',
-    bluetooth: 'default',
+    http: 'unsupported',
+    bluetooth: 'unsupported',
   }
 
   return (

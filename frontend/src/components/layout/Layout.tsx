@@ -177,8 +177,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : !hasTransports
       ? 'text-muted-foreground'
       : hasConnectedTransport
-        ? 'text-neon neon-glow'
-        : 'text-neon-warn neon-glow-warn'
+        ? 'text-neon'
+        : 'text-neon-warn'
 
   return (
     <div className="min-h-screen bg-background mel-grid-bg">
@@ -205,7 +205,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               to="/"
               className="group flex items-center gap-2 outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              <span className="text-neon neon-glow font-bold text-[13px]">MEL</span>
+              <span className="font-data text-neon font-bold tracking-tight text-sm">MEL</span>
               <span className="text-muted-foreground/40">│</span>
               <span className="text-mel-xs text-muted-foreground/50 hidden sm:inline">mesh::edge::layer</span>
             </Link>
@@ -362,7 +362,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-neon/40">$</span>
             <code>{productScope}</code>
             <span className="ml-auto">MEL::MeshEdgeLayer</span>
-            <span className="animate-terminal-blink text-neon/60">█</span>
+            <span className="text-neon/50" aria-hidden>
+              ▌
+            </span>
           </div>
         </footer>
       )}

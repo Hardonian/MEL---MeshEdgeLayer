@@ -29,6 +29,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
 import { StaleDataBanner } from '@/components/states/StaleDataBanner'
 import { NoTransportsConfigured } from '@/components/ui/EmptyState'
+import { FirstRunHintBanner } from '@/components/onboarding/FirstRunHintBanner'
 import { ActivityFeed, eventsToFeedItems, type FeedItem } from '@/components/ui/ActivityFeed'
 import {
   useStatus,
@@ -63,8 +64,6 @@ import { useOperatorContext } from '@/hooks/useOperatorContext'
 import type { IncidentWorkQueueWhyContext } from '@/utils/operatorWorkflow'
 import { operatorCanReadLinkedControlRows } from '@/utils/incidentOperatorTruth'
 import { operatorExportReadinessFromVersion } from '@/utils/operatorExportReadiness'
-import { hrefForBriefingPriority } from '@/utils/operatorBriefingLinks'
-
 export function Dashboard() {
   const location = useLocation()
   const briefingSectionRef = useRef<HTMLElement | null>(null)

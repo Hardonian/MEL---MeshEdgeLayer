@@ -82,7 +82,7 @@ export function ErrorView({
         <AlertCircle className="h-6 w-6" />
       </div>
       <div className="space-y-1">
-        <p className="text-mel-sm font-bold text-neon-hot neon-glow-hot">[ERR] {title}</p>
+        <p className="font-mono text-mel-sm font-bold text-neon-hot">[ERR] {title}</p>
         <p className="text-mel-xs text-muted-foreground">{message}</p>
       </div>
       {onRetry && (

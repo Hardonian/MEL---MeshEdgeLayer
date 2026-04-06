@@ -193,23 +193,21 @@ export function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               Chooses light or dark styling for the web UI. Use &quot;Match system&quot; to follow OS theme.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="mel-segment flex flex-wrap" role="group" aria-label="Console appearance">
               {(
                 [
-                  { value: 'system' as const, label: 'Match system' },
-                  { value: 'light' as const, label: 'Light' },
-                  { value: 'dark' as const, label: 'Dark' },
+                  { value: 'system' as const, label: 'system' },
+                  { value: 'light' as const, label: 'light' },
+                  { value: 'dark' as const, label: 'dark' },
                 ] as const
               ).map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setPreference(opt.value)}
-                  className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    preference === opt.value
-                      ? 'border-primary bg-primary/10 text-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
+                  className={
+                    preference === opt.value ? 'mel-segment-item mel-segment-item-active' : 'mel-segment-item mel-segment-item-inactive'
+                  }
                   aria-pressed={preference === opt.value}
                 >
                   {opt.label}

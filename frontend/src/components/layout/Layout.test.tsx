@@ -33,9 +33,10 @@ describe('Layout operator identity', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText('Operator OS')).toBeTruthy()
-    expect(screen.getByRole('note', { name: /operator truth contract/i })).toBeTruthy()
-    expect(screen.getByText(/Incident intelligence and governed control/i)).toBeTruthy()
+    expect(screen.getByText('MEL')).toBeTruthy()
+    expect(screen.getByText(/mesh::edge::layer/)).toBeTruthy()
+    const truthNote = screen.getByRole('note', { name: /operator truth contract/i })
+    expect(truthNote.textContent).toMatch(/recent persisted ingest/i)
     expect(screen.getByText('Child')).toBeTruthy()
   })
 })

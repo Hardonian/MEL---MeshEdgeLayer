@@ -2,102 +2,149 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * MEL console signification (design contract)
+ * ─────────────────────────────────────────
+ * --neon / signal-live: selection, primary actions, OK / connected emphasis
+ * --neon-alt / signal-observed: packet-derived / telemetry / “what ingest showed”
+ * --neon-hot / signal-critical: stop-the-line / error attention
+ * --neon-warn / signal-degraded: warning / partial / needs review
+ * signal-inferred: model-assisted or graph-inferred (non-direct evidence)
+ * signal-stale: aged or low-confidence recency
+ * signal-frozen: paused / static / unknown bucket in topology legend
+ * signal-unsupported: capability not available (e.g. HTTP/BLE ingest)
+ * signal-topology-isolated: graph-isolated role (not “purple = cool”)
+ * mel-grid-bg / mel-topology-svg grid: operational map / live surface
+ * font-mono / font-data: IDs, metrics, timestamps, control labels
+ * surface-panel + top gradient: standard MEL panel chrome
+ */
+
 @layer base {
+  /**
+   * MEL operator console tokens
+   * --neon* = primary UI accent (live / selection / OK path)
+   * --neon-alt = observed / telemetry / packet-derived emphasis
+   * --neon-hot = critical / error attention
+   * --neon-warn = warning / degraded attention
+   * --signal-* = semantic truth-layer colors (prefer in new code)
+   */
   :root {
     --background: 0 0% 97%;
-    --foreground: 0 0% 12%;
+    --foreground: 222 18% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 12%;
+    --card-foreground: 222 18% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 12%;
-    --primary: 160 100% 40%;
+    --popover-foreground: 222 18% 14%;
+    --primary: 160 84% 38%;
     --primary-foreground: 0 0% 4%;
-    --secondary: 0 0% 92%;
-    --secondary-foreground: 0 0% 12%;
-    --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 0% 93%;
-    --accent-foreground: 0 0% 12%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 222 18% 14%;
+    --muted: 220 12% 94%;
+    --muted-foreground: 220 9% 40%;
+    --accent: 220 12% 93%;
+    --accent-foreground: 222 18% 14%;
     --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 85%;
-    --input: 0 0% 88%;
-    --ring: 160 100% 40%;
+    --border: 220 13% 84%;
+    --input: 220 13% 88%;
+    --ring: 160 84% 38%;
     --radius: 2px;
-    --success: 160 100% 38%;
-    --warning: 42 100% 50%;
-    --critical: 0 90% 55%;
-    --info: 190 90% 50%;
+    --success: 160 84% 36%;
+    --warning: 38 92% 48%;
+    --critical: 0 84% 52%;
+    --info: 199 88% 48%;
     --info-foreground: 0 0% 4%;
-    --observed: 190 90% 45%;
-    --inferred: 270 60% 60%;
-    --stale: 0 0% 55%;
-    --frozen: 210 30% 50%;
-    --active: 160 100% 42%;
-    --degraded: 42 90% 52%;
-    --unsupported: 0 0% 48%;
+    --observed: 199 88% 44%;
+    --inferred: 265 55% 52%;
+    --stale: 220 8% 48%;
+    --frozen: 210 28% 46%;
+    --active: 160 84% 38%;
+    --degraded: 38 88% 48%;
+    --unsupported: 220 6% 42%;
     --panel: 0 0% 100%;
-    --panel-muted: 0 0% 97%;
-    --panel-strong: 0 0% 95%;
-    --panel-border: 0 0% 82%;
-    --panel-glow: 160 100% 42%;
-    --panel-warm: 42 100% 56%;
+    --panel-muted: 220 14% 97%;
+    --panel-strong: 220 12% 95%;
+    --panel-border: 220 13% 82%;
+    --panel-glow: 160 84% 38%;
+    --panel-warm: 38 92% 52%;
     --shell-shadow: 0 0% 20%;
-    --chrome-bg: 0 0% 96%;
-    --chrome-border: 0 0% 84%;
-    --nav-active: 160 100% 40%;
-    --neon: 160 100% 50%;
-    --neon-alt: 190 100% 55%;
-    --neon-hot: 0 100% 60%;
-    --neon-warn: 42 100% 55%;
+    --chrome-bg: 220 14% 96%;
+    --chrome-border: 220 13% 84%;
+    --nav-active: 160 84% 38%;
+    --neon: 160 78% 42%;
+    --neon-alt: 199 90% 48%;
+    --neon-hot: 0 84% 52%;
+    --neon-warn: 38 92% 48%;
+    --signal-live: 160 78% 42%;
+    --signal-observed: 199 90% 48%;
+    --signal-inferred: 265 55% 52%;
+    --signal-stale: 220 8% 48%;
+    --signal-degraded: 38 88% 48%;
+    --signal-critical: 0 84% 52%;
+    --signal-frozen: 210 28% 46%;
+    --signal-unsupported: 220 6% 42%;
+    --signal-complete: 160 78% 38%;
+    --signal-partial: 38 82% 46%;
+    --signal-topology-isolated: 265 50% 52%;
   }
 
   .dark {
-    --background: 0 0% 3%;
-    --foreground: 160 30% 82%;
-    --card: 0 0% 5%;
-    --card-foreground: 160 30% 82%;
-    --popover: 0 0% 6%;
-    --popover-foreground: 160 30% 82%;
-    --primary: 160 100% 50%;
-    --primary-foreground: 0 0% 2%;
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 160 30% 82%;
-    --muted: 0 0% 8%;
-    --muted-foreground: 160 15% 45%;
-    --accent: 0 0% 10%;
-    --accent-foreground: 160 30% 82%;
-    --destructive: 0 80% 55%;
+    --background: 222 24% 5%;
+    --foreground: 160 12% 88%;
+    --card: 222 22% 7%;
+    --card-foreground: 160 12% 88%;
+    --popover: 222 22% 8%;
+    --popover-foreground: 160 12% 88%;
+    --primary: 160 72% 48%;
+    --primary-foreground: 222 24% 4%;
+    --secondary: 222 18% 11%;
+    --secondary-foreground: 160 12% 88%;
+    --muted: 222 16% 9%;
+    --muted-foreground: 160 10% 58%;
+    --accent: 222 18% 11%;
+    --accent-foreground: 160 12% 88%;
+    --destructive: 0 72% 54%;
     --destructive-foreground: 0 0% 98%;
-    --border: 160 15% 14%;
-    --input: 0 0% 9%;
-    --ring: 160 100% 50%;
-    --success: 160 100% 50%;
-    --warning: 42 100% 58%;
-    --critical: 0 85% 58%;
-    --info: 190 90% 55%;
-    --info-foreground: 0 0% 2%;
-    --observed: 190 90% 55%;
-    --inferred: 270 55% 65%;
-    --stale: 0 0% 40%;
-    --frozen: 210 25% 42%;
-    --active: 160 100% 50%;
-    --degraded: 42 90% 56%;
-    --unsupported: 0 0% 35%;
-    --panel: 0 0% 5%;
-    --panel-muted: 0 0% 3%;
-    --panel-strong: 0 0% 8%;
-    --panel-border: 160 15% 14%;
-    --panel-glow: 160 100% 50%;
-    --panel-warm: 42 100% 60%;
+    --border: 160 14% 16%;
+    --input: 222 18% 10%;
+    --ring: 160 72% 48%;
+    --success: 160 70% 48%;
+    --warning: 38 92% 54%;
+    --critical: 0 72% 56%;
+    --info: 199 85% 55%;
+    --info-foreground: 222 24% 4%;
+    --observed: 199 85% 55%;
+    --inferred: 265 50% 62%;
+    --stale: 220 10% 46%;
+    --frozen: 210 22% 48%;
+    --active: 160 70% 48%;
+    --degraded: 38 88% 54%;
+    --unsupported: 220 8% 38%;
+    --panel: 222 22% 7%;
+    --panel-muted: 222 24% 4%;
+    --panel-strong: 222 20% 10%;
+    --panel-border: 160 14% 18%;
+    --panel-glow: 160 70% 48%;
+    --panel-warm: 38 92% 56%;
     --shell-shadow: 0 0% 0%;
-    --chrome-bg: 0 0% 4%;
-    --chrome-border: 160 15% 12%;
-    --nav-active: 160 100% 50%;
-    --neon: 160 100% 55%;
-    --neon-alt: 190 100% 60%;
-    --neon-hot: 0 100% 62%;
-    --neon-warn: 42 100% 60%;
+    --chrome-bg: 222 26% 4%;
+    --chrome-border: 160 12% 14%;
+    --nav-active: 160 70% 48%;
+    --neon: 160 65% 52%;
+    --neon-alt: 199 80% 58%;
+    --neon-hot: 0 72% 58%;
+    --neon-warn: 38 90% 56%;
+    --signal-live: 160 65% 52%;
+    --signal-observed: 199 80% 58%;
+    --signal-inferred: 265 50% 62%;
+    --signal-stale: 220 10% 46%;
+    --signal-degraded: 38 88% 54%;
+    --signal-critical: 0 72% 58%;
+    --signal-frozen: 210 22% 48%;
+    --signal-unsupported: 220 8% 38%;
+    --signal-complete: 160 62% 48%;
+    --signal-partial: 38 85% 52%;
+    --signal-topology-isolated: 265 48% 58%;
     color-scheme: dark;
   }
 
@@ -118,16 +165,19 @@
     color-scheme: light;
   }
 
-  body {
-    @apply min-h-screen bg-background text-foreground antialiased;
-    font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, monospace;
-    font-size: 12px;
-    line-height: 1.55;
-    letter-spacing: 0.02em;
+  html.dark {
+    color-scheme: dark;
   }
 
-  /* ─── Global scanline overlay ─── */
-  body::after {
+  body {
+    @apply min-h-screen bg-background text-foreground font-sans antialiased;
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+  }
+
+  /* Subtle CRT-style texture — dark mode only, very low contrast */
+  .dark body::after {
     content: '';
     position: fixed;
     inset: 0;
@@ -137,8 +187,8 @@
       0deg,
       transparent,
       transparent 2px,
-      hsl(var(--foreground) / 0.018) 2px,
-      hsl(var(--foreground) / 0.018) 4px
+      hsl(var(--foreground) / 0.012) 2px,
+      hsl(var(--foreground) / 0.012) 4px
     );
     mix-blend-mode: overlay;
   }
@@ -171,12 +221,11 @@
     white-space: normal;
   }
 
-  /* Everything is mono. Headings just get bolder. */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, monospace;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    text-transform: uppercase;
+    @apply font-display text-foreground;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
   }
 
   a, button {
@@ -184,10 +233,15 @@
   }
 
   .prose-body {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    line-height: 1.6;
+    @apply font-sans text-mel-sm;
+    line-height: 1.62;
     letter-spacing: 0.01em;
+  }
+
+  code,
+  kbd,
+  samp {
+    @apply font-mono text-[0.92em];
   }
 }
 
@@ -237,6 +291,51 @@
     background: hsl(var(--panel-muted));
   }
 
+  /** Standard page section / inspector wrapper */
+  .mel-panel {
+    @apply surface-panel;
+  }
+
+  .mel-panel-inset {
+    @apply border border-border/80 bg-muted/25 rounded-[var(--radius)] px-3 py-2;
+  }
+
+  /** Topology / graph canvas — grid = operational map surface */
+  .mel-topology-svg {
+    background-color: hsl(var(--panel-muted));
+    background-image:
+      linear-gradient(hsl(var(--neon) / 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--neon) / 0.055) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /** Segmented control — same language as CLI flags / TUI tabs */
+  .mel-segment {
+    @apply inline-flex items-center border border-border bg-panel-muted font-mono text-mel-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors;
+    border-radius: var(--radius);
+    padding: 0.125rem 0.25rem;
+    gap: 0.125rem;
+  }
+
+  .mel-segment-item {
+    @apply px-2 py-1 outline-none transition-colors;
+    border-radius: calc(var(--radius) - 1px);
+  }
+
+  .mel-segment-item:focus-visible {
+    @apply ring-1 ring-ring ring-offset-1 ring-offset-background;
+  }
+
+  .mel-segment-item-active {
+    background: hsl(var(--neon) / 0.12);
+    color: hsl(var(--neon));
+    border: 1px solid hsl(var(--neon) / 0.35);
+  }
+
+  .mel-segment-item-inactive {
+    @apply border border-transparent hover:bg-muted/50 hover:text-foreground;
+  }
+
   .surface-inset {
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
@@ -253,8 +352,7 @@
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     background: hsl(var(--muted) / 0.4);
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    @apply font-mono text-mel-sm;
     padding: 0.75rem 1rem;
   }
 
@@ -300,10 +398,9 @@
   .button-secondary,
   .button-danger,
   .button-ghost {
-    @apply inline-flex items-center justify-center gap-2 border px-3 py-1.5 text-[11px] font-bold uppercase text-foreground outline-none;
+    @apply inline-flex items-center justify-center gap-2 border px-3 py-1.5 font-mono text-mel-sm font-bold uppercase text-foreground outline-none;
     border-radius: var(--radius);
-    letter-spacing: 0.08em;
-    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
     transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
   }
 
@@ -371,15 +468,14 @@
      ╚══════════════════════════════════════════╝ */
 
   .status-pill {
-    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 text-[10px] font-bold uppercase;
+    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-mel-xs font-bold uppercase;
     border-radius: var(--radius);
-    letter-spacing: 0.1em;
-    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
   }
 
   .status-dot {
     @apply h-1.5 w-1.5 rounded-full;
-    box-shadow: 0 0 8px currentColor, 0 0 3px currentColor;
+    box-shadow: 0 0 4px hsl(currentColor / 0.45);
   }
 
   /* ─── List Row ─── */
@@ -523,20 +619,14 @@
   /* ─── Terminal Label ─── */
 
   .mel-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: hsl(var(--muted-foreground));
+    @apply font-mono text-mel-label text-muted-foreground uppercase;
   }
 
   /* ─── Metric Display ─── */
 
   .mel-metric {
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 700;
-    letter-spacing: -0.03em;
+    @apply font-mono font-bold text-mel-metric;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     color: hsl(var(--neon));
   }
@@ -561,16 +651,8 @@
 
   .mel-chrome-title {
     border-bottom: 1px solid hsl(var(--border));
-    padding: 0.35rem 0.75rem;
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--panel-strong));
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    @apply font-mono text-mel-label text-muted-foreground uppercase bg-panel-strong flex items-center gap-2;
   }
 
   .mel-chrome-title::before {
@@ -581,15 +663,15 @@
   /* ─── Neon text glow utility ─── */
 
   .neon-glow {
-    text-shadow: 0 0 6px hsl(var(--neon) / 0.4), 0 0 12px hsl(var(--neon) / 0.2);
+    text-shadow: 0 0 1px hsl(var(--neon) / 0.35);
   }
 
   .neon-glow-hot {
-    text-shadow: 0 0 6px hsl(var(--neon-hot) / 0.5), 0 0 12px hsl(var(--neon-hot) / 0.25);
+    text-shadow: 0 0 1px hsl(var(--neon-hot) / 0.4);
   }
 
   .neon-glow-warn {
-    text-shadow: 0 0 6px hsl(var(--neon-warn) / 0.4), 0 0 12px hsl(var(--neon-warn) / 0.2);
+    text-shadow: 0 0 1px hsl(var(--neon-warn) / 0.35);
   }
 
   /* ─── ASCII box utility ─── */
@@ -603,12 +685,13 @@
 }
 
 @layer utilities {
+  /** Prefer surface-panel / mel-panel-inset — glass is legacy */
   .glass {
-    @apply border border-white/8 bg-background/60;
+    @apply border border-border/80 bg-card/85 backdrop-blur-sm;
   }
 
   .glass-dark {
-    @apply border border-white/5 bg-black/50;
+    @apply border border-border/60 bg-panel-muted/90 backdrop-blur-sm;
   }
 
   .section-enter {
@@ -652,9 +735,6 @@
   background: hsl(var(--neon) / 0.3);
 }
 
-.font-mono {
-  font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace;
-}
 
 /* ╔══════════════════════════════════════════╗
    ║  STATUS CLASSES                         ║
@@ -852,7 +932,7 @@ progress.health-progress.progress-default::-moz-progress-bar { background: hsl(v
   .list-row:hover {
     transform: none !important;
   }
-  body::after {
+  .dark body::after {
     display: none;
   }
 }

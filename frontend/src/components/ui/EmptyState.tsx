@@ -101,7 +101,7 @@ export function SystemHealthy({ message = 'All systems operational' }: { message
         <Info className="h-3.5 w-3.5" aria-hidden />
       </div>
       <div className="min-w-0">
-        <p className="text-mel-sm font-bold text-neon neon-glow">[OK] {message}</p>
+        <p className="font-mono text-mel-sm font-bold text-neon">[OK] {message}</p>
         <p className="text-mel-xs text-muted-foreground">Nothing to act on.</p>
       </div>
     </div>

@@ -17,22 +17,22 @@ interface StatCardProps {
 const variantStyles = {
   default: {
     icon: 'border-neon/20 text-neon',
-    value: 'text-neon neon-glow',
+    value: 'text-neon',
     accent: 'bg-neon',
   },
   success: {
     icon: 'border-neon/20 text-neon',
-    value: 'text-neon neon-glow',
+    value: 'text-neon',
     accent: 'bg-neon',
   },
   warning: {
     icon: 'border-neon-warn/20 text-neon-warn',
-    value: 'text-neon-warn neon-glow-warn',
+    value: 'text-neon-warn',
     accent: 'bg-neon-warn',
   },
   critical: {
     icon: 'border-neon-hot/20 text-neon-hot',
-    value: 'text-neon-hot neon-glow-hot',
+    value: 'text-neon-hot',
     accent: 'bg-neon-hot',
   },
   info: {
@@ -61,7 +61,7 @@ export function StatCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>
-          <p className={clsx('mel-metric mt-1.5 text-mel-metric', v.value)}>{value}</p>
+          <p className={clsx('mel-metric mt-1.5 font-data text-mel-metric', v.value)}>{value}</p>
           {description && (
             <p className="mt-1 text-mel-xs text-muted-foreground">{description}</p>
           )}

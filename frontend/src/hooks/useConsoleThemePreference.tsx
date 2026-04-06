@@ -42,7 +42,8 @@ interface ConsoleThemeContextValue {
 const ConsoleThemeContext = createContext<ConsoleThemeContextValue | null>(null)
 
 export function ConsoleThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<ConsoleThemePreference>(() => readStored() ?? 'system')
+  /** Default dark: operator console is dark-first; "system" still available in Settings. */
+  const [preference, setPreferenceState] = useState<ConsoleThemePreference>(() => readStored() ?? 'dark')
 
   const setPreference = useCallback((next: ConsoleThemePreference) => {
     setPreferenceState(next)

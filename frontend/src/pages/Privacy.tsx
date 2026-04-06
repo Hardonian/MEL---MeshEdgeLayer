@@ -249,7 +249,7 @@ function FindingCard({ finding }: { finding: PrivacyFinding }) {
           </div>
           <p className="text-sm font-medium">{finding.message}</p>
           {finding.remediation && (
-            <div className="mt-3 p-3 rounded-md bg-white/50 dark:bg-black/20">
+            <div className="mel-panel-inset mt-3 border-signal-observed/20 bg-signal-observed/5">
               <p className="text-xs font-medium text-foreground">Recommended Action</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {finding.remediation}
