@@ -123,19 +123,24 @@ Issue templates include **field report**, **hardware compatibility**, **scenario
 
 ## Verification entry points
 
-Use these before making release-strength claims:
+**Truthful layers (read before claiming “green”):**
+
+| Command | What it actually proves |
+| --- | --- |
+| `make test` | **Go tests only** (`go test ./...`). Does not run ESLint, TypeScript, or Vitest. |
+| `make lint` | `go vet` + **frontend ESLint** (runs `npm ci` in `frontend/` first). |
+| `make frontend-verify` | Lint + typecheck + Vitest in `frontend/` (runs `npm ci` first). |
+| `make build` | Frontend production build + copies into `internal/web/assets/` + Go binaries. |
+| `make smoke` | End-to-end smoke against `./bin/mel` (build first). |
+| **`make verify-stack`** or **`make check`** | **Single stack-shaped signal:** `lint` + `test` + `build` + `smoke` (includes frontend via `lint`/`build`). Not the same as `premerge-verify`. |
+| `make premerge-verify` | Release-reality gate: reality check + product verify + full chain + churn guard (see script). |
+| `make premerge-verify-fast` | Same chain with `VERIFY_SKIP_CLEAN_INSTALL=1` — not release-grade. |
+
+Other useful targets:
 
 ```bash
-make lint
-make frontend-typecheck
-make frontend-test
-make test
-make build
 make product-verify
-make smoke
 make demo-verify
-make premerge-verify
-make premerge-verify-fast
 ```
 
 Notes:
