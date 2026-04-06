@@ -455,7 +455,7 @@
 
   .status-dot {
     @apply h-1.5 w-1.5 rounded-full;
-    box-shadow: 0 0 4px hsl(currentColor / 0.45);
+    box-shadow: none;
   }
 
   /* ─── List Row ─── */
@@ -543,14 +543,14 @@
   }
 
   /* ╔══════════════════════════════════════════╗
-     ║  MEL HACKER / TUI VISUAL MOTIFS         ║
+     ║  MEL OPERATOR VISUAL MOTIFS             ║
      ╚══════════════════════════════════════════╝ */
 
   /* Grid background — like a terminal graph */
   .mel-grid-bg {
     background-image:
-      linear-gradient(hsl(var(--neon) / 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--neon) / 0.04) 1px, transparent 1px);
+      linear-gradient(hsl(var(--border) / 0.22) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.22) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
@@ -656,11 +656,11 @@
 @layer utilities {
   /** Prefer surface-panel / mel-panel-inset — glass is legacy */
   .glass {
-    @apply border border-border/80 bg-card/85 backdrop-blur-sm;
+    @apply border border-border/80 bg-card/95;
   }
 
   .glass-dark {
-    @apply border border-border/60 bg-panel-muted/90 backdrop-blur-sm;
+    @apply border border-border/60 bg-panel-muted/95;
   }
 
   .section-enter {
@@ -795,20 +795,8 @@
   50% { opacity: 1; }
 }
 
-@keyframes terminal-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
 
-@keyframes neon-flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
-  20%, 24%, 55% { opacity: 0.6; }
-}
 
-@keyframes data-stream {
-  from { background-position: 0 0; }
-  to { background-position: 0 20px; }
-}
 
 .animate-pulse-slow {
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -827,9 +815,6 @@
   animation: toast-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.animate-terminal-blink {
-  animation: terminal-blink 1s step-end infinite;
-}
 
 .animate-neon-flicker {
   animation: none;

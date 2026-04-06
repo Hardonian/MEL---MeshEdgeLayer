@@ -203,7 +203,7 @@ The support bundle includes:
 
 ## Common anti-patterns to avoid
 
-1. **"The dashboard shows green"** — The dashboard reflects this instance's database. If transports are disconnected, it shows nothing, not health.
+1. **"The console shows green"** — The operator console reflects this instance's database. If transports are disconnected, it shows nothing, not health.
 2. **"We received 5 packets from 3 gateways, so the mesh is working"** — Repeated observations are symptoms, not coverage proof. You cannot conclude RF reach from packet counts.
 3. **"The import was accepted"** — Acceptance means structural validation passed. It does not mean the remote site's data is truthful or that the two sites share a common timeline.
 4. **"No incidents, so the system is healthy"** — No incidents means no incidents were *created*. Check diagnostics and transport alerts separately.

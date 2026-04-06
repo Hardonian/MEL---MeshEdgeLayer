@@ -345,7 +345,7 @@ export function Dashboard() {
     const ts = new Date(t.last_heartbeat_at).getTime()
     return ts > max ? ts : max
   }, 0)
-  const dashboardStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
+  const consoleStaleTs = newestHeartbeat ? new Date(newestHeartbeat).toISOString() : undefined
 
   // Build unified feed items
   const feedItems: FeedItem[] = [
@@ -415,7 +415,7 @@ export function Dashboard() {
     <div className="space-y-5 pb-10 md:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
-          title="Command surface"
+          title="Operator console"
           subtitle="Mesh operations cockpit"
           description="Shift-start overview: attention, evidence posture, and where to go next. Data refreshes on a short poll while this tab is visible."
         />
@@ -626,7 +626,7 @@ export function Dashboard() {
           </div>
         )}
 
-      <StaleDataBanner lastSuccessfulIngest={dashboardStaleTs} componentName="Dashboard / Transports" />
+      <StaleDataBanner lastSuccessfulIngest={consoleStaleTs} componentName="Operator console / transports" />
 
       {/* Shift order — ranked attention with honest “why now” */}
       {recurrenceTeasers.length > 0 && (

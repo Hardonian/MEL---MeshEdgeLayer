@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'overview',
       icon: Eye,
       items: [
-        { label: 'workbench', href: '/', icon: LayoutDashboard },
+        { label: 'console', href: '/', icon: LayoutDashboard },
         { label: 'status', href: '/status', icon: Activity },
         { label: 'events', href: '/events', icon: FileText },
       ],
@@ -100,7 +100,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { label: 'planning', href: '/planning', icon: Compass },
         { label: 'review', href: '/operational-review', icon: ClipboardList },
         {
-          label: 'recs',
+          label: 'recommendations',
           href: '/recommendations',
           icon: Activity,
           badge: recsCount > 0 ? recsCount : undefined,
@@ -229,10 +229,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setCommandOpen(true)}
               className="hidden md:inline-flex items-center gap-1 text-mel-xs text-muted-foreground hover:text-neon transition-colors"
-              title="Search (Ctrl+K)"
+              title="Search console routes (Ctrl+K)"
             >
               <Search className="h-3 w-3" />
-              <span>ctrl+k · nav</span>
+              <span>ctrl+k · search</span>
             </button>
 
             <button
@@ -467,7 +467,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'workbench', href: '/', keywords: 'home overview dashboard command surface' },
+    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench' },
     { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
     { label: 'status', href: '/status', keywords: 'transport health' },
     { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
@@ -504,18 +504,18 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[12vh]" onClick={onClose}>
       <div className="fixed inset-0 bg-background/85" />
       <div
-        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden border border-neon/30 bg-card shadow-glow-strong"
+        className="relative z-10 w-full max-w-lg animate-slide-up overflow-hidden border border-border/80 bg-card shadow-float"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Command palette"
       >
         {/* Terminal prompt input */}
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <span className="text-neon font-bold text-mel-sm">$</span>
+          <span className="text-primary font-bold text-mel-sm">:</span>
           <input
             type="text"
-            placeholder="jump to page..."
-            className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/40 caret-neon"
+            placeholder="search routes and tools"
+            className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/50 caret-primary"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
@@ -532,13 +532,13 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               <Link
                 key={page.href}
                 to={page.href}
-                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-neon/6 hover:text-neon focus:bg-neon/6 focus:text-neon focus:outline-none"
+                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none"
                 onClick={onClose}
               >
                 <span className="text-muted-foreground/40">→</span>
                 <span className="flex-1">{page.label}</span>
                 {location.pathname === page.href && (
-                  <span className="text-[8px] text-neon">[current]</span>
+                  <span className="text-[8px] text-primary">[current]</span>
                 )}
               </Link>
             ))

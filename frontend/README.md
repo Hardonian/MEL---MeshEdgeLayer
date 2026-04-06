@@ -1,6 +1,6 @@
 # MEL Frontend
 
-The MEL frontend is an operator workbench for incident intelligence and trusted control.
+The MEL frontend is an operator console for incident intelligence and trusted control.
 
 ## Identity contract
 
@@ -16,6 +16,7 @@ Canonical guidance:
 
 - `docs/product/operator-vibe-system.md`
 - `docs/contributor/writing-style-guide.md`
+- `docs/project/operator-identity-measurement-plan.md`
 
 ## Stack
 

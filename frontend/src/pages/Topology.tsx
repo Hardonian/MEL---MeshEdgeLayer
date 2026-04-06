@@ -896,7 +896,7 @@ export function Topology() {
               <span className="text-mel-xs text-muted-foreground ml-auto text-right max-w-[min(100%,320px)] sm:max-w-none">
                 Showing {filteredNodes.length}/{nodes.length} nodes
                 {nodeFilter === 'changed_since_visit' && topologyChangedSinceVisit.size === 0 && (
-                  <span className="block text-warning">No matches — mark “caught up” on the command surface to record topology baselines.</span>
+                  <span className="block text-warning">No matches — mark “caught up” on the operator console to record topology baselines.</span>
                 )}
                 {nodeFilter === 'incident_focus' && incidentFocusNodeNums.size === 0 && incidentCtx && (
                   <span className="block text-warning">No implicated node numbers in this incident — use All or Stale, or link a mesh_node resource.</span>
