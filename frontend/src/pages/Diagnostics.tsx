@@ -10,7 +10,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loading } from '@/components/ui/StateViews'
 import { AlertCard } from '@/components/ui/AlertCard'
-import { Card } from '@/components/ui/Card'
+import { MelPanel } from '@/components/ui/operator'
 import { clsx } from 'clsx'
 
 type DiagnosticsPageState = 'loading' | 'unreachable' | 'disabled' | 'ready'
@@ -97,7 +97,7 @@ export function Diagnostics() {
                 ? f.severity
                 : 'info'
             return (
-            <Card
+            <MelPanel
               key={idx}
               className={clsx(
                 'p-5',
@@ -128,7 +128,7 @@ export function Diagnostics() {
                   <li key={sIdx}>{step}</li>
                 ))}
               </ul>
-            </Card>
+            </MelPanel>
             )
           })
         )}

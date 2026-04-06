@@ -20,7 +20,6 @@ import { MEL_GITHUB_REPO, melGithubFile } from '@/constants/repoLinks'
 
 const NAV_TARGETS: Record<string, string> = {
   h: '/',
-  d: '/',
   i: '/incidents',
   t: '/topology',
   n: '/nodes',
@@ -30,6 +29,7 @@ const NAV_TARGETS: Record<string, string> = {
   c: '/control-actions',
   m: '/messages',
   v: '/operational-review',
+  x: '/diagnostics',
 }
 
 export function useGlobalKeyboardShortcuts(onRefresh?: () => void) {
@@ -429,6 +429,7 @@ export function KeyboardShortcuts() {
     {
       heading: 'General',
       shortcuts: [
+        { keys: 'Ctrl+K / ⌘K', description: 'Open route palette (jump anywhere)' },
         { keys: '?', description: 'Open this shortcuts panel' },
         { keys: 'Escape', description: 'Close open menus or this panel' },
         { keys: 'r', description: 'Refresh current page data' },
@@ -437,7 +438,7 @@ export function KeyboardShortcuts() {
     {
       heading: 'Navigation (g + key)',
       shortcuts: [
-        { keys: 'g h', description: 'Go to Workbench' },
+        { keys: 'g h', description: 'Go to console (workbench)' },
         { keys: 'g i', description: 'Go to Incidents' },
         { keys: 'g t', description: 'Go to Topology' },
         { keys: 'g n', description: 'Go to Nodes' },
@@ -446,6 +447,7 @@ export function KeyboardShortcuts() {
         { keys: 'g m', description: 'Go to Messages' },
         { keys: 'g e', description: 'Go to Events' },
         { keys: 'g v', description: 'Go to Operational review (digest + briefing)' },
+        { keys: 'g x', description: 'Go to Diagnostics' },
         { keys: 'g s', description: 'Go to Settings' },
       ],
     },

@@ -10,7 +10,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 
 RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
 
-.PHONY: fmt vet lint test build build-agent build-cli mel-cli-go build-cross verify smoke version demo-verify demo-seed \
+.PHONY: fmt vet lint test build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
 	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
@@ -83,6 +83,10 @@ build-cross:
 	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-linux-arm64 ./cmd/mel
 
 verify: fmt lint test build build-cross reality-check product-verify
+
+# Canonical stack check: Go + frontend lint/typecheck/tests + embedded UI build + smoke.
+# Use when you need one obvious “full product surface” signal (includes npm ci via lint/build).
+verify-stack: lint test build smoke
 
 smoke:
 	./scripts/smoke.sh

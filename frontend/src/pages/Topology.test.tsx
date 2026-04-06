@@ -83,7 +83,7 @@ describe('Topology truth boundary', () => {
     })
     expect(screen.getByText(/Not RF\/path proof or delivery proof/i)).toBeTruthy()
     expect(screen.getByText(/includes 1 inferred edge/i)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Stale' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Stale' }))
     expect(screen.getByTestId('topology-truth-boundary')).toBeTruthy()
   })
 
@@ -99,7 +99,7 @@ describe('Topology truth boundary', () => {
     expect(screen.getByText(/Relay drift around node 2/i)).toBeTruthy()
     expect(screen.getByText(/mesh_node \/ node:2/i)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Incident focus' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Incident focus' }))
     expect(screen.getByText(/Showing 1\/2 nodes/i)).toBeTruthy()
     expect(screen.getByText(/Observed vs inferred/i)).toBeTruthy()
     expect(screen.getByTestId('topology-truth-boundary')).toBeTruthy()
