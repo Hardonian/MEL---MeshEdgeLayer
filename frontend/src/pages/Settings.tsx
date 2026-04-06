@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { MelPanelInset } from '@/components/ui/operator'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -216,7 +217,7 @@ export function SettingsPage() {
             </div>
           </fieldset>
 
-          <div className="rounded-sm border border-border bg-muted/30 p-4">
+          <MelPanelInset tone="default" className="bg-muted/30 p-4">
             <p className="text-sm font-medium text-foreground">Keyboard shortcuts</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Use the Help menu in the header for documentation links and the full list.
@@ -224,7 +225,7 @@ export function SettingsPage() {
             <div className="mt-3">
               <KeyboardShortcuts />
             </div>
-          </div>
+          </MelPanelInset>
         </CardContent>
       </Card>
 
@@ -279,7 +280,7 @@ export function SettingsPage() {
             <p className="text-xs text-muted-foreground">Canonical fingerprint: <code>{configInspect.canonical_fingerprint}</code></p>
           )}
           {(configInspect?.violations?.length ?? 0) > 0 && (
-            <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
+            <MelPanelInset tone="warning" className="p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">Safe-default violations from config inspect</p>
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 {configInspect!.violations!.map((vItem) => (
@@ -288,7 +289,7 @@ export function SettingsPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </MelPanelInset>
           )}
         </CardContent>
       </Card>
@@ -513,7 +514,7 @@ function RuntimeTruthStrip({
         {(versionLoading || statusLoading) && <p className="text-xs text-muted-foreground">Loading runtime endpoints…</p>}
         {!versionLoading && !statusLoading && (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
+            <MelPanelInset tone="dense" className="bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Topology model</p>
               <p className="mt-1 text-muted-foreground">
                 {version?.topology_model_enabled === undefined
@@ -522,8 +523,8 @@ function RuntimeTruthStrip({
                     ? 'Enabled in running config — graph can update from ingest when transports deliver packets.'
                     : 'Disabled — topology pages stay informative but the graph store is not active.'}
               </p>
-            </div>
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
+            </MelPanelInset>
+            <MelPanelInset tone="dense" className="bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Transports</p>
               <p className="mt-1 text-muted-foreground">
                 {!anyConfigured && 'None configured — ingest cannot run until transports exist in config.'}
@@ -532,8 +533,8 @@ function RuntimeTruthStrip({
                     ? `${transports.length} configured; at least one connected/live — evidence can flow.`
                     : `${transports.length} configured; none connected in this poll — evidence may be stale or idle.`)}
               </p>
-            </div>
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
+            </MelPanelInset>
+            <MelPanelInset tone="dense" className="bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Schema / config</p>
               <p className="mt-1 text-muted-foreground">
                 Migrations:{' '}
@@ -548,8 +549,8 @@ function RuntimeTruthStrip({
                   </span>
                 )}
               </p>
-            </div>
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2.5">
+            </MelPanelInset>
+            <MelPanelInset tone="dense" className="bg-background/80 p-2.5">
               <p className="font-medium text-foreground">Where to verify</p>
               <ul className="mt-1 space-y-0.5 text-muted-foreground">
                 <li>
@@ -565,7 +566,7 @@ function RuntimeTruthStrip({
                   — internal health signals
                 </li>
               </ul>
-            </div>
+            </MelPanelInset>
           </div>
         )}
       </CardContent>
@@ -585,10 +586,11 @@ function ConfigItem({
   description: string
 }) {
   return (
-    <div
+    <MelPanelInset
       role="group"
       aria-label={`Config key ${name}, read-only reference`}
-      className="rounded-sm border border-border p-3"
+      tone="dense"
+      className="p-3"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <code className="break-all text-sm font-mono">{name}</code>
@@ -598,7 +600,7 @@ function ConfigItem({
       </div>
       <p className="mb-2 text-xs text-muted-foreground">Documented default: {defaultValue}</p>
       <p className="text-sm">{description}</p>
-    </div>
+    </MelPanelInset>
   )
 }
 
@@ -612,11 +614,11 @@ function InfoCard({
   description: string
 }) {
   return (
-    <div className="rounded-sm border border-border p-4">
+    <MelPanelInset tone="dense" className="p-4">
       <p className="text-sm text-muted-foreground">{title}</p>
       <p className="mt-1 break-words text-lg font-semibold">{value}</p>
       <p className="text-xs text-muted-foreground">{description}</p>
-    </div>
+    </MelPanelInset>
   )
 }
 
@@ -637,10 +639,13 @@ type QuickAccessCardProps =
 function QuickAccessCard(props: QuickAccessCardProps) {
   const { icon, title, description } = props
   const className =
-    'flex items-start gap-3 rounded-sm border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+    'group block rounded-[var(--radius)] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
   const inner = (
-    <>
+    <MelPanelInset
+      tone="dense"
+      className="flex items-start gap-3 p-4 transition-colors group-hover:bg-accent group-focus-visible:bg-accent"
+    >
       <span className="shrink-0 text-muted-foreground" aria-hidden>
         {icon}
       </span>
@@ -648,7 +653,7 @@ function QuickAccessCard(props: QuickAccessCardProps) {
         <span className="font-medium text-foreground">{title}</span>
         <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
       </span>
-    </>
+    </MelPanelInset>
   )
 
   if ('to' in props) {
@@ -681,13 +686,18 @@ function DocLink({
     <a
       id={id}
       href={href}
-      className="flex items-start gap-3 rounded-sm border border-border p-4 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group block rounded-[var(--radius)] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
-      <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-      <span>
-        <span className="font-medium text-foreground">{title}</span>
-        <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
-      </span>
+      <MelPanelInset
+        tone="dense"
+        className="flex items-start gap-3 p-4 transition-colors group-hover:bg-accent group-focus-visible:bg-accent"
+      >
+        <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <span>
+          <span className="font-medium text-foreground">{title}</span>
+          <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
+        </span>
+      </MelPanelInset>
     </a>
   )
 }
@@ -774,9 +784,9 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <RunningItem name="Delete scope" value={exp.delete_scope.join(', ')} source="evidence_export_delete.delete_scope" note="What can be deleted" />
             )}
             {exp.delete_caveat && (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-sm border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+              <MelPanelInset tone="warning" className="sm:col-span-2 lg:col-span-3 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Caveat: </span>{exp.delete_caveat}
-              </div>
+              </MelPanelInset>
             )}
           </div>
         </section>
@@ -801,7 +811,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <p className="text-xs text-muted-foreground font-medium">Providers</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {posture.inference_providers.map((p) => (
-                  <div key={p.name} className="flex items-center justify-between rounded-sm border border-border/60 px-3 py-2 text-xs">
+                  <MelPanelInset key={p.name} tone="dense" className="flex items-center justify-between text-xs">
                     <div>
                       <span className="font-medium text-foreground">{p.name}</span>
                       <span className="ml-2 text-muted-foreground">{p.endpoint_configured ? 'endpoint configured' : 'no endpoint'}</span>
@@ -809,7 +819,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
                     <Badge variant={p.enabled && p.available_by_config ? 'success' : 'secondary'}>
                       {p.enabled ? (p.available_by_config ? 'available' : 'config-limited') : 'disabled'}
                     </Badge>
-                  </div>
+                  </MelPanelInset>
                 ))}
               </div>
             </div>
@@ -819,7 +829,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               <p className="text-xs text-muted-foreground font-medium">Assist policies</p>
               <div className="space-y-1.5">
                 {posture.assist_policies.map((p) => (
-                  <div key={p.task_class} className="flex flex-wrap items-center gap-2 rounded-sm border border-border/50 px-3 py-2 text-xs">
+                  <MelPanelInset key={p.task_class} tone="dense" className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-mono text-foreground">{p.task_class.replace(/_/g, ' ')}</span>
                     <Badge variant={availabilityVariant(p.availability)}>{p.availability}</Badge>
                     <span className="text-muted-foreground">{p.execution_mode}</span>
@@ -831,7 +841,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
                     {p.fallback_reason && (
                       <span className="text-warning text-mel-xs">{p.fallback_reason}</span>
                     )}
-                  </div>
+                  </MelPanelInset>
                 ))}
               </div>
             </div>
@@ -894,7 +904,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
               />
             </div>
             {(posture.operator_intelligence_posture.assist_input_contracts?.length ?? 0) > 0 && (
-              <div className="mt-4 rounded-sm border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+              <MelPanelInset tone="default" className="mt-4 bg-muted/20 p-3 text-xs text-muted-foreground">
                 <p className="font-semibold text-foreground mb-1">Future bounded assist — canonical inputs (design contract)</p>
                 <ul className="list-disc pl-4 space-y-0.5 font-mono text-mel-xs">
                   {posture.operator_intelligence_posture.assist_input_contracts!.map((c) => (
@@ -907,7 +917,7 @@ function PlatformPostureCard({ posture }: { posture: PlatformPosture }) {
                 {posture.operator_intelligence_posture.assist_audit_expectation && (
                   <p className="mt-2 border-t border-border/40 pt-2">{posture.operator_intelligence_posture.assist_audit_expectation}</p>
                 )}
-              </div>
+              </MelPanelInset>
             )}
           </section>
         )}
@@ -930,7 +940,7 @@ function RunningItem({
   variant?: 'success' | 'warning' | 'secondary' | 'outline'
 }) {
   return (
-    <div className="rounded-sm border border-border p-3">
+    <MelPanelInset tone="dense" className="p-3">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-foreground">{name}</span>
         {variant && <Badge variant={variant} className="shrink-0 text-xs">{value}</Badge>}
@@ -938,6 +948,6 @@ function RunningItem({
       {!variant && <p className="text-base font-semibold text-foreground">{value}</p>}
       <p className="mt-1 text-xs text-muted-foreground">{note}</p>
       <p className="mt-0.5 font-mono text-mel-xs text-muted-foreground/60">{source}</p>
-    </div>
+    </MelPanelInset>
   )
 }
