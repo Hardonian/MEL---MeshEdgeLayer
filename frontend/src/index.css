@@ -554,15 +554,6 @@
     background-size: 20px 20px;
   }
 
-  /* Legacy helper kept for compatibility. Intentionally disabled. */
-  .mel-scanline {
-    position: relative;
-  }
-
-  .mel-scanline::after {
-    content: none;
-  }
-
   /* Signal line — neon top edge */
   .mel-signal-top {
     position: relative;

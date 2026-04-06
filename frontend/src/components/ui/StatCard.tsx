@@ -16,29 +16,24 @@ interface StatCardProps {
 
 const variantStyles = {
   default: {
-    icon: 'border-neon/20 text-neon',
-    value: 'text-neon',
-    accent: 'bg-neon',
+    icon: 'border-border/60 text-foreground',
+    value: 'text-foreground',
   },
   success: {
-    icon: 'border-neon/20 text-neon',
-    value: 'text-neon',
-    accent: 'bg-neon',
+    icon: 'border-signal-live/25 text-signal-live',
+    value: 'text-signal-live',
   },
   warning: {
-    icon: 'border-neon-warn/20 text-neon-warn',
-    value: 'text-neon-warn',
-    accent: 'bg-neon-warn',
+    icon: 'border-signal-degraded/25 text-signal-degraded',
+    value: 'text-signal-degraded',
   },
   critical: {
-    icon: 'border-neon-hot/20 text-neon-hot',
-    value: 'text-neon-hot',
-    accent: 'bg-neon-hot',
+    icon: 'border-signal-critical/25 text-signal-critical',
+    value: 'text-signal-critical',
   },
   info: {
-    icon: 'border-neon-alt/20 text-neon-alt',
-    value: 'text-neon-alt',
-    accent: 'bg-neon-alt',
+    icon: 'border-signal-observed/25 text-signal-observed',
+    value: 'text-signal-observed',
   },
 } as const
 
@@ -54,14 +49,11 @@ export function StatCard({
   const v = variantStyles[variant]
 
   return (
-    <div className={clsx('surface-panel interactive-lift overflow-hidden p-3', className)}>
-      {/* Neon accent top line */}
-      <div className={clsx('absolute inset-x-0 top-0 h-px', v.accent, 'opacity-40')} aria-hidden />
-
+    <div className={clsx('surface-panel interactive-lift relative overflow-hidden p-3', className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>
-          <p className={clsx('mel-metric mt-1.5 font-data text-mel-metric', v.value)}>{value}</p>
+          <p className={clsx('mt-1.5 font-data text-lg font-bold tabular-nums tracking-tight', v.value)}>{value}</p>
           {description && (
             <p className="mt-1 text-mel-xs text-muted-foreground">{description}</p>
           )}
