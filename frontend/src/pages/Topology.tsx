@@ -7,6 +7,7 @@ import { readShiftSnapshot } from '@/utils/shiftSnapshot'
 import { topologyLinkTruthSummary, topologyNodeTruthSummary } from '@/utils/evidenceSemantics'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
+import { MelPanelInset } from '@/components/ui/operator'
 
 type TopoNode = {
   node_num: number
@@ -743,8 +744,9 @@ export function Topology() {
       )}
 
       {incidentIdParam && (
-        <div
-          className="rounded-sm border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+        <MelPanelInset
+          tone="info"
+          className="text-xs text-muted-foreground"
           role="region"
           aria-label="Incident context for topology"
         >
@@ -781,7 +783,7 @@ export function Topology() {
             </div>
           )}
           {!incidentErr && !incidentCtx && <p>Loading incident context…</p>}
-        </div>
+        </MelPanelInset>
       )}
 
       {intelDisabled && (
@@ -877,11 +879,13 @@ export function Topology() {
               aria-label="Filter nodes in graph"
             >
               <span className="font-mono text-mel-xs font-bold uppercase tracking-wide text-muted-foreground">focus</span>
-              <div className="mel-segment flex flex-wrap" role="group" aria-label="Node filter">
+              <div className="mel-segment flex flex-wrap" role="radiogroup" aria-label="Node filter">
               {FILTER_OPTIONS.map((f) => (
                 <button
                   key={f.id}
                   type="button"
+                  role="radio"
+                  aria-checked={nodeFilter === f.id}
                   onClick={() => setFilterAndUrl(f.id)}
                   title={f.hint}
                   className={clsx(

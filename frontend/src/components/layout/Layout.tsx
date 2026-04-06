@@ -467,22 +467,22 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench' },
-    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
-    { label: 'status', href: '/status', keywords: 'transport health' },
-    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
-    { label: 'topology', href: '/topology', keywords: 'graph network map' },
-    { label: 'planning', href: '/planning', keywords: 'resilience playbook' },
-    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift' },
-    { label: 'messages', href: '/messages', keywords: 'packets traffic' },
-    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors' },
-    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions' },
-    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject' },
-    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions' },
-    { label: 'events', href: '/events', keywords: 'audit log' },
-    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks' },
-    { label: 'privacy', href: '/privacy', keywords: 'security audit' },
-    { label: 'settings', href: '/settings', keywords: 'config prefs' },
+    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench g h' },
+    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities dashboard' },
+    { label: 'status', href: '/status', keywords: 'transport health liveness' },
+    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio g n' },
+    { label: 'topology', href: '/topology', keywords: 'graph network map g t' },
+    { label: 'planning', href: '/planning', keywords: 'resilience playbook deployment g p' },
+    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift briefing g v' },
+    { label: 'messages', href: '/messages', keywords: 'packets traffic ingest g m' },
+    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors dlq queue' },
+    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions g i' },
+    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject queue control g c' },
+    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions assistive' },
+    { label: 'events', href: '/events', keywords: 'audit log timeline g e' },
+    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks doctor trust g x' },
+    { label: 'privacy', href: '/privacy', keywords: 'security audit findings' },
+    { label: 'settings', href: '/settings', keywords: 'config prefs truth contract g s' },
   ]
 
   const lowerQuery = query.toLowerCase()
@@ -524,8 +524,11 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
-            <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground">
-              No matching route.
+            <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground space-y-1">
+              <p>No matching route.</p>
+              <p className="text-mel-xs text-muted-foreground/70">
+                Try <kbd className="rounded border border-border/60 bg-muted/40 px-1 font-mono">g</kbd> then a letter (see Help → shortcuts), or another query.
+              </p>
             </div>
           ) : (
             filtered.map((page) => (
