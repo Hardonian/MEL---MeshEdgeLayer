@@ -11,6 +11,8 @@ interface StatCardProps {
     label: string
   }
   variant?: 'default' | 'success' | 'warning' | 'critical' | 'info'
+  /** `console` = chrome-weight workbench strip (still uses variant for signal color) */
+  rhythm?: 'panel' | 'console'
   className?: string
 }
 
@@ -44,16 +46,33 @@ export function StatCard({
   icon,
   trend,
   variant = 'default',
+  rhythm = 'panel',
   className,
 }: StatCardProps) {
   const v = variantStyles[variant]
+  const isConsole = rhythm === 'console'
 
   return (
-    <div className={clsx('surface-panel interactive-lift relative overflow-hidden p-3', className)}>
+    <div
+      className={clsx(
+        'surface-panel relative overflow-hidden p-3',
+        !isConsole && 'interactive-lift',
+        isConsole && 'border-chrome-border/80 bg-chrome-bg/90',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>
-          <p className={clsx('mt-1.5 font-data text-lg font-bold tabular-nums tracking-tight', v.value)}>{value}</p>
+          <p
+            className={clsx(
+              'mt-1.5 font-data font-bold tabular-nums tracking-tight',
+              isConsole ? 'text-mel-metric' : 'text-lg',
+              v.value,
+            )}
+          >
+            {value}
+          </p>
           {description && (
             <p className="mt-1 text-mel-xs text-muted-foreground">{description}</p>
           )}
@@ -64,7 +83,13 @@ export function StatCard({
           )}
         </div>
         {icon && (
-          <div className={clsx('flex h-7 w-7 shrink-0 items-center justify-center border', v.icon)}>
+          <div
+            className={clsx(
+              'flex shrink-0 items-center justify-center border',
+              isConsole ? 'h-6 w-6' : 'h-7 w-7',
+              v.icon,
+            )}
+          >
             {icon}
           </div>
         )}
