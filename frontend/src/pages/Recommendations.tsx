@@ -1,6 +1,5 @@
 import { useRecommendations } from '@/hooks/useApi'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { StatCard } from '@/components/ui/StatCard'
+import { MelDenseRow, MelPanel, MelPanelInset, MelStat } from '@/components/ui/operator'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -8,7 +7,7 @@ import { Loading } from '@/components/ui/StateViews'
 import { SystemHealthy } from '@/components/ui/EmptyState'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { Recommendation } from '@/types/api'
-import { Lightbulb, ArrowRight, Zap, BookOpen, Settings, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Lightbulb, ArrowRight, Zap, Settings, AlertTriangle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 
 
@@ -41,7 +40,7 @@ export function Recommendations() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Recommendations"
-          description="Evidence-backed actions for configuration and runtime posture. Recommendations are assistive, not canonical truth."
+          description="Assistive posture cues from this instance — bounded heuristics, not canonical transport or incident truth."
         />
         <button onClick={refresh} className="button-secondary">
           <RefreshCw className="h-4 w-4" />
@@ -49,67 +48,57 @@ export function Recommendations() {
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          title="Total"
-          value={recommendations.length}
-          description="Total findings"
-          icon={<Lightbulb className="h-5 w-5" />}
-          variant="default"
-        />
-        <StatCard
-          title="Actionable"
-          value={actionable.length}
-          description="Requires your attention"
-          icon={<ArrowRight className="h-5 w-5" />}
-          variant={actionable.length > 0 ? 'warning' : 'success'}
-        />
-        <StatCard
-          title="Informational"
-          value={informational.length}
-          description="Context only"
-          icon={<BookOpen className="h-5 w-5" />}
-          variant="info"
-        />
-      </div>
+      <MelPanel className="p-4">
+        <p className="mel-label mb-3">Queue snapshot</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MelStat label="Total" value={recommendations.length} description="All cues returned" />
+          <MelStat
+            label="Actionable"
+            value={actionable.length}
+            description={actionable.length > 0 ? 'Needs a decision or change' : 'Nothing blocking'}
+          />
+          <MelStat label="Informational" value={informational.length} description="Context / reference only" />
+        </div>
+      </MelPanel>
 
       {/* Actionable recommendations — surface first */}
       {actionable.length > 0 && (
-        <Card>
-          <CardHeader className="border-b border-border/50 pb-3">
-            <div className="flex items-center justify-between">
+        <MelPanel className="overflow-hidden">
+          <div className="mel-chrome-title border-b border-border/50 px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning">
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-warning/18 bg-warning/12 text-warning"
+                  aria-hidden
+                >
                   <AlertTriangle className="h-4 w-4" />
-                </div>
-                <CardTitle className="text-[14px]">Actionable</CardTitle>
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">Actionable</h3>
               </div>
               <Badge variant="warning">{actionable.length}</Badge>
             </div>
-          </CardHeader>
-          <CardContent className="pt-3">
-            <div className="space-y-2">
-              {actionable.map((rec, i) => (
-                <RecommendationCard key={`a-${i}`} recommendation={rec} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="space-y-2 px-3 py-3">
+            {actionable.map((rec, i) => (
+              <RecommendationCard key={`a-${i}`} recommendation={rec} />
+            ))}
+          </div>
+        </MelPanel>
       )}
 
       {/* Informational / all */}
-      <Card>
-        <CardHeader className="border-b border-border/50 pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-[14px]">
+      <MelPanel className="overflow-hidden">
+        <div className="mel-chrome-title border-b border-border/50 px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground">
               {actionable.length === 0 ? 'All recommendations' : 'Informational'}
-            </CardTitle>
+            </h3>
             <Badge variant="outline">
               {actionable.length === 0 ? recommendations.length : informational.length}
             </Badge>
           </div>
-        </CardHeader>
-        <CardContent className="pt-3">
+        </div>
+        <div className="px-3 py-3">
           {(actionable.length === 0 ? recommendations : informational).length === 0 ? (
             <SystemHealthy message="No active recommendations" />
           ) : (
@@ -119,8 +108,8 @@ export function Recommendations() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </MelPanel>
     </div>
   )
 }
@@ -137,12 +126,7 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
   const defaultIcon = recommendation.actionable ? <ArrowRight className="h-3.5 w-3.5" /> : <Lightbulb className="h-3.5 w-3.5" />
 
   return (
-    <div className={clsx(
-      'rounded-md border p-3',
-      recommendation.actionable
-        ? 'border-warning/25 bg-warning/5'
-        : 'border-border/50 bg-card/40'
-    )}>
+    <MelDenseRow className="p-3" tone={recommendation.actionable ? 'warning' : 'default'}>
       <div className="flex items-start gap-3">
         <div className={clsx(
           'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border',
@@ -161,13 +145,13 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
           </div>
           <p className="text-[13px] leading-relaxed text-foreground">{recommendation.message}</p>
           {recommendation.action && (
-            <div className="mt-2 flex items-center gap-2 rounded-sm border border-border/50 bg-muted/30 px-3 py-2">
+            <MelPanelInset className="mt-2 flex items-center gap-2 border-border/50 bg-muted/30 py-2">
               <code className="flex-1 text-xs font-mono text-foreground">{recommendation.action}</code>
               <CopyButton value={recommendation.action} label="Copy command" />
-            </div>
+            </MelPanelInset>
           )}
         </div>
       </div>
-    </div>
+    </MelDenseRow>
   )
 }

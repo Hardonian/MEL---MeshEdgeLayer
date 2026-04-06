@@ -429,10 +429,10 @@ export function KeyboardShortcuts() {
     {
       heading: 'General',
       shortcuts: [
-        { keys: 'Ctrl+K / ⌘K', description: 'Open route palette (jump anywhere)' },
+        { keys: 'Ctrl+K / ⌘K', description: 'Open jump palette (routes + focused-incident sections when workbench focus is set)' },
         { keys: '?', description: 'Open this shortcuts panel' },
         { keys: 'Escape', description: 'Close open menus or this panel' },
-        { keys: 'r', description: 'Refresh current page data' },
+        { keys: 'r', description: 'Refresh data for open views' },
       ],
     },
     {
