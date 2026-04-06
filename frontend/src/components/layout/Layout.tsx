@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: 'overview',
       icon: Eye,
       items: [
-        { label: 'command', href: '/', icon: LayoutDashboard },
+        { label: 'workbench', href: '/', icon: LayoutDashboard },
         { label: 'status', href: '/status', icon: Activity },
         { label: 'events', href: '/events', icon: FileText },
       ],
@@ -232,7 +232,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               title="Search (Ctrl+K)"
             >
               <Search className="h-3 w-3" />
-              <span>ctrl+k</span>
+              <span>ctrl+k · nav</span>
             </button>
 
             <button
@@ -467,7 +467,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const location = useLocation()
 
   const allPages = [
-    { label: 'command', href: '/', keywords: 'home overview dashboard' },
+    { label: 'workbench', href: '/', keywords: 'home overview dashboard command surface' },
     { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
     { label: 'status', href: '/status', keywords: 'transport health' },
     { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
@@ -514,7 +514,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
           <span className="text-neon font-bold text-mel-sm">$</span>
           <input
             type="text"
-            placeholder="goto..."
+            placeholder="jump to page..."
             className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/40 caret-neon"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -525,7 +525,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
             <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground">
-              -- no match --
+              No matching route.
             </div>
           ) : (
             filtered.map((page) => (

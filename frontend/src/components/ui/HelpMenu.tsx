@@ -437,7 +437,7 @@ export function KeyboardShortcuts() {
     {
       heading: 'Navigation (g + key)',
       shortcuts: [
-        { keys: 'g h', description: 'Go to Dashboard' },
+        { keys: 'g h', description: 'Go to Workbench' },
         { keys: 'g i', description: 'Go to Incidents' },
         { keys: 'g t', description: 'Go to Topology' },
         { keys: 'g n', description: 'Go to Nodes' },
