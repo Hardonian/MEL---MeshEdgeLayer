@@ -12,6 +12,7 @@ import { AlertTriangle, Info, CheckCircle2, HelpCircle, Lock, Eye, Server, Datab
 import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { MelPanelInset } from '@/components/ui/operator'
 
 export function Privacy() {
   const { data, loading, error, refresh } = usePrivacyFindings()
@@ -72,7 +73,7 @@ export function Privacy() {
     <div className="space-y-6">
       <PageHeader
         title="Privacy"
-        description="Security and privacy posture assessment for your MEL configuration."
+        description="Posture scan for this instance’s configuration and policy surface. Findings are checks, not proof of absence of risk elsewhere."
       />
 
       {/* Summary */}
@@ -81,29 +82,33 @@ export function Privacy() {
           title="Critical"
           value={critical.length}
           description="Requires immediate attention"
-          icon={<AlertTriangle className="h-5 w-5" />}
+          icon={<AlertTriangle className="h-4 w-4" />}
           variant={critical.length > 0 ? 'critical' : 'default'}
+          rhythm="console"
         />
         <StatCard
           title="High"
           value={high.length}
           description="Should be addressed soon"
-          icon={<AlertTriangle className="h-5 w-5" />}
+          icon={<AlertTriangle className="h-4 w-4" />}
           variant={high.length > 0 ? 'warning' : 'default'}
+          rhythm="console"
         />
         <StatCard
           title="Medium"
           value={medium.length}
           description="Consider addressing"
-          icon={<Info className="h-5 w-5" />}
+          icon={<Info className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Low"
           value={low.length}
           description="Informational only"
-          icon={<CheckCircle2 className="h-5 w-5" />}
+          icon={<CheckCircle2 className="h-4 w-4" />}
           variant="success"
+          rhythm="console"
         />
       </div>
 
@@ -213,12 +218,12 @@ export function Privacy() {
 }
 
 function FindingCard({ finding }: { finding: PrivacyFinding }) {
-  const severityColors = {
-    critical: 'border-critical/30 bg-critical/5',
-    high: 'border-warning/30 bg-warning/5',
-    medium: 'border-warning/20 bg-warning/5',
-    low: 'border-muted bg-muted/30',
-  }
+  const insetTone =
+    finding.severity === 'critical'
+      ? 'critical'
+      : finding.severity === 'high' || finding.severity === 'medium'
+        ? 'warning'
+        : 'dense'
 
   const severityIcons = {
     critical: AlertTriangle,
@@ -230,10 +235,7 @@ function FindingCard({ finding }: { finding: PrivacyFinding }) {
   const Icon = severityIcons[finding.severity]
 
   return (
-    <div className={clsx(
-      'rounded-sm border p-4',
-      severityColors[finding.severity]
-    )}>
+    <MelPanelInset tone={insetTone} className="p-4">
       <div className="flex items-start gap-3">
         <div className={clsx(
           'mt-0.5 shrink-0',
@@ -249,16 +251,16 @@ function FindingCard({ finding }: { finding: PrivacyFinding }) {
           </div>
           <p className="text-sm font-medium">{finding.message}</p>
           {finding.remediation && (
-            <div className="mel-panel-inset mt-3 border-signal-observed/20 bg-signal-observed/5">
-              <p className="text-xs font-medium text-foreground">Recommended Action</p>
+            <MelPanelInset tone="observed" className="mt-3">
+              <p className="text-xs font-medium text-foreground">Remediation</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {finding.remediation}
               </p>
-            </div>
+            </MelPanelInset>
           )}
         </div>
       </div>
-    </div>
+    </MelPanelInset>
   )
 }
 

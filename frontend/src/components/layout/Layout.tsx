@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, matchPath } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
@@ -462,38 +462,108 @@ function WorkspaceFocusBar({
   )
 }
 
+type PaletteLink = {
+  group: string
+  label: string
+  href: string
+  keywords: string
+}
+
+function paletteHrefMatchesLocation(href: string): boolean {
+  try {
+    const u = new URL(href, window.location.origin)
+    const cur = new URL(window.location.href)
+    return u.pathname === cur.pathname && u.search === cur.search && u.hash === cur.hash
+  } catch {
+    return false
+  }
+}
+
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const location = useLocation()
 
-  const allPages = [
-    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench' },
-    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
-    { label: 'status', href: '/status', keywords: 'transport health' },
-    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
-    { label: 'topology', href: '/topology', keywords: 'graph network map' },
-    { label: 'planning', href: '/planning', keywords: 'resilience playbook' },
-    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift' },
-    { label: 'messages', href: '/messages', keywords: 'packets traffic' },
-    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors' },
-    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions' },
-    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject' },
-    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions' },
-    { label: 'events', href: '/events', keywords: 'audit log' },
-    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks' },
-    { label: 'privacy', href: '/privacy', keywords: 'security audit' },
-    { label: 'settings', href: '/settings', keywords: 'config prefs' },
+  const incidentMatch = matchPath({ path: '/incidents/:id', end: true }, location.pathname)
+  const incidentId = incidentMatch?.params.id
+
+  const contextLinks: PaletteLink[] = incidentId
+    ? [
+        {
+          group: 'This incident',
+          label: 'Replay / timeline',
+          href: `/incidents/${encodeURIComponent(incidentId)}?replay=1`,
+          keywords: 'replay timeline chronology history',
+        },
+        {
+          group: 'This incident',
+          label: 'Operational summary (anchor)',
+          href: `/incidents/${encodeURIComponent(incidentId)}#incident-operational-summary`,
+          keywords: 'summary header severity state',
+        },
+        {
+          group: 'This incident',
+          label: 'Decision pack (anchor)',
+          href: `/incidents/${encodeURIComponent(incidentId)}#mel-incident-decision-pack`,
+          keywords: 'decision pack adjudication guidance',
+        },
+        {
+          group: 'This incident',
+          label: 'Handoff & export (anchor)',
+          href: `/incidents/${encodeURIComponent(incidentId)}#shift-continuity-handoff`,
+          keywords: 'handoff escalation continuity export json',
+        },
+        {
+          group: 'This incident',
+          label: 'Linked control actions (anchor)',
+          href: `/incidents/${encodeURIComponent(incidentId)}#linked-control-actions`,
+          keywords: 'control queue approval execution linked',
+        },
+        {
+          group: 'This incident',
+          label: 'Topology (incident focus)',
+          href: `/topology?incident=${encodeURIComponent(incidentId)}&filter=incident_focus`,
+          keywords: 'topology graph map focus',
+        },
+        {
+          group: 'This incident',
+          label: 'Control queue (filtered)',
+          href: `/control-actions?incident=${encodeURIComponent(incidentId)}`,
+          keywords: 'approve reject pending',
+        },
+      ]
+    : []
+
+  const allPages: PaletteLink[] = [
+    { group: 'Console', label: 'console', href: '/', keywords: 'home overview operator workspace workbench' },
+    { group: 'Console', label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
+    { group: 'Console', label: 'status', href: '/status', keywords: 'transport health' },
+    { group: 'Console', label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
+    { group: 'Console', label: 'topology', href: '/topology', keywords: 'graph network map' },
+    { group: 'Console', label: 'planning', href: '/planning', keywords: 'resilience playbook' },
+    { group: 'Console', label: 'operational-review', href: '/operational-review', keywords: 'digest shift' },
+    { group: 'Console', label: 'messages', href: '/messages', keywords: 'packets traffic' },
+    { group: 'Console', label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors' },
+    { group: 'Console', label: 'incidents', href: '/incidents', keywords: 'alerts disruptions queue' },
+    { group: 'Console', label: 'control-actions', href: '/control-actions', keywords: 'approve reject' },
+    { group: 'Console', label: 'recommendations', href: '/recommendations', keywords: 'suggestions' },
+    { group: 'Console', label: 'events', href: '/events', keywords: 'audit log' },
+    { group: 'Console', label: 'diagnostics', href: '/diagnostics', keywords: 'health checks support bundle' },
+    { group: 'Console', label: 'privacy', href: '/privacy', keywords: 'security audit' },
+    { group: 'Console', label: 'settings', href: '/settings', keywords: 'config prefs' },
   ]
 
-  const lowerQuery = query.toLowerCase()
-  const filtered = query
-    ? allPages.filter(
+  const combined = [...contextLinks, ...allPages]
+
+  const lowerQuery = query.toLowerCase().trim()
+  const filtered = lowerQuery
+    ? combined.filter(
         (p) =>
-          p.label.includes(lowerQuery) ||
+          p.label.toLowerCase().includes(lowerQuery) ||
           p.keywords.includes(lowerQuery) ||
-          p.href.includes(lowerQuery)
+          p.href.toLowerCase().includes(lowerQuery) ||
+          p.group.toLowerCase().includes(lowerQuery),
       )
-    : allPages
+    : combined
 
   useEffect(() => {
     onClose()
@@ -509,37 +579,42 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-label="Command palette"
       >
-        {/* Terminal prompt input */}
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <span className="text-primary font-bold text-mel-sm">:</span>
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden />
           <input
             type="text"
-            placeholder="search routes and tools"
+            placeholder="Jump to a surface or incident anchor"
             className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/50 caret-primary"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
+            aria-label="Command palette filter"
           />
-          <span className="text-mel-xs text-muted-foreground/40">ESC</span>
+          <span className="text-mel-xs text-muted-foreground/40">esc</span>
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
             <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground">
-              No matching route.
+              No matching jump target.
             </div>
           ) : (
-            filtered.map((page) => (
+            filtered.map((page, i) => (
               <Link
-                key={page.href}
+                key={`${page.group}:${page.href}:${i}`}
                 to={page.href}
-                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none"
+                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={onClose}
               >
                 <span className="text-muted-foreground/40">→</span>
-                <span className="flex-1">{page.label}</span>
-                {location.pathname === page.href && (
-                  <span className="text-[8px] text-primary">[current]</span>
-                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{page.label}</span>
+                  {page.group !== 'Console' && (
+                    <span className="block truncate text-mel-xs text-muted-foreground/70">{page.group}</span>
+                  )}
+                </span>
+                {paletteHrefMatchesLocation(page.href) ? (
+                  <span className="text-[8px] shrink-0 font-bold uppercase tracking-wide text-primary">here</span>
+                ) : null}
               </Link>
             ))
           )}
