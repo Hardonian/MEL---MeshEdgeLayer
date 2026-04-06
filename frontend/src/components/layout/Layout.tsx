@@ -482,100 +482,24 @@ function paletteHrefMatchesLocation(href: string): boolean {
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const location = useLocation()
-  const [searchParams] = useSearchParams()
 
-  const incidentMatch = matchPath({ path: '/incidents/:id', end: true }, location.pathname)
-  const pathIncidentId = incidentMatch?.params.id
-  const queryIncidentId = searchParams.get('incident')?.trim() || undefined
-  const crossSurfaceIncident =
-    location.pathname.startsWith('/planning') ||
-    location.pathname.startsWith('/control-actions') ||
-    location.pathname.startsWith('/topology')
-  const incidentId = pathIncidentId ?? (crossSurfaceIncident && queryIncidentId ? queryIncidentId : undefined)
-  const incidentGroup = pathIncidentId ? 'This incident' : 'Incident context'
-
-  const contextLinks: PaletteLink[] = incidentId
-    ? [
-        {
-          group: incidentGroup,
-          label: 'Incident detail',
-          href: `/incidents/${encodeURIComponent(incidentId)}`,
-          keywords: 'incident record summary',
-        },
-        {
-          group: incidentGroup,
-          label: 'Replay / timeline',
-          href: `/incidents/${encodeURIComponent(incidentId)}?replay=1`,
-          keywords: 'replay timeline chronology history',
-        },
-        {
-          group: incidentGroup,
-          label: 'Operational summary (anchor)',
-          href: `/incidents/${encodeURIComponent(incidentId)}#incident-operational-summary`,
-          keywords: 'summary header severity state',
-        },
-        {
-          group: incidentGroup,
-          label: 'Decision pack (anchor)',
-          href: `/incidents/${encodeURIComponent(incidentId)}#mel-incident-decision-pack`,
-          keywords: 'decision pack adjudication guidance',
-        },
-        {
-          group: incidentGroup,
-          label: 'Handoff & export (anchor)',
-          href: `/incidents/${encodeURIComponent(incidentId)}#shift-continuity-handoff`,
-          keywords: 'handoff escalation continuity export json',
-        },
-        {
-          group: incidentGroup,
-          label: 'Linked control actions (anchor)',
-          href: `/incidents/${encodeURIComponent(incidentId)}#linked-control-actions`,
-          keywords: 'control queue approval execution linked',
-        },
-        {
-          group: incidentGroup,
-          label: 'Investigation path (anchor)',
-          href: `/incidents/${encodeURIComponent(incidentId)}#mel-investigation-path`,
-          keywords: 'investigation path workflow',
-        },
-        {
-          group: incidentGroup,
-          label: 'Topology (incident focus)',
-          href: `/topology?incident=${encodeURIComponent(incidentId)}&filter=incident_focus`,
-          keywords: 'topology graph map focus',
-        },
-        {
-          group: incidentGroup,
-          label: 'Planning (same incident)',
-          href: `/planning?incident=${encodeURIComponent(incidentId)}`,
-          keywords: 'planning resilience board',
-        },
-        {
-          group: incidentGroup,
-          label: 'Control queue (filtered)',
-          href: `/control-actions?incident=${encodeURIComponent(incidentId)}`,
-          keywords: 'approve reject pending',
-        },
-      ]
-    : []
-
-  const allPages: PaletteLink[] = [
-    { group: 'Console', label: 'console', href: '/', keywords: 'home overview operator workspace workbench' },
-    { group: 'Console', label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities' },
-    { group: 'Console', label: 'status', href: '/status', keywords: 'transport health' },
-    { group: 'Console', label: 'nodes', href: '/nodes', keywords: 'devices mesh radio' },
-    { group: 'Console', label: 'topology', href: '/topology', keywords: 'graph network map' },
-    { group: 'Console', label: 'planning', href: '/planning', keywords: 'resilience playbook' },
-    { group: 'Console', label: 'operational-review', href: '/operational-review', keywords: 'digest shift' },
-    { group: 'Console', label: 'messages', href: '/messages', keywords: 'packets traffic' },
-    { group: 'Console', label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors' },
-    { group: 'Console', label: 'incidents', href: '/incidents', keywords: 'alerts disruptions queue' },
-    { group: 'Console', label: 'control-actions', href: '/control-actions', keywords: 'approve reject' },
-    { group: 'Console', label: 'recommendations', href: '/recommendations', keywords: 'suggestions' },
-    { group: 'Console', label: 'events', href: '/events', keywords: 'audit log' },
-    { group: 'Console', label: 'diagnostics', href: '/diagnostics', keywords: 'health checks support bundle' },
-    { group: 'Console', label: 'privacy', href: '/privacy', keywords: 'security audit' },
-    { group: 'Console', label: 'settings', href: '/settings', keywords: 'config prefs' },
+  const allPages = [
+    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench g h' },
+    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities dashboard' },
+    { label: 'status', href: '/status', keywords: 'transport health liveness' },
+    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio g n' },
+    { label: 'topology', href: '/topology', keywords: 'graph network map g t' },
+    { label: 'planning', href: '/planning', keywords: 'resilience playbook deployment g p' },
+    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift briefing g v' },
+    { label: 'messages', href: '/messages', keywords: 'packets traffic ingest g m' },
+    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors dlq queue' },
+    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions g i' },
+    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject queue control g c' },
+    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions assistive' },
+    { label: 'events', href: '/events', keywords: 'audit log timeline g e' },
+    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks doctor trust g x' },
+    { label: 'privacy', href: '/privacy', keywords: 'security audit findings' },
+    { label: 'settings', href: '/settings', keywords: 'config prefs truth contract g s' },
   ]
 
   const combined = [...contextLinks, ...allPages]
@@ -620,8 +544,11 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
-            <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground">
-              No matching jump target.
+            <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground space-y-1">
+              <p>No matching route.</p>
+              <p className="text-mel-xs text-muted-foreground/70">
+                Try <kbd className="rounded border border-border/60 bg-muted/40 px-1 font-mono">g</kbd> then a letter (see Help → shortcuts), or another query.
+              </p>
             </div>
           ) : (
             filtered.map((page, i) => (

@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePageHotkeys } from '@/hooks/usePageHotkeys'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Card } from '@/components/ui/Card'
-import { MelPanelInset } from '@/components/ui/operator'
+import { MelPanel, MelPanelInset } from '@/components/ui/operator'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { Incident } from '@/types/api'
@@ -539,7 +538,7 @@ export function Planning() {
       </div>
 
       <div ref={(el) => { sectionRefs.current.posture = el }} className="scroll-mt-20">
-        <Card className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>
+        <MelPanel className={`border-warning/25 bg-warning/5 ${denseLayout ? 'p-3' : 'p-4'}`}>
           <p className="text-sm text-muted-foreground leading-relaxed" data-testid="planning-evidence-banner">
             {bundle.evidence_model}
           </p>
@@ -575,11 +574,11 @@ export function Planning() {
               {bundle.wait_versus_expand_hint}
             </p>
           )}
-        </Card>
+        </MelPanel>
       </div>
 
       <div data-testid="planning-decision-board">
-        <Card className={`border-border/80 ${denseLayout ? 'p-3' : 'p-4'}`}>
+        <MelPanel className={`border-border/80 ${denseLayout ? 'p-3' : 'p-4'}`}>
         <h3 className={`font-semibold mb-2 ${denseLayout ? 'text-sm' : ''}`}>Decision board</h3>
         <p className="text-mel-sm text-muted-foreground mb-3">
           Scan-first layout: what is known vs unknown vs unsupported, then what to check next. Does not add simulation beyond the planning bundle.
@@ -663,13 +662,13 @@ export function Planning() {
             </ul>
           </MelPanelInset>
         </div>
-        </Card>
+        </MelPanel>
       </div>
 
       {denseLayout ? (
         <div className="grid gap-3 lg:grid-cols-3" data-testid="planning-dense-grid">
           {bn && (
-            <Card className="p-3 border-border lg:col-span-1">
+            <MelPanel className="p-3 border-border lg:col-span-1">
               <h3 className="text-sm font-semibold mb-2">Best next move</h3>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 <Badge variant="outline">{bn.primary_verdict}</Badge>
@@ -712,10 +711,10 @@ export function Planning() {
                   ))}
                 </ul>
               )}
-            </Card>
+            </MelPanel>
           )}
 
-          <Card className="p-3 lg:col-span-1">
+          <MelPanel className="p-3 lg:col-span-1">
             <h3 className="text-sm font-semibold mb-2">Resilience</h3>
             <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
               <dt className="text-muted-foreground">Resilience</dt>
@@ -733,9 +732,9 @@ export function Planning() {
                 <li key={i}>{x}</li>
               ))}
             </ul>
-          </Card>
+          </MelPanel>
 
-          <Card className="p-3 lg:col-span-1">
+          <MelPanel className="p-3 lg:col-span-1">
             <h3 className="text-sm font-semibold mb-2">Ranked plans</h3>
             {bundle.ranked_next_plans.length === 0 ? (
               <p className="text-xs text-muted-foreground">No recommendations in this snapshot.</p>
@@ -763,12 +762,12 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </Card>
+          </MelPanel>
         </div>
       ) : (
         <>
           {bn && (
-            <Card className="p-4 border-border">
+            <MelPanel className="p-4 border-border">
               <h3 className="font-semibold mb-2">Best next move (consolidated)</h3>
               <div className="flex flex-wrap gap-2 mb-2">
                 <Badge variant="outline">{bn.primary_verdict}</Badge>
@@ -811,11 +810,11 @@ export function Planning() {
                   ))}
                 </ul>
               )}
-            </Card>
+            </MelPanel>
           )}
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="p-4">
+            <MelPanel className="p-4">
               <h3 className="font-semibold mb-2">Resilience summary</h3>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <dt className="text-muted-foreground">Resilience</dt>
@@ -833,9 +832,9 @@ export function Planning() {
                   <li key={i}>{x}</li>
                 ))}
               </ul>
-            </Card>
+            </MelPanel>
 
-            <Card className="p-4">
+            <MelPanel className="p-4">
               <h3 className="font-semibold mb-2">Ranked next moves</h3>
               {bundle.ranked_next_plans.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No mesh recommendations in this snapshot.</p>
@@ -859,12 +858,12 @@ export function Planning() {
                   ))}
                 </ul>
               )}
-            </Card>
+            </MelPanel>
           </div>
         </>
       )}
 
-      <Card className="p-3 md:p-4">
+      <MelPanel className="p-3 md:p-4">
         <h3 className="font-semibold mb-2 text-sm">Resilience advisory alerts</h3>
         {advisories.length === 0 ? (
           <p className="text-xs md:text-sm text-muted-foreground" data-testid="planning-advisories-empty">
@@ -883,10 +882,10 @@ export function Planning() {
             ))}
           </ul>
         )}
-      </Card>
+      </MelPanel>
 
       <div className="grid gap-3 lg:grid-cols-2" ref={(el) => (sectionRefs.current.compare = el)}>
-        <Card className="p-3 md:p-4">
+        <MelPanel className="p-3 md:p-4">
           <h3 className="font-semibold mb-2 text-sm">Compare plans</h3>
           <div className="flex flex-wrap gap-2 items-center">
             <input
@@ -927,9 +926,9 @@ export function Planning() {
               <p className="text-mel-sm text-muted-foreground">Evidence model: {comparison.evidence_classification}</p>
             </div>
           )}
-        </Card>
+        </MelPanel>
 
-        <Card className="p-3 md:p-4">
+        <MelPanel className="p-3 md:p-4">
           <h3 className="font-semibold mb-2 text-sm">Plan execution history</h3>
           <div className="flex flex-wrap gap-2 items-center">
             <input className="flex-1 min-w-[170px] rounded border border-border bg-background px-2 py-1 text-sm" placeholder="plan id" value={execPlanId} onChange={(e) => setExecPlanId(e.target.value)} />
@@ -946,10 +945,10 @@ export function Planning() {
               ))}
             </ul>
           )}
-        </Card>
+        </MelPanel>
       </div>
 
-      <Card className="p-3 md:p-4">
+      <MelPanel className="p-3 md:p-4">
         <div className="flex items-center justify-between gap-2 mb-2" ref={(el) => (sectionRefs.current.playbooks = el)}>
           <h3 className="font-semibold text-sm">Playbooks</h3>
           <p className="text-mel-sm text-muted-foreground">Field-guide summaries with bounded observations.</p>
@@ -959,7 +958,7 @@ export function Planning() {
         ) : (
           <div className="space-y-3">
             {bundle.playbooks.map((pb) => (
-              <MelPanelInset key={pb.class} tone="dense" className="p-3">
+              <MelPanelInset key={pb.class} className="p-3">
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <h4 className="font-medium text-sm">{pb.title}</h4>
                   <Badge variant="outline">{pb.class}</Badge>
@@ -974,9 +973,9 @@ export function Planning() {
             ))}
           </div>
         )}
-      </Card>
+      </MelPanel>
 
-      <Card className="p-3 md:p-4">
+      <MelPanel className="p-3 md:p-4">
         <h3 className="font-semibold mb-2 text-sm">Node criticality (observed graph)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs md:text-sm">
@@ -995,7 +994,7 @@ export function Planning() {
           </table>
         </div>
         <p className="text-mel-sm text-muted-foreground mt-2">Computed {bundle.computed_at}</p>
-      </Card>
+      </MelPanel>
     </div>
   )
 }

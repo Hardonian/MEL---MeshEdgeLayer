@@ -239,7 +239,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {inc.reopened_from_incident_id && (
-          <MelPanelInset tone="dense">
+          <MelPanelInset className="px-3 py-2">
             <span className="font-semibold text-foreground">Reopened from </span>
             <Link
               to={`/incidents/${encodeURIComponent(inc.reopened_from_incident_id)}`}
@@ -253,7 +253,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {fam && fam.family_match_total > 0 && (
-          <MelPanelInset tone="dense" data-testid="signature-family-history">
+          <MelPanelInset className="px-3 py-2" data-testid="signature-family-history">
             <p className="font-semibold text-foreground">Signature family (resolved peers on this instance)</p>
             <p className="text-muted-foreground mt-0.5">
               <span className="text-foreground font-medium">{fam.resolved_peer_count}</span> other resolved/closed peer
@@ -272,7 +272,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {sig > 1 && (
-          <MelPanelInset tone="dense">
+          <MelPanelInset className="px-3 py-2">
             <p className="font-semibold text-foreground">Signature recurrence</p>
             <p className="text-muted-foreground mt-0.5">
               Same signature bucket seen <span className="text-foreground font-medium">{sig}</span> times — structural repeat, not verified root-cause repeat.
@@ -286,7 +286,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {sim.length > 0 && (
-          <MelPanelInset tone="dense">
+          <MelPanelInset className="px-3 py-2">
             <p className="font-semibold text-foreground">Similar prior incidents</p>
             <p className="text-muted-foreground mt-0.5">
               {sim.length} linked row{sim.length > 1 ? 's' : ''} in intelligence — open each for rationale and weak-match flags.
@@ -297,7 +297,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {mem.length > 0 && (
-          <MelPanelInset tone="dense" className="space-y-1.5">
+          <MelPanelInset className="px-3 py-2 space-y-1.5">
             <p className="font-semibold text-foreground">Historical action outcomes (association)</p>
             {mem.slice(0, 4).map((m) => (
               <div key={m.action_type} className="text-muted-foreground border-t border-border/30 pt-1.5 first:border-0 first:pt-0">
@@ -320,7 +320,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {gov.length > 0 && (
-          <MelPanelInset tone="dense" className="space-y-1">
+          <MelPanelInset className="px-3 py-2 space-y-1">
             <p className="font-semibold text-foreground">Governance memory (control plane)</p>
             {gov.slice(0, 3).map((g) => (
               <p key={g.action_type} className="text-muted-foreground">
@@ -334,7 +334,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </MelPanelInset>
         )}
         {hist.length > 0 && (
-          <MelPanelInset tone="dense">
+          <MelPanelInset className="px-3 py-2">
             <p className="font-semibold text-foreground">Historically used action types (this signature family)</p>
             <ul className="mt-1 list-disc pl-4 text-muted-foreground space-y-0.5">
               {hist.slice(0, 6).map((h) => (
@@ -359,7 +359,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
             )}
           </p>
         )}
-        <MelPanelInset tone="default" className="mt-1 border-t border-border/40 pt-3 text-mel-sm text-muted-foreground space-y-1 bg-muted/15">
+        <MelPanelInset className="mt-1 border-t border-border/40 pt-3 text-mel-sm text-muted-foreground space-y-1">
           <p className="font-semibold text-foreground">What this changes in your next step</p>
           <ul className="list-disc pl-4 space-y-0.5">
             {sig > 1 && (
@@ -688,33 +688,33 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
         <div className="surface-toolbar flex flex-wrap gap-2 px-2 py-2 border-border/60">
           <Link
             to={`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}&replay=1`}
-            className="inline-flex items-center gap-1 rounded-sm border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+            className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium"
           >
             <Activity className="h-3.5 w-3.5" />
             Replay / timeline
           </Link>
           <Link
             to={`/topology?incident=${encodeURIComponent(inc.id)}&filter=incident_focus${topoNum != null ? `&select=${topoNum}` : ''}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
-            className="inline-flex items-center gap-1 rounded-sm border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+            className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium"
           >
             <GitBranch className="h-3.5 w-3.5" />
             Topology{topoNum != null ? ` (node ${topoNum})` : ''}
           </Link>
           <Link
             to={`/planning?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
-            className="inline-flex items-center gap-1 rounded-sm border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+            className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium"
           >
             Planning
           </Link>
           <Link
             to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnTo)}`)}`}
-            className="inline-flex items-center gap-1 rounded-sm border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-muted/40"
+            className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium"
           >
             Control queue
           </Link>
           <Link
             to="/diagnostics"
-            className="inline-flex items-center gap-1 rounded-sm border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            className="button-secondary inline-flex items-center gap-1 px-2.5 py-1.5 text-xs normal-case tracking-normal font-medium text-muted-foreground hover:text-foreground"
           >
             Support bundle
           </Link>
@@ -1297,7 +1297,7 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
         </div>
       )}
       {replayMeta?.delta_last_10m && (
-        <MelPanelInset tone="dense" className="space-y-1.5 py-2.5">
+        <MelPanelInset className="space-y-1.5 py-2.5">
           <p className="text-mel-sm font-semibold text-foreground">
             What MEL knows now vs 10 minutes ago (persisted replay rows)
           </p>
@@ -1364,10 +1364,7 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
           type="button"
           onClick={() => setNewestFirst((v) => !v)}
           aria-pressed={newestFirst}
-          className={clsx(
-            'mel-segment-item min-h-[36px] px-2 py-1.5 sm:py-1 text-mel-xs font-semibold touch-manipulation sm:ml-0',
-            newestFirst ? 'mel-segment-item-active' : 'mel-segment-item-inactive',
-          )}
+          className="button-secondary min-h-[36px] px-2 py-1.5 sm:py-1 text-mel-xs normal-case tracking-normal font-semibold text-muted-foreground touch-manipulation sm:ml-0"
         >
           {newestFirst ? 'Order: newest first' : 'Order: oldest first'}
         </button>

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
-import { MelPanelInset } from '@/components/ui/operator'
+import { MelPanel, MelPanelInset } from '@/components/ui/operator'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -103,7 +103,7 @@ export function SettingsPage() {
         description="Console preferences (this browser), read-only configuration reference, and links to operator documentation."
       />
 
-      <Card id="operator-truth-contract" className="border-primary/12 bg-primary/[0.04]">
+      <MelPanel id="operator-truth-contract" className="border-primary/12 bg-primary/[0.04]">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Operator truth contract (console)</CardTitle>
           <CardDescription>
@@ -146,7 +146,7 @@ export function SettingsPage() {
             </a>
           </p>
         </CardContent>
-      </Card>
+      </MelPanel>
 
       <RuntimeTruthStrip version={v} status={status.data} versionLoading={version.loading} statusLoading={status.loading} />
 
@@ -217,10 +217,10 @@ export function SettingsPage() {
             </div>
           </fieldset>
 
-          <MelPanelInset tone="default" className="bg-muted/30 p-4">
+          <MelPanelInset className="p-4">
             <p className="text-sm font-medium text-foreground">Keyboard shortcuts</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Use the Help menu in the header for documentation links and the full list.
+              Header Help menu lists docs; this panel is the same reference inline.
             </p>
             <div className="mt-3">
               <KeyboardShortcuts />

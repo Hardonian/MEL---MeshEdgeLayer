@@ -881,11 +881,13 @@ export function Topology() {
               aria-label="Filter nodes in graph"
             >
               <span className="font-mono text-mel-xs font-bold uppercase tracking-wide text-muted-foreground">focus</span>
-              <div className="mel-segment flex flex-wrap" role="group" aria-label="Node filter">
+              <div className="mel-segment flex flex-wrap" role="radiogroup" aria-label="Node filter">
               {FILTER_OPTIONS.map((f) => (
                 <button
                   key={f.id}
                   type="button"
+                  role="radio"
+                  aria-checked={nodeFilter === f.id}
                   onClick={() => setFilterAndUrl(f.id)}
                   title={f.hint}
                   className={clsx(
