@@ -431,7 +431,7 @@ export function KeyboardShortcuts() {
       shortcuts: [
         { keys: 'Ctrl+K / ⌘K', description: 'Open route palette (jump anywhere)' },
         { keys: '?', description: 'Open this shortcuts panel' },
-        { keys: 'Escape', description: 'Close open menus or this panel' },
+        { keys: 'Escape', description: 'Close open menus, palette, or this panel' },
         { keys: 'r', description: 'Refresh current page data' },
       ],
     },

@@ -286,7 +286,7 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
         </button>
 
         {expanded && (
-          <div className="animate-fade-in space-y-2 rounded-md border border-border/50 bg-muted/10 p-3">
+          <MelPanelInset tone="default" className="animate-fade-in space-y-2 bg-muted/10 p-3">
             <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2 lg:grid-cols-3">
               <MetaRow label="Lifecycle" value={a.lifecycle_state} />
               <MetaRow label="Result" value={a.result} />
@@ -307,11 +307,11 @@ function ActionCard({ action: a, incidentQuery }: { action: ControlActionRecord;
               )}
             </dl>
             {a.outcome_detail && (
-              <div className="rounded-sm border border-border/50 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
+              <MelPanelInset tone="dense" className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Outcome:</span> {a.outcome_detail}
-              </div>
+              </MelPanelInset>
             )}
-          </div>
+          </MelPanelInset>
         )}
       </CardContent>
     </Card>

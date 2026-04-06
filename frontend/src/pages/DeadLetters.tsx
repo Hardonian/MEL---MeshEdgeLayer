@@ -51,22 +51,25 @@ export function DeadLetters() {
           title="Total Dead Letters"
           value={deadLetters.length}
           description="Messages that failed processing"
-          icon={<AlertTriangle className="h-5 w-5" />}
+          icon={<AlertTriangle className="h-4 w-4" />}
           variant={hasDeadLetters ? 'warning' : 'success'}
+          rhythm="console"
         />
         <StatCard
           title="Affected Transports"
           value={new Set(deadLetters.map(d => d.transport_name)).size}
           description="Transports with failures"
-          icon={<Inbox className="h-5 w-5" />}
+          icon={<Inbox className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
         <StatCard
           title="Most Recent"
           value={hasDeadLetters ? formatTimestamp(deadLetters[0]?.created_at).split(',')[0] : 'N/A'}
           description={hasDeadLetters ? 'First failure in queue' : 'No failures'}
-          icon={<Clock className="h-5 w-5" />}
+          icon={<Clock className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
       </div>
 

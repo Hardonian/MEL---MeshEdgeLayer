@@ -81,15 +81,17 @@ export function Messages() {
           title="Total Messages"
           value={messages.length}
           description="Messages in current view"
-          icon={<MessageSquare className="h-5 w-5" />}
+          icon={<MessageSquare className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Active Transports"
           value={transports.length}
           description="Transports with messages"
-          icon={<Hash className="h-5 w-5" />}
+          icon={<Hash className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
         <StatCard
           title="Time Range"
@@ -99,8 +101,9 @@ export function Messages() {
               ? 'Observations in this list (not a live stream guarantee)'
               : 'No messages in this view yet'
           }
-          icon={<Clock className="h-5 w-5" />}
+          icon={<Clock className="h-4 w-4" />}
           variant={messages.length > 0 ? 'success' : 'default'}
+          rhythm="console"
         />
       </div>
 

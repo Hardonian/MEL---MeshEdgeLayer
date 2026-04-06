@@ -9,6 +9,17 @@ import {
 } from './MelSurfaces'
 
 describe('MelSurfaces', () => {
+  it('MelPanelInset applies tone class for dense list chrome', () => {
+    render(
+      <MelPanelInset tone="dense" data-testid="dense-inset">
+        row
+      </MelPanelInset>,
+    )
+    const el = screen.getByTestId('dense-inset')
+    expect(el.className).toContain('mel-panel-inset')
+    expect(el.className).toContain('border-border/50')
+  })
+
   it('MelPanelInset applies tone class for degraded', () => {
     const { container } = render(
       <MelPanelInset tone="degraded" data-testid="inset">

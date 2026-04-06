@@ -458,8 +458,9 @@ export function Planning() {
   return (
     <div className={denseLayout ? 'p-4 space-y-4 max-w-6xl mx-auto' : 'p-6 space-y-6 max-w-6xl mx-auto'}>
       {incidentIdParam && (
-        <div
-          className="rounded-sm border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+        <MelPanelInset
+          tone="info"
+          className="text-xs text-muted-foreground"
           role="region"
           aria-label="Planning context incident"
         >
@@ -511,7 +512,7 @@ export function Planning() {
             </span>
           )}
           {!incidentErr && !incidentCtx && <span>Loading incident for cross-link…</span>}
-        </div>
+        </MelPanelInset>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -528,7 +529,7 @@ export function Planning() {
           <button
             type="button"
             onClick={() => setDenseLayout((d) => !d)}
-            className="shrink-0 rounded-sm border border-border/70 bg-background px-3 py-2 text-xs font-semibold hover:bg-muted/40"
+            className={denseLayout ? 'mel-segment-item mel-segment-item-active shrink-0 px-3 py-2 text-xs' : 'mel-segment-item mel-segment-item-inactive shrink-0 px-3 py-2 text-xs'}
             aria-pressed={denseLayout}
           >
             {denseLayout ? 'Comfortable layout' : 'Dense layout'}
@@ -583,7 +584,7 @@ export function Planning() {
           Scan-first layout: what is known vs unknown vs unsupported, then what to check next. Does not add simulation beyond the planning bundle.
         </p>
         <div className={`grid gap-3 ${denseLayout ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
-          <div className="rounded-sm border border-border/60 p-2.5">
+          <MelPanelInset tone="dense" className="p-2.5">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Known (from bundle)</p>
             <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
               <li>Transport: {bundle.transport_connected ? 'connected' : 'not connected'}</li>
@@ -591,8 +592,8 @@ export function Planning() {
               {bn?.primary_verdict && <li>Verdict: {bn.primary_verdict}</li>}
               <li>Resilience confidence: {bundle.resilience.confidence.level}</li>
             </ul>
-          </div>
-          <div className="rounded-sm border border-warning/20 bg-warning/5 p-2.5">
+          </MelPanelInset>
+          <MelPanelInset tone="warning" className="p-2.5">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Unknown / confounded</p>
             {board.unknowns.length === 0 ? (
               <p className="text-xs text-muted-foreground">No extra unknown flags beyond the evidence banner.</p>
@@ -603,8 +604,8 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-sm border border-border/60 p-2.5">
+          </MelPanelInset>
+          <MelPanelInset tone="dense" className="p-2.5">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Unsupported / gated</p>
             {board.unsupported.length === 0 ? (
               <p className="text-xs text-muted-foreground">No explicit unsupported gates in this view.</p>
@@ -615,8 +616,8 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+          </MelPanelInset>
+          <MelPanelInset tone="dense" className="p-2.5 sm:col-span-2 lg:col-span-1">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Weak assumptions</p>
             {board.weakAssumptions.length === 0 ? (
               <p className="text-xs text-muted-foreground">—</p>
@@ -627,8 +628,8 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+          </MelPanelInset>
+          <MelPanelInset tone="dense" className="p-2.5 sm:col-span-2 lg:col-span-1">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Inferred tradeoffs (graph)</p>
             {board.inferredTradeoffs.length === 0 ? (
               <p className="text-xs text-muted-foreground">—</p>
@@ -639,8 +640,8 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-sm border border-border/60 p-2.5 sm:col-span-2 lg:col-span-1">
+          </MelPanelInset>
+          <MelPanelInset tone="dense" className="p-2.5 sm:col-span-2 lg:col-span-1">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Missing evidence inputs</p>
             {board.missingEvidence.length === 0 ? (
               <p className="text-xs text-muted-foreground">None listed on resilience confidence.</p>
@@ -651,15 +652,15 @@ export function Planning() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-sm border border-primary/15 bg-primary/5 p-2.5 sm:col-span-2 lg:col-span-3">
+          </MelPanelInset>
+          <MelPanelInset tone="info" className="p-2.5 sm:col-span-2 lg:col-span-3">
             <p className="text-mel-sm font-semibold text-foreground uppercase tracking-wide mb-1">Recommended next check</p>
             <ul className="text-xs text-foreground list-disc list-inside space-y-0.5">
               {board.nextCheck.slice(0, 5).map((u, i) => (
                 <li key={i}>{u}</li>
               ))}
             </ul>
-          </div>
+          </MelPanelInset>
         </div>
         </MelPanel>
       </div>

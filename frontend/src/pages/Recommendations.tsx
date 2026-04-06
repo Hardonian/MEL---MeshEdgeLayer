@@ -10,6 +10,7 @@ import { CopyButton } from '@/components/ui/CopyButton'
 import { Recommendation } from '@/types/api'
 import { Lightbulb, ArrowRight, Zap, BookOpen, Settings, AlertTriangle, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
+import { MelPanelInset } from '@/components/ui/operator'
 
 
 export function Recommendations() {
@@ -41,7 +42,7 @@ export function Recommendations() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Recommendations"
-          description="Evidence-backed actions for configuration and runtime posture. Recommendations are assistive, not canonical truth."
+          description="Configuration and runtime posture cues from stored checks. Assistive only — not canonical fleet or incident truth."
         />
         <button onClick={refresh} className="button-secondary">
           <RefreshCw className="h-4 w-4" />
@@ -54,22 +55,25 @@ export function Recommendations() {
           title="Total"
           value={recommendations.length}
           description="Total findings"
-          icon={<Lightbulb className="h-5 w-5" />}
+          icon={<Lightbulb className="h-4 w-4" />}
           variant="default"
+          rhythm="console"
         />
         <StatCard
           title="Actionable"
           value={actionable.length}
           description="Requires your attention"
-          icon={<ArrowRight className="h-5 w-5" />}
+          icon={<ArrowRight className="h-4 w-4" />}
           variant={actionable.length > 0 ? 'warning' : 'success'}
+          rhythm="console"
         />
         <StatCard
           title="Informational"
           value={informational.length}
           description="Context only"
-          icon={<BookOpen className="h-5 w-5" />}
+          icon={<BookOpen className="h-4 w-4" />}
           variant="info"
+          rhythm="console"
         />
       </div>
 
@@ -137,12 +141,10 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
   const defaultIcon = recommendation.actionable ? <ArrowRight className="h-3.5 w-3.5" /> : <Lightbulb className="h-3.5 w-3.5" />
 
   return (
-    <div className={clsx(
-      'rounded-md border p-3',
-      recommendation.actionable
-        ? 'border-warning/25 bg-warning/5'
-        : 'border-border/50 bg-card/40'
-    )}>
+    <MelPanelInset
+      tone={recommendation.actionable ? 'warning' : 'dense'}
+      className="p-3"
+    >
       <div className="flex items-start gap-3">
         <div className={clsx(
           'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border',
@@ -161,13 +163,13 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
           </div>
           <p className="text-[13px] leading-relaxed text-foreground">{recommendation.message}</p>
           {recommendation.action && (
-            <div className="mt-2 flex items-center gap-2 rounded-sm border border-border/50 bg-muted/30 px-3 py-2">
+            <MelPanelInset tone="default" className="mt-2 flex items-center gap-2 bg-muted/30 py-2">
               <code className="flex-1 text-xs font-mono text-foreground">{recommendation.action}</code>
               <CopyButton value={recommendation.action} label="Copy command" />
-            </div>
+            </MelPanelInset>
           )}
         </div>
       </div>
-    </div>
+    </MelPanelInset>
   )
 }

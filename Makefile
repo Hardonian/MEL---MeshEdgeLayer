@@ -39,6 +39,15 @@ frontend-test: frontend-install
 frontend-verify: frontend-lint frontend-typecheck frontend-test
 
 # Fast local-only frontend verification: skips clean install and expects deps already present.
+# Verification chain (truthful scope):
+#   - make lint          → go vet + frontend lint (frontend-install)
+#   - make test          → Go tests only
+#   - make frontend-verify / frontend-verify-fast → ESLint + tsc + vitest (install vs no-install)
+#   - make build         → frontend build + copies dist → internal/web/assets/ + Go mel binary
+#   - make mel-cli-go    → Go binary only; uses committed embedded assets (no npm)
+#   - make smoke         → scripts/smoke.sh (needs ./bin/mel from build-cli/build)
+#   - make premerge-verify → scripts/verify-release-local.sh (release-grade: clean npm ci once + full chain)
+#   - make premerge-verify-fast → same script with VERIFY_SKIP_CLEAN_INSTALL=1 (iteration only; not release-grade)
 frontend-lint-fast: frontend-node-contract
 	cd frontend && npm run lint
 

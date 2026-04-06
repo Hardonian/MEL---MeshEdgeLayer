@@ -98,6 +98,7 @@ export function Status() {
               value={data?.configured_transport_modes?.length || 0}
               description={data?.configured_transport_modes?.join(', ') || 'None configured'}
               icon={<TrendingUp className="h-4 w-4" />}
+              rhythm="console"
             />
             <StatCard
               title="Runtime Messages"
@@ -105,6 +106,7 @@ export function Status() {
               description="Messages processed"
               icon={<MessageSquare className="h-4 w-4" />}
               variant="info"
+              rhythm="console"
             />
             <StatCard
               title="Connected"
@@ -112,6 +114,7 @@ export function Status() {
               description="Active transport connections"
               icon={connectedCount > 0 ? <CheckCircle2 className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
               variant={connectedCount > 0 ? 'success' : 'warning'}
+              rhythm="console"
             />
             <StatCard
               title="Healthy"
@@ -125,6 +128,7 @@ export function Status() {
               }
               icon={<Activity className="h-4 w-4" />}
               variant={healthyCount === transports.length && transports.length > 0 ? 'success' : unhealthyCount > 0 ? 'critical' : 'warning'}
+              rhythm="console"
             />
           </div>
         </CardContent>
