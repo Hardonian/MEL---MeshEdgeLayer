@@ -40,7 +40,7 @@ interface LoadingProps {
   className?: string
 }
 
-export function Loading({ message = 'Loading...', className }: LoadingProps) {
+export function Loading({ message = 'Loading evidence…', className }: LoadingProps) {
   return (
     <div
       className={clsx(
@@ -50,17 +50,17 @@ export function Loading({ message = 'Loading...', className }: LoadingProps) {
       role="status"
       aria-live="polite"
     >
-      <div className="flex items-center gap-2 text-neon">
-        <span className="animate-terminal-blink">█</span>
-        <span className="text-mel-sm font-bold">{message}</span>
+      <div className="flex items-center gap-2 text-primary">
+        <span className="h-2 w-2 rounded-full bg-primary/80" aria-hidden />
+        <span className="text-mel-sm font-semibold">{message}</span>
       </div>
-      <p className="text-mel-xs text-muted-foreground/50"># working with current API evidence</p>
+      <p className="text-mel-xs text-muted-foreground/60">Reading current API evidence.</p>
     </div>
   )
 }
 
 export function InlineLoading({ className }: { className?: string }) {
-  return <span className={clsx('animate-terminal-blink text-neon', className)}>█</span>
+  return <span className={clsx('inline-block h-1.5 w-1.5 rounded-full bg-primary', className)} aria-hidden />
 }
 
 interface ErrorViewProps {
@@ -71,8 +71,8 @@ interface ErrorViewProps {
 }
 
 export function ErrorView({
-  title = 'Something went wrong',
-  message = 'An error occurred while loading this data.',
+  title = 'Unable to load evidence',
+  message = 'This view may be partial until data is fetched again.',
   onRetry,
   className,
 }: ErrorViewProps) {
@@ -82,11 +82,11 @@ export function ErrorView({
         <AlertCircle className="h-6 w-6" />
       </div>
       <div className="space-y-1">
-        <p className="font-mono text-mel-sm font-bold text-neon-hot">[ERR] {title}</p>
+        <p className="text-mel-sm font-semibold text-neon-hot">{title}</p>
         <p className="text-mel-xs text-muted-foreground">{message}</p>
       </div>
       {onRetry && (
-        <button onClick={onRetry} className="button-primary">retry</button>
+        <button onClick={onRetry} className="button-primary">Retry</button>
       )}
     </div>
   )

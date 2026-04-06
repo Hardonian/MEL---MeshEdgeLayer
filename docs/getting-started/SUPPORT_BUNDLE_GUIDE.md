@@ -4,7 +4,7 @@
 
 - unexpected ingest drop
 - repeated action failures
-- contradictory dashboard vs CLI observations
+- contradictory console vs CLI observations
 
 ## What to include
 

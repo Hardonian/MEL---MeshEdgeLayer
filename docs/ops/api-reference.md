@@ -1623,7 +1623,7 @@ All errors follow this format:
 
 ## Web UI
 
-When `features.web_ui` is enabled, the root path `/` serves an HTML dashboard with:
+When `features.web_ui` is enabled, the root path `/` serves the operator console with:
 - Onboarding guide
 - Status overview
 - Instrument panel
