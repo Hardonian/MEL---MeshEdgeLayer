@@ -1,7 +1,8 @@
 import { useNodes } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MelPanel } from '@/components/ui/operator'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -19,14 +20,14 @@ export function Nodes() {
         <PageHeader
           title="Nodes"
           subtitle="Mesh operations cockpit"
-          description="Mesh device inventory. All nodes observed by your transports remain listed with the same evidence and timing semantics as the backend."
+          description="Inventory from ingest on this instance — same evidence and timing semantics as the API."
         />
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/50">
-            <CardTitle>Node Inventory</CardTitle>
-            <CardDescription>All mesh nodes observed by your MEL instance.</CardDescription>
+        <MelPanel className="overflow-hidden">
+          <CardHeader className="border-b border-border/50 px-4 pt-4">
+            <CardTitle>Node inventory</CardTitle>
+            <CardDescription>Devices last seen via ingest on this instance</CardDescription>
           </CardHeader>
-          <CardContent className="pt-5">
+          <CardContent className="pt-5 px-4 pb-4">
             <DataTable<NodeInfo>
               data={[]}
               columns={[
@@ -39,7 +40,7 @@ export function Nodes() {
               isLoading={true}
             />
           </CardContent>
-        </Card>
+        </MelPanel>
       </div>
     )
   }
@@ -78,7 +79,7 @@ export function Nodes() {
       <PageHeader
         title="Nodes"
         subtitle="Mesh operations cockpit"
-        description="Mesh device inventory for this MEL instance. Rows stay grounded in observed mesh data rather than inferred topology state."
+        description="Inventory from ingest evidence on this gateway. Last-seen and gateway fields are observed telemetry, not live topology or routing proof."
         action={<Badge variant="outline">{nodes.length} total</Badge>}
       />
 
@@ -113,19 +114,19 @@ export function Nodes() {
         />
       </div>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-border/50 pb-4">
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4 px-4 pt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Node Inventory</CardTitle>
+              <CardTitle>Node inventory</CardTitle>
               <CardDescription className="mt-1">
-                All mesh nodes observed by your MEL instance.
+                Rows reflect stored observations from your transports, not inferred roles or coverage.
               </CardDescription>
             </div>
             <Badge variant="outline">{nodes.length} total</Badge>
           </div>
         </CardHeader>
-        <CardContent className="pt-5">
+        <CardContent className="pt-5 px-4 pb-4">
           {nodes.length === 0 ? (
             <OperatorEmptyState title="No nodes yet" description="Nodes will appear here once mesh traffic is observed via connected transports." />
           ) : (
@@ -204,7 +205,7 @@ export function Nodes() {
             />
           )}
         </CardContent>
-      </Card>
+      </MelPanel>
     </div>
   )
 }

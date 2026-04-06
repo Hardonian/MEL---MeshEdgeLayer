@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { ClipboardList, Download } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { MelPageSection, MelPanel, MelPanelInset } from '@/components/ui/operator'
 import { Badge } from '@/components/ui/Badge'
 import { Loading } from '@/components/ui/StateViews'
 import { InlineAlert } from '@/components/ui/AlertCard'
@@ -36,7 +37,7 @@ export function OperationalReview() {
       <PageHeader
         title="Operational review"
         subtitle="Evidence-backed snapshot"
-        description="Deterministic counts from this MEL instance database plus a ranked issue briefing from diagnostics and incidents. Not fleet-wide truth and not proof of live RF or routing."
+        description="Deterministic counts from this instance’s database plus a ranked briefing from persisted diagnostics and incidents. Not fleet-wide truth and not proof of live RF or routing."
       />
       <OperatorTruthRibbon summary="Digest counts are SQL aggregates on this gateway’s SQLite store. Briefing priorities use bounded heuristics over the same persisted evidence — treat both as operator aids, not autonomous diagnosis." />
 
@@ -47,9 +48,14 @@ export function OperationalReview() {
         </InlineAlert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+      <MelPageSection
+        eyebrow="This instance"
+        title="Digest and briefing"
+        description="Two views of the same store — aggregates vs ranked attention."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+        <MelPanel className="overflow-hidden">
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 px-4 pt-4">
             <div>
               <CardTitle className="text-base">Instance digest</CardTitle>
               <CardDescription>
@@ -62,25 +68,21 @@ export function OperationalReview() {
                   {formatRelativeTime(digest.lastUpdated.toISOString())}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => void digest.refresh()}
-                className="rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50"
-              >
+              <button type="button" onClick={() => void digest.refresh()} className="button-secondary text-xs px-2 py-1">
                 Refresh
               </button>
               <button
                 type="button"
                 disabled={!digest.data}
                 onClick={downloadDigest}
-                className="inline-flex items-center gap-1 rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50 disabled:opacity-50"
+                className="button-secondary text-xs inline-flex items-center gap-1 px-2 py-1 disabled:opacity-50"
               >
                 <Download className="h-3 w-3" aria-hidden />
                 JSON
               </button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm">
+          <CardContent className="space-y-4 px-4 pb-4 text-sm">
             {digest.data?.instance_id && (
               <p className="text-xs text-muted-foreground font-mono break-all">{digest.data.instance_id}</p>
             )}
@@ -152,10 +154,10 @@ export function OperationalReview() {
               </Link>
             </div>
           </CardContent>
-        </Card>
+        </MelPanel>
 
-        <Card>
-          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+        <MelPanel className="overflow-hidden">
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 px-4 pt-4">
             <div>
               <CardTitle className="text-base">Intelligence briefing</CardTitle>
               <CardDescription>Ranked operational issues from persisted state</CardDescription>
@@ -179,16 +181,12 @@ export function OperationalReview() {
                   {formatRelativeTime(briefing.lastUpdated.toISOString())}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => void briefing.refresh()}
-                className="rounded-sm border border-border/70 px-2 py-1 text-mel-sm font-semibold hover:bg-muted/50"
-              >
+              <button type="button" onClick={() => void briefing.refresh()} className="button-secondary text-xs px-2 py-1">
                 Refresh
               </button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="space-y-3 px-4 pb-4 text-sm">
             {briefing.data?.blast_radius_estimate && (
               <p className="text-xs text-muted-foreground">{briefing.data.blast_radius_estimate}</p>
             )}
@@ -219,8 +217,12 @@ export function OperationalReview() {
               </ul>
             )}
           </CardContent>
-        </Card>
-      </div>
+        </MelPanel>
+        </div>
+        <MelPanelInset className="mt-4 text-mel-sm text-muted-foreground" role="note">
+          Links below open the same evidence in task context — they do not change digest SQL or briefing heuristics.
+        </MelPanelInset>
+      </MelPageSection>
     </div>
   )
 }

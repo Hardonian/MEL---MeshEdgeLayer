@@ -1,7 +1,8 @@
 import { useDeadLetters } from '@/hooks/useApi'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MelPageSection, MelPanel, MelPanelInset } from '@/components/ui/operator'
 import { DataTable } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
@@ -25,10 +26,7 @@ export function DeadLetters() {
           title="Unable to load dead letters"
           description={error}
           action={
-            <button
-              onClick={refresh}
-              className="rounded-sm bg-critical px-4 py-2 text-sm font-medium text-white hover:bg-critical/90"
-            >
+            <button type="button" onClick={refresh} className="button-danger">
               Retry
             </button>
           }
@@ -43,8 +41,8 @@ export function DeadLetters() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dead Letters"
-        description="Messages that failed to be processed by transports. Dead letters are stored for inspection and debugging."
+        title="Dead letters"
+        description="Ingest failures persisted by this MEL instance for inspection. Presence here is transport evidence of a failed message, not a live queue guarantee."
       />
 
       {/* Summary */}
@@ -81,36 +79,24 @@ export function DeadLetters() {
         />
       )}
 
-      {/* Explanation */}
-      <Card className="bg-muted/30">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">About Dead Letters</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p className="text-sm text-muted-foreground">
-              Dead letters are messages that MEL was unable to process. This can happen due to:
-            </p>
-            <ul className="mt-2 list-disc pl-4 text-sm text-muted-foreground space-y-1">
-              <li>Invalid message format or malformed payload</li>
-              <li>Missing required fields or metadata</li>
-              <li>Transport connection failures during processing</li>
-              <li>Schema validation failures</li>
-              <li>Storage or database errors</li>
-            </ul>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Dead letters are retained for debugging purposes. You can configure retention periods in Settings.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <MelPageSection
+        eyebrow="Reference"
+        title="What dead letters mean here"
+        description="Operator aid for failed ingest — bounded to what this instance stored."
+      >
+        <MelPanelInset tone="info" className="text-sm text-muted-foreground space-y-2">
+          <p className="flex items-start gap-2">
+            <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 text-signal-observed" aria-hidden />
+            <span>
+              Typical causes include invalid or incomplete payloads, validation failures, transport disconnects during handling, or local storage errors. Treat the list as historical evidence, not a real-time failure rate.
+            </span>
+          </p>
+          <p className="text-mel-xs">Retention is configurable under Settings on this instance.</p>
+        </MelPanelInset>
+      </MelPageSection>
 
-      {/* Dead Letters Table */}
-      <Card>
-        <CardHeader className="pb-4">
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="pb-4 px-4 pt-4">
           <div className="flex items-center justify-between">
             <CardTitle>Recent Dead Letters</CardTitle>
             <Badge variant="outline">{deadLetters.length} total</Badge>
@@ -119,7 +105,7 @@ export function DeadLetters() {
             Messages that could not be processed and were stored for inspection
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           {deadLetters.length === 0 ? (
             <EmptyState
               type="default"
@@ -177,7 +163,7 @@ export function DeadLetters() {
             />
           )}
         </CardContent>
-      </Card>
+      </MelPanel>
     </div>
   )
 }

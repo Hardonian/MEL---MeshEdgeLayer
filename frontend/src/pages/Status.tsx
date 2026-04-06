@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react'
 import { useStatus } from '@/hooks/useApi'
-import { ProgressBar, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { ProgressBar, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { MelPageSection, MelPanel } from '@/components/ui/operator'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge, HealthBadge, ConnectionBadge, TransportBadge } from '@/components/ui/Badge'
@@ -63,8 +64,8 @@ export function Status() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="System Status"
-        description="Detailed view of transport health, connection status, and current runtime metrics."
+        title="System status"
+        description="Runtime and transport posture for this MEL instance. Metrics reflect what the API reports now — not historical mesh proof or fleet-wide state."
         action={
           <button
             onClick={refresh}
@@ -76,21 +77,21 @@ export function Status() {
         }
       />
 
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-border/50 pb-4">
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4 px-4 pt-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/16 bg-primary/12 text-primary">
               <Activity className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base">System Overview</CardTitle>
+              <CardTitle className="text-base">System overview</CardTitle>
               <CardDescription className="mt-1 text-sm">
-                Current MEL runtime configuration and transport posture.
+                Runtime configuration and transport posture reported by this instance.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-5">
+        <CardContent className="pt-5 px-4 pb-4">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               title="Transport Modes"
@@ -127,19 +128,19 @@ export function Status() {
             />
           </div>
         </CardContent>
-      </Card>
+      </MelPanel>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-border/50 pb-4">
+      <MelPanel className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 pb-4 px-4 pt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/16 bg-info/12 text-info">
                 <Wifi className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-base">Transport Health</CardTitle>
+                <CardTitle className="text-base">Transport health</CardTitle>
                 <CardDescription className="mt-1 text-sm">
-                  Detailed health information for each configured transport.
+                  Per-transport evidence from the status API — verify live behavior on the wire when it matters.
                 </CardDescription>
               </div>
             </div>
@@ -151,7 +152,7 @@ export function Status() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-5">
+        <CardContent className="pt-5 px-4 pb-4">
           {!hasTransports ? (
             <NoTransportsConfigured />
           ) : (
@@ -162,39 +163,45 @@ export function Status() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </MelPanel>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-border/50 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-card/75 text-muted-foreground">
-              <HelpCircle className="h-5 w-5" />
+      <MelPageSection
+        eyebrow="Reference"
+        title="Health semantics"
+        description="Labels follow API-reported evidence. UI emphasis does not strengthen the underlying signal."
+      >
+        <MelPanel className="overflow-hidden">
+          <CardHeader className="border-b border-border/50 pb-4 px-4 pt-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-card/75 text-muted-foreground">
+                <HelpCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Reading transport health</CardTitle>
+                <CardDescription className="mt-1 text-sm">
+                  Use badges and scores as reported by this instance — not as proof of RF coverage or mesh routing success.
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base">Understanding Transport Health</CardTitle>
-              <CardDescription className="mt-1 text-sm">
-                Severity remains tied to reported transport evidence. Visual treatment does not imply stronger certainty than the API provides.
-              </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-5 px-4 pb-4">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <HealthExplanation
+                status="healthy"
+                description="Connected ingest path reporting normal operation for this gateway’s view."
+              />
+              <HealthExplanation
+                status="degraded"
+                description="Intermittent connection, elevated errors, or latency pressure reported — monitor and verify on the transport."
+              />
+              <HealthExplanation
+                status="unhealthy"
+                description="Critical failure on the reported path — messages may be dropped until the transport recovers."
+              />
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <HealthExplanation
-              status="healthy"
-              description="Transport is connected and functioning normally. Messages are being received and processed without issues."
-            />
-            <HealthExplanation
-              status="degraded"
-              description="Transport is experiencing issues such as intermittent connections, high latency, or elevated error rates. Monitor for resolution."
-            />
-            <HealthExplanation
-              status="unhealthy"
-              description="Transport has critical issues preventing normal operation. Messages may be lost. Immediate attention recommended."
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </MelPanel>
+      </MelPageSection>
     </div>
   )
 }

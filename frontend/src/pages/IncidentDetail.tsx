@@ -25,9 +25,11 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
+import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
+import { MelPanel, MelPanelInset, MelPageSection, MelSegment, MelSegmentItem } from '@/components/ui/operator'
 import { Loading } from '@/components/ui/StateViews'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
@@ -214,7 +216,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
   if (!hasBody) return null
 
   return (
-    <Card data-testid="incident-operational-memory">
+    <MelPanel data-testid="incident-operational-memory" className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base inline-flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -397,7 +399,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
           </ul>
         </div>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -405,8 +407,9 @@ function MeshRoutingCompanionStrip({ inc }: { inc: Incident }) {
   const c = inc.intelligence?.mesh_routing_companion
   if (!c?.applicable) return null
   return (
-    <div
-      className="rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 text-xs text-muted-foreground"
+    <MelPanelInset
+      tone="info"
+      className="text-xs text-muted-foreground"
       role="region"
       aria-label="Mesh routing pressure companion"
     >
@@ -440,7 +443,7 @@ function MeshRoutingCompanionStrip({ inc }: { inc: Incident }) {
           </Link>
         </p>
       )}
-    </div>
+    </MelPanelInset>
   )
 }
 
@@ -448,7 +451,7 @@ function OperatorSuggestedActionsPanel({ inc }: { inc: Incident }) {
   const acts = inc.intelligence?.operator_suggested_actions
   if (!acts?.length) return null
   return (
-    <Card id="mel-operator-suggested-actions" className="scroll-mt-20" data-testid="operator-suggested-actions">
+    <MelPanel id="mel-operator-suggested-actions" className="scroll-mt-20 overflow-hidden" data-testid="operator-suggested-actions">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Deterministic next checks</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -491,7 +494,7 @@ function OperatorSuggestedActionsPanel({ inc }: { inc: Incident }) {
           ))}
         </ol>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -571,7 +574,7 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
   ]
 
   return (
-    <Card id="mel-investigation-path" data-testid="incident-investigation-path" className="scroll-mt-20">
+    <MelPanel id="mel-investigation-path" data-testid="incident-investigation-path" className="scroll-mt-20 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Investigation path (in-product)</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -614,7 +617,7 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
           ))}
         </ol>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -629,7 +632,7 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
   const inspectNext = intel.wireless_context?.inspect_next ?? []
 
   return (
-    <Card data-testid="incident-investigation-guide">
+    <MelPanel data-testid="incident-investigation-guide" className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Investigation guide (bounded)</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -716,7 +719,7 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
           </Link>
         </div>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -848,9 +851,9 @@ function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo:
 
   if (!canReadActions && linked.length === 0) {
     return (
-      <div
+      <MelPanel
         id="linked-control-actions"
-        className="rounded-md border border-border/60 bg-muted/10 p-4 scroll-mt-20"
+        className="scroll-mt-20 overflow-hidden p-4"
       >
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1">
           <Zap className="h-3.5 w-3.5" />
@@ -867,17 +870,14 @@ function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo:
         >
           Control queue (filtered) →
         </Link>
-      </div>
+      </MelPanel>
     )
   }
 
   const showLinkedDespiteGate = !canReadActions && linked.length > 0
 
   return (
-    <div
-      id="linked-control-actions"
-      className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3 scroll-mt-20"
-    >
+    <MelPanel id="linked-control-actions" className="scroll-mt-20 space-y-3 overflow-hidden p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <Zap className="h-3.5 w-3.5" />
@@ -974,7 +974,7 @@ function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo:
           )}
         </div>
       )}
-    </div>
+    </MelPanel>
   )
 }
 
@@ -1079,7 +1079,7 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
   const pct = snapshotTotal > 0 ? Math.round((snapshotPersisted / snapshotTotal) * 100) : null
 
   return (
-    <div className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3">
+    <MelPanel className="space-y-3 overflow-hidden p-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <Shield className="h-3.5 w-3.5" />
@@ -1153,7 +1153,7 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
         </Link>
         .
       </p>
-    </div>
+    </MelPanel>
   )
 }
 
@@ -1226,7 +1226,7 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
 
   if (segments.length === 0) {
     return (
-      <div className="rounded-md border border-border/60 bg-muted/10 p-4">
+      <MelPanel className="overflow-hidden p-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
           <GitBranch className="h-3.5 w-3.5" />
           Incident replay / timeline
@@ -1265,12 +1265,12 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
         {replayMeta?.ordering_posture_note && (
           <p className="mt-2 text-mel-sm text-muted-foreground/70 border-l-2 border-muted pl-2.5">{replayMeta.ordering_posture_note}</p>
         )}
-      </div>
+      </MelPanel>
     )
   }
 
   return (
-    <div className="rounded-md border border-border/60 bg-muted/10 p-4 space-y-3" role="region" aria-label="Incident replay timeline">
+    <MelPanel className="space-y-3 overflow-hidden p-4" role="region" aria-label="Incident replay timeline">
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         <GitBranch className="h-3.5 w-3.5" />
         Incident replay / timeline
@@ -1335,35 +1335,33 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Replay filters">
-        <span className="sr-only">
-          Filter shortcuts: hold Alt and press 0 through 6 to select a filter when focus is not in a text field.
-        </span>
-        {REPLAY_FILTER_OPTIONS.map((o, idx) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => setFilter(o.id)}
-            title={`Alt+${idx}`}
-            aria-pressed={filter === o.id}
-            className={clsx(
-              'rounded-md border min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 px-2 py-1.5 sm:py-1 text-mel-xs font-semibold transition-colors touch-manipulation',
-              filter === o.id
-                ? 'border-primary/50 bg-primary/10 text-foreground'
-                : 'border-border/50 bg-card/40 text-muted-foreground hover:border-border/80',
-            )}
-          >
-            {o.label}
-            <span className="ml-1 font-mono text-muted-foreground/50" aria-hidden>
-              {idx}
-            </span>
-          </button>
-        ))}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <MelSegment label="Replay class" radiogroupLabel="Filter replay timeline by event class">
+          <span className="sr-only">
+            Filter shortcuts: hold Alt and press 0 through 6 to select a filter when focus is not in a text field.
+          </span>
+          {REPLAY_FILTER_OPTIONS.map((o, idx) => (
+            <MelSegmentItem
+              key={o.id}
+              role="radio"
+              aria-checked={filter === o.id}
+              title={`Alt+${idx}`}
+              onClick={() => setFilter(o.id)}
+              active={filter === o.id}
+              className="min-h-[36px] min-w-[36px] touch-manipulation sm:min-h-0 sm:min-w-0"
+            >
+              {o.label}
+              <span className="ml-1 font-mono text-muted-foreground/50" aria-hidden>
+                {idx}
+              </span>
+            </MelSegmentItem>
+          ))}
+        </MelSegment>
         <button
           type="button"
           onClick={() => setNewestFirst((v) => !v)}
           aria-pressed={newestFirst}
-          className="ml-auto rounded-md border border-border/50 bg-card/40 min-h-[36px] px-2 py-1.5 sm:py-1 text-mel-xs font-semibold text-muted-foreground hover:border-border/80 touch-manipulation"
+          className="rounded-md border border-border/50 bg-card/40 min-h-[36px] px-2 py-1.5 sm:py-1 text-mel-xs font-semibold text-muted-foreground hover:border-border/80 touch-manipulation sm:ml-0"
         >
           {newestFirst ? 'Order: newest first' : 'Order: oldest first'}
         </button>
@@ -1458,7 +1456,7 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
       {generatedAt && (
         <p className="text-mel-xs text-muted-foreground/50">Replay assembled {formatTimestamp(generatedAt)}</p>
       )}
-    </div>
+    </MelPanel>
   )
 }
 
@@ -1466,13 +1464,18 @@ function ReplayTimeline({ segments, truthNote, generatedAt, replayMeta, incident
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        {icon}
-        {title}
-      </div>
+    <MelPageSection
+      title={
+        <span className="inline-flex items-center gap-1.5 normal-case">
+          {icon}
+          {title}
+        </span>
+      }
+      titleClassName="text-mel-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+      className="space-y-2"
+    >
       {children}
-    </div>
+    </MelPageSection>
   )
 }
 
@@ -1831,7 +1834,7 @@ function DecisionPackPanel({
   const unc = pack.uncertainty
 
   return (
-    <Card data-testid="incident-decision-pack" id="mel-incident-decision-pack" className="scroll-mt-20">
+    <MelPanel data-testid="incident-decision-pack" id="mel-incident-decision-pack" className="scroll-mt-20 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Incident Decision Pack</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -1974,7 +1977,7 @@ function DecisionPackPanel({
           )}
         </div>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -2016,10 +2019,7 @@ function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => 
   }
 
   return (
-    <div
-      className="rounded-md border border-border/60 bg-muted/10 px-4 py-3 space-y-2 scroll-mt-20"
-      data-testid="incident-assist-signals"
-    >
+    <MelPanel className="scroll-mt-20 space-y-2 overflow-hidden px-4 py-3" data-testid="incident-assist-signals">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Assist cues (deterministic)</p>
       <p className="text-mel-sm text-muted-foreground">
         Bounded heuristics from this incident payload — not canonical transport or RF proof. Outcomes are stored for local memory.
@@ -2060,7 +2060,7 @@ function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => 
         ))}
       </ul>
       {!canWrite && <p className="text-mel-sm text-warning">Read-only — recording requires incident_mutate.</p>}
-    </div>
+    </MelPanel>
   )
 }
 
@@ -2107,7 +2107,7 @@ function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () 
   }
 
   return (
-    <Card>
+    <MelPanel className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Workflow & investigation</CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
@@ -2169,7 +2169,7 @@ function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () 
           </Link>
         </div>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -2222,7 +2222,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
   }
 
   return (
-    <Card id="shift-continuity-handoff" className="scroll-mt-20">
+    <MelPanel id="shift-continuity-handoff" className="scroll-mt-20 overflow-hidden">
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Shift continuity / handoff</CardTitle>
@@ -2357,7 +2357,7 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
           {text}
         </pre>
       </CardContent>
-    </Card>
+    </MelPanel>
   )
 }
 
@@ -2518,17 +2518,17 @@ export function IncidentDetail() {
       </div>
 
       {!versionInfo.loading && (
-        <div
-          className={clsx(
-            'rounded-md border px-3 py-2.5 text-xs',
+        <MelPanelInset
+          tone={
             exportReadiness.semantic === 'available'
-              ? 'border-success/25 bg-success/5 text-muted-foreground'
+              ? 'info'
               : exportReadiness.semantic === 'policy_limited'
-                ? 'border-critical/30 bg-critical/5 text-foreground'
+                ? 'critical'
                 : exportReadiness.semantic === 'degraded'
-                  ? 'border-warning/30 bg-warning/5 text-foreground'
-                  : 'border-warning/25 bg-warning/5 text-foreground',
-          )}
+                  ? 'degraded'
+                  : 'warning'
+          }
+          className="text-xs text-foreground"
           role="status"
           aria-live="polite"
           data-testid="incident-export-readiness"
@@ -2545,15 +2545,17 @@ export function IncidentDetail() {
               ))}
             </ul>
           )}
-        </div>
+        </MelPanelInset>
       )}
+
+      <OperatorTruthRibbon summary="Incident fields, intelligence, replay, and exports are bounded to what this MEL instance stored and your session can read. Submission, approval, dispatch, and execution stay distinct on the control path." />
 
       <DecisionPackPanel pack={inc.decision_pack} inc={inc} onSaved={() => void load()} />
 
       <AssistSignalsPanel inc={inc} onReload={() => void load()} />
 
       {/* Header card */}
-      <Card id="incident-operational-summary" className="scroll-mt-20">
+      <MelPanel id="incident-operational-summary" className="scroll-mt-20 overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start gap-3">
             <AlertTriangle className={clsx('h-5 w-5 shrink-0 mt-0.5', inc.severity === 'critical' ? 'text-critical' : inc.severity === 'high' ? 'text-warning' : 'text-muted-foreground')} />
@@ -2612,7 +2614,7 @@ export function IncidentDetail() {
             {inc.review_state && <span>Review: {toWords(inc.review_state)}</span>}
           </div>
         </CardContent>
-      </Card>
+      </MelPanel>
 
       <InvestigationPathPanel inc={inc} returnTo={returnToWorkbench} />
 
