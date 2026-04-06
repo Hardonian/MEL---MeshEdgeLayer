@@ -382,7 +382,7 @@ export function Control() {
                 const incId = incidentFromAction(action)
 
                 return (
-                  <div key={action.id} className="rounded-sm border p-4 hover:bg-muted/30 transition-colors">
+                  <MelPanelInset key={action.id} tone="dense" className="p-4 transition-colors hover:bg-muted/30">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {icon}
@@ -403,7 +403,7 @@ export function Control() {
                       <Badge variant={badgeVariant} className="capitalize text-mel-xs">{badgeText}</Badge>
                     </div>
                     
-                    <div className="mt-3 bg-muted/20 dark:bg-black/20 p-3 rounded-md border border-border/50">
+                    <MelPanelInset tone="default" className="mt-3 bg-muted/20 p-3 dark:bg-black/20">
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-6 text-xs text-muted-foreground">
                         {ov ? (
                           <>
@@ -449,18 +449,18 @@ export function Control() {
                           <span className="italic">{action.outcome_detail || 'No outcome detail reported'}</span>
                         </div>
                       </div>
-                      
+
                       {(isBlocked || action.denial_reason) && (
-                        <div className="mt-2 pt-2 border-t border-border/50 flex items-start gap-2">
-                          <Info className="h-3.5 w-3.5 mt-0.5 text-warning" />
+                        <div className="mt-2 flex items-start gap-2 border-t border-border/50 pt-2">
+                          <Info className="mt-0.5 h-3.5 w-3.5 text-warning" aria-hidden />
                           <div className="text-xs">
-                            <span className="font-semibold text-foreground mr-1">Denial Reason:</span>
+                            <span className="mr-1 font-semibold text-foreground">Denial Reason:</span>
                             <span className="text-muted-foreground">{safeDenialReason(action.denial_reason)}</span>
                           </div>
                         </div>
                       )}
-                    </div>
-                  </div>
+                    </MelPanelInset>
+                  </MelPanelInset>
                 )
               })}
             </div>

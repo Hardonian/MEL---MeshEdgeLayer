@@ -114,8 +114,8 @@ export function OperationalReview() {
                   <dt className="text-muted-foreground">Approved, awaiting executor</dt>
                   <dd className="font-semibold tabular-nums">{digest.data.counts.awaiting_executor_actions}</dd>
                 </div>
-                <div className="col-span-2 sm:col-span-3 border-t border-border/40 pt-2 mt-1">
-                  <p className="text-mel-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+                <MelPanelInset tone="default" className="col-span-2 mt-1 sm:col-span-3">
+                  <p className="mb-1 text-mel-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Last {digest.data.window_hours}h (primary timestamps)
                   </p>
                   <div className="grid grid-cols-3 gap-2">
@@ -132,7 +132,7 @@ export function OperationalReview() {
                       <dd className="font-semibold tabular-nums">{digest.data.window_counts.operator_notes_created}</dd>
                     </div>
                   </div>
-                </div>
+                </MelPanelInset>
               </dl>
             )}
             {digest.data?.truth_notes && digest.data.truth_notes.length > 0 && (
@@ -210,11 +210,13 @@ export function OperationalReview() {
               </ol>
             )}
             {(briefing.data?.uncertainty_notes?.length ?? 0) > 0 && (
-              <ul className="text-mel-sm text-muted-foreground list-disc list-inside space-y-1 border-t border-border/40 pt-2">
-                {briefing.data!.uncertainty_notes!.map((n, i) => (
-                  <li key={i}>{n}</li>
-                ))}
-              </ul>
+              <MelPanelInset tone="default" className="mt-2">
+                <ul className="list-inside list-disc space-y-1 text-mel-sm text-muted-foreground">
+                  {briefing.data!.uncertainty_notes!.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </MelPanelInset>
             )}
           </CardContent>
         </MelPanel>
