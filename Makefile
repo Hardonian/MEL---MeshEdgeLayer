@@ -10,7 +10,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 
 RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
 
-.PHONY: fmt vet lint test build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
+.PHONY: fmt vet lint test check build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
 	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
@@ -63,8 +63,12 @@ frontend-verify-fast: frontend-lint-fast frontend-typecheck-fast frontend-test-f
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
 lint: vet frontend-lint
 
+# Go packages only. Frontend tests: `make frontend-test` or `make verify-stack`.
 test:
 	$(GO) test ./...
+
+# Same as `make verify-stack` — one obvious full-product check (npm ci + lint + Go test + build + smoke).
+check: verify-stack
 
 build: frontend-build build-agent build-cli
 

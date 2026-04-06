@@ -1,6 +1,8 @@
 export {
+  MelDenseRow,
   MelPanel,
   MelPanelInset,
+  MelPanelSection,
   MelPageSection,
   MelSegment,
   MelSegmentItem,

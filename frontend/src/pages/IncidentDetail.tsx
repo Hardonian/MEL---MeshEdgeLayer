@@ -25,11 +25,18 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { AlertCard } from '@/components/ui/AlertCard'
 import { OperatorTruthRibbon } from '@/components/ui/OperatorTruthRibbon'
-import { MelPanel, MelPanelInset, MelPageSection, MelSegment, MelSegmentItem } from '@/components/ui/operator'
+import {
+  MelDenseRow,
+  MelPanel,
+  MelPanelInset,
+  MelPanelSection,
+  MelPageSection,
+  MelSegment,
+  MelSegmentItem,
+} from '@/components/ui/operator'
 import { Loading } from '@/components/ui/StateViews'
 import { CopyButton } from '@/components/ui/CopyButton'
 import { useToast } from '@/components/ui/Toast'
@@ -217,16 +224,13 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
 
   return (
     <MelPanel data-testid="incident-operational-memory" className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base inline-flex items-center gap-2">
-          <History className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Operational memory (this instance)
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Counts and links from stored history — bounded, explainable, not causal proof. Weak matches stay labeled in similar cases.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0 text-xs">
+      <MelPanelSection
+        heading="Operational memory (this instance)"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        icon={<History className="h-4 w-4 text-muted-foreground" aria-hidden />}
+        description="Counts and links from stored history — bounded, explainable, not causal proof. Weak matches stay labeled in similar cases."
+        contentClassName="space-y-3 pt-0 text-xs"
+      >
         {memoryDecisionCue && (
           <MelPanelInset
             tone="warning"
@@ -399,7 +403,7 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
             )}
           </ul>
         </MelPanelInset>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -453,17 +457,16 @@ function OperatorSuggestedActionsPanel({ inc }: { inc: Incident }) {
   if (!acts?.length) return null
   return (
     <MelPanel id="mel-operator-suggested-actions" className="scroll-mt-20 overflow-hidden" data-testid="operator-suggested-actions">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Deterministic next checks</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Reviewable links from persisted evidence — not ranked black-box recommendations. Turn off inference in Settings if you want assist
-          disabled; deterministic incident intelligence remains on the server.
-        </p>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-2">
+      <MelPanelSection
+        heading="Deterministic next checks"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        description="Reviewable links from persisted evidence — not ranked black-box recommendations. Turn off inference in Settings if you want assist disabled; deterministic incident intelligence remains on the server."
+        contentClassName="pt-0 space-y-2"
+      >
         <ol className="space-y-2">
           {acts.map((a, idx) => (
-            <li key={a.id} className="mel-panel-inset border-border/50 bg-card/40 px-3 py-2 text-sm">
+            <li key={a.id} className="text-sm">
+              <MelDenseRow className="py-2">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span className="text-mel-sm font-mono text-muted-foreground">{idx + 1}.</span>
                 <span className="font-medium text-foreground">{a.title}</span>
@@ -491,10 +494,11 @@ function OperatorSuggestedActionsPanel({ inc }: { inc: Incident }) {
                   </Link>
                 </div>
               )}
+              </MelDenseRow>
             </li>
           ))}
         </ol>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -576,14 +580,12 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
 
   return (
     <MelPanel id="mel-investigation-path" data-testid="incident-investigation-path" className="scroll-mt-20 overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Investigation path (in-product)</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          One pass through MEL's surfaces — you still verify against transports and exports. No implied automation or root-cause
-          certainty.
-        </p>
-      </CardHeader>
-      <CardContent className="pt-0">
+      <MelPanelSection
+        heading="Investigation path (in-product)"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        description="One pass through MEL's surfaces — you still verify against transports and exports. No implied automation or root-cause certainty."
+        contentClassName="pt-0"
+      >
         <ol className="space-y-2">
           {steps.map((s, i) => (
             <li key={s.label} className="flex gap-3 text-sm">
@@ -617,7 +619,7 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
             </li>
           ))}
         </ol>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -634,14 +636,12 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
 
   return (
     <MelPanel data-testid="incident-investigation-guide" className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Investigation guide (bounded)</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Deterministic checklist from stored intelligence — not automation or root-cause AI. Verify against transports, replay, and topology
-          before control actions.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-0">
+      <MelPanelSection
+        heading="Investigation guide (bounded)"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        description="Deterministic checklist from stored intelligence — not automation or root-cause AI. Verify against transports, replay, and topology before control actions."
+        contentClassName="space-y-4 pt-0"
+      >
         <div className="flex flex-wrap gap-2 items-start">
           <span className="text-mel-sm font-semibold text-muted-foreground uppercase tracking-wide w-full sm:w-auto">Evidence posture</span>
           <span title={evidenceStrengthLabel(intel.evidence_strength)} className="inline-flex">
@@ -719,7 +719,7 @@ function InvestigationGuidePanel({ inc, returnTo }: { inc: Incident; returnTo: s
             Support bundle
           </Link>
         </div>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -896,14 +896,14 @@ function LinkedControlActionsPanel({ inc, returnTo }: { inc: Incident; returnTo:
         separate states — see lifecycle on each row.
       </p>
       {showLinkedDespiteGate && (
-        <MelPanelInset tone="warning" className="text-xs" role="status">
+        <MelPanelInset tone="warning" className="text-xs text-foreground" role="status">
           {ctx.error
             ? `Operator context unavailable (${ctx.error}) — rows below came with the incident payload; capability to open the full queue may still be limited.`
             : 'read_actions is off for this session — rows below came with the incident payload; verify sensitive actions in the queue with appropriate credentials.'}
         </MelPanelInset>
       )}
       {emergencyOff && (
-        <MelPanelInset tone="warning" className="text-xs">
+        <MelPanelInset tone="warning" className="text-xs text-foreground">
           Control emergency disable is on for this instance — new execution may be blocked regardless of approval state.
         </MelPanelInset>
       )}
@@ -1002,7 +1002,7 @@ function LinkedActionRow({
 
   return (
     <li>
-      <MelPanelInset tone="dense" className="text-xs">
+      <MelDenseRow className="space-y-1.5 py-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium text-foreground">{a.action_type}</p>
@@ -1050,7 +1050,7 @@ function LinkedActionRow({
           Inspect API (new tab)
         </a>
       </div>
-      </MelPanelInset>
+      </MelDenseRow>
     </li>
   )
 }
@@ -1082,7 +1082,7 @@ function ProofpackCompletenessPanel({ inc }: { inc: Incident }) {
   const pct = snapshotTotal > 0 ? Math.round((snapshotPersisted / snapshotTotal) * 100) : null
 
   return (
-    <MelPanel className="space-y-3 overflow-hidden p-4">
+    <MelPanel id="mel-incident-proofpack" className="scroll-mt-20 space-y-3 overflow-hidden p-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <Shield className="h-3.5 w-3.5" />
@@ -1694,8 +1694,7 @@ function GuidancePostureSection({ guidance }: { guidance: NonNullable<IncidentDe
 
   return (
     <MelPanelInset
-      tone="dense"
-      className="text-xs space-y-2"
+      className="space-y-2 text-xs"
       data-testid="decision-pack-guidance"
     >
       <p className="font-semibold text-foreground">Guidance posture (backend-computed)</p>
@@ -1839,13 +1838,12 @@ function DecisionPackPanel({
 
   return (
     <MelPanel data-testid="incident-decision-pack" id="mel-incident-decision-pack" className="scroll-mt-20 overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Incident Decision Pack</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Schema {pack.schema_version} · assembled {pack.generated_at ? formatRelativeTime(pack.generated_at) : '—'} — backend-owned snapshot; not reinterpreted in the UI.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-0">
+      <MelPanelSection
+        heading="Incident Decision Pack"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        description={`Schema ${pack.schema_version} · assembled ${pack.generated_at ? formatRelativeTime(pack.generated_at) : '—'} — backend-owned snapshot; not reinterpreted in the UI.`}
+        contentClassName="space-y-4 pt-0"
+      >
         <IncidentRationaleSummary incident={inc} className="border-primary/25 bg-primary/5" />
         {q?.ordering_note && (
           <p className="text-mel-sm text-muted-foreground border-l-2 border-border/50 pl-2">{q.ordering_note}</p>
@@ -1856,7 +1854,7 @@ function DecisionPackPanel({
         )}
 
         {triage?.codes?.length ? (
-          <MelPanelInset tone="default" className="bg-muted/10 text-xs" data-testid="decision-pack-triage">
+          <MelPanelInset className="border-border/50 bg-muted/10 text-xs" data-testid="decision-pack-triage">
             <p className="font-semibold text-foreground mb-1">Queue / triage basis</p>
             <p className="text-mel-sm text-muted-foreground mb-2">
               Tier {triage.tier}
@@ -1879,7 +1877,7 @@ function DecisionPackPanel({
         ) : null}
 
         {readiness && (
-          <MelPanelInset tone="dense" className="text-xs space-y-1" data-testid="decision-pack-readiness">
+          <MelPanelInset className="space-y-1 text-xs" data-testid="decision-pack-readiness">
             <p className="font-semibold text-foreground">Export / support posture (policy snapshot)</p>
             <p className="text-muted-foreground">{readiness.export_policy_summary}</p>
             {readiness.evidence_sufficiency_note && (
@@ -1892,7 +1890,7 @@ function DecisionPackPanel({
         )}
 
         {unc && (unc.non_claims?.length || unc.bounded_scan_disclosures?.length) ? (
-          <MelPanelInset tone="warning" className="text-xs space-y-2">
+          <MelPanelInset tone="warning" className="space-y-2 text-xs">
             <p className="font-semibold text-foreground">Uncertainty & bounded scans</p>
             {unc.bounded_scan_disclosures?.map((line) => (
               <p key={line} className="text-mel-sm text-muted-foreground">{line}</p>
@@ -1905,7 +1903,7 @@ function DecisionPackPanel({
           </MelPanelInset>
         ) : null}
 
-        <MelPanelInset tone="default" className="bg-muted/10 px-3 py-3 space-y-3">
+        <MelPanelInset className="space-y-3 border-border/60 bg-muted/10 py-3">
           <p className="text-xs font-semibold text-foreground">Operator adjudication (this pack)</p>
           <p className="text-mel-sm text-muted-foreground">
             Local feedback for institutional memory — does not execute controls or imply team workflow.
@@ -1980,7 +1978,7 @@ function DecisionPackPanel({
             </p>
           )}
         </MelPanelInset>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -2030,8 +2028,8 @@ function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => 
       </p>
       <ul className="space-y-2">
         {signals.map((s) => (
-          <li key={s.code}>
-            <MelPanelInset tone="dense" className="text-xs space-y-1">
+          <li key={s.code} className="space-y-1">
+            <MelDenseRow className="space-y-1 py-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-mel-sm text-muted-foreground">{s.code}</span>
               {s.severity && <Badge variant="outline">{s.severity}</Badge>}
@@ -2061,7 +2059,7 @@ function AssistSignalsPanel({ inc, onReload }: { inc: Incident; onReload: () => 
                 </button>
               ))}
             </div>
-            </MelPanelInset>
+            </MelDenseRow>
           </li>
         ))}
       </ul>
@@ -2114,17 +2112,16 @@ function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () 
 
   return (
     <MelPanel className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Workflow & investigation</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          Review state is operator workflow on this instance (single-operator honest mode). It does not imply multi-user coordination.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+      <MelPanelSection
+        heading="Workflow & investigation"
+        headingClassName="normal-case text-base font-semibold tracking-normal"
+        description="Review state is operator workflow on this instance (single-operator honest mode). It does not imply multi-user coordination."
+        contentClassName="space-y-3 pt-0"
+      >
         {!canWrite && (
-          <p className="text-xs text-warning border border-warning/25 rounded-sm px-3 py-2 bg-warning/5">
+          <MelPanelInset tone="warning" className="text-xs text-foreground" role="status">
             Read-only: your session cannot PATCH incident workflow. Notes and state changes require incident_mutate.
-          </p>
+          </MelPanelInset>
         )}
         <div>
           <label htmlFor="mel-inc-review-state" className="text-mel-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -2174,7 +2171,7 @@ function WorkflowPanel({ inc, onSaved, returnTo }: { inc: Incident; onSaved: () 
             Control actions for this incident
           </Link>
         </div>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -2229,29 +2226,27 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
 
   return (
     <MelPanel id="shift-continuity-handoff" className="scroll-mt-20 overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">Shift continuity / handoff</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <CopyButton value={text} label="Copy plain summary" className="button-secondary text-xs" />
-            <CopyButton value={jsonText} label="Copy handoff JSON" className="button-secondary text-xs" />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Plain text for chat/tickets; JSON is a structured continuity snapshot. Neither replaces the proofpack for canonical evidence.
-        </p>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-3">
+      <MelPanelSection
+        heading={
+          <span className="flex flex-wrap items-center justify-between gap-2 normal-case">
+            <span>Shift continuity / handoff</span>
+            <span className="flex flex-wrap gap-2">
+              <CopyButton value={text} label="Copy plain summary" className="button-secondary text-xs" />
+              <CopyButton value={jsonText} label="Copy handoff JSON" className="button-secondary text-xs" />
+            </span>
+          </span>
+        }
+        headingClassName="text-base font-semibold tracking-normal w-full"
+        description="Plain text for chat/tickets; JSON is a structured continuity snapshot. Neither replaces the proofpack for canonical evidence."
+        contentClassName="pt-0 space-y-3"
+      >
         {versionInfo.error && (
-          <p className="text-xs text-warning border border-warning/25 rounded-sm px-3 py-2 bg-warning/5" role="alert">
+          <MelPanelInset tone="warning" className="text-xs text-foreground" role="alert">
             Version / policy fetch failed ({versionInfo.error}). Export gates may be unknown — prefer plain handoff until Settings loads.
-          </p>
+          </MelPanelInset>
         )}
         {!versionInfo.loading && (
-          <div
-            className="rounded-sm border border-border/40 bg-background/50 px-3 py-2 text-mel-sm text-muted-foreground"
-            role="status"
-          >
+          <MelPanelInset className="border-border/40 bg-background/50 text-mel-sm text-muted-foreground" role="status">
             <span className="font-semibold text-foreground">This instance: </span>
             {er.semantic === 'policy_limited' ? (
               <span className="text-warning">
@@ -2266,9 +2261,9 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
                 <code className="font-mono text-mel-xs">evidence_gaps</code> before treating any bundle as complete proof.
               </span>
             )}
-          </div>
+          </MelPanelInset>
         )}
-        <div className="rounded-sm border border-border/50 bg-muted/15 px-3 py-2.5 text-mel-sm text-muted-foreground space-y-1.5">
+        <MelPanelInset className="border-border/50 bg-muted/15 py-2.5 text-mel-sm text-muted-foreground space-y-1.5">
           <p className="font-semibold text-foreground">Decision ladder (under pressure)</p>
           <ol className="list-decimal pl-4 space-y-1.5">
             <li>
@@ -2326,12 +2321,12 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
               and filtered queue — {actionVis.explanation}
             </li>
           </ul>
-        </div>
+        </MelPanelInset>
         {inc.intelligence?.evidence_strength === 'sparse' && (
-          <p className="text-mel-sm text-warning border border-warning/20 rounded-sm px-3 py-2 bg-warning/5" role="status">
+          <MelPanelInset tone="warning" className="text-mel-sm text-foreground" role="status">
             Sparse incident evidence — any bundle is weaker; prefer widening replay/topology/control context before implying completeness to
             support.
-          </p>
+          </MelPanelInset>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -2359,10 +2354,10 @@ function HandoffExportPanel({ inc }: { inc: Incident }) {
           </span>
         </div>
         {escState === 'error' && escErr && <p className="text-xs text-critical">{escErr}</p>}
-        <pre className="max-h-48 overflow-auto rounded-sm border border-border/50 bg-muted/20 p-3 text-mel-sm text-muted-foreground whitespace-pre-wrap font-mono">
+        <pre className="mel-panel-inset max-h-48 overflow-auto border-border/50 bg-muted/20 p-3 text-mel-sm text-muted-foreground whitespace-pre-wrap font-mono">
           {text}
         </pre>
-      </CardContent>
+      </MelPanelSection>
     </MelPanel>
   )
 }
@@ -2562,22 +2557,28 @@ export function IncidentDetail() {
 
       {/* Header card */}
       <MelPanel id="incident-operational-summary" className="scroll-mt-20 overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-start gap-3">
-            <AlertTriangle className={clsx('h-5 w-5 shrink-0 mt-0.5', inc.severity === 'critical' ? 'text-critical' : inc.severity === 'high' ? 'text-warning' : 'text-muted-foreground')} />
+        <div className="mel-chrome-title pb-3">
+          <div className="flex flex-wrap items-start gap-3 py-0.5">
+            <AlertTriangle
+              className={clsx(
+                'h-5 w-5 shrink-0 mt-0.5',
+                inc.severity === 'critical' ? 'text-critical' : inc.severity === 'high' ? 'text-warning' : 'text-muted-foreground',
+              )}
+              aria-hidden
+            />
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-lg leading-snug">{inc.title || inc.id}</CardTitle>
+              <h2 className="text-lg font-semibold leading-snug text-foreground">{inc.title || inc.id}</h2>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono">{inc.id.slice(0, 20)}</span>
                 {inc.occurred_at && (
                   <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
+                    <Clock className="h-3 w-3" aria-hidden />
                     {formatRelativeTime(inc.occurred_at)}
                   </span>
                 )}
                 {inc.owner_actor_id && (
                   <span className="inline-flex items-center gap-1">
-                    <User className="h-3 w-3" />
+                    <User className="h-3 w-3" aria-hidden />
                     {inc.owner_actor_id}
                   </span>
                 )}
@@ -2594,8 +2595,8 @@ export function IncidentDetail() {
               {seenBefore && <Badge variant="warning">seen {intel!.signature_match_count}x</Badge>}
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-4">
+        </div>
+        <div className="px-3 pb-3 pt-0 space-y-4">
           {inc.summary && (
             <p className="text-sm leading-relaxed text-muted-foreground">{inc.summary}</p>
           )}
@@ -2619,7 +2620,7 @@ export function IncidentDetail() {
             {inc.category && <span>Category: {inc.category}</span>}
             {inc.review_state && <span>Review: {toWords(inc.review_state)}</span>}
           </div>
-        </CardContent>
+        </div>
       </MelPanel>
 
       <InvestigationPathPanel inc={inc} returnTo={returnToWorkbench} />
@@ -2650,10 +2651,9 @@ export function IncidentDetail() {
           {/* Handoff summary */}
           <Section title="Handoff summary" icon={<FileText className="h-3.5 w-3.5" />}>
             <MelPanelInset
-              tone={inc.handoff_summary ? 'dense' : 'default'}
               className={clsx(
                 'py-2.5 text-sm',
-                !inc.handoff_summary && 'border-dashed border-border/50 bg-muted/20 text-muted-foreground',
+                inc.handoff_summary ? 'border-border/60 bg-card/50' : 'border-dashed border-border/50 bg-muted/20 text-muted-foreground',
               )}
             >
               {inc.handoff_summary || 'No handoff summary recorded.'}
@@ -2663,14 +2663,14 @@ export function IncidentDetail() {
           {/* Investigation notes */}
           {inc.investigation_notes && (
             <Section title="Investigation notes" icon={<Eye className="h-3.5 w-3.5" />}>
-              <MelPanelInset tone="dense" className="py-2.5 text-sm whitespace-pre-wrap">{inc.investigation_notes}</MelPanelInset>
+              <MelPanelInset className="border-border/60 bg-card/50 py-2.5 text-sm whitespace-pre-wrap">{inc.investigation_notes}</MelPanelInset>
             </Section>
           )}
 
           {/* Resolution */}
           {(inc.resolution_summary || inc.lessons_learned || inc.closeout_reason) && (
             <Section title="Resolution" icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
-              <MelPanelInset tone="dense" className="space-y-2 py-2.5 text-sm">
+              <MelPanelInset className="space-y-2 border-border/60 bg-card/50 py-2.5 text-sm">
                 {inc.resolution_summary && <p>{inc.resolution_summary}</p>}
                 {inc.lessons_learned && (
                   <p className="text-muted-foreground"><span className="font-medium text-foreground">Lessons: </span>{inc.lessons_learned}</p>
@@ -2701,9 +2701,9 @@ export function IncidentDetail() {
             <Section title="Referenced action IDs" icon={<Zap className="h-3.5 w-3.5" />}>
               <div className="space-y-1.5">
                 {inc.pending_actions!.filter(Boolean).map((actionId) => (
-                  <MelPanelInset key={actionId} tone="dense" className="flex items-center gap-2 py-1.5 text-xs">
+                  <MelDenseRow key={actionId} className="flex items-center gap-2 py-1.5">
                     <code className="flex-1 truncate font-mono text-muted-foreground">{actionId.slice(0, 24)}…</code>
-                  </MelPanelInset>
+                  </MelDenseRow>
                 ))}
                 <Link
                   to={`/control-actions?incident=${encodeURIComponent(inc.id)}&return=${encodeURIComponent(`/incidents/${encodeURIComponent(inc.id)}?return=${encodeURIComponent(returnToWorkbench)}`)}`}
@@ -2729,7 +2729,7 @@ export function IncidentDetail() {
                       <Link
                         key={s.incident_id}
                         to={`/incidents/${s.incident_id}`}
-                        className="mel-panel-inset border-border/50 bg-card/40 block px-3 py-2 text-xs hover:border-border/80 hover:bg-card/70 transition-colors"
+                        className="mel-panel-inset block border-border/50 bg-card/40 py-2 text-xs transition-colors hover:border-border/80 hover:bg-card/70"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-muted-foreground shrink-0">{s.incident_id.slice(0, 12)}</span>
@@ -2764,7 +2764,7 @@ export function IncidentDetail() {
                 <Section title="Investigate next" icon={<HelpCircle className="h-3.5 w-3.5" />}>
                   <div className="space-y-1.5">
                     {intel.investigate_next!.slice(0, 5).map((g) => (
-                      <MelPanelInset key={g.id} tone="dense" className="text-xs">
+                      <MelDenseRow key={g.id} className="space-y-0.5 py-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium text-foreground">{g.title}</p>
                           <span title={guidanceConfidenceLabel(g.confidence)} className="inline-flex">
@@ -2772,7 +2772,7 @@ export function IncidentDetail() {
                           </span>
                         </div>
                         <p className="mt-0.5 text-muted-foreground">{g.rationale}</p>
-                      </MelPanelInset>
+                      </MelDenseRow>
                     ))}
                   </div>
                 </Section>
@@ -2783,7 +2783,7 @@ export function IncidentDetail() {
                 <Section title="Runbook recommendations" icon={<BookOpen className="h-3.5 w-3.5" />}>
                   <div className="space-y-1.5">
                     {intel.runbook_recommendations!.slice(0, 4).map((r) => (
-                      <MelPanelInset key={r.id} tone="dense" className="text-xs">
+                      <MelDenseRow key={r.id} className="space-y-1 py-2">
                         <div className="flex items-center gap-2">
                           {r.rank_score != null && <span className="text-muted-foreground shrink-0">{r.rank_score.toFixed(2)}</span>}
                           <span className="font-medium text-foreground flex-1">{r.title}</span>
@@ -2791,7 +2791,7 @@ export function IncidentDetail() {
                         </div>
                         <p className="mt-1 text-mel-xs text-muted-foreground leading-snug">{runbookStrengthOperatorLabel(r.strength)}</p>
                         {r.rationale && <p className="mt-1 text-muted-foreground">{r.rationale}</p>}
-                      </MelPanelInset>
+                      </MelDenseRow>
                     ))}
                   </div>
                 </Section>
@@ -2803,7 +2803,7 @@ export function IncidentDetail() {
                   <p className="text-mel-sm text-muted-foreground mb-1.5">Association only — does not establish causality.</p>
                   <div className="space-y-2">
                     {intel.action_outcome_memory!.map((m) => (
-                      <MelPanelInset key={m.action_type} tone="dense" className="p-3 text-xs">
+                      <MelDenseRow key={m.action_type} className="space-y-1.5 p-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-medium text-foreground">{m.action_label || toWords(m.action_type)}</span>
                           <Badge variant="outline">n={m.sample_size}</Badge>
@@ -2816,7 +2816,7 @@ export function IncidentDetail() {
                           <span className="inline-flex items-center gap-1"><XCircle className="h-3 w-3 text-critical" /> {m.deterioration_observed_count} deteriorated</span>
                           <span className="inline-flex items-center gap-1"><HelpCircle className="h-3 w-3" /> {m.inconclusive_count} inconclusive</span>
                         </div>
-                      </MelPanelInset>
+                      </MelDenseRow>
                     ))}
                   </div>
                 </Section>
@@ -2876,13 +2876,13 @@ export function IncidentDetail() {
           </div>
           <div className="space-y-2">
             {replay.recommendation_outcomes!.map((o) => (
-              <MelPanelInset key={o.id} tone="dense" className="flex flex-wrap items-center gap-2 text-xs">
+              <MelDenseRow key={o.id} className="flex flex-wrap items-center gap-2 py-2">
                 <code className="font-mono text-muted-foreground">{o.recommendation_id.slice(0, 16)}</code>
                 <Badge variant={outcomeVariant(o.outcome)}>{toWords(o.outcome)}</Badge>
                 {o.actor_id && <span className="text-muted-foreground">by {o.actor_id}</span>}
                 {o.note && <span className="text-muted-foreground italic">{o.note}</span>}
                 <span className="ml-auto text-muted-foreground/60">{formatRelativeTime(o.created_at)}</span>
-              </MelPanelInset>
+              </MelDenseRow>
             ))}
           </div>
         </MelPanel>

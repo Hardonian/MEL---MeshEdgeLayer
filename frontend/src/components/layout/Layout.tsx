@@ -462,18 +462,18 @@ function WorkspaceFocusBar({
   )
 }
 
-type PaletteLink = {
-  group: string
-  label: string
-  href: string
-  keywords: string
-}
+type PaletteItem = { label: string; href: string; keywords: string; group: 'routes' | 'incident' }
 
-function paletteHrefMatchesLocation(href: string): boolean {
+function paletteItemActive(
+  location: { pathname: string; search: string; hash: string },
+  href: string,
+): boolean {
   try {
-    const u = new URL(href, window.location.origin)
-    const cur = new URL(window.location.href)
-    return u.pathname === cur.pathname && u.search === cur.search && u.hash === cur.hash
+    const u = new URL(href, 'http://local.invalid')
+    if (location.pathname !== u.pathname) return false
+    if ((u.search || '') !== (location.search || '')) return false
+    if ((u.hash || '') !== (location.hash || '')) return false
+    return true
   } catch {
     return false
   }
@@ -482,43 +482,94 @@ function paletteHrefMatchesLocation(href: string): boolean {
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const location = useLocation()
+  const { focus } = useOperatorWorkspaceFocus()
+  const focusId = focus?.incidentId
 
-  const allPages = [
-    { label: 'console', href: '/', keywords: 'home overview operator workspace workbench g h' },
-    { label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities dashboard' },
-    { label: 'status', href: '/status', keywords: 'transport health liveness' },
-    { label: 'nodes', href: '/nodes', keywords: 'devices mesh radio g n' },
-    { label: 'topology', href: '/topology', keywords: 'graph network map g t' },
-    { label: 'planning', href: '/planning', keywords: 'resilience playbook deployment g p' },
-    { label: 'operational-review', href: '/operational-review', keywords: 'digest shift briefing g v' },
-    { label: 'messages', href: '/messages', keywords: 'packets traffic ingest g m' },
-    { label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors dlq queue' },
-    { label: 'incidents', href: '/incidents', keywords: 'alerts disruptions g i' },
-    { label: 'control-actions', href: '/control-actions', keywords: 'approve reject queue control g c' },
-    { label: 'recommendations', href: '/recommendations', keywords: 'suggestions assistive' },
-    { label: 'events', href: '/events', keywords: 'audit log timeline g e' },
-    { label: 'diagnostics', href: '/diagnostics', keywords: 'health checks doctor trust g x' },
-    { label: 'privacy', href: '/privacy', keywords: 'security audit findings' },
-    { label: 'settings', href: '/settings', keywords: 'config prefs truth contract g s' },
+  const routeItems: PaletteItem[] = [
+    { group: 'routes', label: 'console', href: '/', keywords: 'home overview operator workspace workbench g h' },
+    { group: 'routes', label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities dashboard' },
+    { group: 'routes', label: 'status', href: '/status', keywords: 'transport health liveness' },
+    { group: 'routes', label: 'nodes', href: '/nodes', keywords: 'devices mesh radio g n' },
+    { group: 'routes', label: 'topology', href: '/topology', keywords: 'graph network map g t' },
+    { group: 'routes', label: 'planning', href: '/planning', keywords: 'resilience playbook deployment g p' },
+    { group: 'routes', label: 'operational-review', href: '/operational-review', keywords: 'digest shift briefing g v' },
+    { group: 'routes', label: 'messages', href: '/messages', keywords: 'packets traffic ingest g m' },
+    { group: 'routes', label: 'dead-letters', href: '/dead-letters', keywords: 'failed errors dlq queue' },
+    { group: 'routes', label: 'incidents', href: '/incidents', keywords: 'alerts disruptions g i queue workbench' },
+    { group: 'routes', label: 'control-actions', href: '/control-actions', keywords: 'approve reject queue control g c' },
+    { group: 'routes', label: 'recommendations', href: '/recommendations', keywords: 'suggestions assistive posture cues' },
+    { group: 'routes', label: 'events', href: '/events', keywords: 'audit log timeline g e' },
+    { group: 'routes', label: 'diagnostics', href: '/diagnostics', keywords: 'health checks doctor trust g x support bundle' },
+    { group: 'routes', label: 'privacy', href: '/privacy', keywords: 'security audit findings' },
+    { group: 'routes', label: 'settings', href: '/settings', keywords: 'config prefs truth contract g s' },
   ]
 
-  const combined = [...contextLinks, ...allPages]
+  const incidentItems: PaletteItem[] = focusId
+    ? [
+        {
+          group: 'incident',
+          label: 'focused incident — detail',
+          href: `/incidents/${encodeURIComponent(focusId)}`,
+          keywords: 'focus workspace incident open record',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — replay / timeline',
+          href: `/incidents/${encodeURIComponent(focusId)}?replay=1`,
+          keywords: 'replay timeline chronology evidence',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — decision pack',
+          href: `/incidents/${encodeURIComponent(focusId)}#mel-incident-decision-pack`,
+          keywords: 'decision pack adjudication queue triage',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — proofpack strip',
+          href: `/incidents/${encodeURIComponent(focusId)}#mel-incident-proofpack`,
+          keywords: 'proofpack export bundle completeness',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — handoff',
+          href: `/incidents/${encodeURIComponent(focusId)}#shift-continuity-handoff`,
+          keywords: 'handoff shift continuity escalation json',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — control queue',
+          href: `/control-actions?incident=${encodeURIComponent(focusId)}`,
+          keywords: 'control actions approve linked queue',
+        },
+        {
+          group: 'incident',
+          label: 'focused incident — topology (incident focus)',
+          href: `/topology?incident=${encodeURIComponent(focusId)}&filter=incident_focus`,
+          keywords: 'topology graph map incident',
+        },
+      ]
+    : []
+
+  const allItems = [...incidentItems, ...routeItems]
 
   const lowerQuery = query.toLowerCase().trim()
   const filtered = lowerQuery
-    ? combined.filter(
+    ? allItems.filter(
         (p) =>
           p.label.toLowerCase().includes(lowerQuery) ||
           p.keywords.includes(lowerQuery) ||
-          p.href.toLowerCase().includes(lowerQuery) ||
-          p.group.toLowerCase().includes(lowerQuery),
+          p.href.toLowerCase().includes(lowerQuery),
       )
-    : combined
+    : allItems
+
+  const incidentFiltered = filtered.filter((i) => i.group === 'incident')
+  const routeFiltered = filtered.filter((i) => i.group === 'routes')
 
   useEffect(() => {
     onClose()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname])
+  }, [location.pathname, location.hash])
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[12vh]" onClick={onClose}>
@@ -530,10 +581,10 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         aria-label="Command palette"
       >
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden />
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
             type="text"
-            placeholder="Jump to a surface or incident anchor"
+            placeholder="Jump to route, section, or focused incident…"
             className="flex-1 bg-transparent text-mel-sm text-foreground outline-none placeholder:text-muted-foreground/50 caret-primary"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -545,31 +596,54 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         <div className="max-h-[40vh] overflow-y-auto p-1">
           {filtered.length === 0 ? (
             <div className="px-3 py-4 text-center text-mel-sm text-muted-foreground space-y-1">
-              <p>No matching route.</p>
+              <p>No matching jump target.</p>
               <p className="text-mel-xs text-muted-foreground/70">
                 Try <kbd className="rounded border border-border/60 bg-muted/40 px-1 font-mono">g</kbd> then a letter (see Help → shortcuts), or another query.
               </p>
             </div>
           ) : (
-            filtered.map((page, i) => (
-              <Link
-                key={`${page.group}:${page.href}:${i}`}
-                to={page.href}
-                className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                onClick={onClose}
-              >
-                <span className="text-muted-foreground/40">→</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{page.label}</span>
-                  {page.group !== 'Console' && (
-                    <span className="block truncate text-mel-xs text-muted-foreground/70">{page.group}</span>
+            <>
+              {incidentFiltered.length > 0 && (
+                <div className="px-2 py-1">
+                  <p className="px-1 py-1 text-mel-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">Workspace focus</p>
+                  {incidentFiltered.map((page) => (
+                    <Link
+                      key={`${page.label}-${page.href}`}
+                      to={page.href}
+                      className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none"
+                      onClick={onClose}
+                    >
+                      <span className="text-muted-foreground/40">→</span>
+                      <span className="flex-1">{page.label}</span>
+                      {paletteItemActive(location, page.href) && (
+                        <span className="text-[8px] text-primary">[here]</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {routeFiltered.length > 0 && (
+                <div className="px-2 py-1">
+                  {incidentFiltered.length > 0 && (
+                    <p className="px-1 py-1 text-mel-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">Routes</p>
                   )}
-                </span>
-                {paletteHrefMatchesLocation(page.href) ? (
-                  <span className="text-[8px] shrink-0 font-bold uppercase tracking-wide text-primary">here</span>
-                ) : null}
-              </Link>
-            ))
+                  {routeFiltered.map((page) => (
+                    <Link
+                      key={`${page.label}-${page.href}`}
+                      to={page.href}
+                      className="flex items-center gap-2 px-2 py-1.5 text-mel-sm text-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus:bg-muted/60 focus:text-foreground focus:outline-none"
+                      onClick={onClose}
+                    >
+                      <span className="text-muted-foreground/40">→</span>
+                      <span className="flex-1">{page.label}</span>
+                      {paletteItemActive(location, page.href) && (
+                        <span className="text-[8px] text-primary">[here]</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
