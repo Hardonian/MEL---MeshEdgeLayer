@@ -8,7 +8,7 @@ MEL is a **local-first** operator system: it ingests mesh evidence, keeps incide
 
 ## Why star or try MEL
 
-- **Evidence-first console** — incidents, proofpacks, action history, and diagnostics wired to what the database actually holds.
+- **Evidence-first operator console** — incidents, proofpacks, action history, and diagnostics wired to what the database actually holds.
 - **Honest transport semantics** — no pretending BLE/HTTP ingest or RF routing exists when it does not (see matrix below).
 - **Deterministic demo fixtures** — seed credible UI states without radios: `make demo-seed` (Go-only rebuild of `./bin/mel` from committed web assets) then `./bin/mel serve --config demo_sandbox/mel.demo.json`.
 - **Serious OSS engineering** — Go + embedded React UI, `make premerge-verify` release chain, repo-os governance in `docs/repo-os/`.

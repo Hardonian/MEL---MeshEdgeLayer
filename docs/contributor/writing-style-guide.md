@@ -1,67 +1,84 @@
 # MEL Writing Style Guide (UI + Docs)
 
-This guide standardizes operator-facing copy across UI, docs, and release notes.
+Use this guide for operator-facing text in UI, docs, onboarding, and release notes.
 
-## Voice baseline
+## 1) Product voice
 
-- Calm.
-- Competent.
-- Direct.
-- Evidence-bounded.
+Baseline voice:
+- calm;
+- competent;
+- direct;
+- evidence-bounded.
 
-Avoid slang, jokes, or theatrical “hacker” tone.
+Never write with theatrical, juvenile, or hype-heavy tone.
 
-## Preferred terminology
+## 2) Canonical terminology
 
-Use these terms consistently:
+Use:
+- **operator console** for `/` and generic primary web surface references;
+- **incident workbench** for `/incidents` queue and triage language;
+- transport, ingest, evidence, incident, approval, dispatch, execution, audit;
+- degraded, partial, stale, unknown, unsupported.
 
-- workbench (primary operations surface)
-- transport, ingest, packet evidence
-- incident, evidence strength, degraded, partial, unknown
-- approval, dispatch, execution, audit
-- topology (observed context, not RF proof)
+Avoid:
+- dashboard (except legacy code/API identifiers);
+- command surface as a user-facing generic label;
+- vague claims like “fully healthy” without bounded evidence.
 
-## Terms to avoid
+## 3) Tone and wording rules
 
-- dashboard (unless it references a legacy API identifier)
-- stealth, exploit, breach, bypass, blackhat
-- “all good”, “fully healthy”, “guaranteed” without proof context
-- “Oops!” and blamey phrasing
+- Prefer verb-first action labels: `Refresh evidence`, `Review incident`, `Export proofpack`.
+- Keep sentence shape simple: what happened, impact, next action.
+- Avoid blame language: “you forgot”, “bad config”, “broken setup”.
+- Avoid filler interjections: “Oops!”, “Yikes!”, “Uh oh!”.
 
-## State wording patterns
+## 4) State wording templates
 
-- Healthy: “Connected and ingesting recent records.”
-- Degraded: “Connected with gaps; review failure markers.”
+Use these phrases or close equivalents:
+- Live: “Recent persisted ingest evidence is present.”
+- Stale: “Evidence is stale; verify current transport state.”
+- Degraded/Partial: “Connected with gaps; review failure markers.”
 - Unknown: “No current evidence; state is unknown.”
 - Unsupported: “Not implemented in this MEL runtime.”
 
-## Error message pattern
+## 5) Error copy pattern
 
-Use:
-
-1. what failed;
-2. impact;
-3. actionable next step.
+Every error line should include:
+1. failure;
+2. operator impact;
+3. next action.
 
 Example:
+- “Diagnostics fetch failed. Findings may be stale. Retry or verify transport connectivity.”
 
-- “Diagnostics fetch failed. Current findings may be stale. Retry now or check transport connectivity.”
+## 6) Safety, trust, and legal boundaries
 
-## Action copy pattern
+Never imply:
+- unauthorized/covert behavior;
+- unsupported transport/runtime capabilities;
+- submission equals approval or execution;
+- inferred output equals canonical truth.
 
-- Primary actions: verb-first (`Refresh evidence`, `Review incident`, `Export proofpack`).
-- Destructive actions: explicit consequence (`Delete local records`, `Revoke pending approval`).
+## 7) Page and component naming rules
 
-## Severity wording
+- Page titles should be short operator nouns: `Diagnostics`, `Recommendations`, `Settings`.
+- Avoid decorative naming (“cockpit mode”, “mission center”, “cyber board”).
+- Component names should encode function/truth intent (`OperatorTruthRibbon`, `SupportBundleExport`).
 
-- info: informational context
-- warning: degraded/partial condition
-- critical: stop-the-line operational risk
+## 8) Strong vs weak examples
 
-Do not use dramatic synonyms (catastrophic, meltdown, apocalypse) in product UI.
+Strong:
+- “No active recommendations from current evidence.”
+- “Approval pending. Dispatch has not started.”
 
-## Trust boundary wording reminders
+Weak:
+- “Everything is great.”
+- “Stealth remediation complete.”
 
-- Submission is not approval.
-- Approval is not execution.
-- History informs context; it does not prove live runtime state.
+## 9) Review checklist for copy changes
+
+Before merge, confirm:
+- terminology matches canon;
+- wording preserves degraded/partial/unknown semantics;
+- claims do not exceed implementation evidence;
+- destructive actions are explicit about consequences.

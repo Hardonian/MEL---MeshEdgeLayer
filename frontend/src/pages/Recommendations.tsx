@@ -41,7 +41,7 @@ export function Recommendations() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Recommendations"
-          description="Suggestions to improve your MEL deployment based on configuration and system state."
+          description="Evidence-backed actions for configuration and runtime posture. Recommendations are assistive, not canonical truth."
         />
         <button onClick={refresh} className="button-secondary">
           <RefreshCw className="h-4 w-4" />
@@ -53,7 +53,7 @@ export function Recommendations() {
         <StatCard
           title="Total"
           value={recommendations.length}
-          description="All recommendations"
+          description="Total findings"
           icon={<Lightbulb className="h-5 w-5" />}
           variant="default"
         />
@@ -67,7 +67,7 @@ export function Recommendations() {
         <StatCard
           title="Informational"
           value={informational.length}
-          description="For your awareness"
+          description="Context only"
           icon={<BookOpen className="h-5 w-5" />}
           variant="info"
         />
@@ -111,7 +111,7 @@ export function Recommendations() {
         </CardHeader>
         <CardContent className="pt-3">
           {(actionable.length === 0 ? recommendations : informational).length === 0 ? (
-            <SystemHealthy message="No recommendations at this time" />
+            <SystemHealthy message="No active recommendations" />
           ) : (
             <div className="space-y-2">
               {(actionable.length === 0 ? recommendations : informational).map((rec, i) => (

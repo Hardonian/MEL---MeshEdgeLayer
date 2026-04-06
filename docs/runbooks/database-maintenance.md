@@ -10,7 +10,7 @@ MEL uses SQLite for its primary persistence. While it's generally low-maintenanc
 
 - Database file (`mel.db`) growing beyond expected size (e.g. > 10GB).
 - Application-level storage alerts firing.
-- Query performance degradation (e.g., slow dashboard load).
+- Query performance degradation (e.g., slow console load).
 
 ### Diagnostic Steps
 

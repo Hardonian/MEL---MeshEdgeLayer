@@ -1,114 +1,115 @@
 # MEL Operator Vibe System (Canonical)
 
-Status: canonical implementation guide for frontend identity, copy, and review.
-Applies to: product UI, docs, onboarding text, screenshots, and release messaging.
+Status: canonical implementation contract for UI identity, language, and review.
+Applies to: frontend, docs, onboarding copy, screenshots, release notes.
 
-## 1) Product identity and intent
+## 1) Product identity
 
-MEL is a **trusted-control and incident-intelligence workbench**. The visual and language system must reinforce:
+MEL is an **operator console for incident intelligence and trusted control**.
 
-- deterministic operator truth;
-- explicit degraded / partial / unknown state handling;
-- evidence-first decision support;
-- privacy-first local-first operations.
-
-This vibe is **field-ready technical clarity**, not performance art.
+The product must read as:
+- dark-first, field-ready, dense but readable;
+- restrained, infrastructural, and evidence-led;
+- explicit about degraded, partial, stale, and unknown states;
+- technically calm (never theatrical).
 
 ## 2) Anti-goals (hard bans)
 
 Do not ship:
+- visual theatre (glow noise, decorative blur, fake terminal cosplay, cyberpunk imitation);
+- copy that implies unsupported capability, fake live truth, or hidden certainty;
+- “hacker” framing that suggests illegal/intrusive behavior;
+- naming drift that fractures orientation (dashboard/console/workbench roulette).
 
-- fake certainty, fake live status, or implied capabilities not implemented;
-- “hacker theater” motifs (scanline overlays, glitch effects, random neon glow noise);
-- language that implies trespass, intrusion, evasion, or unsafe behavior;
-- decorative labels that hide operational meaning.
+## 3) Legal and ethical boundaries
 
-## 3) Visual system contract
+- Never imply MEL performs RF routing/propagation execution unless implemented and verified.
+- Never represent assistive inference as canonical truth.
+- Never use language that implies covert, unauthorized, or unsafe operations.
+- Privacy/security wording must describe implemented controls only.
 
-### 3.1 Surface and color behavior
+## 4) Accessibility requirements
 
-- Foundation: near-black / charcoal surfaces by default in dark mode.
-- Accent colors are **signal semantics**, never paragraph color.
-- Status colors are stable across pages:
-  - live/healthy (`signal-live`),
-  - observed (`signal-observed`),
-  - degraded (`signal-degraded`),
-  - critical (`signal-critical`),
-  - inferred (`signal-inferred`, explicitly non-canonical),
-  - stale / unsupported / frozen where relevant.
-- Focus rings are always visible and high-contrast.
+Required on every UI change:
+- WCAG-compliant text and non-text contrast;
+- unmistakable keyboard focus indication;
+- complete `prefers-reduced-motion` fallback;
+- readable density (no body monospace, no low-contrast decorative labels);
+- destructive actions must state impact and scope.
 
-### 3.2 Typography
+## 5) Terminology canon
 
-- Sans for prose and high-volume reading surfaces.
-- Mono for IDs, timestamps, queue metadata, route or packet details.
-- Never use monospace for long-form copy.
+Use these terms consistently:
+- **operator console**: primary top-level surface (`/`).
+- **incident workbench**: incident queue + triage surface (`/incidents`).
+- **console**: acceptable shorthand for operator console.
 
-### 3.3 Panel and chrome
+Avoid as generic synonyms:
+- dashboard
+- command surface
+- workspace (unless it means temporary browser-local focus context)
 
-- Panel edges indicate containment and state, not glow effects.
-- Borders/separators must carry hierarchy before shadows do.
-- Radius remains minimal and instrument-like.
+## 6) Approved and banned metaphors
 
-### 3.4 Motion
+Approved: operator console, incident workbench, signal lane, evidence trail, shift handoff, route view.
 
-- Motion communicates causality (load, expand, enter, dismiss), not ambience.
-- Respect `prefers-reduced-motion` globally.
-- No core state can be conveyed only by animation.
+Banned: breach mode, stealth mode, exploit path, blackhat, zero-day vibe, “war room roleplay”.
 
-## 4) Voice and copy contract
+## 7) Tone rules
 
-Voice: calm, competent, concise, slightly clandestine, never theatrical.
+Voice must be:
+- calm, competent, concise;
+- minimally expressive, never juvenile;
+- explicit about uncertainty and boundaries.
 
-Rules:
+Writing rules:
+- prefer verb-first action labels;
+- state observed vs inferred vs unknown directly;
+- never use blamey or hype language;
+- no “Oops!”.
 
-- verbs first for actions where useful;
-- avoid hype and blame;
-- prefer explicit operational nouns (transport, ingest, evidence, approval, execution, audit);
-- use “workbench” for the main operating surface;
-- always separate observed vs inferred vs unknown.
+## 8) State wording contract
 
-## 5) Approved and banned metaphors
+Preferred state phrases:
+- Live: “Recent persisted ingest evidence is present.”
+- Stale: “Evidence is older than freshness target.”
+- Partial/Degraded: “Connected with gaps; review failure markers.”
+- Unknown: “No current evidence; state is unknown.”
+- Unsupported: “Not implemented in this MEL runtime.”
 
-Approved: workbench, field kit, signal lane, route view, evidence trail, shift handoff.
+## 9) Naming rules (pages/components)
 
-Banned: breach, exploit, bypass, stealth mode, ghost mode, blackhat, zero-day theater language.
+Page naming:
+- use operator nouns (`Diagnostics`, `Recommendations`, `Topology`, `Incidents`);
+- avoid decorative metaphors.
 
-## 6) Accessibility and legal safety gates
+Component naming:
+- include truth/intent where useful (`OperatorTruthRibbon`, `StaleDataBanner`);
+- avoid generic cosmetic names for semantic primitives.
 
-Any UI/copy change must keep:
+## 10) Strong vs weak copy examples
 
-- WCAG-compliant text/non-text contrast;
-- keyboard focus discoverability and logical order;
-- explicit reduced-motion fallback;
-- plain language for destructive actions and privacy impact;
-- no illegal/unsafe implication in text or imagery.
+Strong:
+- “No recent ingest evidence. Runtime state is unknown until new records arrive.”
+- “Submission recorded. Approval is still required before dispatch.”
 
-## 7) Verification gates for vibe-related changes
+Weak:
+- “Everything looks healthy.”
+- “AI confirmed the cause.”
+- “Stealth mode active.”
 
-For changes to style/copy/navigation surfaces, include:
+## 11) Measurement and review guardrails
 
-1. lint + tests + build evidence;
-2. screenshots or manual visual notes for changed surfaces;
-3. contrast/focus/reduced-motion checks;
-4. explicit statement of claims narrowed (if capability unchanged).
+Identity work is complete only when:
+- terminology is coherent across nav, headings, and docs;
+- token and typography choices are implemented in code, not prose-only;
+- core pages adopt the same shell/panel/copy conventions;
+- verification evidence is attached (lint/tests/build + manual a11y checks);
+- residual gaps are explicitly listed.
 
-## 8) Channel adaptation rules
-
-- In-app copy: short, imperative, state-rich.
-- Docs: field-manual style, scannable sections, grounded in implementation.
-- Marketing/readme: trust, resilience, and evidence boundaries first; no claim inflation.
-
-## 9) Good vs bad examples
-
-Good:
-
-- “Topology shows observed relationships, not RF propagation proof.”
-- “Dispatch submitted. Approval still required before execution.”
-- “No recent ingest evidence. State is unknown until new records arrive.”
-
-Bad:
-
-- “Network is healthy.” (without bounded evidence context)
-- “AI confirmed root cause.”
-- “Stealth mode for covert operations.”
+Review checklist for UI PRs:
+1. Claim boundaries still match implementation.
+2. Degraded/partial/unknown wording remains explicit.
+3. No decorative glow/blur/theatre regressions.
+4. Keyboard focus and reduced-motion behavior verified.
+5. Terminology follows canon (operator console vs incident workbench).

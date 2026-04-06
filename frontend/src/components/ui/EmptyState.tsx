@@ -57,17 +57,17 @@ export function NoTransportsConfigured({ onConfigure }: { onConfigure?: () => vo
   return (
     <EmptyState
       type="not-configured"
-      title="No transports configured"
-      description="Add transport configuration to your MEL config to start receiving mesh data."
+      title="No transport configured"
+      description="Add a supported transport in config before expecting live ingest evidence."
       action={
         onConfigure ? (
-          <button onClick={onConfigure} className="button-primary">exec configure</button>
+          <button onClick={onConfigure} className="button-primary">Configure transport</button>
         ) : undefined
       }
       details={
         <div className="space-y-0.5 text-mel-xs text-muted-foreground/60">
           <p># supported: MQTT, TCP, Serial</p>
-          <p># see: Configuration Guide</p>
+          <p># review: Configuration Guide</p>
         </div>
       }
     />
@@ -94,7 +94,7 @@ export function NoMessagesYet() {
   )
 }
 
-export function SystemHealthy({ message = 'All systems operational' }: { message?: string }) {
+export function SystemHealthy({ message = 'No active findings' }: { message?: string }) {
   return (
     <div className="surface-inset flex items-start gap-3 border-neon/15 bg-neon/4 p-3">
       <div className="flex h-6 w-6 shrink-0 items-center justify-center border border-neon/20 text-neon">
@@ -102,7 +102,7 @@ export function SystemHealthy({ message = 'All systems operational' }: { message
       </div>
       <div className="min-w-0">
         <p className="font-mono text-mel-sm font-bold text-neon">[OK] {message}</p>
-        <p className="text-mel-xs text-muted-foreground">Nothing to act on.</p>
+        <p className="text-mel-xs text-muted-foreground">No action required from current evidence.</p>
       </div>
     </div>
   )

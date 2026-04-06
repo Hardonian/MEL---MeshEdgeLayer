@@ -56,7 +56,7 @@ cat mel.json
 Key fields:
 
 - `storage.database_path`: Where packets live.
-- `bind.api`: Where the API and dashboard are served.
+- `bind.api`: Where the API and operator console are served.
 
 **Hardening (Recommended):**
 
@@ -100,7 +100,7 @@ mel serve --config ./mel.json
 1. MEL boots its transport workers.
 2. It attempts to connect to any enabled transports.
 3. The Internal API server starts.
-4. If `features.web_ui` is true, the dashboard goes live.
+4. If `features.web_ui` is true, the operator console goes live.
 
 ---
 
@@ -122,7 +122,7 @@ mel panel --config ./mel.json
 
 This is the TUI (Terminal UI) view for field operators. It summarizes current mesh health at a glance.
 
-### Access the Web Dashboard
+### Access the web console
 
 Open your browser to: **<http://localhost:8080>**
 
