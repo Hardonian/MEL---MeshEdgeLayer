@@ -7,7 +7,7 @@ export default function QuickStartPage() {
     <>
       <PageHeader
         title="Quick start"
-        subtitle="Operator-first path from zero to a running MEL instance. Commands below mirror the repository quickstart."
+        subtitle="From clone to a running binary and embedded console. Commands align with the repository; depth lives in docs and in the running process."
       />
 
       <Section title="Prerequisites">
@@ -18,7 +18,7 @@ export default function QuickStartPage() {
         </ul>
       </Section>
 
-      <Section title="Day 0 run path (10–15 minutes)">
+      <Section title="Day 0 run path">
         <TerminalBlock title="Initialize and serve">
 {`make build
 ./bin/mel init --config .tmp/mel.json
@@ -46,10 +46,20 @@ export default function QuickStartPage() {
 
       <Section title="Next steps">
         <p>
-          Continue with <Link href="/help">orientation</Link>, then the repo guides:{' '}
-          <a href={repoBlob('docs/getting-started/QUICKSTART.md')}>QUICKSTART.md</a>,{' '}
-          <a href={repoBlob('docs/ops/support-matrix.md')}>support matrix</a>,{' '}
-          <a href={repoBlob('docs/ops/limitations.md')}>known limitations</a>.
+          See <Link href="/guide">how this site relates to the console and docs</Link>, then <Link href="/help">Help</Link> for
+          UI semantics. In-repo:{' '}
+          <a href={repoBlob('docs/getting-started/QUICKSTART.md')} rel="noreferrer" target="_blank">
+            QUICKSTART.md
+          </a>
+          ,{' '}
+          <a href={repoBlob('docs/ops/support-matrix.md')} rel="noreferrer" target="_blank">
+            support matrix
+          </a>
+          ,{' '}
+          <a href={repoBlob('docs/ops/limitations.md')} rel="noreferrer" target="_blank">
+            known limitations
+          </a>
+          .
         </p>
       </Section>
     </>

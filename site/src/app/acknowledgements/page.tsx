@@ -5,8 +5,8 @@ export default function AcknowledgementsPage() {
   return (
     <>
       <PageHeader
-        title="Acknowledgements / dependencies"
-        subtitle="MEL is built in the open and stands on serious upstream tooling. Credit is explicit, not hidden."
+        title="Acknowledgements / stack"
+        subtitle="Upstream tooling and license posture — explicit credit, no implied endorsement. For depth, read the repo manifests, not marketing summaries."
       />
 
       <Section title="Built with">

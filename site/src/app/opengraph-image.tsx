@@ -41,7 +41,7 @@ export default function OpenGraphImage() {
             maxWidth: 900,
           }}
         >
-          Truth-preserving incident intelligence for mesh operators.
+          Incident intelligence bounded by runtime evidence.
         </div>
         <div
           style={{
