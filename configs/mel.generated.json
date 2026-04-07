@@ -6,10 +6,12 @@
   },
   "auth": {
     "enabled": false,
-    "session_secret": "a763d286a6687e071ad30ca6ac9e717ddd32c8bd7ff99879d688f61c12df343a",
+    "session_secret": "ae7e5bf16dabfc789c95fb18b18108122575b32ba6b444fee797041662e6c429",
     "ui_user": "admin",
     "ui_password": "change-me",
-    "allow_insecure_remote": false
+    "allow_insecure_remote": false,
+    "api_keys_env": "",
+    "operator_keys": null
   },
   "storage": {
     "data_dir": "./data",
@@ -39,7 +41,9 @@
   "features": {
     "web_ui": true,
     "metrics": false,
-    "ble_experimental": false
+    "ble_experimental": false,
+    "google_maps_in_topology_ui": false,
+    "google_maps_api_key_env": ""
   },
   "rate_limits": {
     "http_rps": 20,
@@ -120,7 +124,142 @@
     "restart_cap_per_window": 2,
     "max_queue": 32,
     "action_timeout_seconds": 10,
-    "retention_days": 14
+    "retention_days": 14,
+    "require_approval_for_action_types": null,
+    "require_approval_for_high_blast_radius": false,
+    "approval_timeout_seconds": 0,
+    "require_separate_approver": true
   },
-  "strict_mode": false
+  "federation": {
+    "enabled": false,
+    "node_id": "",
+    "node_name": "",
+    "region": "default",
+    "listen_addr": "",
+    "heartbeat_interval_seconds": 30,
+    "suspect_after_missed": 3,
+    "partition_after_missed": 10,
+    "sync_batch_size": 100,
+    "sync_interval_seconds": 60,
+    "event_log_retention_days": 14,
+    "snapshot_interval_events": 1000,
+    "snapshot_retention_count": 10,
+    "split_brain_policy": {
+      "restrict_autopilot": true,
+      "require_approval": false,
+      "alert_operator": true,
+      "max_autonomous_actions": 5
+    }
+  },
+  "integration": {
+    "enabled": false,
+    "alerts": false,
+    "actions": false,
+    "state_changes": false,
+    "anomalies": false,
+    "min_interval_seconds": 60,
+    "webhook_urls": null,
+    "slack_webhook_url": "",
+    "telegram_bot_token_env": "",
+    "telegram_chat_id": ""
+  },
+  "platform": {
+    "mode": "self_hosted",
+    "telemetry": {
+      "enabled": false,
+      "allow_outbound": false,
+      "require_explicit_opt_in": true
+    },
+    "retention": {
+      "default_days": 30,
+      "allow_export": true,
+      "allow_delete": true
+    },
+    "crypto": {
+      "provider": "libsignal-compatible",
+      "enabled": true,
+      "endpoint": "",
+      "required": true
+    },
+    "event_bus": {
+      "provider": "nats-jetstream",
+      "enabled": true,
+      "endpoint": "nats://127.0.0.1:4222",
+      "required": false
+    },
+    "blob_store": {
+      "provider": "s3-compatible",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:9000",
+      "required": false
+    },
+    "relay": {
+      "provider": "coturn",
+      "enabled": false,
+      "endpoint": "turn:127.0.0.1:3478",
+      "required": false
+    },
+    "speech_to_text": {
+      "provider": "whisper.cpp",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:8088",
+      "required": false
+    },
+    "inference": {
+      "enabled": false,
+      "default_provider": "none",
+      "allow_queued_fallback": true,
+      "prefer_gpu": true,
+      "ollama": {
+        "provider": "ollama",
+        "enabled": false,
+        "endpoint": "http://127.0.0.1:11434",
+        "required": false
+      },
+      "llama_cpp": {
+        "provider": "llama.cpp",
+        "enabled": false,
+        "endpoint": "http://127.0.0.1:8089",
+        "required": false
+      },
+      "compression": {
+        "default_strategy": "none",
+        "allow_standard": true,
+        "allow_experimental_turboquant_compatible": false
+      },
+      "budget": {
+        "max_context_tokens": 4096,
+        "realtime_latency_budget_ms": 900,
+        "background_timeout_ms": 30000,
+        "queue_timeout_ms": 120000,
+        "max_parallel_inference_tasks": 2
+      }
+    },
+    "optional_interop": {
+      "provider": "matrix-bridge",
+      "enabled": false,
+      "endpoint": "",
+      "required": false
+    }
+  },
+  "topology": {
+    "enabled": true,
+    "node_stale_minutes": 30,
+    "link_stale_minutes": 30,
+    "snapshot_interval_minutes": 5,
+    "max_snapshot_history": 200,
+    "max_observations_per_node": 500,
+    "default_trust_class": "unknown",
+    "score_history_days": 14,
+    "max_mesh_intel_history": 120
+  },
+  "scope": {
+    "site_id": "",
+    "fleet_id": "",
+    "fleet_label": "",
+    "gateway_label": "",
+    "expected_fleet_reporter_count": 0
+  },
+  "strict_mode": false,
+  "production_deploy": false
 }
