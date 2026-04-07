@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation, matchPath, useSearchParams } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useApi, useStatus } from '@/hooks/useApi'
 import { useOperatorWorkspaceFocus } from '@/hooks/useOperatorWorkspaceFocus'
