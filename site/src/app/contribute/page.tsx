@@ -1,4 +1,5 @@
 import { PageHeader, Section, PrincipleList } from '@/components/marketing';
+import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
 
 const contributionPrinciples = [
   { name: 'No theatre', detail: 'No fake transport support, no fake live state, no overclaiming UI language.' },

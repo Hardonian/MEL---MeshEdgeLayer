@@ -54,3 +54,24 @@ jobs:
         run: npm test
       - name: Frontend typecheck
         run: npm run typecheck
+
+  site-verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install site deps
+        run: npm ci
+      - name: Site lint
+        run: npm run lint
+      - name: Site typecheck
+        run: npm run typecheck
+      - name: Site production build
+        run: npm run build

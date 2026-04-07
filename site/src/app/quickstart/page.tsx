@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
+import { repoBlob } from '@/lib/repo';
 
 export default function QuickStartPage() {
   return (
@@ -45,8 +46,10 @@ export default function QuickStartPage() {
 
       <Section title="Next steps">
         <p>
-          Continue with <Link href="/help">orientation</Link>, then use the deeper guides in the docs tree (first hour guide,
-          troubleshooting, and runbooks).
+          Continue with <Link href="/help">orientation</Link>, then the repo guides:{' '}
+          <a href={repoBlob('docs/getting-started/QUICKSTART.md')}>QUICKSTART.md</a>,{' '}
+          <a href={repoBlob('docs/ops/support-matrix.md')}>support matrix</a>,{' '}
+          <a href={repoBlob('docs/ops/limitations.md')}>known limitations</a>.
         </p>
       </Section>
     </>

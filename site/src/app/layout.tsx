@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'MEL — MeshEdgeLayer',
     description:
-      'Truthful incident intelligence and trusted control for mesh operations. Evidence-first, local-first, privacy-first.',
+      'Truthful incident intelligence and trusted control for mesh operations. Evidence-first, local-first, explicit degraded states.',
     type: 'website',
     url: siteOrigin,
     siteName: 'MEL',

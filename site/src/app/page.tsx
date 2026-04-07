@@ -21,7 +21,7 @@ export default function HomePage() {
         </p>
         <div className="ctaRow">
           <Link href="/quickstart" className="btn primary">
-            Quick start in 90 seconds
+            Run MEL locally
           </Link>
           <Link href="/architecture" className="btn">
             Architecture
@@ -65,7 +65,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <Section title="Field-ready capabilities">
+      <Section title="Operator console emphasis">
         <div className="grid">
           <article className="card">
             <h3>Incident timeline and queue</h3>

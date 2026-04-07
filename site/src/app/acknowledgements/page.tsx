@@ -12,8 +12,11 @@ export default function AcknowledgementsPage() {
       <Section title="Built with">
         <div className="grid">
           <article className="card">
-            <h3>Go runtime and stdlib</h3>
-            <p>Core daemon and CLI prioritize deterministic Go runtime behavior with stdlib-first discipline.</p>
+            <h3>Go runtime</h3>
+            <p>
+              Daemon and CLI are Go 1.24+. Third-party modules are listed in <code>go.mod</code> (not stdlib-only — e.g.
+              SQLite via <code>modernc.org/sqlite</code>, TUI libraries for CLI surfaces).
+            </p>
           </article>
           <article className="card">
             <h3>React operator UI stack</h3>
@@ -37,7 +40,7 @@ export default function AcknowledgementsPage() {
         </p>
       </Section>
 
-      <Section title="License and openness posture">
+      <Section title="License">
         <p>
           MEL is open source under the <strong>GNU General Public License v3.0</strong> — see the{' '}
           <a href={melGithubFile('LICENSE')} rel="noreferrer" target="_blank">

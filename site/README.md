@@ -15,16 +15,18 @@ Canonical documentation remains in the repository `docs/` tree; this site is a f
 
 The directory has its own `go.mod` so `go test ./...` at the repository root does not descend into `site/node_modules/` after `npm ci`.
 
+It is **not** the operator console (that lives in `frontend/` and ships inside the `mel` binary).
+
 ## Run locally
 
 ```bash
 . "$HOME/.nvm/nvm.sh" && nvm use 24
 cd site
-npm install
+npm ci
 npm run dev
 ```
 
-## Build checks
+## Build checks (same as CI)
 
 ```bash
 npm run lint

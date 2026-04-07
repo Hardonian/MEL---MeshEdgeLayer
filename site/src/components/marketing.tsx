@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
 
 import { MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
 
@@ -49,7 +50,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="container footerGrid">
           <p>
             MEL is a local-first operator OS for incident intelligence and trusted control in mesh and edge
-            environments.
+            environments. Licensed under GPLv3 — see{' '}
+            <a href={repoBlob('LICENSE')}>LICENSE</a> in the repo.
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { getSiteOriginString } from '@/lib/site-url';
 
 import { getSiteCanonicalOrigin } from '@/lib/siteOrigin';
 
