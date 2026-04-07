@@ -99,7 +99,7 @@ Issue templates include **field report**, **hardware compatibility**, **scenario
 ## Documentation map
 
 - **Docs hub / IA**: [`docs/README.md`](docs/README.md) · [FAQ](docs/FAQ.md)
-- **Public orientation site (optional Next.js)**: [`site/README.md`](site/README.md) — quick start, help, contribute, trust surfaces; canonical depth stays in `docs/` and the embedded UI
+- **Public orientation site (optional Next.js)**: [`site/README.md`](site/README.md) — quick start, help, contribute, trust surfaces; canonical depth stays in `docs/` and the embedded UI. Build check: `make site-verify`. Set `SITE_CANONICAL_ORIGIN` when deploying under a custom domain (see site README).
 - **Community hub**: [`docs/community/README.md`](docs/community/README.md)
 - Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
 - Product system: [`docs/product/README.md`](docs/product/README.md)

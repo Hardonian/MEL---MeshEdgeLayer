@@ -1,6 +1,9 @@
 import type { MetadataRoute } from 'next';
 
+import { getSiteCanonicalOrigin } from '@/lib/siteOrigin';
+
 export default function sitemap(): MetadataRoute.Sitemap {
+  const base = getSiteCanonicalOrigin();
   const now = new Date();
   const routes = [
     '',
@@ -14,7 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   return routes.map((route) => ({
-    url: `https://mel.local${route}`,
+    url: route === '' ? `${base}/` : `${base}${route}`,
     lastModified: now,
     changeFrequency: 'weekly',
     priority: route === '' ? 1 : 0.8,

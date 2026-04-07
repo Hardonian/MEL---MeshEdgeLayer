@@ -1,11 +1,14 @@
 import type { MetadataRoute } from 'next';
 
+import { getSiteCanonicalOrigin } from '@/lib/siteOrigin';
+
 export default function robots(): MetadataRoute.Robots {
+  const base = getSiteCanonicalOrigin();
   return {
     rules: {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'https://mel.local/sitemap.xml',
+    sitemap: `${base}/sitemap.xml`,
   };
 }

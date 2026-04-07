@@ -13,6 +13,7 @@ RELEASE_VERIFY_TARGETS := product-verify frontend-verify test build-cli smoke
 .PHONY: fmt vet lint test check build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
 	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
+	site-verify \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
 
 fmt:
@@ -58,6 +59,10 @@ frontend-test-fast: frontend-node-contract
 	cd frontend && npm run test
 
 frontend-verify-fast: frontend-lint-fast frontend-typecheck-fast frontend-test-fast
+
+# Public Next.js orientation site (site/): lint + typecheck + production build. Requires Node 24.x (same as frontend-*).
+site-verify: frontend-node-contract
+	cd site && npm ci && npm run lint && npm run typecheck && npm run build
 
 # gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).

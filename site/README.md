@@ -31,3 +31,13 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+## Canonical URL for metadata (production)
+
+Sitemap, `robots.txt`, and Open Graph `metadataBase` use **`SITE_CANONICAL_ORIGIN`** at build time. Default in code is the usual GitHub Pages base for this repo; override when you deploy elsewhere:
+
+```bash
+SITE_CANONICAL_ORIGIN=https://your.domain npm run build
+```
+
+From the repository root: `make site-verify` runs `npm ci`, lint, typecheck, and build for this folder (Node 24.x required).

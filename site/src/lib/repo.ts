@@ -1,6 +1,6 @@
 /**
  * Canonical GitHub URLs for the public Next.js site.
- * Keep aligned with frontend/src/constants/repoLinks.ts and the primary remote.
+ * Single source of truth for wording: docs/repo-os/canonical-github.md
  */
 export const MEL_GITHUB_REPO = 'https://github.com/Hardonian/MEL-MeshEdgeLayer' as const;
 
