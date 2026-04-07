@@ -8,7 +8,7 @@ MEL — MeshEdgeLayer — is a technically serious, evidence-driven project. We 
 
 - **Be Respectful**: Treat contributors and operators with professional courtesy.
 - **Be Evidence-Driven**: Claims about transport support, hardware validation, or performance must be backed by data, logs, or repo-local tests.
-- **Be Honest about Limits**: Never overstate Mel's current capabilities. If a transport is experimental or a feature is only a scaffold, document it as such.
+- **Be Honest about Limits**: Never overstate MEL's current capabilities. If a transport is experimental or a feature is only a scaffold, document it as such.
 - **Zero Theatre**: Avoid marketing fluff. Stick to technical truth and operator outcomes.
 - **Quiet Complexity**: Aim to reduce entropy. Do not introduce ornamental noise or unneeded dependencies.
 
