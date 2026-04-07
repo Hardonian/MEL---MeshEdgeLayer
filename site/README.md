@@ -4,9 +4,16 @@ This folder contains a lightweight public-facing Next.js site for MEL orientatio
 
 - Home (`/`)
 - Quick start (`/quickstart`)
+- Architecture primer (`/architecture`)
+- Trust / privacy / security pointers (`/trust`)
 - Help/orientation (`/help`)
+- FAQ (`/faq`)
 - Contribute (`/contribute`)
-- Acknowledgements/dependencies (`/acknowledgements`)
+- Acknowledgements / dependencies (`/acknowledgements`)
+
+Canonical documentation remains in the repository `docs/` tree; this site is a front door, not a second product manual.
+
+The directory has its own `go.mod` so `go test ./...` at the repository root does not descend into `site/node_modules/` after `npm ci`.
 
 It is **not** the operator console (that lives in `frontend/` and ships inside the `mel` binary).
 
@@ -27,8 +34,12 @@ npm run typecheck
 npm run build
 ```
 
-From the repo root: `make site-verify` (clean install + lint + typecheck + build).
+## Canonical URL for metadata (production)
 
-## Deploy / absolute URLs
+Sitemap, `robots.txt`, and Open Graph `metadataBase` use **`SITE_CANONICAL_ORIGIN`** at build time. Default in code is the usual GitHub Pages base for this repo; override when you deploy elsewhere:
 
-Set **`NEXT_PUBLIC_SITE_URL`** to the deployed origin at build time (no trailing slash required), for example `https://your-host.example`. If unset, metadata, `robots.txt`, and `sitemap.xml` default to `http://localhost:3000` — appropriate for local preview only, not a fake production domain.
+```bash
+SITE_CANONICAL_ORIGIN=https://your.domain npm run build
+```
+
+From the repository root: `make site-verify` runs `npm ci`, lint, typecheck, and build for this folder (Node 24.x required).

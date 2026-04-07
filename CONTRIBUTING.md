@@ -4,6 +4,8 @@ Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to 
 
 **Role-based entry points:** [docs/community/START_HERE.md](docs/community/START_HERE.md) · [docs/community/CONTRIBUTOR_PATHS.md](docs/community/CONTRIBUTOR_PATHS.md) · [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
 
+**Community standards:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
+
 ## Ground rules for contributors
 
 1. **Keep MEL Honest**: No fake transports, no fake mesh data, and no dead routes.
@@ -34,7 +36,7 @@ Review the [Known Limitations](docs/ops/limitations.md) for more details.
 MEL uses a straightforward `Makefile` to maintain consistency:
 
 ```bash
-# Full lint, test, and build pass
+# Full format, lint, test, build, and repo-os product checks
 make verify
 
 # Build only (outputs to bin/)
@@ -125,7 +127,7 @@ When submitting a PR, include:
 
 **We optimize for a clean, deterministic repository.** If a change increases noise, it will be rejected in favor of a simpler, more coherent solution.
 
-MEL is licensed under the **GNU General Public License v3.0**; see the [`LICENSE`](LICENSE) file in the repository root.
+MEL is licensed under the **GNU General Public License v3.0** — see [`LICENSE`](LICENSE) in the repository root.
 
 © 2026 Hardonian / MeshEdgeLayer Contributors.
 

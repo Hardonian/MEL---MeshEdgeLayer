@@ -131,7 +131,7 @@ export function Nodes() {
         </CardHeader>
         <CardContent className="pt-5 px-4 pb-4">
           {nodes.length === 0 ? (
-            <OperatorEmptyState title="No nodes yet" description="Nodes will appear here once mesh traffic is observed via connected transports." />
+            <OperatorEmptyState title="No nodes yet" description="Node rows appear after ingest stores observations for this view. Idle transports or filters produce an empty list." />
           ) : (
             <DataTable<NodeInfo>
               data={nodes}
@@ -203,8 +203,8 @@ export function Nodes() {
                 },
               ]}
               keyField="node_id"
-              emptyMessage="No nodes observed"
-              emptyDescription="Nodes will appear here once mesh traffic is observed."
+              emptyMessage="No nodes in this slice"
+              emptyDescription="Nothing matches the current filter or window."
             />
           )}
         </CardContent>

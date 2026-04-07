@@ -2,12 +2,22 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
 
-export const NAV_LINKS = [
+import { MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
+
+const DOCS_HUB = melGithubFile('docs/README.md');
+
+type NavLink = { readonly href: string; readonly label: string; readonly external?: boolean };
+
+export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
+  { href: '/architecture', label: 'Architecture' },
+  { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
+  { href: '/faq', label: 'FAQ' },
   { href: '/contribute', label: 'Contribute' },
-  { href: '/acknowledgements', label: 'Dependencies' },
+  { href: '/acknowledgements', label: 'Credits' },
+  { href: DOCS_HUB, label: 'Docs', external: true },
 ] as const;
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -22,7 +32,13 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <ul className="navList">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href}>{link.label}</Link>
+                  {link.external ? (
+                    <a href={link.href} rel="noreferrer" target="_blank">
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link href={link.href}>{link.label}</Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -39,12 +55,16 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>
+            <Link href="/architecture">Architecture</Link>
+            <Link href="/trust">Trust</Link>
             <Link href="/help">Help</Link>
+            <Link href="/faq">FAQ</Link>
             <Link href="/contribute">Contribute</Link>
-            <Link href="/acknowledgements">Dependencies</Link>
-            <a href={REPO_URL}>GitHub</a>
-            <a href={REPO_ISSUES_URL}>Issues</a>
-            <a href={repoBlob('docs/getting-started/README.md')}>Docs</a>
+            <Link href="/acknowledgements">Credits</Link>
+            <a href={DOCS_HUB} rel="noreferrer" target="_blank">
+              Docs
+            </a>
+            <a href={MEL_GITHUB_REPO}>GitHub</a>
           </div>
         </div>
       </footer>

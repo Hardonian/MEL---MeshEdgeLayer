@@ -15,6 +15,7 @@ Apply these artifacts for every change touching ingest, health, incidents, contr
 
 ## Canonical entry points
 - `AGENTS.md` (root): MEL identity, truth hierarchy, precision layering, privacy/build-vs-borrow policy.
+- `canonical-github.md`: public GitHub URLs for docs and links (browser remote; not the same as the Go module path in `go.mod`).
 - `model-spec.md`: execution behavior contract for future agents/model prompts.
 - `verification-matrix.md`: required checks by change type.
 - `release-readiness.md`: merge/release reality gate.

@@ -87,7 +87,7 @@ export function Diagnostics() {
         {pageState === 'ready' && findings.length === 0 ? (
           <OperatorEmptyState
             title="No diagnostic findings"
-            description="MEL reports zero active diagnostic findings from this endpoint."
+            description="This endpoint returned zero findings — good signal, not proof of full-stack health. Use mel doctor on the host for deeper checks."
           />
         ) : (
           pageState === 'ready' &&

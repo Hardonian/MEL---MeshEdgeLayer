@@ -139,8 +139,8 @@ export function Events() {
               type="no-data"
               title="No events match"
               description={events.length === 0
-                ? 'No audit rows in the database for this view yet. New entries appear as the instance records activity.'
-                : `No ${levelFilter}-level events in current data.`
+                ? 'No audit rows loaded for this view yet. Entries appear as the instance records activity you are allowed to read.'
+                : `No ${levelFilter}-level events in the current filtered set.`
               }
             />
           ) : (

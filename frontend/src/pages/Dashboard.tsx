@@ -987,7 +987,7 @@ export function Dashboard() {
                 items={feedItems}
                 maxItems={10}
                 viewAllHref="/events"
-                emptyMessage="No recent activity. The system is quiet."
+                emptyMessage="No recent activity in this feed."
               />
             </CardContent>
           </Card>

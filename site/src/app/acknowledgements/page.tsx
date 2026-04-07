@@ -1,5 +1,5 @@
 import { PageHeader, Section } from '@/components/marketing';
-import { repoBlob } from '@/lib/repo';
+import { melGithubFile } from '@/lib/repo';
 
 export default function AcknowledgementsPage() {
   return (
@@ -42,13 +42,18 @@ export default function AcknowledgementsPage() {
 
       <Section title="License">
         <p>
-          The repository is licensed under the{' '}
-          <a href={repoBlob('LICENSE')}>GNU General Public License v3.0</a>. This public site is part of the same repo and
-          the same license applies unless a subdirectory states otherwise (it does not).
+          MEL is open source under the <strong>GNU General Public License v3.0</strong> — see the{' '}
+          <a href={melGithubFile('LICENSE')} rel="noreferrer" target="_blank">
+            LICENSE
+          </a>{' '}
+          file in the repository root. Contributor-facing docs are first-class runtime support surfaces, not afterthoughts.
         </p>
         <p>
-          Canonical dependency notes:{' '}
-          <a href={repoBlob('docs/community/dependency-license-inventory.md')}>dependency-license-inventory.md</a>.
+          Third-party packages (Go modules, npm) remain under their respective licenses; see{' '}
+          <a href={melGithubFile('docs/community/dependency-license-inventory.md')} rel="noreferrer" target="_blank">
+            dependency-license-inventory.md
+          </a>
+          .
         </p>
       </Section>
     </>

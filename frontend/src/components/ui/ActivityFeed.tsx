@@ -66,7 +66,7 @@ export function ActivityFeed({
   maxItems = 12,
   showViewAll = true,
   viewAllHref = '/events',
-  emptyMessage = 'No recent activity. The system is quiet.',
+  emptyMessage = 'No recent activity in this feed.',
   className,
 }: ActivityFeedProps) {
   const sorted = [...items]
@@ -81,7 +81,7 @@ export function ActivityFeed({
         </div>
         <p className="text-mel-sm text-muted-foreground">-- {emptyMessage} --</p>
         <p className="text-mel-xs text-muted-foreground/40">
-          Activity appears here when MEL observes changes, incidents, or actions.
+          Entries appear when the event log records changes. Quiet here does not prove the mesh is idle.
         </p>
       </div>
     )

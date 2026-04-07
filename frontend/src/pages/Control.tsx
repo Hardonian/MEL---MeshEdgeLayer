@@ -322,7 +322,7 @@ export function Control() {
           {actions.length === 0 ? (
             <OperatorEmptyState 
               title="No mesh / node action history" 
-              description="No automated or operator-driven actions are recorded in the database yet." 
+              description="No action rows in the database for this view yet — expected on a fresh install or when controls are disabled." 
             />
           ) : (
             <div className="space-y-4">
