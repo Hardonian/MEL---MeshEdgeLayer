@@ -7,9 +7,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     '',
     '/quickstart',
+    '/compare',
     '/guide',
     '/architecture',
-    '/guide',
     '/trust',
     '/help',
     '/faq',

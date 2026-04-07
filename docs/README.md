@@ -13,6 +13,23 @@ Progressive path: **understand → install → run → inspect → operate → t
 - [Support matrix](ops/support-matrix.md)
 - [Known limitations](ops/limitations.md)
 
+## Short entry paths (indexes)
+
+Stable URLs that point at canonical depth (avoid duplicating matrices here):
+
+- [Quick start + demo](quickstart-demo.md)
+- [Compatibility matrix](compatibility-matrix.md)
+- [Why MEL](why-mel.md)
+- [What MEL does not claim](what-mel-does-not-claim.md)
+- [Operator-truth principles](operator-truth-principles.md)
+- [Design partner / pilot](design-partner-pilot.md)
+- [Trust and safety](trust-and-safety.md)
+- [Deployment modes](deployment-modes.md)
+- [Pricing/packaging draft index](pricing-packaging-draft.md)
+- [Founder demo script](founder-demo-script.md)
+- [Distribution plan](distribution-plan.md)
+- [Contributor map](contributor-map.md)
+
 ## Canonical truth and language
 
 - [Canonical GitHub URLs](repo-os/canonical-github.md) (browser remote for docs and links)
@@ -56,13 +73,17 @@ Progressive path: **understand → install → run → inspect → operate → t
 
 - [Privacy and data posture](release/PRIVACY_AND_DATA_POSTURE.md)
 - [Security model](release/SECURITY_MODEL.md)
+- [Repository security policy](../SECURITY.md)
+- [Support boundaries (community)](../SUPPORT.md)
 - [Privacy posture (detailed)](privacy/posture.md)
+- [Threat model](threat-model/README.md)
 - [Control-plane trust (operations)](ops/CONTROL_PLANE_TRUST.md)
 - [Control-plane trust model (architecture)](architecture/CONTROL_PLANE_TRUST_MODEL.md)
 
 ## Contributing and community
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md) (repository root)
+- [Why contribute](community/WHY_CONTRIBUTE.md)
 - [Community hub](community/README.md)
 - [Contributor paths by role](community/CONTRIBUTOR_PATHS.md)
 - [First PR paths](contributor/FIRST_PR_PATHS.md)

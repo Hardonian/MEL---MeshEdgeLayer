@@ -5,8 +5,9 @@ Operator-truth-first paths for people running MEL on real hardware, evaluating i
 ## Start here
 
 1. [START_HERE](START_HERE.md) — pick your lane (operator, contributor, evaluator).
-2. [Adoption guide](adoption-guide.md) — minimal honest footprint on one host.
-3. [Contributor paths by role](CONTRIBUTOR_PATHS.md) — links into code, verification, and templates.
+2. [Why contribute](WHY_CONTRIBUTE.md) — contributor magnet without overstating shipped proof.
+3. [Adoption guide](adoption-guide.md) — minimal honest footprint on one host.
+4. [Contributor paths by role](CONTRIBUTOR_PATHS.md) — links into code, verification, and templates.
 
 ## Field and hardware
 

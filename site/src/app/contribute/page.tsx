@@ -1,5 +1,6 @@
-import { PageHeader, Section, PrincipleList } from '@/components/marketing';
-import { REPO_ISSUES_URL, REPO_URL, melGithubFile } from '@/lib/repo';
+import Link from 'next/link';
+import { PageHeader, Section, PrincipleList, TerminalBlock } from '@/components/marketing';
+import { MEL_GITHUB_REPO, REPO_ISSUES_URL, REPO_URL, melGithubFile, repoBlob } from '@/lib/repo';
 
 const contributionPrinciples = [
   { name: 'No theatre', detail: 'No fake transport support, no fake live state, no overclaiming UI language.' },
@@ -37,6 +38,10 @@ export default function ContributePage() {
             Browse{' '}
             <a href={melGithubFile('docs/community/README.md')} rel="noreferrer" target="_blank">
               docs/community/
+            </a>{' '}
+            and{' '}
+            <a href={melGithubFile('docs/community/WHY_CONTRIBUTE.md')} rel="noreferrer" target="_blank">
+              Why contribute
             </a>{' '}
             for contributor-oriented entrypoints.
           </li>
@@ -112,10 +117,6 @@ cd MEL-MeshEdgeLayer`}
           <li>Issues: <a href={REPO_ISSUES_URL}>{REPO_ISSUES_URL}</a></li>
           <li>Contributor guide: <a href={melGithubFile('CONTRIBUTING.md')}>CONTRIBUTING.md</a></li>
         </ul>
-      </Section>
-
-      <Section title="Contribution doctrine">
-        <PrincipleList items={contributionPrinciples} />
       </Section>
     </>
   );

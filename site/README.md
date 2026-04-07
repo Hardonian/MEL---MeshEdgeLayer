@@ -4,6 +4,8 @@ This folder contains a lightweight public-facing Next.js site for MEL orientatio
 
 - Home (`/`)
 - Quick start (`/quickstart`)
+- Compare vs generic observability (`/compare`)
+- Operator guide (`/guide`)
 - Architecture primer (`/architecture`)
 - Trust / privacy / security pointers (`/trust`)
 - Help/orientation (`/help`)

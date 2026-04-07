@@ -4,7 +4,7 @@ Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to 
 
 **Role-based entry points:** [docs/community/START_HERE.md](docs/community/START_HERE.md) · [docs/community/CONTRIBUTOR_PATHS.md](docs/community/CONTRIBUTOR_PATHS.md) · [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
 
-**Community standards:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
+**Community standards:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md)
 
 ## Ground rules for contributors
 
@@ -36,7 +36,10 @@ Review the [Known Limitations](docs/ops/limitations.md) for more details.
 MEL uses a straightforward `Makefile` to maintain consistency:
 
 ```bash
-# Full format, lint, test, build, and repo-os product checks
+# Stack-shaped PR signal: lint + test + build + smoke (see README “Verification entry points”)
+make verify-stack
+
+# Maintainer-heavy gate: fmt + lint + test + build + cross-build + reality-check + product-verify
 make verify
 
 # Build only (outputs to bin/)
@@ -45,11 +48,11 @@ make build
 # Run unit tests
 make test
 
-# Deterministic frontend install + lint/typecheck/test/build in one chained run
+# Deterministic frontend + site + Go chain for release-shaped confidence
 make premerge-verify
 
-# Run the local smoke test suite
-./scripts/smoke.sh
+# Run the local smoke test suite (requires ./bin/mel from build)
+make smoke
 ```
 
 **Sandbox demo (fixture-backed UI data, no radio):** after `make build-cli`, `make demo-seed` then `./bin/mel serve --config demo_sandbox/mel.demo.json`. See [docs/community/SCENARIO_LIBRARY.md](docs/community/SCENARIO_LIBRARY.md).

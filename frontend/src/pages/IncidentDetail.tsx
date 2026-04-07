@@ -23,6 +23,7 @@ import {
   Circle,
   History,
   ArrowRight,
+  ExternalLink,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Badge } from '@/components/ui/Badge'
@@ -52,7 +53,9 @@ import {
   type Incident,
   type IncidentAssistSignal,
   type IncidentDecisionPack,
+  type IncidentRunbookAsset,
 } from '@/types/api'
+import { melGithubFile } from '@/constants/repoLinks'
 import {
   evidenceStrengthLabel,
   guidanceConfidenceLabel,
@@ -83,6 +86,16 @@ import {
 
 function toWords(v: string | undefined) {
   return (v || '').replace(/_/g, ' ').trim()
+}
+
+/** In-repo runbook templates on GitHub (embedded /docs/ may not ship with every binary). */
+const RUNBOOK_INCIDENT_INVESTIGATION_URL = melGithubFile('docs/runbooks/incident-investigation.md')
+const RUNBOOK_PROOFPACK_EXPORT_URL = melGithubFile('docs/runbooks/proofpack-export.md')
+
+function shortHash(hex: string, keep = 10) {
+  const t = (hex || '').trim()
+  if (t.length <= keep) return t
+  return `${t.slice(0, keep)}…`
 }
 
 function postureColor(posture: string): string {
@@ -218,7 +231,8 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
     drift.length > 0 ||
     corr.length > 0 ||
     !!inc.reopened_from_incident_id ||
-    !!fam
+    !!fam ||
+    !!intel.fingerprint?.canonical_hash
 
   if (!hasBody) return null
 
@@ -363,6 +377,20 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
             )}
           </p>
         )}
+        {intel.fingerprint?.canonical_hash && (
+          <MelPanelInset className="px-3 py-2">
+            <p className="font-semibold text-foreground">Structured fingerprint</p>
+            <p className="text-muted-foreground mt-0.5 font-mono text-mel-xs break-all">
+              {shortHash(intel.fingerprint.canonical_hash, 20)}
+              {intel.fingerprint.legacy_signature_key
+                ? ` · legacy ${shortHash(intel.fingerprint.legacy_signature_key, 12)}`
+                : ''}
+            </p>
+            <p className="text-mel-xs text-muted-foreground mt-1">
+              Tie exports and external runbooks to this hash when documenting recurrence — still not causal proof.
+            </p>
+          </MelPanelInset>
+        )}
         <MelPanelInset className="mt-1 border-t border-border/40 pt-3 text-mel-sm text-muted-foreground space-y-1">
           <p className="font-semibold text-foreground">What this changes in your next step</p>
           <ul className="list-disc pl-4 space-y-0.5">
@@ -391,6 +419,11 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
                 Reopened lineage — <span className="text-foreground">re-verify</span> what changed since the prior incident closed or mitigated.
               </li>
             )}
+            {intel.fingerprint?.canonical_hash && (
+              <li>
+                Fingerprint on record — <span className="text-foreground">anchor runbook updates</span> to proofpack + this hash when closing or handing off.
+              </li>
+            )}
             {sig <= 1 &&
               sim.length === 0 &&
               mem.length === 0 &&
@@ -398,11 +431,106 @@ function OperationalMemoryPanel({ inc }: { inc: Incident }) {
               hist.length === 0 &&
               drift.length === 0 &&
               corr.length === 0 &&
-              !inc.reopened_from_incident_id && (
+              !inc.reopened_from_incident_id &&
+              !intel.fingerprint?.canonical_hash && (
               <li>No strong historical signals on this row yet — prioritize live replay, topology, and transport evidence.</li>
             )}
           </ul>
         </MelPanelInset>
+      </MelPanelSection>
+    </MelPanel>
+  )
+}
+
+function IncidentFingerprintStrip({ inc }: { inc: Incident }) {
+  const fp = inc.intelligence?.fingerprint
+  if (!fp?.canonical_hash) return null
+  return (
+    <MelPanel
+      id="mel-incident-fingerprint"
+      data-testid="incident-fingerprint-strip"
+      className="scroll-mt-20 overflow-hidden"
+      aria-label="Incident fingerprint from persisted evidence"
+    >
+      <MelPanelInset className="space-y-2 text-mel-sm text-muted-foreground">
+        <p className="font-semibold text-foreground">Fingerprint (deterministic)</p>
+        <p>
+          Canonical hash <code className="font-mono text-mel-xs text-foreground/90">{shortHash(fp.canonical_hash, 16)}</code>
+          {fp.legacy_signature_key ? (
+            <>
+              {' '}
+              · legacy signature key{' '}
+              <code className="font-mono text-mel-xs text-foreground/90">{shortHash(fp.legacy_signature_key, 14)}</code>
+            </>
+          ) : null}
+        </p>
+        <p className="text-mel-xs leading-snug">
+          Structural bucket for recurrence and similarity — not proof of root cause or RF path. Compare with replay and exports before
+          reusing a prior mitigation.
+        </p>
+      </MelPanelInset>
+    </MelPanel>
+  )
+}
+
+function RunbookAssetsSection({ intel, incidentId }: { intel: NonNullable<Incident['intelligence']>; incidentId: string }) {
+  const assets = intel.runbook_assets ?? []
+  if (assets.length === 0) return null
+
+  const citeLines = (a: IncidentRunbookAsset) => {
+    const lines: string[] = []
+    lines.push(`incident_id=${incidentId}`)
+    if (a.fingerprint_canonical_hash) lines.push(`fingerprint_canonical_hash=${a.fingerprint_canonical_hash}`)
+    if (a.legacy_signature_key) lines.push(`legacy_signature_key=${a.legacy_signature_key}`)
+    lines.push(`proofpack_filename=${defaultProofpackFilename(incidentId)}`)
+    lines.push(`runbook_entry_id=${a.id}`)
+    lines.push(`runbook_investigation_doc=${RUNBOOK_INCIDENT_INVESTIGATION_URL}`)
+    return lines.join('\n')
+  }
+
+  return (
+    <MelPanel
+      id="mel-incident-runbook-assets"
+      className="scroll-mt-20 overflow-hidden"
+      data-testid="incident-runbook-assets"
+    >
+      <MelPanelSection
+        heading={
+          <span className="flex items-center gap-2 normal-case">
+            <BookOpen className="h-4 w-4 text-muted-foreground" aria-hidden />
+            Institutional runbook entries
+          </span>
+        }
+        headingClassName="text-base font-semibold tracking-normal"
+        description={"Durable notes promoted from this instance's history — cite with proofpack + incident id; treat as guidance, not canonical truth."}
+        contentClassName="pt-0 space-y-2"
+      >
+        {assets.slice(0, 6).map((a) => (
+          <MelDenseRow key={a.id} className="space-y-1.5 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-foreground flex-1 min-w-0">{a.title}</span>
+              <Badge variant="outline">{toWords(a.status)}</Badge>
+              <Badge variant="secondary">{toWords(a.source_kind)}</Badge>
+            </div>
+            {a.promotion_basis && <p className="text-mel-xs text-muted-foreground">{a.promotion_basis}</p>}
+            {a.body && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.body}</p>}
+            {(a.evidence_refs?.length ?? 0) > 0 && (
+              <p className="text-mel-xs font-mono text-muted-foreground/80 break-all">{a.evidence_refs!.join(' · ')}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <CopyButton value={citeLines(a)} label="Copy citation block" className="button-secondary text-mel-xs" />
+              <a
+                href={RUNBOOK_INCIDENT_INVESTIGATION_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-mel-xs font-semibold text-primary hover:underline"
+              >
+                Investigation runbook (repo)
+                <ExternalLink className="h-3 w-3" aria-hidden />
+              </a>
+            </div>
+          </MelDenseRow>
+        ))}
       </MelPanelSection>
     </MelPanel>
   )
@@ -573,6 +701,13 @@ function InvestigationPathPanel({ inc, returnTo }: { inc: Incident; returnTo: st
       label: 'Handoff → proof → support',
       detail: 'Continuity text/JSON and escalation bundle; proofpack for bundled evidence; diagnostics for host/runtime.',
       href: '#shift-continuity-handoff',
+      samePage: true,
+      emphasize: false,
+    },
+    {
+      label: 'Runbook linkback (repo template)',
+      detail: 'Paste proofpack filename + incident id into your ticket or runbook — see investigation and proofpack guides on GitHub.',
+      href: '#incident-runbook-linkback',
       samePage: true,
       emphasize: false,
     },
@@ -2627,12 +2762,53 @@ export function IncidentDetail() {
 
       <MeshRoutingCompanionStrip inc={inc} />
 
+      <IncidentFingerprintStrip inc={inc} />
+
       <OperatorSuggestedActionsPanel inc={inc} />
 
       <OperationalMemoryPanel inc={inc} />
 
       {/* Proofpack completeness */}
       <ProofpackCompletenessPanel inc={inc} />
+
+      <MelPanel id="incident-runbook-linkback" className="scroll-mt-20 overflow-hidden" data-testid="incident-runbook-linkback">
+        <MelPanelSection
+          heading="Runbook linkback (after export)"
+          headingClassName="normal-case text-base font-semibold tracking-normal"
+          description="Use these repo runbooks as templates. Cite incident id, proofpack filename, and fingerprint hash when you file tickets or update institutional memory — exports are evidence-shaped, not root-cause proof."
+          contentClassName="pt-0 space-y-2 text-mel-sm text-muted-foreground"
+        >
+          <p>
+            Suggested paste line:{' '}
+            <code className="font-mono text-mel-xs text-foreground/90">
+              incident_id={inc.id} · proofpack={defaultProofpackFilename(inc.id)}
+              {inc.intelligence?.fingerprint?.canonical_hash
+                ? ` · fingerprint=${shortHash(inc.intelligence.fingerprint.canonical_hash, 16)}`
+                : ''}
+            </code>
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <a
+              href={RUNBOOK_INCIDENT_INVESTIGATION_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+            >
+              Incident investigation runbook
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </a>
+            <a
+              href={RUNBOOK_PROOFPACK_EXPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+            >
+              Proofpack export runbook
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </a>
+          </div>
+        </MelPanelSection>
+      </MelPanel>
 
       <LinkedControlActionsPanel inc={inc} returnTo={returnToWorkbench} />
 
@@ -2796,6 +2972,8 @@ export function IncidentDetail() {
                   </div>
                 </Section>
               )}
+
+              <RunbookAssetsSection intel={intel} incidentId={inc.id} />
 
               {/* Action outcome memory */}
               {(intel.action_outcome_memory?.length ?? 0) > 0 && (

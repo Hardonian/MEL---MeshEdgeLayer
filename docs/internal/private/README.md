@@ -4,6 +4,8 @@ This folder contains internal operating and commercial strategy notes.
 
 These documents are planning inputs, not public contractual promises.
 
+There is **no** committed legal/commercial terms, public pricing page, or hosted offering in this repository by design: those require separate contracts and infrastructure; use these memos only as internal alignment.
+
 ## Index
 
 - [Pricing strategy](./PRICING_STRATEGY.md)
@@ -21,5 +23,10 @@ These documents are planning inputs, not public contractual promises.
 - [Unit economics notes](./UNIT_ECONOMICS_NOTES.md)
 - [Revenue model assumptions](./REVENUE_MODEL_ASSUMPTIONS.md)
 - [Data retention and support guidance](./DATA_RETENTION_AND_SUPPORT_GUIDANCE.md)
+- [Pilot readiness checklist](./PILOT_READINESS_CHECKLIST.md)
+- [Support and SLA posture (truth)](./SUPPORT_POSTURE_TRUTH.md)
+- [Hosted vs self-hosted strategy](./HOSTED_VS_SELF_HOSTED_STRATEGY.md)
+- [Trust/security questionnaire starter](./TRUST_SECURITY_QUESTIONNAIRE_STARTER.md)
+- [Case study and field report template](./CASE_STUDY_AND_FIELD_REPORT_TEMPLATE.md)
 
 - [Productization next moves](../../project/PRODUCTIZATION_NEXT_MOVES.md)

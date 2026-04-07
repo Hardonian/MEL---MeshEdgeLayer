@@ -44,6 +44,9 @@ export default function HomePage() {
           <Link href="/architecture" className="btn">
             Architecture
           </Link>
+          <Link href="/compare" className="btn">
+            Compare
+          </Link>
           <Link href="/guide" className="btn">
             Guide
           </Link>
