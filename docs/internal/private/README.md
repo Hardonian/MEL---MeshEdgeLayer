@@ -4,6 +4,8 @@ This folder contains internal operating and commercial strategy notes.
 
 These documents are planning inputs, not public contractual promises.
 
+There is **no** committed legal/commercial terms, public pricing page, or hosted offering in this repository by design: those require separate contracts and infrastructure; use these memos only as internal alignment.
+
 ## Index
 
 - [Pricing strategy](./PRICING_STRATEGY.md)
