@@ -51,7 +51,7 @@ export default function HomePage() {
             Guide
           </Link>
           <Link href="/trust" className="btn">
-            Trust &amp; privacy
+            Trust & privacy
           </Link>
           <Link href="/contribute" className="btn">
             Contribute
@@ -131,11 +131,7 @@ export default function HomePage() {
         </table>
       </Section>
 
-      <Section
-        title="Why MEL exists"
-        id="why"
-        description="Operators need operational memory and honest semantics when conditions are messy."
-      >
+      <Section title="Why MEL exists" id="why">
         <p>
           Incident response fails when stale data looks live, when intent and execution blur, and when exports omit context. MEL
           pushes the opposite: explicit freshness and lifecycle separation, with wording tied to evidence.
@@ -174,12 +170,13 @@ export default function HomePage() {
         <TerminalBlock title="Terminal">
 {`make build
 ./bin/mel init --config .tmp/mel.json
+chmod 600 .tmp/mel.json
 ./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json`}
         </TerminalBlock>
         <p className="callout" role="note">
-          This public site does not connect to your MEL instance. Operator truth lives in the process you serve locally (or on your
-          host), not here.
+          This public site does not connect to your MEL instance. Operator truth lives in the process you serve locally (or on
+          your host), not here.
         </p>
       </Section>
     </>
