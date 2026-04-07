@@ -9,9 +9,9 @@ type NavLink = { readonly href: string; readonly label: string; readonly externa
 export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
+  { href: '/compare', label: 'Compare' },
   { href: '/guide', label: 'Guide' },
   { href: '/architecture', label: 'Architecture' },
-  { href: '/guide', label: 'Guide' },
   { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
   { href: '/faq', label: 'FAQ' },
@@ -64,6 +64,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>
+            <Link href="/compare">Compare</Link>
             <Link href="/guide">Guide</Link>
             <Link href="/architecture">Architecture</Link>
             <Link href="/trust">Trust</Link>
