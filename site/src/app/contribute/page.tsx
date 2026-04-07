@@ -13,35 +13,95 @@ export default function ContributePage() {
     <>
       <PageHeader
         title="Contribute"
-        subtitle="MEL contributions are systems craft: truth boundaries, runtime reliability, docs clarity, and operator trust."
+        subtitle="Systems craft: truth boundaries, runtime reliability, docs clarity, and operator trust. Interesting problems live where evidence, control paths, and degraded states meet."
       />
 
-      <Section title="Why contribute here">
-        <p>
-          MEL rewards disciplined engineering. Useful contributions improve operator clarity, strengthen deterministic behavior,
-          and reduce ambiguity in incidents and control paths.
-        </p>
-      </Section>
-
-      <Section title="Contribution lanes we actively want">
+      <Section
+        title="Start here"
+        id="start"
+        description="Small steps that match how maintainers review work."
+      >
         <ul>
-          <li>Go/runtime correctness and transport reliability hardening.</li>
-          <li>Frontend/operator UX that improves truth visibility and degraded-state clarity.</li>
-          <li>Docs/runbook quality, quickstart correctness, and troubleshooting depth.</li>
-          <li>Test hardening, fixture scenarios, and regression verification.</li>
-          <li>Field validation reports, bug reports, and issue triage evidence.</li>
+          <li>
+            Read{' '}
+            <a href={melGithubFile('CONTRIBUTING.md')} rel="noreferrer" target="_blank">
+              CONTRIBUTING.md
+            </a>{' '}
+            and{' '}
+            <a href={melGithubFile('AGENTS.md')} rel="noreferrer" target="_blank">
+              AGENTS.md
+            </a>{' '}
+            for repo contract and verification expectations.
+          </li>
+          <li>
+            Browse{' '}
+            <a href={melGithubFile('docs/community/README.md')} rel="noreferrer" target="_blank">
+              docs/community/
+            </a>{' '}
+            for contributor-oriented entrypoints.
+          </li>
+          <li>
+            Map the tree:{' '}
+            <a href={melGithubFile('docs/contributor/ARCHITECTURE_MAP.md')} rel="noreferrer" target="_blank">
+              ARCHITECTURE_MAP.md
+            </a>{' '}
+            and <Link href="/architecture">Architecture</Link> on this site.
+          </li>
+          <li>
+            Open a focused issue or pick one:{' '}
+            <a href={REPO_ISSUES_URL} rel="noreferrer" target="_blank">
+              GitHub issues
+            </a>
+            .
+          </li>
         </ul>
       </Section>
 
-      <Section title="Local dev workflow orientation">
+      <Section title="Clone and verify locally" id="clone">
+        <TerminalBlock title="Repository">
+{`git clone ${MEL_GITHUB_REPO}.git
+cd MEL-MeshEdgeLayer`}
+        </TerminalBlock>
+        <p>
+          Default verification before you claim behavior: <code>make lint</code>, <code>make test</code>, <code>make build</code>,{' '}
+          <code>make smoke</code>. Broader stack signal: <code>make verify-stack</code> (same as <code>make check</code>).
+        </p>
+        <p>
+          When semantics or capability wording changes: <code>make premerge-verify</code>. Node <strong>24.x</strong> for{' '}
+          <code>frontend/</code> and <code>site/</code>; Go <strong>1.24+</strong> for the binary.
+        </p>
+      </Section>
+
+      <Section title="Why contribute here" id="why">
+        <p>
+          MEL rewards disciplined engineering. Useful work improves operator clarity, strengthens deterministic behavior, and
+          reduces ambiguity in incidents and control paths — hard to copy from UI polish alone.
+        </p>
+      </Section>
+
+      <Section title="Lanes we want" id="lanes">
         <ul>
-          <li>Start with `CONTRIBUTING.md`, `AGENTS.md`, and role paths in `docs/community/`.</li>
+          <li>Go/runtime correctness and transport reliability hardening.</li>
+          <li>Operator UX (embedded console) that improves truth visibility and degraded-state clarity.</li>
+          <li>This public site (<code>site/</code>) when it helps orientation without overclaiming.</li>
+          <li>Docs, runbooks, quickstart accuracy, and troubleshooting depth.</li>
+          <li>Tests, fixtures, and regression verification.</li>
+          <li>Reproducible bug reports and field validation write-ups.</li>
+        </ul>
+      </Section>
+
+      <Section title="Contribution doctrine" id="doctrine">
+        <PrincipleList items={contributionPrinciples} />
+      </Section>
+
+      <Section title="Related" id="related">
+        <ul>
           <li>
-            Default verification chain before strong claims: <code>make lint</code>, <code>make test</code>, <code>make build</code>,{' '}
-            <code>make smoke</code>. For one obvious full-product signal, <code>make verify-stack</code> (same as <code>make check</code>).
+            <Link href="/quickstart">Quick start</Link> · <Link href="/guide">Guide</Link> ·{' '}
+            <a href={repoBlob('docs/README.md')} rel="noreferrer" target="_blank">
+              docs/README.md
+            </a>
           </li>
-          <li>Release-shaped gate when touching capability semantics: `make premerge-verify`.</li>
-          <li>Use Node 24.x for frontend targets; use Go 1.24+ for runtime targets.</li>
         </ul>
       </Section>
 

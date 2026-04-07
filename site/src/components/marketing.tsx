@@ -9,6 +9,7 @@ type NavLink = { readonly href: string; readonly label: string; readonly externa
 export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
+  { href: '/guide', label: 'Guide' },
   { href: '/architecture', label: 'Architecture' },
   { href: '/guide', label: 'Guide' },
   { href: '/trust', label: 'Trust' },
@@ -22,6 +23,9 @@ export const NAV_LINKS: readonly NavLink[] = [
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
+      <a href="#main-content" className="skipLink">
+        Skip to main content
+      </a>
       <header className="header">
         <div className="container headerInner">
           <Link href="/" className="wordmark" aria-label="MEL home">
@@ -34,6 +38,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   {link.external ? (
                     <a href={link.href} rel="noreferrer" target="_blank">
                       {link.label}
+                      <span className="srOnly"> (opens in new tab)</span>
                     </a>
                   ) : (
                     <Link href={link.href}>{link.label}</Link>
@@ -44,16 +49,22 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="container main">{children}</main>
+      <main id="main-content" className="container main" tabIndex={-1}>
+        {children}
+      </main>
       <footer className="footer">
         <div className="container footerGrid">
           <p>
             MEL is a local-first operator OS for incident intelligence and trusted control in mesh and edge
             environments. Licensed under GPLv3 — see{' '}
-            <a href={repoBlob('LICENSE')}>LICENSE</a> in the repo.
+            <a href={repoBlob('LICENSE')} rel="noreferrer" target="_blank">
+              LICENSE
+            </a>{' '}
+            in the repo.
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>
+            <Link href="/guide">Guide</Link>
             <Link href="/architecture">Architecture</Link>
             <Link href="/trust">Trust</Link>
             <Link href="/help">Help</Link>
@@ -63,7 +74,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <a href={DOCS_HUB} rel="noreferrer" target="_blank">
               Docs
             </a>
-            <a href={MEL_GITHUB_REPO}>GitHub</a>
+            <a href={MEL_GITHUB_REPO} rel="noreferrer" target="_blank">
+              GitHub
+            </a>
           </div>
         </div>
       </footer>
@@ -80,10 +93,22 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle: strin
   );
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({
+  title,
+  children,
+  id,
+  description,
+}: {
+  title: string;
+  children: ReactNode;
+  id?: string;
+  description?: ReactNode;
+}) {
+  const headingId = id ? `${id}-heading` : undefined;
   return (
-    <section className="section">
-      <h2>{title}</h2>
+    <section className="section" id={id} aria-labelledby={headingId}>
+      <h2 id={headingId}>{title}</h2>
+      {description ? <p className="sectionLead">{description}</p> : null}
       <div className="sectionBody">{children}</div>
     </section>
   );

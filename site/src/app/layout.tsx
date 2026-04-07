@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: '%s | MEL',
   },
   description:
-    'MEL is a local-first incident-intelligence and trusted-control operating system for mesh and edge operators.',
+    'Local-first incident intelligence and trusted control for mesh and edge operators — evidence-first, explicit degraded states, CLI and embedded console.',
   icons: {
     icon: '/favicon.svg',
   },
