@@ -1,82 +1,53 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
-import { melGithubFile, MEL_GITHUB_REPO } from '@/lib/repo';
+import { melGithubFile } from '@/lib/repo';
 
 export default function GuidePage() {
   return (
     <>
       <PageHeader
-        title="Guide"
-        subtitle="How repository docs, this public site, and the embedded operator UI fit together. Depth stays in the repo; this page is a map."
+        title="Operator guide"
+        subtitle="A concise path through MEL’s real workflow: install, validate runtime truth, operate, and iterate."
       />
 
-      <Section title="Three surfaces" id="surfaces">
-        <div className="grid">
-          <article className="card">
-            <h3>This site (orientation)</h3>
-            <p>
-              Static pages: product framing, quick start summary, trust posture, and links into GitHub. No MEL backend required;
-              nothing here proves your deployment is healthy.
-            </p>
-          </article>
-          <article className="card">
-            <h3>Embedded operator UI</h3>
-            <p>
-              Built from <code>frontend/</code>, shipped inside the binary, served at <code>http://127.0.0.1:8080</code> when you run{' '}
-              <code>mel serve</code>. That is the live console for incidents, evidence, and runtime truth.
-            </p>
-          </article>
-          <article className="card">
-            <h3>Docs in the repository</h3>
-            <p>
-              Canonical procedures, architecture, limits, and runbooks live under <code>docs/</code> on GitHub. Start at the{' '}
-              <a href={melGithubFile('docs/README.md')} rel="noreferrer" target="_blank">
-                documentation hub
-              </a>
-              .
-            </p>
-          </article>
-        </div>
-      </Section>
-
-      <Section title="Suggested reading order" id="reading-order">
-        <ol className="orderedList">
-          <li>
-            <Link href="/quickstart">Quick start</Link> — run the binary locally (or demo seed).
-          </li>
-          <li>
-            <Link href="/architecture">Architecture</Link> — truth hierarchy and component map.
-          </li>
-          <li>
-            <a href={melGithubFile('docs/README.md')} rel="noreferrer" target="_blank">
-              docs/README.md
-            </a>{' '}
-            — full index.
-          </li>
-          <li>
-            <a href={melGithubFile('docs/ops/limitations.md')} rel="noreferrer" target="_blank">
-              Known limitations
-            </a>{' '}
-            and{' '}
-            <a href={melGithubFile('docs/ops/support-matrix.md')} rel="noreferrer" target="_blank">
-              support matrix
-            </a>
-            .
-          </li>
-        </ol>
-      </Section>
-
-      <Section title="CLI entrypoints" id="cli">
-        <p>Operators typically work from the repo root after <code>make build</code>:</p>
-        <TerminalBlock title="Common commands">
-{`./bin/mel doctor --config .tmp/mel.json
+      <Section title="Start with deterministic setup">
+        <TerminalBlock title="Build + initialize + serve">
+{`make build
+./bin/mel init --config .tmp/mel.json
+chmod 600 .tmp/mel.json
+./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json`}
         </TerminalBlock>
         <p>
-          Repository:{' '}
-          <a href={MEL_GITHUB_REPO} rel="noreferrer" target="_blank">
-            {MEL_GITHUB_REPO.replace('https://', '')}
-          </a>
+          If transports are not configured yet, expect degraded or warning states. That is expected behavior, not a hidden failure.
+        </p>
+      </Section>
+
+      <Section title="Understand truth boundaries before operating">
+        <ul>
+          <li>Ingest records and audit events are canonical runtime truth.</li>
+          <li>Inference layers are assistive only and must not be treated as canonical state.</li>
+          <li>Submission, approval, dispatch, execution, and audit are separate control states.</li>
+        </ul>
+      </Section>
+
+      <Section title="Go deeper in canonical docs">
+        <ul>
+          <li>
+            <a href={melGithubFile('docs/README.md')}>Documentation hub</a>
+          </li>
+          <li>
+            <a href={melGithubFile('docs/getting-started/QUICKSTART.md')}>Quickstart playbook</a>
+          </li>
+          <li>
+            <a href={melGithubFile('docs/repo-os/verification-matrix.md')}>Verification matrix</a>
+          </li>
+          <li>
+            <a href={melGithubFile('docs/repo-os/release-readiness.md')}>Release readiness gate</a>
+          </li>
+        </ul>
+        <p>
+          Need contribution workflow details? Continue to <Link href="/contribute">Contribute</Link>.
         </p>
       </Section>
     </>

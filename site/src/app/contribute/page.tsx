@@ -1,6 +1,5 @@
-import Link from 'next/link';
-import { PageHeader, Section, PrincipleList, TerminalBlock } from '@/components/marketing';
-import { MEL_GITHUB_REPO, REPO_ISSUES_URL, melGithubFile, repoBlob } from '@/lib/repo';
+import { PageHeader, Section, PrincipleList } from '@/components/marketing';
+import { REPO_ISSUES_URL, REPO_URL, melGithubFile } from '@/lib/repo';
 
 const contributionPrinciples = [
   { name: 'No theatre', detail: 'No fake transport support, no fake live state, no overclaiming UI language.' },
@@ -104,6 +103,19 @@ cd MEL-MeshEdgeLayer`}
             </a>
           </li>
         </ul>
+      </Section>
+
+
+      <Section title="Where to open work">
+        <ul>
+          <li>Repository: <a href={REPO_URL}>{REPO_URL}</a></li>
+          <li>Issues: <a href={REPO_ISSUES_URL}>{REPO_ISSUES_URL}</a></li>
+          <li>Contributor guide: <a href={melGithubFile('CONTRIBUTING.md')}>CONTRIBUTING.md</a></li>
+        </ul>
+      </Section>
+
+      <Section title="Contribution doctrine">
+        <PrincipleList items={contributionPrinciples} />
       </Section>
     </>
   );

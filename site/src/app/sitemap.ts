@@ -9,6 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/quickstart',
     '/guide',
     '/architecture',
+    '/guide',
     '/trust',
     '/help',
     '/faq',
