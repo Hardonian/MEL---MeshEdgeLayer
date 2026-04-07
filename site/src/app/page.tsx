@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PrincipleList, Section, TerminalBlock } from '@/components/marketing';
+import { melGithubFile } from '@/lib/repo';
 
 const principles = [
   { name: 'Evidence before narrative', detail: 'Runtime records and audit events are canonical; commentary follows evidence.' },
@@ -31,7 +32,7 @@ export default function HomePage() {
           <Link href="/contribute" className="btn">
             Contribute
           </Link>
-          <a href="https://github.com/mel-project/mel/blob/main/docs/README.md" className="btn" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/README.md')} className="btn" rel="noreferrer" target="_blank">
             Full docs
           </a>
           <a href="https://meshtastic.org/docs/introduction" className="btn" rel="noreferrer" target="_blank">

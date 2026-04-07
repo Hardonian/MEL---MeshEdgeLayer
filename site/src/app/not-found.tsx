@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
+import { melGithubFile } from '@/lib/repo';
 
 export default function NotFound() {
   return (
@@ -14,7 +15,7 @@ export default function NotFound() {
             <Link href="/quickstart">Quick start</Link> — zero-to-running path
           </li>
           <li>
-            <a href="https://github.com/mel-project/mel/blob/main/docs/README.md" rel="noreferrer" target="_blank">
+            <a href={melGithubFile('docs/README.md')} rel="noreferrer" target="_blank">
               Documentation hub
             </a>{' '}
             — canonical depth in the repository

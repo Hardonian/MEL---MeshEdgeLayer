@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { PageHeader, Section } from '@/components/marketing';
+import { melGithubFile } from '@/lib/repo';
 
 const items: { q: string; a: ReactNode }[] = [
   {
@@ -10,7 +11,7 @@ const items: { q: string; a: ReactNode }[] = [
         No. MEL is not the mesh routing stack. Maps and topology views reflect persisted evidence and interpretation — not guaranteed
         propagation unless your evidence supports it. See{' '}
         <Link href="/architecture">Architecture</Link> and the repo{' '}
-        <a href="https://github.com/mel-project/mel/blob/main/docs/product/HONESTY_AND_BOUNDARIES.md" rel="noreferrer" target="_blank">
+        <a href={melGithubFile('docs/product/HONESTY_AND_BOUNDARIES.md')} rel="noreferrer" target="_blank">
           honesty doc
         </a>
         .
@@ -23,7 +24,7 @@ const items: { q: string; a: ReactNode }[] = [
       <>
         Direct serial/TCP and MQTT ingest are supported (with explicit partial/degraded semantics). BLE and HTTP ingest are{' '}
         <strong>unsupported</strong> and must stay labeled that way. Same matrix as the{' '}
-        <a href="https://github.com/mel-project/mel/blob/main/README.md" rel="noreferrer" target="_blank">
+        <a href={melGithubFile('README.md')} rel="noreferrer" target="_blank">
           README
         </a>
         .
@@ -35,7 +36,7 @@ const items: { q: string; a: ReactNode }[] = [
     a: (
       <>
         They describe evidence freshness in the database, not optimism. Canonical definitions:{' '}
-        <a href="https://github.com/mel-project/mel/blob/main/docs/repo-os/terminology.md" rel="noreferrer" target="_blank">
+        <a href={melGithubFile('docs/repo-os/terminology.md')} rel="noreferrer" target="_blank">
           terminology.md
         </a>
         .
@@ -56,7 +57,7 @@ const items: { q: string; a: ReactNode }[] = [
     a: (
       <>
         No. Assistive inference is non-canonical when present. Deterministic records and audit events win over narrative. See{' '}
-        <a href="https://github.com/mel-project/mel/blob/main/AGENTS.md" rel="noreferrer" target="_blank">
+        <a href={melGithubFile('AGENTS.md')} rel="noreferrer" target="_blank">
           AGENTS.md
         </a>
         .
@@ -69,7 +70,7 @@ const items: { q: string; a: ReactNode }[] = [
       <>
         At minimum <code>make lint</code>, <code>make test</code>, <code>make build</code>, <code>make smoke</code>. For release-shaped
         gates, <code>make premerge-verify</code>.{' '}
-        <a href="https://github.com/mel-project/mel/blob/main/CONTRIBUTING.md" rel="noreferrer" target="_blank">
+        <a href={melGithubFile('CONTRIBUTING.md')} rel="noreferrer" target="_blank">
           CONTRIBUTING.md
         </a>
         .
@@ -97,7 +98,7 @@ export default function FaqPage() {
         </dl>
         <p>
           Full FAQ in-repo:{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/FAQ.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/FAQ.md')} rel="noreferrer" target="_blank">
             docs/FAQ.md
           </a>
           .

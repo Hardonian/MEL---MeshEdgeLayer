@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
+import { MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
 
 export default function ArchitecturePage() {
   return (
@@ -18,11 +19,11 @@ export default function ArchitecturePage() {
         </ol>
         <p>
           Full detail:{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/architecture/overview.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/architecture/overview.md')} rel="noreferrer" target="_blank">
             Architecture overview (docs)
           </a>
           ,{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/product/ARCHITECTURE_TRUTH.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/product/ARCHITECTURE_TRUTH.md')} rel="noreferrer" target="_blank">
             Architecture truth (product)
           </a>
           .
@@ -46,7 +47,7 @@ export default function ArchitecturePage() {
         </ul>
         <p>
           Folder-level map for contributors:{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/contributor/ARCHITECTURE_MAP.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/contributor/ARCHITECTURE_MAP.md')} rel="noreferrer" target="_blank">
             ARCHITECTURE_MAP.md
           </a>
           .
@@ -67,12 +68,12 @@ export default function ArchitecturePage() {
       <Section title="Read next">
         <ul>
           <li>
-            <a href="https://github.com/mel-project/mel/blob/main/docs/architecture/transport-flow.md" rel="noreferrer" target="_blank">
+            <a href={melGithubFile('docs/architecture/transport-flow.md')} rel="noreferrer" target="_blank">
               Transport flow
             </a>
           </li>
           <li>
-            <a href="https://github.com/mel-project/mel/blob/main/docs/architecture/OPERATIONAL_BOUNDARIES.md" rel="noreferrer" target="_blank">
+            <a href={melGithubFile('docs/architecture/OPERATIONAL_BOUNDARIES.md')} rel="noreferrer" target="_blank">
               Operational boundaries
             </a>
           </li>
@@ -83,8 +84,8 @@ export default function ArchitecturePage() {
       </Section>
 
       <TerminalBlock title="Clone and open the deep docs">
-{`git clone https://github.com/mel-project/mel.git
-cd mel && ls docs/architecture/`}
+{`git clone ${MEL_GITHUB_REPO}.git
+cd MEL-MeshEdgeLayer && ls docs/architecture/`}
       </TerminalBlock>
     </>
   );

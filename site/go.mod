@@ -1,3 +1,3 @@
-module github.com/mel-project/mel/site
+module github.com/Hardonian/MEL-MeshEdgeLayer/site
 
 go 1.24

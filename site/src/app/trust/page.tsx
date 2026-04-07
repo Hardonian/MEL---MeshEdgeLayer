@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PageHeader, Section } from '@/components/marketing';
+import { melGithubFile } from '@/lib/repo';
 
 export default function TrustPage() {
   return (
@@ -16,11 +17,11 @@ export default function TrustPage() {
         </p>
         <p>
           Deep read:{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/release/PRIVACY_AND_DATA_POSTURE.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/release/PRIVACY_AND_DATA_POSTURE.md')} rel="noreferrer" target="_blank">
             Privacy and data posture
           </a>
           ,{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/docs/privacy/posture.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/privacy/posture.md')} rel="noreferrer" target="_blank">
             Privacy posture
           </a>
           .
@@ -37,7 +38,7 @@ export default function TrustPage() {
       <Section title="Security reporting">
         <p>
           Report vulnerabilities responsibly: see{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/SECURITY.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('SECURITY.md')} rel="noreferrer" target="_blank">
             SECURITY.md
           </a>{' '}
           in the repository. Do not post secrets or precise location payloads in public issues.
@@ -49,15 +50,11 @@ export default function TrustPage() {
           Trusted control means separable lifecycle states and attributable records — not flashy buttons that blur intent and execution.
         </p>
         <p>
-          <a href="https://github.com/mel-project/mel/blob/main/docs/ops/CONTROL_PLANE_TRUST.md" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('docs/ops/CONTROL_PLANE_TRUST.md')} rel="noreferrer" target="_blank">
             Control-plane trust (operations)
           </a>
           {' · '}
-          <a
-            href="https://github.com/mel-project/mel/blob/main/docs/architecture/CONTROL_PLANE_TRUST_MODEL.md"
-            rel="noreferrer"
-            target="_blank"
-          >
+          <a href={melGithubFile('docs/architecture/CONTROL_PLANE_TRUST_MODEL.md')} rel="noreferrer" target="_blank">
             Control-plane trust model (architecture)
           </a>
           .
@@ -67,7 +64,7 @@ export default function TrustPage() {
       <Section title="License">
         <p>
           MEL is open source under <strong>GPL-3.0</strong> — see{' '}
-          <a href="https://github.com/mel-project/mel/blob/main/LICENSE" rel="noreferrer" target="_blank">
+          <a href={melGithubFile('LICENSE')} rel="noreferrer" target="_blank">
             LICENSE
           </a>
           . Bundled dependencies (Go modules, npm) carry their own licenses.
@@ -83,7 +80,7 @@ export default function TrustPage() {
             <Link href="/faq">FAQ</Link>
           </li>
           <li>
-            <a href="https://github.com/mel-project/mel/blob/main/docs/ops/limitations.md" rel="noreferrer" target="_blank">
+            <a href={melGithubFile('docs/ops/limitations.md')} rel="noreferrer" target="_blank">
               Known limitations
             </a>
           </li>

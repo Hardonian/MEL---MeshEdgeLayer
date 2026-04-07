@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-const DOCS_HUB =
-  'https://github.com/mel-project/mel/blob/main/docs/README.md';
+import { MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
+
+const DOCS_HUB = melGithubFile('docs/README.md');
 
 type NavLink = { readonly href: string; readonly label: string; readonly external?: boolean };
 
@@ -61,7 +62,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <a href={DOCS_HUB} rel="noreferrer" target="_blank">
               Docs
             </a>
-            <a href="https://github.com/mel-project/mel">GitHub</a>
+            <a href={MEL_GITHUB_REPO}>GitHub</a>
           </div>
         </div>
       </footer>
