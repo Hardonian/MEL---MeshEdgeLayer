@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader, Section } from '@/components/marketing';
 import { repoBlob } from '@/lib/repo';
 
@@ -8,6 +9,11 @@ export default function HelpPage() {
         title="Help / orientation"
         subtitle="Fast context for operators: what surfaces exist, what state labels mean, and where to go when evidence looks incomplete."
       />
+
+      <p className="callout" role="note">
+        This page is on the <strong>public orientation site</strong> — static HTML, no live link to your MEL instance. Status and
+        API checks below apply when <code>mel serve</code> is running on <em>your</em> host.
+      </p>
 
       <Section title="Main surfaces in MEL">
         <div className="grid">
@@ -53,9 +59,21 @@ export default function HelpPage() {
           <li>Check `/api/v1/status`, `/readyz`, and `/api/v1/readyz` before assuming healthy ingest.</li>
           <li>
             Canonical docs:{' '}
-            <a href={repoBlob('docs/ops/troubleshooting.md')}>troubleshooting</a>,{' '}
-            <a href={repoBlob('docs/runbooks/README.md')}>runbooks</a>,{' '}
-            <a href={repoBlob('docs/repo-os/terminology.md')}>terminology</a>.
+            <a href={repoBlob('docs/ops/troubleshooting.md')} rel="noreferrer" target="_blank">
+              troubleshooting
+            </a>
+            ,{' '}
+            <a href={repoBlob('docs/runbooks/README.md')} rel="noreferrer" target="_blank">
+              runbooks
+            </a>
+            ,{' '}
+            <a href={repoBlob('docs/repo-os/terminology.md')} rel="noreferrer" target="_blank">
+              terminology
+            </a>
+            .
+          </li>
+          <li>
+            <Link href="/guide">Site vs console vs repository docs</Link>
           </li>
         </ul>
       </Section>

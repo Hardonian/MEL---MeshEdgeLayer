@@ -15,6 +15,9 @@ export default function NotFound() {
             <Link href="/quickstart">Quick start</Link> — zero-to-running path
           </li>
           <li>
+            <Link href="/guide">Guide</Link> — site, console, and docs map
+          </li>
+          <li>
             <a href={melGithubFile('docs/README.md')} rel="noreferrer" target="_blank">
               Documentation hub
             </a>{' '}
