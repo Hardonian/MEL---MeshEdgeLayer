@@ -18,7 +18,7 @@ Regardless of your platform, ensure the following are available:
 ### Option A: From Source (Recommended for Dev/Testing)
 
 ```bash
-git clone https://github.com/mel-project/mel.git
+git clone https://github.com/Hardonian/MEL-MeshEdgeLayer.git
 cd mel
 make build
 sudo install -m 755 bin/mel /usr/local/bin/mel
@@ -26,7 +26,9 @@ sudo install -m 755 bin/mel /usr/local/bin/mel
 
 ### Option B: From Binary
 
-Download the latest release for your architecture from the [Releases](https://github.com/mel-project/mel/releases) page.
+Download the latest release for your architecture from the [Releases](https://github.com/Hardonian/MEL-MeshEdgeLayer/releases) page.
+
+Canonical URL list: [docs/repo-os/canonical-github.md](../repo-os/canonical-github.md).
 
 ```bash
 tar -xzf mel-linux-amd64-v*.tar.gz

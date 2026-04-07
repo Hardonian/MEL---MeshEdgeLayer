@@ -15,6 +15,7 @@ Progressive path: **understand → install → run → inspect → operate → t
 
 ## Canonical truth and language
 
+- [Canonical GitHub URLs](repo-os/canonical-github.md) (browser remote for docs and links)
 - [Repo OS](repo-os/README.md)
 - [Canonical terminology](repo-os/terminology.md)
 - [Verification matrix](repo-os/verification-matrix.md)
