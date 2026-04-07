@@ -53,14 +53,7 @@ export function StatCard({
   const isConsole = rhythm === 'console'
 
   return (
-    <div
-      className={clsx(
-        'surface-panel relative overflow-hidden p-3',
-        !isConsole && 'interactive-lift',
-        isConsole && 'border-chrome-border/80 bg-chrome-bg/90',
-        className,
-      )}
-    >
+    <div className={clsx('surface-panel relative overflow-hidden p-3', className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>

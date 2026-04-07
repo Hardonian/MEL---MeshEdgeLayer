@@ -2,6 +2,79 @@ import { type ReactNode, type HTMLAttributes } from 'react'
 import { clsx } from 'clsx'
 import { Badge, type BadgeVariant } from '../Badge'
 
+/** Panel section header + body — same rhythm as legacy Card inside `MelPanel` (no nested `surface-panel`). */
+export function MelPanelSection({
+  heading,
+  headingClassName,
+  description,
+  descriptionClassName,
+  icon,
+  children,
+  className,
+  headerClassName,
+  contentClassName,
+  headingLevel = 'h3',
+  ...rest
+}: Omit<HTMLAttributes<HTMLDivElement>, 'title'> & {
+  heading: ReactNode
+  headingClassName?: string
+  description?: ReactNode
+  descriptionClassName?: string
+  icon?: ReactNode
+  headerClassName?: string
+  contentClassName?: string
+  headingLevel?: 'h2' | 'h3' | 'h4'
+}) {
+  const HeadingTag = headingLevel
+  return (
+    <div className={clsx(className)} {...rest}>
+      <div className={clsx('mel-chrome-title', headerClassName)}>
+        <div className="flex flex-col gap-0.5 py-0.5">
+          <HeadingTag
+            className={clsx(
+              'text-mel-sm font-bold uppercase tracking-[0.08em] text-foreground',
+              headingClassName,
+            )}
+          >
+            {icon ? (
+              <span className="inline-flex items-center gap-2">
+                {icon}
+                {heading}
+              </span>
+            ) : (
+              heading
+            )}
+          </HeadingTag>
+          {description != null && description !== '' && (
+            <p className={clsx('text-mel-xs text-muted-foreground mt-1', descriptionClassName)}>{description}</p>
+          )}
+        </div>
+      </div>
+      <div className={clsx('px-3 pb-3 pt-2', contentClassName)}>{children}</div>
+    </div>
+  )
+}
+
+/** Repeated dense list / evidence row — shared rhythm (not a full callout). */
+export function MelDenseRow({
+  className,
+  tone = 'default',
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { tone?: 'default' | 'warning' | 'muted' }) {
+  const toneCls =
+    tone === 'warning'
+      ? 'border-signal-partial/28 bg-signal-partial/[0.06]'
+      : tone === 'muted'
+        ? 'border-border/50 bg-muted/15'
+        : 'border-border/50 bg-card/40'
+  return (
+    <div
+      className={clsx('rounded-[var(--radius)] border px-3 py-2 text-xs', toneCls, className)}
+      {...rest}
+    />
+  )
+}
+
 /** Framed panel — `surface-panel` + optional chrome modifiers */
 export function MelPanel({
   children,
