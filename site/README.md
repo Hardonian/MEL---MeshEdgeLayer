@@ -43,3 +43,19 @@ SITE_CANONICAL_ORIGIN=https://your.domain npm run build
 ```
 
 From the repository root: `make site-verify` runs `npm ci`, lint, typecheck, and build for this folder (Node 24.x required).
+
+
+## Vercel deploy contract (monorepo-safe)
+
+This repository root does **not** contain a Node `package.json`, so Vercel must build the Next.js app in `site/` explicitly.
+
+Use either:
+
+1. **Project setting**: set Vercel **Root Directory** to `site`, or
+2. Commit-level fallback (already included): root `vercel.json` with:
+   - `installCommand`: `cd site && npm ci`
+   - `buildCommand`: `cd site && npm run build`
+   - `devCommand`: `cd site && npm run dev`
+
+This prevents root-level 404 deployments caused by building the wrong directory.
+

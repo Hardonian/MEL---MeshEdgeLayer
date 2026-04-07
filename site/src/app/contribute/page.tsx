@@ -1,5 +1,5 @@
 import { PageHeader, Section, PrincipleList } from '@/components/marketing';
-import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
+import { REPO_ISSUES_URL, REPO_URL, melGithubFile } from '@/lib/repo';
 
 const contributionPrinciples = [
   { name: 'No theatre', detail: 'No fake transport support, no fake live state, no overclaiming UI language.' },
@@ -42,6 +42,15 @@ export default function ContributePage() {
           </li>
           <li>Release-shaped gate when touching capability semantics: `make premerge-verify`.</li>
           <li>Use Node 24.x for frontend targets; use Go 1.24+ for runtime targets.</li>
+        </ul>
+      </Section>
+
+
+      <Section title="Where to open work">
+        <ul>
+          <li>Repository: <a href={REPO_URL}>{REPO_URL}</a></li>
+          <li>Issues: <a href={REPO_ISSUES_URL}>{REPO_ISSUES_URL}</a></li>
+          <li>Contributor guide: <a href={melGithubFile('CONTRIBUTING.md')}>CONTRIBUTING.md</a></li>
         </ul>
       </Section>
 

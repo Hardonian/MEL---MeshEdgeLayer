@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { REPO_ISSUES_URL, REPO_URL, repoBlob } from '@/lib/repo';
-
-import { MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
+import { repoBlob, MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
 
 const DOCS_HUB = melGithubFile('docs/README.md');
 
@@ -12,6 +10,7 @@ export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
   { href: '/architecture', label: 'Architecture' },
+  { href: '/guide', label: 'Guide' },
   { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
   { href: '/faq', label: 'FAQ' },

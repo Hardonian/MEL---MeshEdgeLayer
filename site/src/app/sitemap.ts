@@ -1,6 +1,4 @@
 import type { MetadataRoute } from 'next';
-import { getSiteOriginString } from '@/lib/site-url';
-
 import { getSiteCanonicalOrigin } from '@/lib/siteOrigin';
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -10,6 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '',
     '/quickstart',
     '/architecture',
+    '/guide',
     '/trust',
     '/help',
     '/faq',
