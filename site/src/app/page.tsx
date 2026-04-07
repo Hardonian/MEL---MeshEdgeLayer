@@ -22,10 +22,19 @@ export default function HomePage() {
           <Link href="/quickstart" className="btn primary">
             Quick start in 90 seconds
           </Link>
-          <Link href="/contribute" className="btn">
-            Contribute to MEL
+          <Link href="/architecture" className="btn">
+            Architecture
           </Link>
-          <a href="https://meshtastic.org/docs/introduction" className="btn">
+          <Link href="/trust" className="btn">
+            Trust &amp; privacy
+          </Link>
+          <Link href="/contribute" className="btn">
+            Contribute
+          </Link>
+          <a href="https://github.com/mel-project/mel/blob/main/docs/README.md" className="btn" rel="noreferrer" target="_blank">
+            Full docs
+          </a>
+          <a href="https://meshtastic.org/docs/introduction" className="btn" rel="noreferrer" target="_blank">
             Meshtastic reference
           </a>
         </div>

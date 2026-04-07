@@ -35,7 +35,11 @@ export default function ContributePage() {
       <Section title="Local dev workflow orientation">
         <ul>
           <li>Start with `CONTRIBUTING.md`, `AGENTS.md`, and role paths in `docs/community/`.</li>
-          <li>Run verification chain: `make lint`, `make test`, `make build`, and `make smoke` before strong claims.</li>
+          <li>
+            Default verification chain before strong claims: <code>make lint</code>, <code>make test</code>, <code>make build</code>,{' '}
+            <code>make smoke</code>. For one obvious full-product signal, <code>make verify-stack</code> (same as <code>make check</code>).
+          </li>
+          <li>Release-shaped gate when touching capability semantics: `make premerge-verify`.</li>
           <li>Use Node 24.x for frontend targets; use Go 1.24+ for runtime targets.</li>
         </ul>
       </Section>

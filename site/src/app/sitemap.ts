@@ -2,7 +2,16 @@ import type { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const routes = ['', '/quickstart', '/help', '/contribute', '/acknowledgements'];
+  const routes = [
+    '',
+    '/quickstart',
+    '/architecture',
+    '/trust',
+    '/help',
+    '/faq',
+    '/contribute',
+    '/acknowledgements',
+  ];
 
   return routes.map((route) => ({
     url: `https://mel.local${route}`,

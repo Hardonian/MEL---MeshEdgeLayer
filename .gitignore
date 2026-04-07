@@ -13,3 +13,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/tsconfig.tsbuildinfo
+
+# Public Next.js site (Node only; separate go.mod keeps ./... out of node_modules)
+site/node_modules/
+site/.next/
