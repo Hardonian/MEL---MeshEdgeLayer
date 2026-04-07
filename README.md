@@ -116,6 +116,8 @@ Issue templates include **field report**, **hardware compatibility**, **scenario
 - Privacy platform policy: [`docs/privacy/platform-policy.md`](docs/privacy/platform-policy.md)
 - Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
 - Internal/private strategy notes: [`docs/internal/private/README.md`](docs/internal/private/README.md)
+- Support boundaries (community): [`SUPPORT.md`](SUPPORT.md)
+- Doc entry points (thin indexes to canonical pages): [`docs/quickstart-demo.md`](docs/quickstart-demo.md), [`docs/why-mel.md`](docs/why-mel.md), [`docs/operator-truth-principles.md`](docs/operator-truth-principles.md); public site “vs generic observability”: [`site/README.md`](site/README.md) (route `/compare`)
 
 ## Fast bootstrap (tooling)
 
