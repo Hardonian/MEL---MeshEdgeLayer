@@ -8,10 +8,11 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 	-X github.com/mel-project/mel/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/mel-project/mel/internal/version.BuildTime=$(BUILD_TIME)
 
-RELEASE_VERIFY_TARGETS := product-verify frontend-verify site-verify test build-cli smoke
+# Single npm ci per Node workspace in this chain: frontend-verify installs once; build reuses node_modules.
+RELEASE_VERIFY_TARGETS := product-verify frontend-verify site-verify test build-cli-release smoke
 
-.PHONY: fmt vet lint test check build build-agent build-cli mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
-	frontend-node-contract frontend-install frontend-build frontend-lint frontend-typecheck frontend-test frontend-verify \
+.PHONY: fmt vet lint test check build build-agent build-cli build-cli-release mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
+	frontend-node-contract frontend-install frontend-build frontend-build-reuse-deps frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
 	site-verify \
 	reality-check product-verify release-verify-chain check-frontend-install-churn premerge-verify premerge-verify-fast
@@ -44,7 +45,7 @@ frontend-verify: frontend-lint frontend-typecheck frontend-test
 #   - make lint          → go vet + frontend lint + public site lint (each npm project: own npm ci)
 #   - make test          → Go tests only
 #   - make frontend-verify / frontend-verify-fast → ESLint + tsc + vitest (install vs no-install)
-#   - make site-verify / site-verify-fast → public Next.js site: ESLint + tsc + production build
+#   - make site-verify / site-verify-fast → public Next.js site: ESLint + tsc + production build (single site npm ci via site-install)
 #   - make build         → frontend build + copies dist → internal/web/assets/ + Go mel binary
 #   - make mel-cli-go    → Go binary only; uses committed embedded assets (no npm)
 #   - make smoke         → scripts/smoke.sh (needs ./bin/mel from build-cli/build)
@@ -89,10 +90,6 @@ frontend-test-fast: frontend-node-contract
 
 frontend-verify-fast: frontend-lint-fast frontend-typecheck-fast frontend-test-fast
 
-# Public Next.js orientation site (site/): lint + typecheck + production build. Requires Node 24.x (same as frontend-*).
-site-verify: frontend-node-contract
-	cd site && npm ci && npm run lint && npm run typecheck && npm run build
-
 # gofmt is intentionally not part of `lint` so routine lint does not rewrite the whole tree.
 # Run `make fmt` before committing, or use `make verify` (which runs fmt then lint).
 lint: vet frontend-lint site-lint
@@ -111,11 +108,22 @@ frontend-build: frontend-install
 	mkdir -p internal/web/assets
 	cp -r frontend/dist/* internal/web/assets/
 
+# Reuse existing frontend/node_modules (no npm ci). Used by build-cli-release after frontend-verify in release-verify-chain.
+frontend-build-reuse-deps: frontend-node-contract
+	cd frontend && npm run build
+	mkdir -p internal/web/assets
+	cp -r frontend/dist/* internal/web/assets/
+
 build-agent:
 	mkdir -p $(BINDIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel-agent ./cmd/mel-agent
 
 build-cli: frontend-build
+	mkdir -p $(BINDIR)
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
+
+# Same binary as build-cli but skips frontend npm ci when node_modules already populated (release-verify-chain).
+build-cli-release: frontend-build-reuse-deps
 	mkdir -p $(BINDIR)
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINDIR)/mel ./cmd/mel
 
