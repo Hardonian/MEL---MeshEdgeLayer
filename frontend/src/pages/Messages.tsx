@@ -193,8 +193,8 @@ export function Messages() {
                 },
               ]}
               keyField="packet_id"
-              emptyMessage="No messages yet"
-              emptyDescription="Messages will appear here once mesh traffic is observed."
+              emptyMessage="No messages in this view"
+              emptyDescription="Rows appear when packets are ingested and stored for this filter — not proof of RF silence."
             />
           )}
         </CardContent>

@@ -413,8 +413,8 @@ export function Incidents() {
           title="No open incidents"
           description={
             incidents.length === 0
-              ? 'No incidents in the recent list. When transport or system disruptions are detected, they appear here with intelligence and handoff context.'
-              : 'All recent incidents are resolved or closed.'
+              ? 'No incidents in the current list window. New incidents appear when the system records them — absence here is not proof the mesh is quiet.'
+              : 'All incidents in this list are resolved or closed.'
           }
         />
       ) : (

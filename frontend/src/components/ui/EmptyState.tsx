@@ -58,7 +58,7 @@ export function NoTransportsConfigured({ onConfigure }: { onConfigure?: () => vo
     <EmptyState
       type="not-configured"
       title="No transport configured"
-      description="Add a supported transport in config before expecting live ingest evidence."
+      description="Enable a supported transport (MQTT, TCP, or serial) in config before expecting persisted ingest evidence in the UI."
       action={
         onConfigure ? (
           <button onClick={onConfigure} className="button-primary">Configure transport</button>
@@ -79,7 +79,7 @@ export function NoNodesYet() {
     <EmptyState
       type="no-data"
       title="No nodes observed"
-      description="Node inventory empty — no live mesh observations stored. Expected when transports idle."
+      description="No node rows in the store for this view. Common when transports are idle, filtered, or not yet receiving packets."
     />
   )
 }
@@ -89,7 +89,7 @@ export function NoMessagesYet() {
     <EmptyState
       type="no-data"
       title="No messages"
-      description="No message observations stored. Expected when transports idle or disconnected."
+      description="No message rows in the store for this view. Common when transports are idle, disconnected, or filtered."
     />
   )
 }

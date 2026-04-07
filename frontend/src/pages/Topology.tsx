@@ -915,9 +915,9 @@ export function Topology() {
             </div>
 
             {nodes.length === 0 ? (
-              <p className="p-6 text-sm text-muted-foreground">No nodes in topology store yet.</p>
+              <p className="p-6 text-sm text-muted-foreground">No nodes in the topology store yet — expected until ingest builds observations.</p>
             ) : filteredNodes.length === 0 ? (
-              <p className="p-6 text-sm text-muted-foreground">No nodes match this filter.</p>
+              <p className="p-6 text-sm text-muted-foreground">No nodes match this filter in the current store slice.</p>
             ) : (
               <svg
                 ref={svgRef}

@@ -149,7 +149,7 @@ export function ControlActions() {
         <EmptyState
           type="no-data"
           title="No actions in this view"
-          description="Try another lifecycle filter or confirm transports are generating control decisions."
+          description="Try another lifecycle filter, or confirm ingest and policy are producing control rows you are allowed to read."
         />
       ) : (
         <div className="space-y-3">

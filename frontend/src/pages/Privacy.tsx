@@ -201,8 +201,8 @@ export function Privacy() {
           {findings.length === 0 ? (
             <EmptyState
               type="default"
-              title="No privacy issues"
-              description="All privacy checks have passed."
+              title="No privacy findings"
+              description="No privacy or posture findings for the current config snapshot — not a guarantee against misconfiguration elsewhere."
             />
           ) : (
             <div className="space-y-4">

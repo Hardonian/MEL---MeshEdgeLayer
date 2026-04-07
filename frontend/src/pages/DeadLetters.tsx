@@ -113,7 +113,7 @@ export function DeadLetters() {
             <EmptyState
               type="default"
               title="No dead letters"
-              description="No persisted transport dead letters are currently stored. This means all messages are being processed successfully."
+              description="No dead-letter rows in the store for this view. That reflects persisted dead-letter records only — not proof that every ingest path always succeeds."
             />
           ) : (
             <DataTable<DeadLetter>
@@ -161,8 +161,8 @@ export function DeadLetters() {
                 },
               ]}
               keyField="created_at"
-              emptyMessage="No dead letters"
-              emptyDescription="No failed messages to display."
+              emptyMessage="No dead letters in this slice"
+              emptyDescription="Nothing to show for the current filter or window."
             />
           )}
         </CardContent>

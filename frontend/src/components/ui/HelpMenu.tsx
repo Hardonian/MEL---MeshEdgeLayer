@@ -402,7 +402,7 @@ export function VersionInfo({
         ·
       </span>
       <a
-        href="https://github.com/meshtastic/MEL/blob/main/CHANGELOG.md"
+        href={melGithubFile('CHANGELOG.md')}
         className="transition-colors hover:text-foreground"
         target="_blank"
         rel="noopener noreferrer"
@@ -413,7 +413,7 @@ export function VersionInfo({
         ·
       </span>
       <a
-        href="https://github.com/meshtastic/MEL"
+        href={MEL_GITHUB_REPO}
         target="_blank"
         rel="noopener noreferrer"
         className="transition-colors hover:text-foreground"
