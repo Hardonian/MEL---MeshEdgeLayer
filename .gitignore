@@ -17,3 +17,11 @@ frontend/tsconfig.tsbuildinfo
 # Public Next.js site (Node only; separate go.mod keeps ./... out of node_modules)
 site/node_modules/
 site/.next/
+
+# Local build / Windows artifacts (do not commit release binaries in source tree)
+mel
+mel*.exe
+*.test.exe
+sqldiff.exe
+sqlite3.exe
+sqlite3_analyzer.exe

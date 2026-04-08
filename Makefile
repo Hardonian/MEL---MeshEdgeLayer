@@ -27,6 +27,7 @@ frontend-node-contract:
 	./scripts/require-node24.sh --context "make frontend-*"
 
 frontend-install: frontend-node-contract
+	rm -rf frontend/node_modules
 	cd frontend && npm ci
 
 frontend-lint: frontend-install
@@ -55,6 +56,7 @@ site-node-contract:
 	./scripts/require-node24.sh --context "make site-*"
 
 site-install: site-node-contract
+	rm -rf site/node_modules
 	cd site && npm ci
 
 site-lint: site-install
