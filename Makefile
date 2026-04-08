@@ -11,7 +11,7 @@ LDFLAGS := -X github.com/mel-project/mel/internal/version.Version=$(VERSION) \
 # Single npm ci per Node workspace in this chain: frontend-verify installs once; build reuses node_modules.
 RELEASE_VERIFY_TARGETS := product-verify frontend-verify site-verify test build-cli-release smoke
 
-.PHONY: fmt vet lint test check build build-agent build-cli build-cli-release mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed \
+.PHONY: fmt vet lint test check build build-agent build-cli build-cli-release mel-cli-go build-cross verify verify-stack smoke version demo-verify demo-seed first-proof \
 	frontend-node-contract frontend-install frontend-build frontend-build-reuse-deps frontend-lint frontend-typecheck frontend-test frontend-verify \
 	frontend-lint-fast frontend-typecheck-fast frontend-test-fast frontend-verify-fast \
 	site-verify \
@@ -161,6 +161,10 @@ demo-seed: mel-cli-go
 	chmod 600 "$(DEMO_SEED_CONFIG)"
 	./bin/mel demo seed --scenario "$(DEMO_SEED_SCENARIO)" --config "$(DEMO_SEED_CONFIG)"
 	@echo "Seeded scenario $(DEMO_SEED_SCENARIO) into $(DEMO_SEED_CONFIG). Run: ./bin/mel serve --config $(DEMO_SEED_CONFIG)"
+
+# One-command first proof flow: deterministic seed + evidence bundle + explicit claim boundaries.
+first-proof:
+	./scripts/first-proof.sh
 
 version:
 	@echo "MEL Version Information:"
