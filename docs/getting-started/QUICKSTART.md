@@ -15,6 +15,15 @@ Open <http://127.0.0.1:8080> and verify:
 - transport state is explicit (not implicitly healthy)
 - incident queue is visible even if empty
 
+## Fastest path to first proof (no hardware)
+
+```bash
+make first-proof
+./bin/mel serve --config demo_sandbox/mel.first-proof.json
+```
+
+`make first-proof` creates a sandbox config, seeds deterministic data, and writes an evidence bundle so you can validate MEL workflows without claiming live RF proof.
+
 ## Fixture-backed UI (no radio)
 
 ```bash

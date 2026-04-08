@@ -36,6 +36,17 @@ export default function QuickStartPage() {
         <p>Use this path when evaluating the UI without active devices. It is simulation data, not live transport proof.</p>
       </Section>
 
+      <Section title="Fastest first-proof command">
+        <TerminalBlock title="One-command first proof">
+{`make first-proof
+./bin/mel serve --config demo_sandbox/mel.first-proof.json`}
+        </TerminalBlock>
+        <p>
+          This path writes deterministic evidence artifacts and seeded records so operators can validate incident + control workflows without
+          claiming live RF routing or unsupported ingest surfaces.
+        </p>
+      </Section>
+
       <Section title="First-run expectations and caveats">
         <ul>
           <li>`mel doctor` may report warnings on fresh installs with no configured transports.</li>

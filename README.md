@@ -75,6 +75,13 @@ make demo-seed
 ./bin/mel serve --config demo_sandbox/mel.demo.json
 ```
 
+**Fastest first-proof path (deterministic evidence bundle + seeded data):**
+
+```bash
+make first-proof
+./bin/mel serve --config demo_sandbox/mel.first-proof.json
+```
+
 More detail: [QUICKSTART](docs/getting-started/QUICKSTART.md) · [Evaluate in 10 minutes](docs/ops/evaluate-in-10-minutes.md) · [Launch & demo runbook](docs/runbooks/launch-and-demo.md) · [Screenshot checklist](docs/ops/launch-screenshot-checklist.md).
 
 ## How to contribute (by role)
