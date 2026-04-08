@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
 import { melGithubFile } from '@/lib/repo';
+import { MEL_BOOTSTRAP_COMMANDS } from '@/lib/orientation';
 
 export default function GuidePage() {
   return (
@@ -12,11 +13,7 @@ export default function GuidePage() {
 
       <Section title="Start with deterministic setup">
         <TerminalBlock title="Build + initialize + serve">
-{`make build
-./bin/mel init --config .tmp/mel.json
-chmod 600 .tmp/mel.json
-./bin/mel doctor --config .tmp/mel.json
-./bin/mel serve --config .tmp/mel.json`}
+{MEL_BOOTSTRAP_COMMANDS}
         </TerminalBlock>
         <p>
           If transports are not configured yet, expect degraded or warning states. That is expected behavior, not a hidden failure.

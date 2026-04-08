@@ -9,11 +9,15 @@ type NavLink = { readonly href: string; readonly label: string; readonly externa
 export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
+  { href: '/docs', label: 'Docs Entry' },
+  { href: '/compare', label: 'Compare' },
+  { href: '/guide', label: 'Guide' },
+  { href: '/architecture', label: 'Architecture' },
+  { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
   { href: '/contribute', label: 'Contribute' },
   { href: '/acknowledgements', label: 'Credits' },
-  { href: '/guide', label: 'Guide' },
-  { href: DOCS_HUB, label: 'Docs', external: true },
+  { href: DOCS_HUB, label: 'Repo Docs', external: true },
 ] as const;
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -60,6 +64,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </p>
           <div className="footerLinks">
             <Link href="/quickstart">Quick Start</Link>
+            <Link href="/docs">Docs Entry</Link>
             <Link href="/compare">Compare</Link>
             <Link href="/guide">Guide</Link>
             <Link href="/architecture">Architecture</Link>
@@ -69,7 +74,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <Link href="/contribute">Contribute</Link>
             <Link href="/acknowledgements">Credits</Link>
             <a href={DOCS_HUB} rel="noreferrer" target="_blank">
-              Docs
+              Repo Docs
             </a>
             <a href={MEL_GITHUB_REPO} rel="noreferrer" target="_blank">
               GitHub

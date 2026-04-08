@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { PrincipleList, Section, TerminalBlock } from '@/components/marketing';
 import { melGithubFile } from '@/lib/repo';
+import { MEL_BOOTSTRAP_COMMANDS } from '@/lib/orientation';
 
 const principles = [
   { name: 'Evidence before narrative', detail: 'Runtime records and audit events are canonical; commentary follows evidence.' },
@@ -196,11 +197,7 @@ export default function HomePage() {
           Full commands and caveats: <Link href="/quickstart">Quick start</Link>. This block is the minimal spine.
         </p>
         <TerminalBlock title="Terminal">
-{`make build
-./bin/mel init --config .tmp/mel.json
-chmod 600 .tmp/mel.json
-./bin/mel doctor --config .tmp/mel.json
-./bin/mel serve --config .tmp/mel.json`}
+{MEL_BOOTSTRAP_COMMANDS}
         </TerminalBlock>
         <p className="callout" role="note">
           This public site does not connect to your MEL instance. Operator truth lives in the process you serve locally (or on

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
 import { repoBlob } from '@/lib/repo';
+import { MEL_BOOTSTRAP_COMMANDS, MEL_DEMO_COMMANDS, MEL_FIRST_PROOF_COMMANDS } from '@/lib/orientation';
 
 export default function QuickStartPage() {
   return (
@@ -21,11 +22,7 @@ export default function QuickStartPage() {
 
       <Section title="Day 0 run path">
         <TerminalBlock title="Initialize and serve">
-{`make build
-./bin/mel init --config .tmp/mel.json
-chmod 600 .tmp/mel.json
-./bin/mel doctor --config .tmp/mel.json
-./bin/mel serve --config .tmp/mel.json`}
+{MEL_BOOTSTRAP_COMMANDS}
         </TerminalBlock>
         <p>Open <code>http://127.0.0.1:8080</code> and verify status, transport state clarity, and incident queue visibility.</p>
       </Section>
@@ -55,16 +52,14 @@ curl -fsS http://127.0.0.1:8080/api/v1/status`}
 
       <Section title="Fixture-backed mode (no radio required)">
         <TerminalBlock title="Deterministic demo seed">
-{`make demo-seed
-./bin/mel serve --config demo_sandbox/mel.demo.json`}
+{MEL_DEMO_COMMANDS}
         </TerminalBlock>
         <p>Use this path when evaluating the UI without active devices. It is simulation data, not live transport proof.</p>
       </Section>
 
       <Section title="Fastest first-proof command">
         <TerminalBlock title="One-command first proof">
-{`make first-proof
-./bin/mel serve --config demo_sandbox/mel.first-proof.json`}
+{MEL_FIRST_PROOF_COMMANDS}
         </TerminalBlock>
         <p>
           This path writes deterministic evidence artifacts and seeded records so operators can validate incident + control workflows without
