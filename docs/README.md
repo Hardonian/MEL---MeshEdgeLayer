@@ -16,6 +16,7 @@ If MEL feels big, use this page as the single routing layer.
 
 ## 3) Operate MEL
 
+### 1) Run and operate MEL
 - [Operations runbook](ops/OPERATIONS_RUNBOOK.md)
 - [Diagnostics (`mel doctor`)](ops/diagnostics.md)
 - [Troubleshooting](ops/troubleshooting.md)
