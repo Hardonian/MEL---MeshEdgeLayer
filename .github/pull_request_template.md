@@ -1,44 +1,36 @@
 # MEL Pull Request
 
-## 1) Design intent
+## Why this change
 
-What changed, why now, and how this improves operator truth.
+- Problem being solved:
+- Why now:
+- Work classification: **Maintenance / Leverage / Moat**
 
-- Change class: **Maintenance / Leverage / Moat** ([guide](../docs/repo-os/change-classification.md)).
-- Scope boundary: what this PR intentionally does **not** do.
+## Truth boundary
 
-## 2) Operator impact
+What claim does this PR make, and what does it explicitly **not** claim?
 
-What operators/contributors will notice in CLI, UI, API, docs, or workflows.
+## Operator impact
 
-## 3) Verification evidence
+What an operator/contributor will notice (UI, CLI, API, docs).
 
-List exact commands run and outcomes.
+## Verification evidence
+
+Paste exact commands and outcomes (not summaries).
 
 - [ ] `make lint`
 - [ ] `make test`
 - [ ] `make build`
-- [ ] `make smoke` (when runtime behavior changed)
-- [ ] Additional scoped checks (frontend/site/repo-os audits) documented below
+- [ ] `make smoke` (if runtime behavior changed)
+- [ ] Additional checks run:
 
-```text
-# Paste command transcript snippets or attach artifact paths
-```
+## Residual risk
 
-## 4) Truth and boundary checks
+Known caveats, degraded paths, or follow-up work.
 
-- [ ] No fake transport support claims.
-- [ ] No fake live-state certainty.
-- [ ] Degraded / partial / unknown semantics preserved.
-- [ ] No trust-boundary broadening without explicit design + verification.
-- [ ] Submission/approval/dispatch/execution/audit boundaries remain explicit (if control paths touched).
+## Reviewer checklist
 
-## 5) Privacy and tenancy checks
-
-- [ ] No new sensitive data exposure by default.
-- [ ] Redaction/export behavior updated if needed.
-- [ ] Tenant/operator attribution remains explicit on affected paths.
-
-## 6) Residual risk
-
-Describe what remains partial, unknown, deferred, or intentionally out of scope.
+- [ ] No overclaim vs implementation
+- [ ] Degraded/unknown states remain explicit
+- [ ] Privacy/trust boundaries preserved
+- [ ] Tests/docs updated where needed

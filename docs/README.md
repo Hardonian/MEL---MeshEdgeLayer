@@ -1,4 +1,4 @@
-# MEL Docs Hub
+# MEL Docs — Start Here
 
 Use this as the single public path for newcomers.
 

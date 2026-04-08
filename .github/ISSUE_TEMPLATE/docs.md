@@ -1,30 +1,25 @@
 ---
-name: Documentation
-about: Wrong, missing, or misleading docs (including vs implementation)
+name: Docs issue
+about: Report wrong, unclear, or over-claiming documentation
 title: '[DOCS] '
 labels: kind:docs,needs:triage
 assignees: ''
 ---
 
-## Which doc or URL
+## Doc path or URL
 
-File path in repo or page in the bundled UI (e.g. `/docs/...`).
+## Problem type
 
-## What is wrong
+- [ ] Out of date
+- [ ] Too many entry points / confusing navigation
+- [ ] Overstates capability
+- [ ] Understates capability
+- [ ] Broken command/link
 
-- [ ] Out of date vs current code
-- [ ] Overstates a capability
-- [ ] Understates a capability
-- [ ] Unclear for new operators
-- [ ] Broken link or command
+## Suggested fix
 
-## Suggested fix (optional)
+If you know the fix, propose exact wording or link changes.
 
-If you already know the correction, paste it here.
+## Evidence (if claim mismatch)
 
-## Repo truth check
-
-If this is about a **claim vs behavior** mismatch, include:
-
-- expected behavior from docs
-- actual behavior (command output or UI label)
+Show command output or behavior proving the mismatch.

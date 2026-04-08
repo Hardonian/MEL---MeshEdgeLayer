@@ -14,11 +14,10 @@ If code cannot prove a claim, narrow the claim.
 
 ## Non-negotiable invariants
 
-- No fake transport support or fake live-state certainty.
-- No collapsing degraded/partial/unknown into “healthy.”
-- No silent auth/trust-boundary broadening.
-- No submission=approval=execution shortcuts on control paths.
-- No docs claims stronger than implementation + verification.
+- Clarity improvements (UI copy, docs, onboarding) that reduce operator confusion.
+- Tests that improve confidence in ingest, truth semantics, and control-path behavior.
+- Diagnostics and error-surface improvements (`mel doctor`, API/status visibility).
+- Deterministic fixture/scenario improvements for demos and regression.
 
 ## Local development baseline
 
@@ -29,10 +28,10 @@ make test
 make smoke
 ```
 
-Release-shaped confidence:
+Node `24.x` is required for frontend/site tasks.
 
 ```bash
-make premerge-verify
+. ./scripts/dev-env.sh
 ```
 
 Environment notes:
@@ -40,7 +39,10 @@ Environment notes:
 - Node 24.x for `frontend/` and `site/`
 - From repo root: `. ./scripts/dev-env.sh`
 
-## Contribution lanes
+Recommended first-PR lanes:
+- Docs truth-tightening: broken links, overclaims, onboarding friction.
+- Frontend clarity: explicit degraded/historical wording in existing components.
+- Go tests: table-driven tests around existing behavior.
 
 - **Docs / runbooks:** clarify operator decisions, remove drift, reduce ambiguity.
 - **Frontend:** improve evidence semantics and degraded-state clarity.
@@ -53,9 +55,14 @@ Deep links:
 - [Transport contribution](docs/contributor/TRANSPORT_CONTRIBUTION.md)
 - [Architecture map](docs/contributor/ARCHITECTURE_MAP.md)
 
-## PR requirements
+- `make lint`
+- `make test`
+- `make build`
+- `make smoke` (when runtime behavior changed)
 
-Every PR should include:
+For frontend-heavy changes also run:
+- `make frontend-typecheck`
+- `make frontend-test`
 
 1. **Design intent** (what changed + why)
 2. **Operator impact** (what users notice)
@@ -65,7 +72,9 @@ Every PR should include:
 
 Template: `.github/pull_request_template.md`
 
-## Verification minimums by change type
+- Use [Issue templates](.github/ISSUE_TEMPLATE/).
+- Use the [PR template](.github/pull_request_template.md).
+- Classify major work as Maintenance / Leverage / Moat per [`docs/repo-os/change-classification.md`](docs/repo-os/change-classification.md).
 
 - Docs-only: human proofread + link sanity + scoped checks.
 - Frontend: `make frontend-typecheck`, `make frontend-test`, `make lint`.
@@ -78,8 +87,6 @@ References:
 
 ## Community standards
 
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [SECURITY.md](SECURITY.md)
-- [SUPPORT.md](SUPPORT.md)
-
-MEL is GPL-3.0 licensed; see [LICENSE](LICENSE).
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- [`SUPPORT.md`](SUPPORT.md)
+- [`SECURITY.md`](SECURITY.md)

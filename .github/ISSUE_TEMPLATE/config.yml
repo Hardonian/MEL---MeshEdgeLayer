@@ -1,14 +1,11 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Community start here (roles + paths)
-    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/START_HERE.md
-    about: Operator, sandbox demo, contributor, and field-report entry points grounded in this repo.
-  - name: Contributor paths by role
-    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/CONTRIBUTOR_PATHS.md
-    about: Frontend, transport, docs, and demo surfaces with real folder maps and verification commands.
-  - name: Issue label routing policy
-    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/community/issue-routing-labels.md
-    about: Label meanings and required triage flow for setup/truth/control/docs reports.
+  - name: Start here (run MEL, evaluate, contribute)
+    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/README.md
+    about: One-page path for first run, truth boundaries, and contributor entry points.
+  - name: Docs hub (single routing layer)
+    url: https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/README.md
+    about: Canonical newcomer funnel and curated docs navigation.
   - name: Security report (private)
     url: https://github.com/Hardonian/MEL-MeshEdgeLayer/security/advisories/new
-    about: Use GitHub private security advisories or follow SECURITY.md. Do not post secrets or precise locations in public issues.
+    about: Report vulnerabilities privately. Do not post secrets or sensitive locations in public issues.

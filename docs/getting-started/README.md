@@ -1,4 +1,4 @@
-# Getting Started with MEL
+# Getting Started
 
 This path is intentionally short: **install → run → verify → operate**.
 

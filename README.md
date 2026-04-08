@@ -14,7 +14,10 @@ If MEL does not have evidence, it must say **unknown**.
 - Keeps live, stale, historical, partial, degraded, and unknown states distinct.
 - Runs local-first (self-hosted friendly, no mandatory cloud control plane).
 
-## What MEL is not
+- **Truth-first semantics:** MEL explicitly marks live, stale, historical, partial, degraded, and unknown states.
+- **Evidence-backed workflow:** incidents, proofpacks, and action history are tied to persisted records.
+- **No capability theatre:** unsupported paths stay labeled unsupported.
+- **Local-first by default:** no mandatory cloud control plane for core operation.
 
 - Not a mesh routing stack.
 - Not proof of RF propagation without evidence.
@@ -65,7 +68,7 @@ make demo-seed
 4. **Contribute safely:** [CONTRIBUTING.md](CONTRIBUTING.md), [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
 5. **Operate for real:** [docs/ops/OPERATIONS_RUNBOOK.md](docs/ops/OPERATIONS_RUNBOOK.md)
 
-## Verification entry points
+## Verification signals
 
 - `make lint` — Go vet + frontend/site ESLint
 - `make test` — Go tests (`go test ./...`)

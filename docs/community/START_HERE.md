@@ -1,37 +1,27 @@
-# Start here
+# Community Start Here
 
-MEL (MeshEdgeLayer) is a **local-first** incident-intelligence and trusted-control surface for mesh operations. It is **not** a mesh routing stack and does **not** prove RF paths unless your ingest evidence supports that claim.
+Choose one lane and ignore the rest for now.
 
-Pick one entry path:
+## I want to run MEL
 
-## I want to run it (operator)
+- [Quickstart](../getting-started/QUICKSTART.md)
+- [Evaluate in 10 minutes](../ops/evaluate-in-10-minutes.md)
+- [Limitations](../ops/limitations.md)
 
-1. [Quickstart](../getting-started/QUICKSTART.md) — build, `mel init`, `mel doctor`, `mel serve`.
-2. [Support matrix](../ops/support-matrix.md) and [limitations](../ops/limitations.md) — what is and is not implemented.
-3. [Evaluate in 10 minutes](../ops/evaluate-in-10-minutes.md) — API and status sanity checks.
-4. [Topology cookbook](../../topologies/README.md) — deployment shapes as documentation (not automatic provisioning).
+## I want to contribute
 
-## I want to try it without radios (sandbox)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- [First PR paths](../contributor/FIRST_PR_PATHS.md)
+- [Architecture map](../contributor/ARCHITECTURE_MAP.md)
 
-1. `make build-cli` (or `make build`).
-2. `make demo-seed` — seeds a deterministic scenario into `demo_sandbox/mel.demo.json` (see [Scenario library](SCENARIO_LIBRARY.md)).
-3. `./bin/mel serve --config demo_sandbox/mel.demo.json` and open `http://127.0.0.1:8080`.
+## I want to report field outcomes
 
-This is **fixture-backed** data for UX and workflow evaluation, not proof of your live mesh.
+- [Field testing guide](FIELD_TESTING.md)
+- [Field report template](../../.github/ISSUE_TEMPLATE/field_report.md)
+- [Hardware compatibility template](../../.github/ISSUE_TEMPLATE/hardware_compatibility.md)
 
-## I want to contribute code or docs
+## I need product boundaries first
 
-1. [CONTRIBUTING.md](../../CONTRIBUTING.md) — build, verification, PR checklist.
-2. [Contributor paths by role](CONTRIBUTOR_PATHS.md) — frontend, transport, docs, field evidence.
-3. [First PR paths](../contributor/FIRST_PR_PATHS.md) — small, bounded changes.
-4. [Repo OS](../repo-os/README.md) — classification, verification matrix, release readiness.
-
-## I ran it in the field and want to report results
-
-1. [Field testing](FIELD_TESTING.md) — privacy and what to redact.
-2. Open a **Field report** issue (`.github/ISSUE_TEMPLATE/field_report.md`) or **Hardware compatibility** (`.github/ISSUE_TEMPLATE/hardware_compatibility.md`).
-
-## I represent a sponsor or enterprise evaluation
-
-1. [Product honesty boundaries](../product/HONESTY_AND_BOUNDARIES.md) and [claims vs reality](claims-vs-reality.md).
-2. Run the verification targets in the root [README.md](../../README.md) and attach outputs; do not treat green CI as field certification.
+- [What MEL is not](../product/what-mel-is-not.md)
+- [Claims vs reality](claims-vs-reality.md)
+- [Repo OS](../repo-os/README.md)
