@@ -57,6 +57,7 @@ export default function HelpPage() {
         <ul>
           <li>Run `./bin/mel doctor --config ...` for host and runtime checks.</li>
           <li>Check `/api/v1/status`, `/readyz`, and `/api/v1/readyz` before assuming healthy ingest.</li>
+          <li>Use fixture mode (`make demo-seed`) when validating workflows without active radios.</li>
           <li>
             Canonical docs:{' '}
             <a href={repoBlob('docs/ops/troubleshooting.md')} rel="noreferrer" target="_blank">
@@ -76,6 +77,25 @@ export default function HelpPage() {
             <Link href="/guide">Site vs console vs repository docs</Link>
           </li>
         </ul>
+      </Section>
+
+      <Section title="Ten-minute orientation checklist">
+        <ol>
+          <li>Read <Link href="/quickstart">Quick start</Link> and run commands exactly once end-to-end.</li>
+          <li>Confirm you can open the embedded console at <code>127.0.0.1:8080</code>.</li>
+          <li>Validate that degraded or unknown states are explicit when transports are not connected.</li>
+          <li>
+            Before deeper evaluation, review{' '}
+            <a href={repoBlob('docs/ops/support-matrix.md')} rel="noreferrer" target="_blank">
+              support matrix
+            </a>{' '}
+            and{' '}
+            <a href={repoBlob('docs/ops/limitations.md')} rel="noreferrer" target="_blank">
+              limitations
+            </a>
+            .
+          </li>
+        </ol>
       </Section>
     </>
   );

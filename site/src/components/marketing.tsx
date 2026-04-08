@@ -9,14 +9,10 @@ type NavLink = { readonly href: string; readonly label: string; readonly externa
 export const NAV_LINKS: readonly NavLink[] = [
   { href: '/', label: 'Home' },
   { href: '/quickstart', label: 'Quick Start' },
-  { href: '/compare', label: 'Compare' },
-  { href: '/guide', label: 'Guide' },
-  { href: '/architecture', label: 'Architecture' },
-  { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
-  { href: '/faq', label: 'FAQ' },
   { href: '/contribute', label: 'Contribute' },
   { href: '/acknowledgements', label: 'Credits' },
+  { href: '/guide', label: 'Guide' },
   { href: DOCS_HUB, label: 'Docs', external: true },
 ] as const;
 

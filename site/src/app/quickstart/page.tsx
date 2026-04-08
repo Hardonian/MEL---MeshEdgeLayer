@@ -15,6 +15,7 @@ export default function QuickStartPage() {
           <li>Go 1.24+ for CLI build targets.</li>
           <li>Node 24.x only when running frontend verification commands.</li>
           <li>Local shell access with permission to run `make` and execute `./bin/mel`.</li>
+          <li>Port <code>8080</code> available for local `mel serve`.</li>
         </ul>
       </Section>
 
@@ -22,10 +23,34 @@ export default function QuickStartPage() {
         <TerminalBlock title="Initialize and serve">
 {`make build
 ./bin/mel init --config .tmp/mel.json
+chmod 600 .tmp/mel.json
 ./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json`}
         </TerminalBlock>
         <p>Open <code>http://127.0.0.1:8080</code> and verify status, transport state clarity, and incident queue visibility.</p>
+      </Section>
+
+      <Section title="What first success looks like">
+        <ul>
+          <li>`mel serve` stays running with no crash loop.</li>
+          <li>The embedded console loads on <code>127.0.0.1:8080</code>.</li>
+          <li>Health endpoints respond: <code>/healthz</code>, <code>/readyz</code>, and <code>/api/v1/status</code>.</li>
+          <li>If no transports are connected yet, state is shown as warning/degraded instead of “healthy.”</li>
+        </ul>
+      </Section>
+
+      <Section title="If first run fails, check these first">
+        <TerminalBlock title="Fast triage checks">
+{`./bin/mel doctor --config .tmp/mel.json
+curl -fsS http://127.0.0.1:8080/healthz
+curl -fsS http://127.0.0.1:8080/readyz
+curl -fsS http://127.0.0.1:8080/api/v1/status`}
+        </TerminalBlock>
+        <ul>
+          <li>Permission errors: confirm config file permissions are locked down (<code>chmod 600</code>).</li>
+          <li>Port conflicts: stop the process already using <code>8080</code>, then rerun <code>mel serve</code>.</li>
+          <li>Doctor warnings on fresh installs are expected until real transports are connected.</li>
+        </ul>
       </Section>
 
       <Section title="Fixture-backed mode (no radio required)">
@@ -52,6 +77,7 @@ export default function QuickStartPage() {
           <li>`mel doctor` may report warnings on fresh installs with no configured transports.</li>
           <li>`/healthz` is liveness only; use readiness and status endpoints for runtime truth.</li>
           <li>BLE ingest and HTTP ingest are currently unsupported and should remain labeled unsupported.</li>
+          <li>MEL is not the RF routing stack; do not treat fixture mode as propagation proof.</li>
         </ul>
       </Section>
 
