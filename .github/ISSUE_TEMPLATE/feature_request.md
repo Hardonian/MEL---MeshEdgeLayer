@@ -1,36 +1,27 @@
 ---
 name: Feature request
-about: Propose an operator-useful MEL improvement with bounded claims
-title: "[FEAT] "
-labels: enhancement
-assignees: ""
+about: Propose a scoped improvement that strengthens operator trust and workflow
+title: '[FEAT] '
+labels: enhancement,needs:triage
+assignees: ''
 ---
 
-## Problem to solve
+## Problem
 
-What operator problem are you seeing? Be concrete.
+What operator pain exists today?
 
 ## Proposed change
 
-What should MEL do differently?
+Describe the smallest useful change.
 
-## Truth boundaries (required)
+## Why this fits MEL
 
-How does this request preserve MEL contracts?
-
-- [ ] Does not imply unsupported transport/runtime capabilities.
-- [ ] Keeps degraded/partial/unknown states explicit.
-- [ ] Does not treat inference as canonical truth.
-- [ ] Fits current scope or clearly marks a scope expansion.
-
-## Operator value
-
-How would this help day-to-day operation, incident handling, or verification?
+- [ ] Improves evidence quality, trust, or operator clarity
+- [ ] Does not imply unsupported transport/control capability
+- [ ] Preserves local-first/privacy boundaries
 
 ## Alternatives considered
 
-What else did you consider?
+## Verification idea
 
-## Evidence / context
-
-Logs, screenshots, sample workflows, or links to related issues.
+How should this be tested or proven if implemented?

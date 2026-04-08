@@ -1,35 +1,24 @@
-# Getting Started with MEL
+# Getting Started
 
-This path takes you from first install to trustworthy runtime checks.
+This section is intentionally short.
 
-**Community / role routing:** [Community START_HERE](../community/START_HERE.md) · [Adoption guide](../community/adoption-guide.md) · [Scenario library (demo fixtures)](../community/SCENARIO_LIBRARY.md)
+## New operator path
 
-## Startup path
+1. [Quickstart](QUICKSTART.md)
+2. [First 10 minutes](first-10-minutes.md)
+3. [First incident guide](FIRST_INCIDENT_GUIDE.md)
+4. [Support matrix](../ops/support-matrix.md)
+5. [Known limitations](../ops/limitations.md)
 
-1. [Installation](installation.md)
-2. [Quickstart](QUICKSTART.md)
-3. [First 10 minutes](first-10-minutes.md)
-4. [First hour guide](FIRST_HOUR_GUIDE.md)
-5. [First incident guide](FIRST_INCIDENT_GUIDE.md)
-6. [Support matrix](../ops/support-matrix.md)
-7. [Known limitations](../ops/limitations.md)
+## If you need deeper ops guidance
 
-## Shift and support workflows
-
-- [Operator shift start](OPERATOR_SHIFT_START.md)
-- [Support bundle guide](SUPPORT_BUNDLE_GUIDE.md)
-- [Common misreads](COMMON_MISREADS.md)
-
-## Core concepts (read early)
-
-- [Canonical terminology](../repo-os/terminology.md)
-- [Repo operating system](../repo-os/README.md)
-- [Architecture overview](../architecture/overview.md)
-
-## If you get stuck
-
-- [Diagnostics (`mel doctor`)](../ops/diagnostics.md)
+- [Operations runbook](../ops/OPERATIONS_RUNBOOK.md)
 - [Troubleshooting](../ops/troubleshooting.md)
-- [Operational runbooks](../runbooks/README.md)
+- [Diagnostics](../ops/diagnostics.md)
 
-For Meshtastic device basics, use the official docs: <https://meshtastic.org/docs/introduction>.
+## If you want deterministic demo data
+
+- [Scenario library](../community/SCENARIO_LIBRARY.md)
+- `make demo-seed && ./bin/mel serve --config demo_sandbox/mel.demo.json`
+
+For Meshtastic device basics, see <https://meshtastic.org/docs/introduction>.

@@ -1,36 +1,29 @@
 ---
 name: Hardware compatibility
-about: Report what gateway/radio/host combo worked for you (anecdotal, not certification).
-title: "[compat] "
-labels: ["needs:triage", "kind:docs"]
-assignees: []
+about: Report a tested hardware/firmware/host combination (anecdotal, not certification)
+title: '[COMPAT] '
+labels: kind:compatibility,needs:triage
+assignees: ''
 ---
 
 ## Summary
 
-One-line outcome (what worked or failed):
+One-line result (worked/partial/failed).
 
-## Versions
+## Stack details
 
 - MEL version / commit:
 - Host OS / arch:
-- Radio / device role: <!-- e.g. Meshtastic handset USB-serial to Pi -->
-- Firmware (if known):
+- Device/radio model:
+- Firmware version (if known):
+- Transport used: serial / tcp / mqtt
 
-## Transport configuration
+## Observed result
 
-- Type: <!-- serial | tcp | mqtt -->
-- High-level wiring: <!-- USB, UART pins, LAN MQTT broker, etc. — no secrets -->
+- Ingest status:
+- Evidence source (`mel doctor`, UI, API):
+- Caveats:
 
-## Result
+## Privacy check
 
-- Ingest: <!-- observed / partial / none -->
-- Evidence: <!-- e.g. transport state from UI, `mel doctor` line -->
-
-## Caveats
-
-<!-- RF environment, cable quality, broker TLS, anything that affects reproducibility -->
-
-## Privacy
-
-- [ ] No credentials, broker URLs with userinfo, or precise locations
+- [ ] No secrets or precise locations included

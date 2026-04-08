@@ -1,32 +1,30 @@
 ---
 name: Field report
-about: Share bounded field results, lessons learned, or operator narrative (privacy-safe).
-title: "[field] "
-labels: ["needs:triage", "kind:docs"]
-assignees: []
+about: Share reproducible field observations (privacy-safe)
+title: '[FIELD] '
+labels: kind:field-report,needs:triage
+assignees: ''
 ---
 
 ## Context
 
-- MEL version / commit: <!-- output of `./bin/mel version` -->
+- MEL version / commit:
 - Host OS / arch:
-- Transport(s) in use: <!-- serial / tcp / mqtt — match your config -->
-- Rough environment: <!-- e.g. urban club event, rural relay test — no precise coordinates -->
+- Transport(s):
+- Environment (high-level only, no precise coordinates):
 
 ## What you did
 
-<!-- Steps another operator could repeat; redact secrets -->
-
 ## What you observed
 
-<!-- Link to screenshots only if captioned: live vs historical vs demo-seeded -->
+Be explicit about live vs historical vs seeded/demo evidence.
+
+## Evidence attached
+
+- [ ] `mel doctor` excerpt (redacted)
+- [ ] `/api/v1/status` excerpt (redacted)
+- [ ] Screenshot(s) with captions (optional)
 
 ## Privacy check
 
-- [ ] No API keys, broker credentials, or precise locations in this issue
-- [ ] Config snippets are redacted
-
-## Optional attachments
-
-- `mel doctor` excerpt (redacted)
-- `/api/v1/status` excerpt (redacted)
+- [ ] No credentials, keys, or precise locations included

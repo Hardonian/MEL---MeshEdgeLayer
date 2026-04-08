@@ -1,57 +1,53 @@
 # Post-launch playbook (first weeks)
 
-MEL’s doctrine is **evidence-first** and **no theatre**. This note is for maintainers routing the first wave of outside attention without diluting that bar.
+MEL is evidence-first and anti-theatre. This playbook keeps public intake fast without weakening truth boundaries.
 
 ## Signals to watch
 
-- **Truth / semantics** — labels that imply live path, delivery, or RF success without ingest proof; degraded states that read as healthy.
-- **Control safety** — approval bypass, ambiguous lifecycle phases, missing audit linkage.
-- **Setup truth** — docs or README commands that fail on a clean machine; Node 24.x mismatch for frontend work.
-- **Transport honesty** — confusion about supported vs unsupported surfaces (see README transport matrix and `docs/ops/transport-matrix.md`).
+- **Truth drift:** UI/docs language implies certainty the evidence does not support.
+- **Control safety drift:** lifecycle separation becomes ambiguous.
+- **Setup friction:** first-run commands fail on clean environments.
+- **Transport confusion:** unsupported surfaces read as “almost supported.”
 
 ## Issue classes (route quickly)
 
-| Class | Typical intake template | First response |
+| Class | Intake template | First maintainer response |
 | --- | --- | --- |
-| Setup / bootstrap | `.github/ISSUE_TEMPLATE/install_setup.md` | Reproduce with `mel doctor`, capture config posture (redacted). |
-| Truth / degraded state | `.github/ISSUE_TEMPLATE/truth_semantics.md` | Compare API field to UI label; cite `docs/repo-os/terminology.md`. |
-| Docs drift | `.github/ISSUE_TEMPLATE/docs.md` | Fix doc or narrow claim; link verification command. |
-| Security | GitHub **Security** advisories + `SECURITY.md` | No public secrets or precise locations. |
-| Contributor friction | `.github/ISSUE_TEMPLATE/contributor_onboarding.md` | Point to `CONTRIBUTING.md`, `docs/repo-os/README.md`, `make verify` subset. |
+| Setup / bootstrap | `.github/ISSUE_TEMPLATE/install_setup.md` | Reproduce from first failing command + `mel doctor` output. |
+| Bug / truth mismatch | `.github/ISSUE_TEMPLATE/bug_report.md` | Compare claim vs persisted API/CLI evidence. |
+| Docs drift | `.github/ISSUE_TEMPLATE/docs.md` | Patch wording/links or narrow claim immediately. |
+| Field observation | `.github/ISSUE_TEMPLATE/field_report.md` | Confirm privacy-safe details and label evidence posture. |
+| Hardware compatibility | `.github/ISSUE_TEMPLATE/hardware_compatibility.md` | Treat as anecdotal evidence, not certification. |
+| Security | GitHub advisories + `SECURITY.md` | Keep details private until triaged. |
 
-Label policy: apply `needs:triage` + one `kind:*` label on intake, then one `area:*` label for doctrine-sensitive reports (`area:degraded-state`, `area:control-safety`, `area:topology-or-status`, `area:environment`). For fresh repos/forks, run the bootstrap/sync commands in [`issue-routing-labels.md`](issue-routing-labels.md#label-bootstrap--sync-fresh-repo-or-fork) before first public intake.
+Label policy: apply `needs:triage` + one `kind:*` label on intake, then one `area:*` label if needed.
 
 ## Maintainer rhythm
 
-- **Daily**: skim new issues; tag truth vs polish vs setup; close duplicates with a canonical link.
-- **Pre-release**: `docs/release/RELEASE_CHECKLIST.md`, `docs/project/LAUNCH_CHECKLIST.md`, and `make product-verify` where applicable.
-- **Post-release hotfix**: smallest diff that restores honest signaling; add a regression test or doc assertion when feasible.
+- **Daily:** route issues, close duplicates with canonical links, protect truth semantics first.
+- **Pre-release:** run release checklists and `make product-verify` where applicable.
+- **Hotfixes:** ship the smallest safe correction and add verification evidence.
 
-## Example triage flows (template → labels → maintainer action)
+## Triage examples
 
-1. **Topology overclaim report**
-   - Intake template: `.github/ISSUE_TEMPLATE/truth_semantics.md`
-   - Labels: `needs:triage`, `kind:truth-semantics`, `area:topology-or-status`
-   - Maintainer action: compare the reported UI copy against `GET /api/v1/topology*` payload fields, then either patch UI wording or narrow docs claim with explicit non-claim language.
+1. **Status reads live but evidence is stale**
+   - Template: `bug_report.md`
+   - Action: compare UI/API timestamps; patch semantics or docs.
+2. **First-run setup fails**
+   - Template: `install_setup.md`
+   - Action: isolate env mismatch vs docs drift; fix smallest source of truth.
+3. **Field report suggests edge-case behavior**
+   - Template: `field_report.md`
+   - Action: classify as known limitation, bug, or documentation clarification.
 
-2. **Control-governance ambiguity**
-   - Intake template: `.github/ISSUE_TEMPLATE/bug_report.md`
-   - Labels: `needs:triage`, `kind:bug`, `area:control-safety`
-   - Maintainer action: verify lifecycle separation (submit/approve/dispatch/execute/audit) in API and audit rows before accepting any “executed” claim.
+## What feedback is most useful
 
-3. **Setup/runtime mismatch**
-   - Intake template: `.github/ISSUE_TEMPLATE/install_setup.md`
-   - Labels: `needs:triage`, `kind:setup`, `area:environment`
-   - Maintainer action: request first failing command from `make premerge-verify`, classify as docs fix vs script fix, and preserve explicit degraded/blocked messaging.
-
-## What feedback is most valuable
-
-- Reproducible steps tied to **version/commit** and **doctor output**.
-- Screenshots that include **degraded / partial** banners, not only “green” paths.
-- Suggested wording that **tightens** claims instead of expanding them without evidence.
+- Exact commands + first failure.
+- Version/commit + transport context.
+- Redacted evidence snippets (`mel doctor`, `/api/v1/status`, screenshots with captions).
 
 ## Related
 
 - [Adoption guide](adoption-guide.md)
 - [Claims vs reality](claims-vs-reality.md)
-- [Demo / screenshot runbook](../runbooks/launch-and-demo.md)
+- [Launch and demo runbook](../runbooks/launch-and-demo.md)

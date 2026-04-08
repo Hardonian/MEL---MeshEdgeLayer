@@ -1,35 +1,40 @@
 ---
-name: Install / setup / bootstrap
-about: First-run, build, doctor, or environment problems
+name: Install/setup issue
+about: First-run, build, or environment problems
 title: '[SETUP] '
 labels: kind:setup,area:environment,needs:triage
 assignees: ''
 ---
 
-## What you were trying to do
+## Goal
 
-(e.g. `make build`, `mel init`, `mel serve`, first browser load)
+What were you trying to run?
 
 ## Environment
 
 - Host OS / arch:
-- Go version (if building from source):
-- Node version (`node -v`) — MEL frontend expects **24.x** (`frontend/.nvmrc`):
-- MEL version or `git rev-parse --short HEAD`:
+- Go version:
+- Node version (`node -v`, should be 24.x for frontend/site):
+- MEL commit/version:
 
-## Exact commands
+## Exact command sequence
 
-Paste the full command sequence and the **first error** (not only the last line).
+Paste the exact commands and first error.
+
+```text
+paste command output
+```
 
 ## Doctor output
 
-Run `./bin/mel doctor --config <path>` (or `mel doctor`) and paste the output (redact secrets).
+```text
+./bin/mel doctor --config <path>
+```
 
-## What you expected vs what happened
+(paste output, redacted)
 
-## Before filing (quick checks)
+## Quick checks
 
-- [ ] Read [docs/getting-started/QUICKSTART.md](https://github.com/Hardonian/MEL-MeshEdgeLayer/blob/main/docs/getting-started/QUICKSTART.md)
-- [ ] Ran `make build` or `make build-cli` before `make smoke` if testing smoke
-- [ ] Confirmed Node 24.x for any `frontend/` command
-- [ ] Added output of `make premerge-verify` (or first failing command from it)
+- [ ] Read `docs/getting-started/QUICKSTART.md`
+- [ ] Ran `make build` before `make smoke`
+- [ ] Confirmed Node 24.x for frontend/site commands

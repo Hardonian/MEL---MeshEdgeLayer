@@ -1,52 +1,40 @@
 ---
-name: Bug Report
-about: Create a report to help us improve MEL
+name: Bug report
+about: Report behavior that is wrong, misleading, or inconsistent with MEL truth semantics
 title: '[BUG] '
 labels: kind:bug,needs:triage
 assignees: ''
 ---
 
-## Description
+## Summary
 
-A clear and concise description of what the bug is.
+What broke, in one or two sentences?
 
-## Environment
-
-- MEL Version: (e.g., 0.1.0-rc1)
-- Host OS: (e.g., Ubuntu 22.04, Windows 11)
-- Go Version: (if building from source)
-- Transport Type: (Serial / TCP / MQTT)
-
-## Reproduction Steps
+## Reproduction
 
 1.
 2.
 3.
 
-## Expected Behavior
+## Expected vs actual
 
-A clear and concise description of what you expected to happen.
+- Expected:
+- Actual:
 
-## Actual Behavior
+## Environment
 
-What actually happened? Include any relevant error messages.
+- MEL version / commit:
+- Host OS / arch:
+- Transport type: serial / tcp / mqtt
 
-## Config Posture
+## Evidence
 
-Please provide your `mel.json` config (redact sensitive keys like MQTT passwords or precise locations).
-
-```json
-// Paste config here
-```
-
-## Logs & Doctor Output
-
-Please run `mel doctor --config <path>` and paste the output.
+Include the first relevant failure signal (logs, UI label, API response, or `mel doctor` output).
 
 ```text
-// Paste mel doctor output here
+paste evidence here (redact secrets)
 ```
 
-## Additional Context
+## Truth check
 
-Add any other context about the problem here (e.g., node model, radio firmware version).
+Does this issue create a misleading claim (for example, stale shown as live, unsupported shown as supported)? If yes, explain briefly.
