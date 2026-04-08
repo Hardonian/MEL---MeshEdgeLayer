@@ -1,19 +1,18 @@
 # Contributing to MEL
 
-Thanks for helping improve MEL.
+Thanks for improving MEL.
 
-This project rewards clear thinking, bounded claims, and reproducible verification.
-If the code cannot prove a claim, narrow the claim.
+MEL values bounded claims, deterministic behavior, and verification evidence.
+If code cannot prove a claim, narrow the claim.
 
-## Fast path
+## Fast contribution path
 
-1. Pick a lane: [Community START_HERE](docs/community/START_HERE.md) and [Contributor paths](docs/community/CONTRIBUTOR_PATHS.md).
-2. Choose a scoped first change: [First PR paths](docs/contributor/FIRST_PR_PATHS.md).
-3. Read the contract: [AGENTS.md](AGENTS.md) and [repo-os](docs/repo-os/README.md).
-4. Run verification for your surface.
-5. Submit PR with evidence and residual risk.
+1. Read constraints: [AGENTS.md](AGENTS.md) and [repo-os](docs/repo-os/README.md).
+2. Pick a safe lane: [First PR paths](docs/contributor/FIRST_PR_PATHS.md).
+3. Build + verify the touched surface.
+4. Submit PR with exact command output and residual risk.
 
-## Non-negotiables
+## Non-negotiable invariants
 
 - No fake transport support or fake live-state certainty.
 - No collapsing degraded/partial/unknown into “healthy.”
@@ -21,7 +20,7 @@ If the code cannot prove a claim, narrow the claim.
 - No submission=approval=execution shortcuts on control paths.
 - No docs claims stronger than implementation + verification.
 
-## Local development
+## Local development baseline
 
 ```bash
 make build
@@ -36,21 +35,19 @@ Release-shaped confidence:
 make premerge-verify
 ```
 
-### Environment notes
-
-- Go 1.24+.
-- Node 24.x for `frontend/` and `site/` commands.
-- From repo root: `. ./scripts/dev-env.sh` to activate/check Node 24.
-- `make smoke` requires `./bin/mel` (from `make build` or `make build-cli`).
+Environment notes:
+- Go 1.24+
+- Node 24.x for `frontend/` and `site/`
+- From repo root: `. ./scripts/dev-env.sh`
 
 ## Contribution lanes
 
-- **Docs / runbooks**: tighten wording, remove confusion, improve actionability.
-- **Frontend**: clarify operator state semantics, improve evidence readability.
-- **Go/backend**: tests, diagnostics, transport hardening, deterministic error handling.
-- **Demo/scenarios**: improve fixture realism and repeatability.
+- **Docs / runbooks:** clarify operator decisions, remove drift, reduce ambiguity.
+- **Frontend:** improve evidence semantics and degraded-state clarity.
+- **Go/backend:** transport reliability, diagnostics, deterministic behavior.
+- **Demo/scenarios:** strengthen fixture realism and reproducibility.
 
-Details:
+Deep links:
 - [Docs + runbooks contribution](docs/contributor/DOCS_AND_RUNBOOK_CONTRIBUTION.md)
 - [Frontend contribution](docs/contributor/FRONTEND_CONTRIBUTION.md)
 - [Transport contribution](docs/contributor/TRANSPORT_CONTRIBUTION.md)
@@ -60,22 +57,22 @@ Details:
 
 Every PR should include:
 
-1. **Design intent**: what changed and why.
-2. **Operator impact**: what users will notice.
-3. **Verification evidence**: exact commands and outcomes.
-4. **Residual risk**: what remains partial, unknown, or intentionally out of scope.
-5. **Change class**: Maintenance / Leverage / Moat ([classification guide](docs/repo-os/change-classification.md)).
+1. **Design intent** (what changed + why)
+2. **Operator impact** (what users notice)
+3. **Verification evidence** (exact commands + outcomes)
+4. **Residual risk** (partial/unknown/out-of-scope)
+5. **Change class**: Maintenance / Leverage / Moat ([guide](docs/repo-os/change-classification.md))
 
-Use the PR template at `.github/pull_request_template.md`.
+Template: `.github/pull_request_template.md`
 
 ## Verification minimums by change type
 
-- Docs-only: human proofread + link sanity + scoped checks as needed.
+- Docs-only: human proofread + link sanity + scoped checks.
 - Frontend: `make frontend-typecheck`, `make frontend-test`, `make lint`.
-- Backend/runtime: `make test`, plus `make smoke` if runtime behavior changed.
-- Capability claims or trust boundaries: run relevant repo-os audits and document results.
+- Backend/runtime: `make test`; add `make smoke` when runtime behavior changes.
+- Capability/trust-boundary changes: run relevant repo-os audits and document results.
 
-Canonical verification references:
+References:
 - [Verification matrix](docs/repo-os/verification-matrix.md)
 - [Release readiness](docs/repo-os/release-readiness.md)
 
