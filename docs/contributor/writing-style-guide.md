@@ -1,84 +1,79 @@
-# MEL Writing Style Guide (UI + Docs)
+# MEL writing style guide (docs + UI)
 
-Use this guide for operator-facing text in UI, docs, onboarding, and release notes.
+Use this guide for README, docs, UI copy, issue templates, and release notes.
 
-## 1) Product voice
+Goal: MEL should sound like one coherent project — precise, useful, and allergic to theatre.
 
-Baseline voice:
-- calm;
-- competent;
-- direct;
-- evidence-bounded.
+## Voice baseline
 
-Never write with theatrical, juvenile, or hype-heavy tone.
+Write like a calm operator who has seen real outages:
+- clear
+- compact
+- technically literate
+- slightly dry
+- never hype-heavy
 
-## 2) Canonical terminology
+Snark is allowed only when it improves clarity.
 
-Use:
-- **operator console** for `/` and generic primary web surface references;
-- **incident workbench** for `/incidents` queue and triage language;
-- transport, ingest, evidence, incident, approval, dispatch, execution, audit;
-- degraded, partial, stale, unknown, unsupported.
+## House rules
 
-Avoid:
-- dashboard (except legacy code/API identifiers);
-- command surface as a user-facing generic label;
-- vague claims like “fully healthy” without bounded evidence.
+1. **State evidence, not vibes.**
+2. **Name uncertainty explicitly** (`unknown`, `partial`, `degraded`, `stale`).
+3. **Do not imply unsupported capability.**
+4. **Prefer short words over abstract jargon.**
+5. **Lead with what the operator should do next.**
 
-## 3) Tone and wording rules
+## Canonical terms
 
-- Prefer verb-first action labels: `Refresh evidence`, `Review incident`, `Export proofpack`.
-- Keep sentence shape simple: what happened, impact, next action.
-- Avoid blame language: “you forgot”, “bad config”, “broken setup”.
-- Avoid filler interjections: “Oops!”, “Yikes!”, “Uh oh!”.
+Prefer these terms consistently:
+- operator console
+- ingest evidence
+- incident
+- proofpack
+- action lifecycle: submission → approval → dispatch → execution → audit
+- support posture: supported / unsupported / degraded / unknown
 
-## 4) State wording templates
+Avoid fuzzy alternatives:
+- “fully healthy” (unless backed by precise criteria)
+- “real-time certainty”
+- “AI-powered insight” without boundaries
+- decorative military/cyber naming
 
-Use these phrases or close equivalents:
-- Live: “Recent persisted ingest evidence is present.”
-- Stale: “Evidence is stale; verify current transport state.”
-- Degraded/Partial: “Connected with gaps; review failure markers.”
-- Unknown: “No current evidence; state is unknown.”
-- Unsupported: “Not implemented in this MEL runtime.”
+## Tone examples
 
-## 5) Error copy pattern
+Good:
+- “Recent persisted ingest evidence is present.”
+- “State is degraded: transport connected with gaps.”
+- “Unsupported in current MEL runtime.”
 
-Every error line should include:
-1. failure;
-2. operator impact;
+Bad:
+- “Everything looks great.”
+- “Autonomous mesh intelligence complete.”
+- “Enterprise-grade battlefield dashboard.”
+
+## Error-message pattern
+
+For UI/API/CLI errors, include:
+1. what failed,
+2. operator impact,
 3. next action.
 
 Example:
-- “Diagnostics fetch failed. Findings may be stale. Retry or verify transport connectivity.”
+`Diagnostics fetch failed. Findings may be stale. Retry or verify transport connectivity.`
 
-## 6) Safety, trust, and legal boundaries
+## README/docs structure defaults
 
-Never imply:
-- unauthorized/covert behavior;
-- unsupported transport/runtime capabilities;
-- submission equals approval or execution;
-- inferred output equals canonical truth.
+- Start with what MEL is and is not.
+- Add support/limitation boundaries early.
+- Keep quickstart short and runnable.
+- Put deeper theory after actionable guidance.
+- Link to canonical pages instead of duplicating large matrices.
 
-## 7) Page and component naming rules
-
-- Page titles should be short operator nouns: `Diagnostics`, `Recommendations`, `Settings`.
-- Avoid decorative naming (“cockpit mode”, “mission center”, “cyber board”).
-- Component names should encode function/truth intent (`OperatorTruthRibbon`, `SupportBundleExport`).
-
-## 8) Strong vs weak examples
-
-Strong:
-- “No active recommendations from current evidence.”
-- “Approval pending. Dispatch has not started.”
-
-Weak:
-- “Everything is great.”
-- “Stealth remediation complete.”
-
-## 9) Review checklist for copy changes
+## Copy review checklist
 
 Before merge, confirm:
 - terminology matches canon;
-- wording preserves degraded/partial/unknown semantics;
-- claims do not exceed implementation evidence;
-- destructive actions are explicit about consequences.
+- claims are bounded by implementation;
+- degraded/unknown semantics are preserved;
+- wording is shorter and clearer than before;
+- personality does not undermine trust.

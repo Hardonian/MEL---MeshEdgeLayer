@@ -1,35 +1,34 @@
-# MEL Current Status (RC1)
+# MEL current status
 
-## Last updated: 2026-03-21
+## Last updated: 2026-04-08
 
-MEL is currently in **Release Candidate 1 (RC1)**. It is stable for field testing and local-first observability but should be used with an understanding of its current scope and boundaries.
+MEL is usable today for local-first mesh observability and incident workflows, with explicit boundaries.
 
-## 🟢 What is Real Today
+## What is implemented now
 
-- **Zero-Theatre Ingest**: Serial, TCP, and MQTT transports are fully implemented with reconnection logic.
-- **Persistence**: High-fidelity SQLite storage of all Meshtastic packet types (Text, Position, Telemetry, etc.).
-- **Authoritative Doctor**: `mel doctor` provides 15+ health checks for host, database, and transport layers.
-- **Web Dashboard**: Real-time observability of mesh health, nodes, and action history.
-- **Control Plane**: Reality-matrix evaluation that can suggest (Advisory) or execute (Guarded Auto) remediation actions for disconnected transports.
-- **Privacy Core**: Automated redaction of sensitive data in exports and built-in privacy auditing.
+- Serial/TCP direct ingest and MQTT ingest.
+- Persistent evidence model in SQLite with operator-facing diagnostics.
+- CLI + embedded web operator console via `mel serve`.
+- Incident/control workflow surfaces with explicit lifecycle semantics.
+- Deterministic fixture/demo mode for evaluation without radios.
 
-## 🟡 What is Evolving
+## What is intentionally bounded
 
-- **BLE / HTTP Transports**: Not yet supported.
-- **Metrics Server**: Config exists, but a dedicated Prometheus-compatible listener is coming in 0.2.0.
-- **Backup Restore**: `backup restore` exists but requires `--dry-run` validation only. Active production-state restoration is still being hardened.
-- **Action Reversibility**: Not all remediation actions are currently reversible.
+- BLE ingest: unsupported.
+- HTTP ingest: unsupported.
+- MEL as RF routing/transmit engine: not implemented.
+- Local inference as canonical truth: not allowed.
 
-## 🔴 What is Intentionally Not Claimed
+## How to evaluate credibly
 
-- **Radio Control**: MEL does not currently perform radio admin operations (e.g., changing channel settings via radio packets).
-- **Global Routing**: MEL is a local-first layer; it does not participate in mesh routing or store-and-forward.
-- **At-Rest Encryption**: MEL relies on OS-level file permissions and disk encryption; it does not encrypt the SQLite file contents itself.
+1. Run quickstart: [docs/getting-started/QUICKSTART.md](../getting-started/QUICKSTART.md).
+2. Validate boundaries: [docs/ops/limitations.md](../ops/limitations.md) and [docs/community/claims-vs-reality.md](../community/claims-vs-reality.md).
+3. Run verification chain from root README (`make lint`, `make test`, `make build`, `make smoke`).
+4. For release-grade confidence, run `make premerge-verify`.
 
-## 🚀 How to Help
+## Where contributions are most valuable now
 
-We are looking for field testers to:
-
-1. Run `mel doctor` in diverse host environments (RPi, ARM, x86).
-2. Verify MQTT ingest stability over high-latency links.
-3. Test Control Plane "Guarded Auto" mode with flaky Serial/TCP connections.
+- Better diagnostics and degraded-state clarity.
+- Incident workflow polish (without widening claims).
+- Runbooks and onboarding simplification.
+- Transport reliability hardening within existing supported paths.
