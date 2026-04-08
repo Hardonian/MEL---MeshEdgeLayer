@@ -45,7 +45,7 @@ make demo-seed
 
 ## Newcomer funnel
 
-1. **Start here:** [docs/README.md](docs/README.md)
+1. **What MEL is:** public orientation site (`site/`) Home + Help pages, then [docs/README.md](docs/README.md)
 2. **Try MEL:** [docs/getting-started/QUICKSTART.md](docs/getting-started/QUICKSTART.md), [docs/ops/evaluate-in-10-minutes.md](docs/ops/evaluate-in-10-minutes.md)
 3. **Understand boundaries:** [docs/ops/support-matrix.md](docs/ops/support-matrix.md), [docs/ops/limitations.md](docs/ops/limitations.md), [docs/community/claims-vs-reality.md](docs/community/claims-vs-reality.md)
 4. **Contribute safely:** [CONTRIBUTING.md](CONTRIBUTING.md)
