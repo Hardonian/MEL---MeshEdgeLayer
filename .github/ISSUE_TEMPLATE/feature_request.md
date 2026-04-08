@@ -1,32 +1,36 @@
 ---
-name: Feature Request
-about: Propose a truthful, operator-useful MEL improvement
-title: '[FEAT] '
+name: Feature request
+about: Propose an operator-useful MEL improvement with bounded claims
+title: "[FEAT] "
 labels: enhancement
-assignees: ''
+assignees: ""
 ---
 
-## Problem Statement
+## Problem to solve
 
-Is your feature request related to a problem? Please describe it clearly. (e.g., "I can't see the reason why my MQTT transport keeps disconnecting in the dashboard.")
+What operator problem are you seeing? Be concrete.
 
-## Proposed Solution
+## Proposed change
 
-Describe the solution you'd like to see. How does it help the operator maintain mesh "Truth"?
+What should MEL do differently?
 
-## Why this aligns with MEL's "Zero Theatre" Product Boundaries
+## Truth boundaries (required)
 
-MEL is a local-first observability and control plane. Does this feature:
+How does this request preserve MEL contracts?
 
-- [ ] Increase structural coherence?
-- [ ] Maintain local-first data ownership?
-- [ ] Avoid adding "magic" or fake data?
-- [ ] Stay within the scope defined in [ROADMAP_EXECUTION.md](docs/roadmap/ROADMAP_EXECUTION.md)?
+- [ ] Does not imply unsupported transport/runtime capabilities.
+- [ ] Keeps degraded/partial/unknown states explicit.
+- [ ] Does not treat inference as canonical truth.
+- [ ] Fits current scope or clearly marks a scope expansion.
 
-## Alternatives Considered
+## Operator value
 
-Describe any alternative solutions or features you've considered.
+How would this help day-to-day operation, incident handling, or verification?
 
-## Additional Context
+## Alternatives considered
 
-Add any other context or screenshots about the feature request here.
+What else did you consider?
+
+## Evidence / context
+
+Logs, screenshots, sample workflows, or links to related issues.

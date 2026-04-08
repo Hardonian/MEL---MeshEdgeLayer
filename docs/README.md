@@ -1,103 +1,55 @@
-# MEL Documentation Hub
+# MEL Docs Hub
 
-This hub is organized for operator truth: simple wording by default, precise contract language where needed.
+MEL docs are organized for one goal: understand reality quickly without overclaiming.
 
-Progressive path: **understand → install → run → inspect → operate → troubleshoot → extend → contribute**.
+**Default path:** understand → run → verify → operate → contribute.
 
 ## Start here
 
+- [FAQ](FAQ.md)
 - [Getting started](getting-started/README.md)
-- [FAQ](FAQ.md) — bounded answers without marketing drift
-- [Product documentation](product/README.md)
 - [Evaluate in 10 minutes](ops/evaluate-in-10-minutes.md)
-- [Support matrix](ops/support-matrix.md)
 - [Known limitations](ops/limitations.md)
+- [Support matrix](ops/support-matrix.md)
 
-## Short entry paths (indexes)
+## Core tracks
 
-Stable URLs that point at canonical depth (avoid duplicating matrices here):
-
-- [Quick start + demo](quickstart-demo.md)
-- [Compatibility matrix](compatibility-matrix.md)
-- [Why MEL](why-mel.md)
-- [What MEL does not claim](what-mel-does-not-claim.md)
-- [Operator-truth principles](operator-truth-principles.md)
-- [Design partner / pilot](design-partner-pilot.md)
-- [Trust and safety](trust-and-safety.md)
-- [Deployment modes](deployment-modes.md)
-- [Pricing/packaging draft index](pricing-packaging-draft.md)
-- [Founder demo script](founder-demo-script.md)
-- [Distribution plan](distribution-plan.md)
-- [Contributor map](contributor-map.md)
-
-## Canonical truth and language
-
-- [Canonical GitHub URLs](repo-os/canonical-github.md) (browser remote for docs and links)
-- [Repo OS](repo-os/README.md)
-- [Canonical terminology](repo-os/terminology.md)
-- [Verification matrix](repo-os/verification-matrix.md)
-- [Release readiness gate](repo-os/release-readiness.md)
-
-## Operations
-
+### 1) Run and operate MEL
 - [Operations runbook](ops/OPERATIONS_RUNBOOK.md)
 - [CLI reference](ops/cli-reference.md)
 - [API reference](ops/api-reference.md)
 - [Diagnostics](ops/diagnostics.md)
 - [Troubleshooting](ops/troubleshooting.md)
-- [Control plane](ops/control-plane.md)
 
-## Runbooks
-
-- [Runbook index](runbooks/README.md)
-- [Common connectivity](runbooks/common-connectivity.md)
-- [Dead letters](runbooks/dead-letters.md)
-- [Incident investigation](runbooks/incident-investigation.md)
-- [Proofpack export](runbooks/proofpack-export.md)
-
-## Architecture and boundaries
-
-- [Architecture overview](architecture/overview.md)
-- [Operational boundaries](architecture/OPERATIONAL_BOUNDARIES.md)
-- [Control-plane trust model](architecture/CONTROL_PLANE_TRUST_MODEL.md)
-- [Transport flow](architecture/transport-flow.md)
-- [Timeline truth](architecture/timeline-truth.md)
-
-## Project context
-
+### 2) Understand boundaries and trust model
+- [Product overview](product/PRODUCT_OVERVIEW.md)
 - [What MEL is not](product/what-mel-is-not.md)
+- [Honesty and boundaries](product/HONESTY_AND_BOUNDARIES.md)
 - [Claims vs reality](community/claims-vs-reality.md)
-- [Roadmap execution](roadmap/ROADMAP_EXECUTION.md)
+- [Terminology canon](repo-os/terminology.md)
 
-## Privacy, security, and trust
-
-- [Privacy and data posture](release/PRIVACY_AND_DATA_POSTURE.md)
-- [Security model](release/SECURITY_MODEL.md)
-- [Repository security policy](../SECURITY.md)
-- [Support boundaries (community)](../SUPPORT.md)
-- [Privacy posture (detailed)](privacy/posture.md)
-- [Threat model](threat-model/README.md)
-- [Control-plane trust (operations)](ops/CONTROL_PLANE_TRUST.md)
-- [Control-plane trust model (architecture)](architecture/CONTROL_PLANE_TRUST_MODEL.md)
-
-## Contributing and community
-
-- [CONTRIBUTING.md](../CONTRIBUTING.md) (repository root)
+### 3) Contribute safely
+- [Contributor map](contributor-map.md)
+- [Community START_HERE](community/START_HERE.md)
 - [Why contribute](community/WHY_CONTRIBUTE.md)
-- [Community hub](community/README.md)
-- [Contributor paths by role](community/CONTRIBUTOR_PATHS.md)
 - [First PR paths](contributor/FIRST_PR_PATHS.md)
-- [Dependency and license inventory](community/dependency-license-inventory.md)
+- [Contributing guide](../CONTRIBUTING.md)
 
-## Public orientation site (optional)
-
-The [`site/`](../site/) Next.js app is a **thin** front door (quick start, help, contribute, trust). Canonical depth remains in this `docs/` tree and the embedded operator UI.
-
-## Release and support system
-
+### 4) Release and verification
 - [Release criteria](release/RELEASE_CRITERIA.md)
 - [Release checklist](release/RELEASE_CHECKLIST.md)
-- [Upgrade and migration](release/UPGRADE_AND_MIGRATION.md)
-- [Compatibility and support matrix](release/COMPATIBILITY_AND_SUPPORT_MATRIX.md)
-- [Security model](release/SECURITY_MODEL.md)
-- [Privacy and data posture](release/PRIVACY_AND_DATA_POSTURE.md)
+- [Verification matrix](repo-os/verification-matrix.md)
+- [Release readiness](repo-os/release-readiness.md)
+
+## Quick entry pages (short indexes)
+
+- [Quickstart + demo](quickstart-demo.md)
+- [Why MEL](why-mel.md)
+- [Operator-truth principles](operator-truth-principles.md)
+- [Trust and safety](trust-and-safety.md)
+- [Design partner / pilot](design-partner-pilot.md)
+
+## Optional public orientation site
+
+[`site/`](../site/README.md) is a lightweight front door.
+Canonical technical depth remains in this `docs/` tree and the embedded operator UI.

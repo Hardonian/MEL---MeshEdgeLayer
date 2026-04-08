@@ -1,137 +1,88 @@
 # Contributing to MEL
 
-Welcome to the MeshEdgeLayer (MEL) contribution guide. This project is built to reduce entropy and increase structural coherence in mesh network operations.
+Thanks for helping improve MEL.
 
-**Role-based entry points:** [docs/community/START_HERE.md](docs/community/START_HERE.md) · [docs/community/CONTRIBUTOR_PATHS.md](docs/community/CONTRIBUTOR_PATHS.md) · [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
+This project rewards clear thinking, bounded claims, and reproducible verification.
+If the code cannot prove a claim, narrow the claim.
 
-**Community standards:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md)
+## Fast path
 
-## Ground rules for contributors
+1. Pick a lane: [Community START_HERE](docs/community/START_HERE.md) and [Contributor paths](docs/community/CONTRIBUTOR_PATHS.md).
+2. Choose a scoped first change: [First PR paths](docs/contributor/FIRST_PR_PATHS.md).
+3. Read the contract: [AGENTS.md](AGENTS.md) and [repo-os](docs/repo-os/README.md).
+4. Run verification for your surface.
+5. Submit PR with evidence and residual risk.
 
-1. **Keep MEL Honest**: No fake transports, no fake mesh data, and no dead routes.
-2. **Narrow Public Claims**: If a feature is not yet fully implemented or verified, it must be explicitly labeled as such in both code and documentation.
-3. **Preserve Compatibility**: Stock Meshtastic compatibility boundaries are sacred.
-4. **Prefer Stdlib-Only Go**: Avoid adding external dependencies unless they are already vendored.
-5. **No Undefined Access**: All errors must be handled and reported explicitly. Silencing an error is a violation of the "Truth-First" model.
+## Non-negotiables
 
----
+- No fake transport support or fake live-state certainty.
+- No collapsing degraded/partial/unknown into “healthy.”
+- No silent auth/trust-boundary broadening.
+- No submission=approval=execution shortcuts on control paths.
+- No docs claims stronger than implementation + verification.
 
-## Architecture and truth boundaries
-
-Before you begin, understand where MEL starts and stops:
-
-- **Ingest Layers**: Currently serial direct-node, TCP direct-node, and MQTT are supported.
-- **Explicit Limitations**: BLE, HTTP ingest, and radio transmission (send/publish) are **not** currently implemented.
-- **Metrics**: A `/metrics` endpoint exists, but MEL does not yet ship a dedicated metrics server or exporter.
-- **Control Plane**: Automated remediations must be guarded. No autonomous action without evidence provenance.
-
-Review the [Known Limitations](docs/ops/limitations.md) for more details.
-
----
-
-## Local development and build
-
-### 1. Build and Verify
-
-MEL uses a straightforward `Makefile` to maintain consistency:
+## Local development
 
 ```bash
-# Stack-shaped PR signal: lint + test + build + smoke (see README “Verification entry points”)
-make verify-stack
-
-# Maintainer-heavy gate: fmt + lint + test + build + cross-build + reality-check + product-verify
-make verify
-
-# Build only (outputs to bin/)
 make build
-
-# Run unit tests
+make lint
 make test
-
-# Deterministic frontend + site + Go chain for release-shaped confidence
-make premerge-verify
-
-# Run the local smoke test suite (requires ./bin/mel from build)
 make smoke
 ```
 
-**Sandbox demo (fixture-backed UI data, no radio):** after `make build-cli`, `make demo-seed` then `./bin/mel serve --config demo_sandbox/mel.demo.json`. See [docs/community/SCENARIO_LIBRARY.md](docs/community/SCENARIO_LIBRARY.md).
-
-**Dev container:** [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) (Go 1.24, Node 24, Python 3.12) for VS Code / Codespaces-style setups.
-
-**Node 24 and Python:** `make lint` and `make product-verify` need Node `24.x` and `python3` (or `python`) on `PATH`. From the repo root, after installing [nvm](https://github.com/nvm-sh/nvm):
+Release-shaped confidence:
 
 ```bash
-. ./scripts/dev-env.sh   # sources nvm, nvm use, checks Node 24 + Python
-make lint
+make premerge-verify
 ```
 
-### 2. Frontend development
+### Environment notes
 
-The control plane dashboard lives in `frontend/`.
+- Go 1.24+.
+- Node 24.x for `frontend/` and `site/` commands.
+- From repo root: `. ./scripts/dev-env.sh` to activate/check Node 24.
+- `make smoke` requires `./bin/mel` (from `make build` or `make build-cli`).
 
-```bash
-cd frontend
-nvm use # reads .nvmrc (Node 24.x required)
-npm install
-npm run dev      # Start dev server (Vite: http://localhost:3000, proxies /api to mel)
-npm run lint     # Check styling
-npm run typecheck
-npm test         # Run vitest suite
-```
+## Contribution lanes
 
-Runtime contract:
-- Frontend install/lint/typecheck/test/build are guarded by `frontend/scripts/require-node24.mjs`.
-- Required Node version: `24.x` (`>=24 <25`, see `frontend/package.json` + `frontend/.nvmrc`).
-- If Node is not 24.x, frontend commands fail fast with a runtime-contract error.
-- `frontend-install` runs `npm ci` deterministically; in a single `make` invocation (`make frontend-verify build-cli`, `make verify`, or `make premerge-verify`), install runs once and downstream checks/build reuse that exact dependency state.
+- **Docs / runbooks**: tighten wording, remove confusion, improve actionability.
+- **Frontend**: clarify operator state semantics, improve evidence readability.
+- **Go/backend**: tests, diagnostics, transport hardening, deterministic error handling.
+- **Demo/scenarios**: improve fixture realism and repeatability.
 
-### 3. Verification standards
+Details:
+- [Docs + runbooks contribution](docs/contributor/DOCS_AND_RUNBOOK_CONTRIBUTION.md)
+- [Frontend contribution](docs/contributor/FRONTEND_CONTRIBUTION.md)
+- [Transport contribution](docs/contributor/TRANSPORT_CONTRIBUTION.md)
+- [Architecture map](docs/contributor/ARCHITECTURE_MAP.md)
 
-Every Pull Request must:
+## PR requirements
 
-- Pass `make lint`.
-- Pass `make frontend-typecheck`.
-- Pass `make frontend-test`.
-- Pass `make test`.
-- Build `./bin/mel` before smoke (`make build-cli` or `make build`), then pass `make smoke`.
-- Include verification steps in the description.
+Every PR should include:
 
----
+1. **Design intent**: what changed and why.
+2. **Operator impact**: what users will notice.
+3. **Verification evidence**: exact commands and outcomes.
+4. **Residual risk**: what remains partial, unknown, or intentionally out of scope.
+5. **Change class**: Maintenance / Leverage / Moat ([classification guide](docs/repo-os/change-classification.md)).
 
-## Safe areas for expansion
+Use the PR template at `.github/pull_request_template.md`.
 
-- **Policy & Privacy Logic**: Refine redaction or trust boundary enforcement.
-- **Documentation**: New runbooks or operator workflow improvements.
-- **Transport Hardening**: Improve reconnection persistence or error reporting.
-- **Protobuf Decoding**: Support new Meshtastic payloads (include fixtures/tests).
+## Verification minimums by change type
 
----
+- Docs-only: human proofread + link sanity + scoped checks as needed.
+- Frontend: `make frontend-typecheck`, `make frontend-test`, `make lint`.
+- Backend/runtime: `make test`, plus `make smoke` if runtime behavior changed.
+- Capability claims or trust boundaries: run relevant repo-os audits and document results.
 
-## MEL repo-OS discipline
+Canonical verification references:
+- [Verification matrix](docs/repo-os/verification-matrix.md)
+- [Release readiness](docs/repo-os/release-readiness.md)
 
-All non-trivial changes must run through the repo operating system in `docs/repo-os/README.md`.
+## Community standards
 
-Minimum expectation per PR:
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md)
+- [SUPPORT.md](SUPPORT.md)
 
-- Classify work as Maintenance / Leverage / Moat (`docs/repo-os/change-classification.md`).
-- Run applicable truth/governance/security audits from `docs/repo-os/`.
-- Meet verification obligations from `docs/repo-os/verification-matrix.md`.
-- Pass release reality gate in `docs/repo-os/release-readiness.md` for capability-affecting changes.
-
-## Pull request checklist
-
-When submitting a PR, include:
-
-- **Design Intent**: Why is this change necessary?
-- **Operator Impact**: What does a user see or experience differently?
-- **Verification Evidence**: Logs, test results, or manual proof.
-- **Residual Risk**: What is still unknown or partial about this implementation?
-
-**We optimize for a clean, deterministic repository.** If a change increases noise, it will be rejected in favor of a simpler, more coherent solution.
-
-MEL is licensed under the **GNU General Public License v3.0** — see [`LICENSE`](LICENSE) in the repository root.
-
-© 2026 Hardonian / MeshEdgeLayer Contributors.
-
-**Public marketing site (`site/`):** Next.js app for orientation only (not the operator console). Verify with `make site-verify` or `cd site && npm ci && npm run lint && npm run typecheck && npm run build`. Use Node 24.x (same contract as `frontend/`).
+MEL is GPL-3.0 licensed; see [LICENSE](LICENSE).
