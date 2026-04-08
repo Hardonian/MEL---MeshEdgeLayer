@@ -95,6 +95,15 @@ cd MEL-MeshEdgeLayer`}
         </ul>
       </Section>
 
+      <Section title="What a good PR includes" id="good-pr">
+        <ul>
+          <li>Bounded claim language that matches implementation truth.</li>
+          <li>Verification commands and outcomes (`make lint`, `make test`, `make build`, `make smoke` minimum).</li>
+          <li>Explicit degraded/unknown-state behavior when applicable.</li>
+          <li>Residual risk and caveats instead of hidden assumptions.</li>
+        </ul>
+      </Section>
+
       <Section title="Contribution doctrine" id="doctrine">
         <PrincipleList items={contributionPrinciples} />
       </Section>
@@ -115,6 +124,7 @@ cd MEL-MeshEdgeLayer`}
         <ul>
           <li>Repository: <a href={REPO_URL}>{REPO_URL}</a></li>
           <li>Issues: <a href={REPO_ISSUES_URL}>{REPO_ISSUES_URL}</a></li>
+          <li>Discussions: use issue templates for scoped proposals and field reports.</li>
           <li>Contributor guide: <a href={melGithubFile('CONTRIBUTING.md')}>CONTRIBUTING.md</a></li>
         </ul>
       </Section>

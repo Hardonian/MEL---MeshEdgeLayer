@@ -15,7 +15,6 @@ export const NAV_LINKS: readonly NavLink[] = [
   { href: '/architecture', label: 'Architecture' },
   { href: '/trust', label: 'Trust' },
   { href: '/help', label: 'Help' },
-  { href: '/faq', label: 'FAQ' },
   { href: '/contribute', label: 'Contribute' },
   { href: '/acknowledgements', label: 'Credits' },
   { href: DOCS_HUB, label: 'Repo Docs', external: true },

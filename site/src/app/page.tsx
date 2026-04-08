@@ -16,11 +16,11 @@ export default function HomePage() {
       <section className="hero" aria-labelledby="hero-heading">
         <p className="kicker">MeshEdgeLayer</p>
         <h1 id="hero-heading" className="heroTitle">
-          Incident intelligence and trusted control — bounded by what the runtime can prove.
+          MEL is an evidence-first operator OS for incidents and trusted control under degraded conditions.
         </h1>
         <p className="heroLead">
-          MEL is an operator OS for mesh and edge environments: ingest evidence, keep action history attributable, and surface
-          degraded or unknown posture instead of smoothing it away.
+          Built for mesh/edge operators who need honest runtime truth: keep evidence and action history attributable, and keep
+          partial, stale, and unknown posture visible.
         </p>
         <ul className="heroMeta" aria-label="Product positioning">
           <li>For field operators and maintainers who own the stack</li>
@@ -28,41 +28,69 @@ export default function HomePage() {
           <li>CLI and embedded UI; this site is orientation only</li>
         </ul>
         <div className="ctaRow">
-          <span className="ctaLabel">Get running</span>
+          <span className="ctaLabel">Start here</span>
           <Link href="/quickstart" className="btn primary">
             Quick start
+          </Link>
+          <Link href="/help" className="btn">
+            Help / orientation
+          </Link>
+          <Link href="/contribute" className="btn">
+            Contribute
           </Link>
           <a href={melGithubFile('docs/README.md')} className="btn" rel="noreferrer" target="_blank">
             Documentation hub
             <span className="srOnly"> (opens in new tab)</span>
           </a>
-          <Link href="/guide" className="btn">
-            Site vs console vs docs
-          </Link>
         </div>
         <div className="ctaRow ctaRowSecondary">
-          <span className="ctaLabel">Learn</span>
-          <Link href="/architecture" className="btn">
-            Architecture
-          </Link>
-          <Link href="/compare" className="btn">
-            Compare
-          </Link>
-          <Link href="/guide" className="btn">
-            Guide
-          </Link>
+          <span className="ctaLabel">Boundaries</span>
+          <a href={melGithubFile('docs/ops/support-matrix.md')} className="btn" rel="noreferrer" target="_blank">
+            Support matrix
+            <span className="srOnly"> (opens in new tab)</span>
+          </a>
+          <a href={melGithubFile('docs/ops/limitations.md')} className="btn" rel="noreferrer" target="_blank">
+            Known limitations
+            <span className="srOnly"> (opens in new tab)</span>
+          </a>
           <Link href="/trust" className="btn">
             Trust & privacy
           </Link>
-          <Link href="/contribute" className="btn">
-            Contribute
-          </Link>
-          <a href="https://meshtastic.org/docs/introduction" className="btn" rel="noreferrer" target="_blank">
-            Meshtastic (reference)
-            <span className="srOnly"> (opens in new tab)</span>
-          </a>
+          <Link href="/guide" className="btn">Site vs console vs docs</Link>
         </div>
       </section>
+
+      <Section title="Launch funnel" id="funnel" description="One path from first read to real operation.">
+        <ol>
+          <li>
+            <strong>What MEL is:</strong> this page + <Link href="/help">Help</Link>.
+          </li>
+          <li>
+            <strong>Try MEL:</strong> <Link href="/quickstart">Quick start</Link> with deterministic commands.
+          </li>
+          <li>
+            <strong>Understand boundaries:</strong>{' '}
+            <a href={melGithubFile('docs/ops/support-matrix.md')} rel="noreferrer" target="_blank">
+              support matrix
+            </a>{' '}
+            and{' '}
+            <a href={melGithubFile('docs/community/claims-vs-reality.md')} rel="noreferrer" target="_blank">
+              claims vs reality
+            </a>
+            .
+          </li>
+          <li>
+            <strong>Contribute:</strong> <Link href="/contribute">Contribute</Link>.
+          </li>
+          <li>
+            <strong>Operate for real:</strong>{' '}
+            <a href={melGithubFile('docs/ops/OPERATIONS_RUNBOOK.md')} rel="noreferrer" target="_blank">
+              operations runbook
+            </a>
+            .
+          </li>
+        </ol>
+      </Section>
 
       <Section
         title="What MEL is"
