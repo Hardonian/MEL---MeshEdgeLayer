@@ -1,36 +1,36 @@
 # MEL Pull Request
 
-## Design Intent
+## Why this change
 
-- What change is being made and why?
-- How does this reduce entropy or increase structural coherence?
-- Work classification: **Maintenance / Leverage / Moat** (see `docs/repo-os/change-classification.md`).
+- Problem being solved:
+- Why now:
+- Work classification: **Maintenance / Leverage / Moat**
 
-## Operator Impact
+## Truth boundary
 
-- How does this change affect the operator experience (CLI, UI, Logs)?
-- Are there any changes to `mel doctor` or `mel status` reporting?
+What claim does this PR make, and what does it explicitly **not** claim?
 
-## Verification Evidence
+## Operator impact
 
-- [ ] **Unit Tests**: `go test ./...`
-- [ ] **Lint/Vet**: `make lint`
-- [ ] **Manual Proof**: List the exact commands and output you used to verify the change (e.g., `mel doctor`).
+What an operator/contributor will notice (UI, CLI, API, docs).
 
-## Privacy & Security
+## Verification evidence
 
-- [ ] No new PII or precise location data is stored by default.
-- [ ] No changes to config file permission requirements.
-- [ ] Any new CLI/API exports have redaction support where applicable.
+Paste exact commands and outcomes (not summaries).
 
-## Risks & Remaining Limitations
+- [ ] `make lint`
+- [ ] `make test`
+- [ ] `make build`
+- [ ] `make smoke` (if runtime behavior changed)
+- [ ] Additional checks run:
 
-- Describe any residual risk or explicitly say "none beyond documented scope".
+## Residual risk
 
-## Repo-OS Audits
+Known caveats, degraded paths, or follow-up work.
 
-- [ ] Operator Truth Audit (`docs/repo-os/operator-truth-audit.md`)
-- [ ] Transport Truth & Degraded-State Audit (`docs/repo-os/transport-truth-audit.md`)
-- [ ] Trusted Control Governance Checklist (if control paths touched) (`docs/repo-os/trusted-control-governance.md`)
-- [ ] Security / Trust-Boundary Audit (`docs/repo-os/security-trust-boundary-audit.md`)
-- [ ] Moat Evaluation completed for major feature/refactor (`docs/repo-os/moat-evaluation.md`)
+## Reviewer checklist
+
+- [ ] No overclaim vs implementation
+- [ ] Degraded/unknown states remain explicit
+- [ ] Privacy/trust boundaries preserved
+- [ ] Tests/docs updated where needed

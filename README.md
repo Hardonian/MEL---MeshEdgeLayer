@@ -1,186 +1,93 @@
 # MEL — MeshEdgeLayer
 
-**Truth-preserving incident intelligence and trusted control for mesh operations.**
+**An honest operator console for mesh incidents, evidence, and trusted control.**
 
 ![MEL Hero](assets/mel_hero_new_1774058412698.png)
 
-MEL is a **local-first** operator system: it ingests mesh evidence, keeps incidents and actions attributable, and surfaces **live vs stale vs historical vs degraded** states explicitly. It is built for people who run real nodes and need an audit-friendly console — not a decorative map toy.
+MEL helps operators answer three questions without guessing:
 
-## Why star or try MEL
+1. **What is happening now?** (live vs stale vs historical)
+2. **What do we actually know?** (evidence, not vibes)
+3. **What was done, by whom, and with what result?** (audit trail)
 
-- **Evidence-first operator console** — incidents, proofpacks, action history, and diagnostics wired to what the database actually holds.
-- **Honest transport semantics** — no pretending BLE/HTTP ingest or RF routing exists when it does not (see matrix below).
-- **Deterministic demo fixtures** — seed credible UI states without radios: `make demo-seed` (Go-only rebuild of `./bin/mel` from committed web assets) then `./bin/mel serve --config demo_sandbox/mel.demo.json`.
-- **Serious OSS engineering** — Go + embedded React UI, `make premerge-verify` release chain, repo-os governance in `docs/repo-os/`.
+If you care about local-first operations, degraded environments, and not lying to yourself with pretty dashboards, this repo is for you.
 
-## Who it is for
+## Why MEL is different
 
-| You are… | Start here |
-| --- | --- |
-| Mesh / Meshtastic operator | [Getting started](docs/getting-started/README.md) · [Adoption guide](docs/community/adoption-guide.md) |
-| Club / event / hobby group | [Scenario library](docs/community/SCENARIO_LIBRARY.md) · [Topology cookbooks](topologies/README.md) |
-| Contributor (any lane) | [Community START_HERE](docs/community/START_HERE.md) · [Contributor paths](docs/community/CONTRIBUTOR_PATHS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Field tester | [Field testing](docs/community/FIELD_TESTING.md) |
-| Evaluator / sponsor | [Product honesty](docs/product/HONESTY_AND_BOUNDARIES.md) · [Verification](#verification-entry-points) below |
+- **Truth-first semantics:** MEL explicitly marks live, stale, historical, partial, degraded, and unknown states.
+- **Evidence-backed workflow:** incidents, proofpacks, and action history are tied to persisted records.
+- **No capability theatre:** unsupported paths stay labeled unsupported.
+- **Local-first by default:** no mandatory cloud control plane for core operation.
 
-## What MEL is
+## What MEL is / is not
 
-- A mesh **observability and control workflow** system grounded in persisted ingest evidence.
-- An **incident and audit** surface with explicit degraded / partial semantics.
-- A **local runtime** you can self-host without a mandatory cloud control plane.
+### MEL is
+- A local-first incident-intelligence and trusted-control system.
+- An operator workflow layer over deterministic ingest and audit evidence.
+- A practical platform for teams that need trustworthy comms operations under imperfect conditions.
 
-## What MEL is not
+### MEL is not
+- A mesh routing stack.
+- Proof of RF delivery or propagation by default.
+- A generic dashboard skin, messenger clone, or AI wrapper.
 
-- Not a mesh routing stack.
-- Not proof of RF propagation or delivery unless your evidence supports it.
-- Not authorized to imply unsupported transport paths (see matrix).
-
-## Truth contract (short)
-
-MEL does not claim more than evidence supports.
-
-- **Live** — recent persisted ingest evidence exists.
-- **Stale** — ingest evidence is old.
-- **Historical** — prior records, not current runtime proof.
-- **Imported/Offline** — external context, not live fleet proof by default.
-- **Partial/Degraded** — known gaps are explicit and machine-visible.
-
-Canonical wording: [`docs/repo-os/terminology.md`](docs/repo-os/terminology.md).
-
-## Transport support matrix (current)
-
-| Surface | State | Contract |
-| --- | --- | --- |
-| Direct ingest (serial/TCP) | Supported | Claim only persisted and timestamped ingest evidence. |
-| MQTT ingest | Supported | Surface disconnects and partial ingest explicitly. |
-| BLE ingest | Unsupported | Label unsupported; no implied partial support. |
-| HTTP ingest | Unsupported | Label unsupported; no optimistic wording. |
-| Radio transmit/routing by MEL | Not implemented as a mesh-stack feature | Do not imply MEL performs RF routing/propagation execution. |
-
-## Quick start (live or eval)
+## 10-minute quick start
 
 ```bash
 make build
-./bin/mel init --config .tmp/mel.json
+./bin/mel init --config .tmp/mel.json --force
+chmod 600 .tmp/mel.json
 ./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json
 ```
 
 Open <http://127.0.0.1:8080>.
 
-**Sandbox (fixture-backed, no radio):**
+Want a deterministic no-radio demo?
 
 ```bash
 make demo-seed
 ./bin/mel serve --config demo_sandbox/mel.demo.json
 ```
 
-**Fastest first-proof path (deterministic evidence bundle + seeded data):**
+## Start here (one path, not ten)
 
-```bash
-make first-proof
-./bin/mel serve --config demo_sandbox/mel.first-proof.json
-```
+- **Run MEL fast:** [`docs/getting-started/QUICKSTART.md`](docs/getting-started/QUICKSTART.md)
+- **Evaluate MEL honestly:** [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/evaluate-in-10-minutes.md)
+- **Contribute your first PR:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **Understand project boundaries:** [`docs/repo-os/README.md`](docs/repo-os/README.md)
+- **Browse docs map:** [`docs/README.md`](docs/README.md)
 
-More detail: [QUICKSTART](docs/getting-started/QUICKSTART.md) · [Evaluate in 10 minutes](docs/ops/evaluate-in-10-minutes.md) · [Launch & demo runbook](docs/runbooks/launch-and-demo.md) · [Screenshot checklist](docs/ops/launch-screenshot-checklist.md).
+## Transport support (current truth)
 
-## How to contribute (by role)
-
-| Role | Doc |
-| --- | --- |
-| Any | [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [First PR paths](docs/contributor/FIRST_PR_PATHS.md) |
-| Frontend | [Frontend contribution](docs/contributor/FRONTEND_CONTRIBUTION.md) |
-| Transport / decoders | [Transport contribution](docs/contributor/TRANSPORT_CONTRIBUTION.md), [Protobuf extension](docs/contributor/protobuf-extension-guide.md) |
-| Docs / runbooks | [Docs contribution](docs/contributor/DOCS_AND_RUNBOOK_CONTRIBUTION.md) |
-| Architecture map | [ARCHITECTURE_MAP.md](docs/contributor/ARCHITECTURE_MAP.md) |
-
-Issue templates include **field report**, **hardware compatibility**, **scenario**, and **integration** ideas (`.github/ISSUE_TEMPLATE/`). Label taxonomy: [`docs/community/issue-routing-labels.md`](docs/community/issue-routing-labels.md).
-
-## What you can build here
-
-- Operator workflows on top of the **API** ([API reference](docs/ops/api-reference.md)).
-- **Fixtures and scenarios** for training and regression (`internal/demo/`, `make demo-verify`).
-- **Frontend** panels that deepen incident / transport / diagnostics clarity without weakening truth boundaries.
-- **Integrations** that respect trust separation (submission ≠ approval ≠ execution).
-
-## Documentation map
-
-- **Docs hub / IA**: [`docs/README.md`](docs/README.md) · [FAQ](docs/FAQ.md)
-- **Public orientation site (optional Next.js)**: [`site/README.md`](site/README.md) — quick start, help, contribute, trust surfaces; canonical depth stays in `docs/` and the embedded UI. Build check: `make site-verify`. Set `SITE_CANONICAL_ORIGIN` when deploying under a custom domain (see site README).
-- **Community hub**: [`docs/community/README.md`](docs/community/README.md)
-- Getting started: [`docs/getting-started/README.md`](docs/getting-started/README.md)
-- Product system: [`docs/product/README.md`](docs/product/README.md)
-- Release/support: [`docs/release/RELEASE_CRITERIA.md`](docs/release/RELEASE_CRITERIA.md)
-- Communications hub blueprint: [`docs/architecture/communications-hub-blueprint.md`](docs/architecture/communications-hub-blueprint.md)
-- Operations: [`docs/ops/OPERATIONS_RUNBOOK.md`](docs/ops/OPERATIONS_RUNBOOK.md)
-- Runbooks: [`docs/runbooks/README.md`](docs/runbooks/README.md) (includes [launch & demo](docs/runbooks/launch-and-demo.md))
-- Showcase captures: [`docs/showcase/README.md`](docs/showcase/README.md)
-- Post-launch intake: [`docs/community/post-launch-playbook.md`](docs/community/post-launch-playbook.md)
-- API reference: [`docs/ops/api-reference.md`](docs/ops/api-reference.md)
-- Repo operating system: [`docs/repo-os/README.md`](docs/repo-os/README.md)
-- Repo-local model spec: [`docs/repo-os/model-spec.md`](docs/repo-os/model-spec.md)
-- Repo-local skills/checklists: [`docs/repo-os/skills/README.md`](docs/repo-os/skills/README.md)
-- Privacy platform policy: [`docs/privacy/platform-policy.md`](docs/privacy/platform-policy.md)
-- Known limitations: [`docs/ops/limitations.md`](docs/ops/limitations.md)
-- Internal/private strategy notes: [`docs/internal/private/README.md`](docs/internal/private/README.md)
-- Support boundaries (community): [`SUPPORT.md`](SUPPORT.md)
-- Doc entry points (thin indexes to canonical pages): [`docs/quickstart-demo.md`](docs/quickstart-demo.md), [`docs/why-mel.md`](docs/why-mel.md), [`docs/operator-truth-principles.md`](docs/operator-truth-principles.md); public site “vs generic observability”: [`site/README.md`](site/README.md) (route `/compare`)
-
-## Fast bootstrap (tooling)
-
-- **Go**: 1.24+ (see `go.mod`).
-- **Node**: 24.x for frontend targets (`.nvmrc`, `frontend/.nvmrc`). Run `. ./scripts/dev-env.sh` from repo root when using nvm.
-- **Dev container**: [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) for VS Code / Codespaces-style environments (Go + Node + Python + `sqlite3`).
-- **Public marketing site**: Next.js app in [`site/`](site/README.md) (orientation only — not the operator console). Verify with `make site-verify`.
-
-## License
-
-MEL is released under the **GNU General Public License v3.0**; see [`LICENSE`](LICENSE).
-
-## Verification entry points
-
-**Truthful layers (read before claiming “green”):**
-
-| Command | What it actually proves |
-| --- | --- |
-| `make test` | **Go tests only** (`go test ./...`). Does not run ESLint, TypeScript, or Vitest. |
-| `make lint` | `go vet` + **frontend ESLint** + **site ESLint** (`npm ci` in `frontend/` and `site/`). |
-| `make frontend-verify` | Lint + typecheck + Vitest in `frontend/` (runs `npm ci` first). |
-| `make site-verify` | Lint + typecheck + production build for `site/` (runs `npm ci` in `site/` first). |
-| `make build` | Frontend production build + copies into `internal/web/assets/` + Go binaries. |
-| `make smoke` | End-to-end smoke against `./bin/mel` (build first). |
-| **`make verify-stack`** or **`make check`** | **Single stack-shaped signal:** `lint` + `test` + `build` + `smoke` (includes frontend via `lint`/`build`). Not the same as `premerge-verify`. |
-| `make premerge-verify` | Release-reality gate: reality check + product verify + full chain + churn guard (see script). |
-| `make premerge-verify-fast` | Same chain with `VERIFY_SKIP_CLEAN_INSTALL=1` — not release-grade. |
-
-Other useful targets:
-
-```bash
-make lint
-make frontend-typecheck
-make frontend-test
-make site-typecheck
-make test
-make build
-make product-verify
-make demo-verify
-```
-
-Notes:
-
-- Direct frontend targets (`make frontend-install`, `make frontend-test`, etc.) fail fast unless your shell is on Node `24.x`. Use `. ./scripts/dev-env.sh` from repo root to activate Node 24 via nvm.
-- `make lint` includes operator UI (`frontend/`) and public site (`site/`) ESLint; each runs its own `npm ci` via `frontend-install` / `site-install`.
-- `make smoke` requires `./bin/mel`; build it first with `make build-cli` or `make build`.
-- `make premerge-verify` is the deterministic release-reality gate (clean installs + full chain). The churn guard expects exactly one `npm ci` per Node workspace (`frontend/` and `site/`).
-- `make premerge-verify-fast` is local-only iteration mode (`VERIFY_SKIP_CLEAN_INSTALL=1`); it skips clean frontend install. Do not use it for release-grade claims.
-
-Then apply the repo-os gates:
-
-- [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
-- [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
+| Surface | State | Contract |
+| --- | --- | --- |
+| Direct ingest (serial/TCP) | Supported | Claims must come from persisted, timestamped ingest evidence. |
+| MQTT ingest | Supported | Disconnects and partial ingest must remain explicit. |
+| BLE ingest | Unsupported | Must be labeled unsupported. |
+| HTTP ingest | Unsupported | Must be labeled unsupported. |
+| RF routing/transmit by MEL | Not implemented | MEL does not claim mesh-stack routing execution. |
 
 ## Contributing
 
-- Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Security policy: [`SECURITY.md`](SECURITY.md)
-- Repo contract for agents/contributors: [`AGENTS.md`](AGENTS.md)
+We welcome serious contributions, including docs, UX clarity, diagnostics, tests, and transport hardening.
+
+Start with:
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [Issue templates](.github/ISSUE_TEMPLATE/)
+- [`docs/contributor/FIRST_PR_PATHS.md`](docs/contributor/FIRST_PR_PATHS.md)
+
+## Verification signals
+
+| Command | What it proves |
+| --- | --- |
+| `make test` | Go tests only (`go test ./...`). |
+| `make lint` | `go vet` + frontend ESLint + site ESLint. |
+| `make build` | Frontend build/embed + Go binaries. |
+| `make smoke` | End-to-end smoke against built `./bin/mel`. |
+| `make verify-stack` | `lint + test + build + smoke` as one stack signal. |
+| `make premerge-verify` | Release-grade verification chain. |
+
+## License
+
+GNU GPL v3.0. See [`LICENSE`](LICENSE).

@@ -1,32 +1,27 @@
 ---
-name: Feature Request
-about: Propose a truthful, operator-useful MEL improvement
+name: Feature request
+about: Propose a scoped improvement that strengthens operator trust and workflow
 title: '[FEAT] '
-labels: enhancement
+labels: enhancement,needs:triage
 assignees: ''
 ---
 
-## Problem Statement
+## Problem
 
-Is your feature request related to a problem? Please describe it clearly. (e.g., "I can't see the reason why my MQTT transport keeps disconnecting in the dashboard.")
+What operator pain exists today?
 
-## Proposed Solution
+## Proposed change
 
-Describe the solution you'd like to see. How does it help the operator maintain mesh "Truth"?
+Describe the smallest useful change.
 
-## Why this aligns with MEL's "Zero Theatre" Product Boundaries
+## Why this fits MEL
 
-MEL is a local-first observability and control plane. Does this feature:
+- [ ] Improves evidence quality, trust, or operator clarity
+- [ ] Does not imply unsupported transport/control capability
+- [ ] Preserves local-first/privacy boundaries
 
-- [ ] Increase structural coherence?
-- [ ] Maintain local-first data ownership?
-- [ ] Avoid adding "magic" or fake data?
-- [ ] Stay within the scope defined in [ROADMAP_EXECUTION.md](docs/roadmap/ROADMAP_EXECUTION.md)?
+## Alternatives considered
 
-## Alternatives Considered
+## Verification idea
 
-Describe any alternative solutions or features you've considered.
-
-## Additional Context
-
-Add any other context or screenshots about the feature request here.
+How should this be tested or proven if implemented?
