@@ -4,6 +4,7 @@ This folder contains a lightweight public-facing Next.js site for MEL orientatio
 
 - Home (`/`)
 - Quick start (`/quickstart`)
+- Docs entrypoints (`/docs`)
 - Compare vs generic observability (`/compare`)
 - Operator guide (`/guide`)
 - Architecture primer (`/architecture`)
@@ -60,4 +61,3 @@ Use either:
    - `devCommand`: `cd site && npm run dev`
 
 This prevents root-level 404 deployments caused by building the wrong directory.
-
