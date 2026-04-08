@@ -1,30 +1,25 @@
 # Contributing to MEL
 
-Thanks for considering a contribution. MEL values **truthful claims, deterministic behavior, and reviewable changes** over flashy demos.
+Thanks for improving MEL.
 
-If you only read one section, read **"How to land a clean first PR"** below.
+MEL values bounded claims, deterministic behavior, and verification evidence.
+If code cannot prove a claim, narrow the claim.
 
-## Start here
+## Fast contribution path
 
-1. Read [`README.md`](README.md) and [`docs/README.md`](docs/README.md).
-2. Read [`AGENTS.md`](AGENTS.md) for non-negotiable truth boundaries.
-3. Pick a scoped task from [`docs/contributor/FIRST_PR_PATHS.md`](docs/contributor/FIRST_PR_PATHS.md).
+1. Read constraints: [AGENTS.md](AGENTS.md) and [repo-os](docs/repo-os/README.md).
+2. Pick a safe lane: [First PR paths](docs/contributor/FIRST_PR_PATHS.md).
+3. Build + verify the touched surface.
+4. Submit PR with exact command output and residual risk.
 
-## What we welcome
+## Non-negotiable invariants
 
 - Clarity improvements (UI copy, docs, onboarding) that reduce operator confusion.
 - Tests that improve confidence in ingest, truth semantics, and control-path behavior.
 - Diagnostics and error-surface improvements (`mel doctor`, API/status visibility).
 - Deterministic fixture/scenario improvements for demos and regression.
 
-## What will get rejected quickly
-
-- Claims of support without implementation + verification evidence.
-- UI/API wording that collapses degraded/partial/unknown into “healthy”.
-- Big dependency additions with weak justification.
-- Large drive-by refactors without operator value.
-
-## Local dev baseline
+## Local development baseline
 
 ```bash
 make build
@@ -39,21 +34,26 @@ Node `24.x` is required for frontend/site tasks.
 . ./scripts/dev-env.sh
 ```
 
-## How to land a clean first PR
-
-1. **Choose a small scope** (docs, one UI state, one test surface, one diagnostic path).
-2. **State the claim boundary** in your PR: what changed, what did not.
-3. **Run verification** appropriate to the touched surface.
-4. **Include residual risk** (if any) explicitly.
+Environment notes:
+- Go 1.24+
+- Node 24.x for `frontend/` and `site/`
+- From repo root: `. ./scripts/dev-env.sh`
 
 Recommended first-PR lanes:
 - Docs truth-tightening: broken links, overclaims, onboarding friction.
 - Frontend clarity: explicit degraded/historical wording in existing components.
 - Go tests: table-driven tests around existing behavior.
 
-## Verification expectations
+- **Docs / runbooks:** clarify operator decisions, remove drift, reduce ambiguity.
+- **Frontend:** improve evidence semantics and degraded-state clarity.
+- **Go/backend:** transport reliability, diagnostics, deterministic behavior.
+- **Demo/scenarios:** strengthen fixture realism and reproducibility.
 
-Minimum expectation for most PRs:
+Deep links:
+- [Docs + runbooks contribution](docs/contributor/DOCS_AND_RUNBOOK_CONTRIBUTION.md)
+- [Frontend contribution](docs/contributor/FRONTEND_CONTRIBUTION.md)
+- [Transport contribution](docs/contributor/TRANSPORT_CONTRIBUTION.md)
+- [Architecture map](docs/contributor/ARCHITECTURE_MAP.md)
 
 - `make lint`
 - `make test`
@@ -64,20 +64,26 @@ For frontend-heavy changes also run:
 - `make frontend-typecheck`
 - `make frontend-test`
 
-For release-shaped confidence:
-- `make premerge-verify`
+1. **Design intent** (what changed + why)
+2. **Operator impact** (what users notice)
+3. **Verification evidence** (exact commands + outcomes)
+4. **Residual risk** (partial/unknown/out-of-scope)
+5. **Change class**: Maintenance / Leverage / Moat ([guide](docs/repo-os/change-classification.md))
 
-## Issue and PR workflow
+Template: `.github/pull_request_template.md`
 
 - Use [Issue templates](.github/ISSUE_TEMPLATE/).
 - Use the [PR template](.github/pull_request_template.md).
 - Classify major work as Maintenance / Leverage / Moat per [`docs/repo-os/change-classification.md`](docs/repo-os/change-classification.md).
 
-## Security and privacy
+- Docs-only: human proofread + link sanity + scoped checks.
+- Frontend: `make frontend-typecheck`, `make frontend-test`, `make lint`.
+- Backend/runtime: `make test`; add `make smoke` when runtime behavior changes.
+- Capability/trust-boundary changes: run relevant repo-os audits and document results.
 
-- Never commit secrets, precise operator locations, or sensitive credentials.
-- Use private advisories for vulnerabilities (see [`SECURITY.md`](SECURITY.md)).
-- Keep privacy and trust boundaries explicit; no silent fail-open behavior.
+References:
+- [Verification matrix](docs/repo-os/verification-matrix.md)
+- [Release readiness](docs/repo-os/release-readiness.md)
 
 ## Community standards
 

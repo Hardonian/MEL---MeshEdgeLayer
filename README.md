@@ -1,41 +1,51 @@
 # MEL — MeshEdgeLayer
 
-**An honest operator console for mesh incidents, evidence, and trusted control.**
+**Operator OS for mesh incidents, evidence, and trusted control — local-first, explicit under uncertainty.**
 
 ![MEL Hero](assets/mel_hero_new_1774058412698.png)
 
-MEL helps operators answer three questions without guessing:
+MEL is for teams running real-world mixed-channel operations who need truth, not dashboard optimism.
+If MEL does not have evidence, it must say **unknown**.
 
-1. **What is happening now?** (live vs stale vs historical)
-2. **What do we actually know?** (evidence, not vibes)
-3. **What was done, by whom, and with what result?** (audit trail)
+## What MEL is
 
-If you care about local-first operations, degraded environments, and not lying to yourself with pretty dashboards, this repo is for you.
-
-## Why MEL is different
+- Evidence-first ingest + operations system for mixed mesh environments.
+- Persists timestamped runtime evidence and preserves action/audit history.
+- Keeps live, stale, historical, partial, degraded, and unknown states distinct.
+- Runs local-first (self-hosted friendly, no mandatory cloud control plane).
 
 - **Truth-first semantics:** MEL explicitly marks live, stale, historical, partial, degraded, and unknown states.
 - **Evidence-backed workflow:** incidents, proofpacks, and action history are tied to persisted records.
 - **No capability theatre:** unsupported paths stay labeled unsupported.
 - **Local-first by default:** no mandatory cloud control plane for core operation.
 
-## What MEL is / is not
+- Not a mesh routing stack.
+- Not proof of RF propagation without evidence.
+- Not fake support for unsupported paths.
+- Not “AI truth” (local inference is assistive, never canonical truth).
 
-### MEL is
-- A local-first incident-intelligence and trusted-control system.
-- An operator workflow layer over deterministic ingest and audit evidence.
-- A practical platform for teams that need trustworthy comms operations under imperfect conditions.
+## Why MEL matters
 
-### MEL is not
-- A mesh routing stack.
-- Proof of RF delivery or propagation by default.
-- A generic dashboard skin, messenger clone, or AI wrapper.
+- **Trust under pressure:** no invented certainty.
+- **Bounded claims:** support matrix and degraded states are explicit.
+- **Audit-grade operations:** incidents, decisions, and outcomes stay attributable.
+- **Launch-grade verification chain:** lint/test/build/smoke/release gates are reproducible.
 
-## 10-minute quick start
+## Transport support matrix (current)
+
+| Surface | State | Contract |
+| --- | --- | --- |
+| Direct ingest (serial/TCP) | Supported | Claim only persisted + timestamped evidence. |
+| MQTT ingest | Supported | Surface disconnects and partial ingest explicitly. |
+| BLE ingest | Unsupported | Must be labeled unsupported. |
+| HTTP ingest | Unsupported | Must be labeled unsupported. |
+| Radio transmit/routing by MEL | Not implemented as mesh-stack feature | Do not imply MEL performs RF routing execution. |
+
+## Try MEL in 10 minutes
 
 ```bash
 make build
-./bin/mel init --config .tmp/mel.json --force
+./bin/mel init --config .tmp/mel.json
 chmod 600 .tmp/mel.json
 ./bin/mel doctor --config .tmp/mel.json
 ./bin/mel serve --config .tmp/mel.json
@@ -43,51 +53,41 @@ chmod 600 .tmp/mel.json
 
 Open <http://127.0.0.1:8080>.
 
-Want a deterministic no-radio demo?
+No-radio deterministic evaluation:
 
 ```bash
 make demo-seed
 ./bin/mel serve --config demo_sandbox/mel.demo.json
 ```
 
-## Start here (one path, not ten)
+## Public docs funnel
 
-- **Run MEL fast:** [`docs/getting-started/QUICKSTART.md`](docs/getting-started/QUICKSTART.md)
-- **Evaluate MEL honestly:** [`docs/ops/evaluate-in-10-minutes.md`](docs/ops/evaluate-in-10-minutes.md)
-- **Contribute your first PR:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- **Understand project boundaries:** [`docs/repo-os/README.md`](docs/repo-os/README.md)
-- **Browse docs map:** [`docs/README.md`](docs/README.md)
-
-## Transport support (current truth)
-
-| Surface | State | Contract |
-| --- | --- | --- |
-| Direct ingest (serial/TCP) | Supported | Claims must come from persisted, timestamped ingest evidence. |
-| MQTT ingest | Supported | Disconnects and partial ingest must remain explicit. |
-| BLE ingest | Unsupported | Must be labeled unsupported. |
-| HTTP ingest | Unsupported | Must be labeled unsupported. |
-| RF routing/transmit by MEL | Not implemented | MEL does not claim mesh-stack routing execution. |
-
-## Contributing
-
-We welcome serious contributions, including docs, UX clarity, diagnostics, tests, and transport hardening.
-
-Start with:
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- [Issue templates](.github/ISSUE_TEMPLATE/)
-- [`docs/contributor/FIRST_PR_PATHS.md`](docs/contributor/FIRST_PR_PATHS.md)
+1. **Start here:** [docs/README.md](docs/README.md)
+2. **Try MEL:** [docs/getting-started/QUICKSTART.md](docs/getting-started/QUICKSTART.md), [docs/ops/evaluate-in-10-minutes.md](docs/ops/evaluate-in-10-minutes.md)
+3. **Understand boundaries:** [docs/ops/support-matrix.md](docs/ops/support-matrix.md), [docs/ops/limitations.md](docs/ops/limitations.md), [docs/community/claims-vs-reality.md](docs/community/claims-vs-reality.md)
+4. **Contribute safely:** [CONTRIBUTING.md](CONTRIBUTING.md), [docs/contributor/FIRST_PR_PATHS.md](docs/contributor/FIRST_PR_PATHS.md)
+5. **Operate for real:** [docs/ops/OPERATIONS_RUNBOOK.md](docs/ops/OPERATIONS_RUNBOOK.md)
 
 ## Verification signals
 
-| Command | What it proves |
-| --- | --- |
-| `make test` | Go tests only (`go test ./...`). |
-| `make lint` | `go vet` + frontend ESLint + site ESLint. |
-| `make build` | Frontend build/embed + Go binaries. |
-| `make smoke` | End-to-end smoke against built `./bin/mel`. |
-| `make verify-stack` | `lint + test + build + smoke` as one stack signal. |
-| `make premerge-verify` | Release-grade verification chain. |
+- `make lint` — Go vet + frontend/site ESLint
+- `make test` — Go tests (`go test ./...`)
+- `make build` — frontend build + embedded assets + Go binaries
+- `make smoke` — end-to-end smoke checks against built CLI
+- `make first-proof` — deterministic proof bundle workflow
+- `make premerge-verify` — release-reality verification chain
 
-## License
+Repo-OS release gates:
+- [`docs/repo-os/verification-matrix.md`](docs/repo-os/verification-matrix.md)
+- [`docs/repo-os/release-readiness.md`](docs/repo-os/release-readiness.md)
 
-GNU GPL v3.0. See [`LICENSE`](LICENSE).
+## Contribute and support
+
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md)
+- [SUPPORT.md](SUPPORT.md)
+- [Current project status](docs/project/CURRENT_STATUS.md)
+- [FAQ](docs/FAQ.md)
+
+MEL is GPL-3.0 licensed; see [LICENSE](LICENSE).
