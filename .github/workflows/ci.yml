@@ -1,6 +1,10 @@
 # Merge gate: Go fmt/vet, full `go test ./...`, build, smoke, plus frontend typecheck/tests.
 name: ci
 on: [push, pull_request]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
