@@ -15,11 +15,12 @@ import (
 	"github.com/mel-project/mel/internal/config"
 	"github.com/mel-project/mel/internal/db"
 	"github.com/mel-project/mel/internal/events"
-	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/investigation"
+	"github.com/mel-project/mel/internal/logging"
 	"github.com/mel-project/mel/internal/meshstate"
 	"github.com/mel-project/mel/internal/policy"
 	"github.com/mel-project/mel/internal/transport"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestSQLInjectionViaTransportName(t *testing.T) {
@@ -679,6 +680,48 @@ func TestAuthBruteForceProtection(t *testing.T) {
 			t.Errorf("expected 200 for valid auth, got %d", rec.Code)
 		}
 	})
+}
+
+func TestAuthWithBcryptPasswordHash(t *testing.T) {
+	cfg := config.Default()
+	cfg.Storage.DataDir = filepath.Join(t.TempDir(), "data")
+	cfg.Storage.DatabasePath = filepath.Join(cfg.Storage.DataDir, "mel.db")
+	cfg.Features.WebUI = false
+	cfg.Auth.Enabled = true
+	cfg.Auth.UIUser = "admin"
+	cfg.Auth.UIPassword = ""
+	hashed, err := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Auth.UIPasswordHash = string(hashed)
+
+	database, err := db.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger := logging.New("info", false)
+	srv := New(cfg, logger, database, meshstate.New(), events.New(),
+		func() []transport.Health { return nil },
+		func() []policy.Recommendation { return nil },
+		nil, nil, nil, nil, nil, nil,
+		func() investigation.Summary { return investigation.Summary{} })
+
+	reqWrong := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	reqWrong.SetBasicAuth("admin", "wrongpassword")
+	recWrong := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(recWrong, reqWrong)
+	if recWrong.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong password against hash, got %d", recWrong.Code)
+	}
+
+	reqOk := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+	reqOk.SetBasicAuth("admin", "correctpassword")
+	recOk := httptest.NewRecorder()
+	srv.http.Handler.ServeHTTP(recOk, reqOk)
+	if recOk.Code != http.StatusOK {
+		t.Fatalf("expected 200 for valid password against hash, got %d", recOk.Code)
+	}
 }
 
 func TestStringSanitizationForLogs(t *testing.T) {

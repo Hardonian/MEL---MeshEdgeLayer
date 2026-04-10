@@ -99,6 +99,7 @@ type AuthConfig struct {
 	SessionSecret       string `json:"session_secret"`
 	UIUser              string `json:"ui_user"`
 	UIPassword          string `json:"ui_password"`
+	UIPasswordHash      string `json:"ui_password_hash"`
 	AllowInsecureRemote bool   `json:"allow_insecure_remote"`
 	// APIKeysEnv names an environment variable holding comma-separated operator API keys (X-API-Key).
 	// When auth.enabled and keys are present, HTTP API requires X-API-Key or valid Basic auth.
@@ -292,7 +293,7 @@ func Default() Config {
 			RedactExports:          true,
 			TrustList:              []string{},
 		},
-		Transports:   []TransportConfig{},
+		Transports: []TransportConfig{},
 		Features: FeatureConfig{
 			WebUI:                  true,
 			Metrics:                false,
@@ -462,6 +463,9 @@ func Validate(cfg Config) error {
 	}
 	if cfg.Auth.Enabled && len(cfg.Auth.SessionSecret) < 16 {
 		errs = appendErr(errs, "auth.session_secret must be at least 16 chars when auth.enabled")
+	}
+	if cfg.Auth.Enabled && strings.TrimSpace(cfg.Auth.UIPassword) == "" && strings.TrimSpace(cfg.Auth.UIPasswordHash) == "" {
+		errs = appendErr(errs, "auth requires either auth.ui_password or auth.ui_password_hash when auth.enabled")
 	}
 	if cfg.Auth.Enabled {
 		errs = append(errs, validateOperatorKeys(cfg.Auth)...)
@@ -767,6 +771,7 @@ func applyEnv(cfg *Config) {
 	setString("MEL_SESSION_SECRET", &cfg.Auth.SessionSecret)
 	setString("MEL_UI_USER", &cfg.Auth.UIUser)
 	setString("MEL_UI_PASSWORD", &cfg.Auth.UIPassword)
+	setString("MEL_UI_PASSWORD_HASH", &cfg.Auth.UIPasswordHash)
 	setBool("MEL_AUTH_ALLOW_INSECURE_REMOTE", &cfg.Auth.AllowInsecureRemote)
 	setBool("MEL_PRIVACY_STORE_PRECISE_POSITIONS", &cfg.Privacy.StorePrecisePositions)
 	setBool("MEL_PRIVACY_MAP_REPORTING_ALLOWED", &cfg.Privacy.MapReportingAllowed)

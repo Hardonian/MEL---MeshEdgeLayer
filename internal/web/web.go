@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,7 @@ import (
 	statuspkg "github.com/mel-project/mel/internal/status"
 	"github.com/mel-project/mel/internal/support"
 	"github.com/mel-project/mel/internal/transport"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Server struct {
@@ -2131,7 +2133,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if ok && user == s.cfg.Auth.UIUser && pass == s.cfg.Auth.UIPassword {
+		if ok && user == s.cfg.Auth.UIUser && verifyUIPassword(s.cfg, pass) {
 			ctx := security.WithIdentity(r.Context(), security.BuildAdminIdentity(user))
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
@@ -2165,6 +2167,17 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			logging.NewSafeError("authentication is required for this MEL endpoint", nil, "auth", false),
 		))
 	})
+}
+
+func verifyUIPassword(cfg config.Config, pass string) bool {
+	hash := strings.TrimSpace(cfg.Auth.UIPasswordHash)
+	if hash != "" {
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pass)) == nil
+	}
+	if cfg.Auth.UIPassword == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(cfg.Auth.UIPassword), []byte(pass)) == 1
 }
 
 func blankIfEmpty(v, fallback string) string {
