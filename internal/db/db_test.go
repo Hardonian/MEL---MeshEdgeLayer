@@ -47,7 +47,7 @@ func TestRepairMigration0035BackfillsWhenOnly0034PackRow(t *testing.T) {
 		t.Fatalf("expected 0035 row after repair, got %q err=%v", got, err)
 	}
 	n, err := d.HighestMigrationNumeric()
-	if err != nil || n != 35 {
+	if err != nil || n != 36 {
 		t.Fatalf("HighestMigrationNumeric=%d err=%v", n, err)
 	}
 }
