@@ -50,8 +50,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: false
       - name: Install frontend deps
         run: npm ci
       - name: Frontend tests
@@ -69,8 +68,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache: false
       - name: Install site deps
         run: npm ci
       - name: Site lint
