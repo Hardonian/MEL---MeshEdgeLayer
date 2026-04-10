@@ -3,7 +3,6 @@
 package shared
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -156,8 +155,8 @@ func VoidSuccess(metadata ResultMetadata) StandardResult[struct{}] {
 
 // ResultBuilder helps construct results with timing
 type ResultBuilder struct {
-	TraceID    string
-	StartTime  time.Time
+	TraceID     string
+	StartTime   time.Time
 	ReasonCodes []string
 }
 
@@ -175,8 +174,9 @@ func (b *ResultBuilder) WithReason(reason string) *ResultBuilder {
 	return b
 }
 
-// Success creates a success result
-func (b *ResultBuilder) Success[T any](data T) StandardResult[T] {
+// SuccessAny creates a success result using any payload.
+// Note: methods on non-generic types cannot declare type parameters.
+func (b *ResultBuilder) SuccessAny(data any) StandardResult[any] {
 	return Success(data, ResultMetadata{
 		TraceID:     b.TraceID,
 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
@@ -201,7 +201,7 @@ func (b *ResultBuilder) Failure(state ResultState, code, message string) Standar
 // TryCatch runs an operation and wraps it in a StandardResult
 func TryCatch[T any](operation func() (T, error), traceID string) StandardResult[T] {
 	builder := NewResultBuilder(traceID)
-	
+
 	data, err := operation()
 	if err != nil {
 		return Failure[T](ResultStateInternalError, ErrorDetails{
@@ -209,8 +209,8 @@ func TryCatch[T any](operation func() (T, error), traceID string) StandardResult
 			Message: err.Error(),
 		}, builder.Metadata())
 	}
-	
-	return builder.Success(data)
+
+	return Success(data, builder.Metadata())
 }
 
 // Metadata returns the current metadata for the builder
