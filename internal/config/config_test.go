@@ -66,6 +66,21 @@ func TestValidateRejectsRemoteWithoutAuth(t *testing.T) {
 	_ = os.Unsetenv("MEL_BIND_API")
 }
 
+func TestValidateAuthRequiresPasswordOrHash(t *testing.T) {
+	cfg := Default()
+	cfg.Auth.Enabled = true
+	cfg.Auth.SessionSecret = "0123456789abcdef"
+	cfg.Auth.UIPassword = ""
+	cfg.Auth.UIPasswordHash = ""
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected auth validation error when password and hash are both missing")
+	}
+	cfg.Auth.UIPasswordHash = "$2a$10$6xig4x4wCPM8D4TJ8I5nQub8o.IA56fH0CZf5Skv0qK2R4Wm9MW9G" // "test-password"
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("expected auth validation to pass with hash only, got: %v", err)
+	}
+}
+
 func TestValidateProductionDeployRequiresStrictAndTransport(t *testing.T) {
 	cfg := Default()
 	cfg.ProductionDeploy = true

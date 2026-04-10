@@ -9,6 +9,7 @@ var ConfigKeyHelp = map[string]string{
 	"auth.session_secret":                            "Secret for signing sessions; must be strong when auth is enabled.",
 	"auth.ui_user":                                   "Dashboard username when auth is enabled.",
 	"auth.ui_password":                               "Dashboard password when auth is enabled.",
+	"auth.ui_password_hash":                          "bcrypt hash for dashboard password (preferred over plaintext ui_password).",
 	"auth.allow_insecure_remote":                     "Development-only escape hatch for remote bind without auth.",
 	"storage.data_dir":                               "Directory for SQLite parent path and runtime files.",
 	"storage.database_path":                          "Path to the SQLite database file.",
