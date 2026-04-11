@@ -28,7 +28,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: false
       - name: Install system tools
         run: sudo apt-get update && sudo apt-get install -y sqlite3 protobuf-compiler curl
       - name: Verify protobuf descriptor
@@ -64,7 +63,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: false
       - name: Install frontend deps (retry on transient failures)
         run: |
           for i in 1 2 3; do
@@ -92,7 +90,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: false
       - name: Install site deps (retry on transient failures)
         run: |
           for i in 1 2 3; do
