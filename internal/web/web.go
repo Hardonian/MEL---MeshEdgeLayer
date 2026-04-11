@@ -99,6 +99,17 @@ type Server struct {
 
 	// Proofpack: assembles incident-scoped evidence bundles for audit/export.
 	assembleProofpack func(incidentID, actorID string) (map[string]any, error)
+
+	// Remediation-memory loop: runbook review + application, plus per-operator
+	// worklist and shift handoff packet generation. All wired from the service
+	// layer via SetRunbookReview and SetOperatorWorkflows below.
+	listRunbookEntries    func(status, signatureKey, fingerprintHash, query string, limit int) ([]models.RunbookEntryDTO, error)
+	getRunbookEntry       func(id string) (models.RunbookEntryDetailDTO, bool, error)
+	promoteRunbookEntry   func(id, actorID, note string) error
+	deprecateRunbookEntry func(id, actorID, reason string) error
+	applyRunbookToIncident func(incidentID, actorID string, req models.ApplyRunbookRequest) (models.RunbookApplicationDTO, error)
+	buildOperatorWorklist func(actor string) (models.OperatorWorklistDTO, error)
+	buildShiftHandoff     func(actor string, windowHours int) (models.ShiftHandoffPacketDTO, error)
 }
 
 // SetConfigPath records the on-disk config path used at process start (for support bundle doctor.json parity).
@@ -172,6 +183,31 @@ func (s *Server) SetIncidentMoatExtensions(
 // SetProofpackAssembler wires incident proofpack assembly for evidence export.
 func (s *Server) SetProofpackAssembler(f func(incidentID, actorID string) (map[string]any, error)) {
 	s.assembleProofpack = f
+}
+
+// SetRunbookReview wires runbook listing, detail, lifecycle transitions, and
+// per-incident application recording for the remediation-memory loop.
+func (s *Server) SetRunbookReview(
+	list func(status, signatureKey, fingerprintHash, query string, limit int) ([]models.RunbookEntryDTO, error),
+	get func(id string) (models.RunbookEntryDetailDTO, bool, error),
+	promote func(id, actorID, note string) error,
+	deprecate func(id, actorID, reason string) error,
+	apply func(incidentID, actorID string, req models.ApplyRunbookRequest) (models.RunbookApplicationDTO, error),
+) {
+	s.listRunbookEntries = list
+	s.getRunbookEntry = get
+	s.promoteRunbookEntry = promote
+	s.deprecateRunbookEntry = deprecate
+	s.applyRunbookToIncident = apply
+}
+
+// SetOperatorWorkflows wires the per-operator worklist and shift handoff packet.
+func (s *Server) SetOperatorWorkflows(
+	worklist func(actor string) (models.OperatorWorklistDTO, error),
+	shiftHandoff func(actor string, windowHours int) (models.ShiftHandoffPacketDTO, error),
+) {
+	s.buildOperatorWorklist = worklist
+	s.buildShiftHandoff = shiftHandoff
 }
 
 // SetRecentIncidents wires list enrichment (e.g. linked control actions); falls back to DB when nil.
@@ -309,6 +345,11 @@ func New(cfg config.Config, log *logging.Logger, d *db.DB, st *meshstate.State, 
 	mux.HandleFunc("/api/v1/incidents/escalate", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapEscalateAlerts}, s.escalateIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/resolve", s.requireMethod(security.RequireAny([]security.Capability{security.CapIncidentUpdate, security.CapSuppressAlerts}, s.resolveIncident), http.MethodPost))
 	mux.HandleFunc("/api/v1/incidents/", s.requireMethod(s.incidentsPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
+	// Remediation-memory loop: runbook review + per-operator worklist + shift handoff.
+	mux.HandleFunc("/api/v1/runbooks", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, s.runbookListHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/runbooks/", s.requireMethod(s.runbooksPathHandler, http.MethodGet, http.MethodHead, http.MethodPost))
+	mux.HandleFunc("/api/v1/operator/worklist", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, s.operatorWorklistHandler), http.MethodGet, http.MethodHead))
+	mux.HandleFunc("/api/v1/operator/shift-handoff", s.requireMethod(security.RequireAny([]security.Capability{security.CapReadIncidents, security.CapReadStatus}, s.shiftHandoffHandler), http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/diagnostics", s.requireMethod(s.diagnosticsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/investigations", s.requireMethod(s.investigationsHandler, http.MethodGet, http.MethodHead))
 	mux.HandleFunc("/api/v1/investigations/", s.requireMethod(s.investigationsPathHandler, http.MethodGet, http.MethodHead))
@@ -1406,6 +1447,10 @@ func (s *Server) incidentsPathHandler(w http.ResponseWriter, r *http.Request) {
 	case sub == "escalation-bundle" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
 		security.RequireAny([]security.Capability{security.CapExportBundle, security.CapReadIncidents}, func(w http.ResponseWriter, r *http.Request) {
 			s.incidentEscalationBundleHandler(w, r, id)
+		})(w, r)
+	case sub == "apply-runbook" && r.Method == http.MethodPost:
+		security.Require(security.CapIncidentUpdate, func(w http.ResponseWriter, r *http.Request) {
+			s.incidentApplyRunbookHandler(w, r, id)
 		})(w, r)
 	default:
 		writeError(w, http.StatusNotFound, "unknown incident path", "")

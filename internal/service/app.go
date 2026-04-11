@@ -124,6 +124,14 @@ func New(cfg config.Config, debug bool) (*App, error) {
 	app.Web.SetRecentIncidents(app.RecentIncidentsForAPI)
 	app.Web.SetProofpackAssembler(app.AssembleProofpack)
 	app.Web.SetOperatorControlQueue(app.QueueOperatorControlAction)
+	app.Web.SetRunbookReview(
+		app.ListRunbookEntries,
+		app.GetRunbookEntry,
+		app.PromoteRunbookEntry,
+		app.DeprecateRunbookEntry,
+		app.ApplyRunbookToIncident,
+	)
+	app.Web.SetOperatorWorkflows(app.BuildOperatorWorklist, app.BuildShiftHandoffPacket)
 	for _, tc := range cfg.Transports {
 		app.transportControls[tc.Name] = newTransportControlState()
 		t, err := transport.Build(tc, log, bus)
