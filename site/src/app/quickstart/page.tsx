@@ -1,43 +1,61 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader, Section, TerminalBlock } from '@/components/marketing';
 import { repoBlob } from '@/lib/repo';
 import { MEL_BOOTSTRAP_COMMANDS, MEL_DEMO_COMMANDS, MEL_FIRST_PROOF_COMMANDS } from '@/lib/orientation';
 
+export const metadata: Metadata = {
+  title: 'Quick Start',
+  description: 'From clone to a running binary and embedded console. Deterministic commands with expected outcomes.',
+};
+
 export default function QuickStartPage() {
   return (
     <>
       <PageHeader
+        kicker="getting started"
         title="Quick start"
         subtitle="From clone to a running binary and embedded console. Commands align with the repository; depth lives in docs and in the running process."
       />
 
-      <Section title="Prerequisites">
+      <Section title="Prerequisites" id="prereqs" kicker="environment">
         <ul>
           <li>Go 1.24+ for CLI build targets.</li>
           <li>Node 24.x only when running frontend verification commands.</li>
-          <li>Local shell access with permission to run `make` and execute `./bin/mel`.</li>
-          <li>Port <code>8080</code> available for local `mel serve`.</li>
+          <li>Local shell access with permission to run <code>make</code> and execute <code>./bin/mel</code>.</li>
+          <li>Port <code>8080</code> available for local <code>mel serve</code>.</li>
         </ul>
       </Section>
 
-      <Section title="Day 0 run path">
-        <TerminalBlock title="Initialize and serve">
-{MEL_BOOTSTRAP_COMMANDS}
+      <Section title="Day 0 run path" id="day-0" kicker="bootstrap" accent="green">
+        <TerminalBlock title="shell — initialize and serve">
+          {MEL_BOOTSTRAP_COMMANDS}
         </TerminalBlock>
-        <p>Open <code>http://127.0.0.1:8080</code> and verify status, transport state clarity, and incident queue visibility.</p>
+        <p>
+          Open <code>http://127.0.0.1:8080</code> and verify status, transport state clarity, and incident
+          queue visibility.
+        </p>
       </Section>
 
-      <Section title="What first success looks like">
+      <Section
+        title="What first success looks like"
+        id="success"
+        kicker="expected outcomes"
+        description="Verify these before investing further in configuration."
+      >
         <ul>
-          <li>`mel serve` stays running with no crash loop.</li>
+          <li><code>mel serve</code> stays running with no crash loop.</li>
           <li>The embedded console loads on <code>127.0.0.1:8080</code>.</li>
           <li>Health endpoints respond: <code>/healthz</code>, <code>/readyz</code>, and <code>/api/v1/status</code>.</li>
-          <li>If no transports are connected yet, state is shown as warning/degraded instead of “healthy.”</li>
+          <li>
+            If no transports are connected yet, state shows as <strong>warning/degraded</strong> — not &ldquo;healthy.&rdquo;
+            This is correct behavior.
+          </li>
         </ul>
       </Section>
 
-      <Section title="If first run fails, check these first">
-        <TerminalBlock title="Fast triage checks">
+      <Section title="Triage when first run fails" id="triage" kicker="fast triage" accent="blue">
+        <TerminalBlock title="shell — fast triage checks">
 {`./bin/mel doctor --config .tmp/mel.json
 curl -fsS http://127.0.0.1:8080/healthz
 curl -fsS http://127.0.0.1:8080/readyz
@@ -50,36 +68,40 @@ curl -fsS http://127.0.0.1:8080/api/v1/status`}
         </ul>
       </Section>
 
-      <Section title="Fixture-backed mode (no radio required)">
-        <TerminalBlock title="Deterministic demo seed">
-{MEL_DEMO_COMMANDS}
+      <Section
+        title="Fixture-backed mode"
+        id="fixture"
+        kicker="no radio required"
+        description="Use this path when evaluating the UI without active devices. It is simulation data, not live transport proof."
+      >
+        <TerminalBlock title="shell — deterministic demo seed">
+          {MEL_DEMO_COMMANDS}
         </TerminalBlock>
-        <p>Use this path when evaluating the UI without active devices. It is simulation data, not live transport proof.</p>
       </Section>
 
-      <Section title="Fastest first-proof command">
-        <TerminalBlock title="One-command first proof">
-{MEL_FIRST_PROOF_COMMANDS}
+      <Section title="Fastest first-proof command" id="first-proof" kicker="one-command proof" accent="green">
+        <TerminalBlock title="shell — first proof">
+          {MEL_FIRST_PROOF_COMMANDS}
         </TerminalBlock>
         <p>
-          This path writes deterministic evidence artifacts and seeded records so operators can validate incident + control workflows without
-          claiming live RF routing or unsupported ingest surfaces.
+          This path writes deterministic evidence artifacts and seeded records so operators can validate incident
+          and control workflows without claiming live RF routing or unsupported ingest surfaces.
         </p>
       </Section>
 
-      <Section title="First-run expectations and caveats">
+      <Section title="Caveats and first-run expectations" id="caveats" kicker="known caveats">
         <ul>
-          <li>`mel doctor` may report warnings on fresh installs with no configured transports.</li>
-          <li>`/healthz` is liveness only; use readiness and status endpoints for runtime truth.</li>
-          <li>BLE ingest and HTTP ingest are currently unsupported and should remain labeled unsupported.</li>
+          <li><code>mel doctor</code> may report warnings on fresh installs with no configured transports.</li>
+          <li><code>/healthz</code> is liveness only; use readiness and status endpoints for runtime truth.</li>
+          <li>BLE ingest and HTTP ingest are currently unsupported — they should remain labeled unsupported.</li>
           <li>MEL is not the RF routing stack; do not treat fixture mode as propagation proof.</li>
         </ul>
       </Section>
 
-      <Section title="Next steps">
+      <Section title="Next steps" id="next">
         <p>
-          See <Link href="/guide">how this site relates to the console and docs</Link>, then <Link href="/help">Help</Link> for
-          UI semantics. In-repo:{' '}
+          See <Link href="/guide">how this site relates to the console and docs</Link>, then{' '}
+          <Link href="/help">Help</Link> for UI semantics. In-repo:{' '}
           <a href={repoBlob('docs/getting-started/QUICKSTART.md')} rel="noreferrer" target="_blank">
             QUICKSTART.md
           </a>
