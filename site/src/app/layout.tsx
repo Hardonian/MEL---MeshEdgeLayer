@@ -1,4 +1,12 @@
 import type { Metadata } from 'next';
+// Self-hosted fonts via @fontsource — no network required at build time.
+// Inter Variable covers all weights 100-900 in a single file.
+// IBM Plex Mono ships the specific weights used in the design system.
+import '@fontsource-variable/inter';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
+import '@fontsource/ibm-plex-mono/700.css';
 import './globals.css';
 import { SiteShell } from '@/components/marketing';
 import { getSiteCanonicalOrigin } from '@/lib/siteOrigin';

@@ -1,15 +1,21 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { PageHeader, Section } from '@/components/marketing';
 import { melGithubFile } from '@/lib/repo';
+
+export const metadata: Metadata = {
+  title: 'FAQ',
+  description: 'Short answers bounded by repository truth. For depth, follow links into docs/ or run the binary locally.',
+};
 
 const items: { q: string; a: ReactNode }[] = [
   {
     q: 'Does MEL route mesh traffic or prove RF coverage?',
     a: (
       <>
-        No. MEL is not the mesh routing stack. Maps and topology views reflect persisted evidence and interpretation — not guaranteed
-        propagation unless your evidence supports it. See{' '}
+        No. MEL is not the mesh routing stack. Maps and topology views reflect persisted evidence and
+        interpretation — not guaranteed propagation unless your evidence supports it. See{' '}
         <Link href="/architecture">Architecture</Link> and the repo{' '}
         <a href={melGithubFile('docs/product/HONESTY_AND_BOUNDARIES.md')} rel="noreferrer" target="_blank">
           honesty doc
@@ -22,8 +28,8 @@ const items: { q: string; a: ReactNode }[] = [
     q: 'Which transports are actually supported?',
     a: (
       <>
-        Direct serial/TCP and MQTT ingest are supported (with explicit partial/degraded semantics). BLE and HTTP ingest are{' '}
-        <strong>unsupported</strong> and must stay labeled that way. Same matrix as the{' '}
+        Direct serial/TCP and MQTT ingest are supported (with explicit partial/degraded semantics). BLE and
+        HTTP ingest are <strong>unsupported</strong> and must stay labeled that way. Same matrix as the{' '}
         <a href={melGithubFile('README.md')} rel="noreferrer" target="_blank">
           README
         </a>
@@ -32,7 +38,7 @@ const items: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What do “live” and “stale” mean?',
+    q: 'What do "live" and "stale" mean?',
     a: (
       <>
         They describe evidence freshness in the database, not optimism. Canonical definitions:{' '}
@@ -47,8 +53,8 @@ const items: { q: string; a: ReactNode }[] = [
     q: 'Can I evaluate the UI without radios?',
     a: (
       <>
-        Yes. Use <code>make demo-seed</code> and serve <code>demo_sandbox/mel.demo.json</code> — fixture-backed, not live proof.{' '}
-        <Link href="/quickstart">Quick start</Link>.
+        Yes. Use <code>make demo-seed</code> and serve <code>demo_sandbox/mel.demo.json</code> — fixture-backed,
+        not live proof. <Link href="/quickstart">Quick start</Link>.
       </>
     ),
   },
@@ -56,7 +62,8 @@ const items: { q: string; a: ReactNode }[] = [
     q: 'Is AI / local inference canonical truth?',
     a: (
       <>
-        No. Assistive inference is non-canonical when present. Deterministic records and audit events win over narrative. See{' '}
+        No. Assistive inference is non-canonical when present. Deterministic records and audit events win over
+        narrative. See{' '}
         <a href={melGithubFile('AGENTS.md')} rel="noreferrer" target="_blank">
           AGENTS.md
         </a>
@@ -68,8 +75,8 @@ const items: { q: string; a: ReactNode }[] = [
     q: 'What do I run before opening a PR?',
     a: (
       <>
-        At minimum <code>make lint</code>, <code>make test</code>, <code>make build</code>, <code>make smoke</code>. For release-shaped
-        gates, <code>make premerge-verify</code>.{' '}
+        At minimum <code>make lint</code>, <code>make test</code>, <code>make build</code>,{' '}
+        <code>make smoke</code>. For release-shaped gates, <code>make premerge-verify</code>.{' '}
         <a href={melGithubFile('CONTRIBUTING.md')} rel="noreferrer" target="_blank">
           CONTRIBUTING.md
         </a>
@@ -83,11 +90,12 @@ export default function FaqPage() {
   return (
     <>
       <PageHeader
+        kicker="frequently asked questions"
         title="FAQ"
         subtitle="Short answers bounded by repository truth. For depth, follow links into docs/ or run the binary locally."
       />
 
-      <Section title="Questions">
+      <Section title="Questions" kicker="bounded answers" accent="green">
         <dl className="faqList">
           {items.map((item) => (
             <div key={item.q} className="faqItem">

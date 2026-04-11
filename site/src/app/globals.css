@@ -1,6 +1,11 @@
 :root {
   color-scheme: dark;
 
+  /* Fonts — set here so every var(--font-sans/mono) resolves to the
+     @fontsource-loaded families imported in layout.tsx */
+  --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, 'Courier New', monospace;
+
   /* Core surfaces */
   --bg: #0b0f13;
   --surface-deep: #07090d;
@@ -53,7 +58,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
 body {
-  font-family: var(--font-sans, Inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.55;
   font-size: 1rem;
 }
@@ -359,7 +364,7 @@ a:focus-visible {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.sigLive    { background: var(--signal-live);     box-shadow: 0 0 4px var(--signal-live); }
+.sigLive    { background: var(--signal-live); box-shadow: 0 0 4px var(--signal-live); animation: signalPulse 2.6s ease-in-out infinite; }
 .sigInferred { background: var(--signal-inferred); }
 .sigStale   { background: var(--signal-stale); }
 .sigDegraded { background: var(--signal-degraded); }
@@ -1003,14 +1008,142 @@ code {
   margin: 0;
 }
 
+/* ─── Mobile Nav ────────────────────────────────── */
+
+/* Burger button — hidden on desktop, shown on mobile */
+.navBurger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-alt);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.navBurger:hover { background: var(--panel-raised); border-color: var(--line-strong); }
+.navBurger:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Full-screen overlay behind drawer */
+.navOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+
+/* Slide-in drawer panel */
+.navDrawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(272px, 86vw);
+  z-index: 30;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.navDrawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.navDrawerWordmark {
+  font-family: var(--font-mono, 'IBM Plex Mono'), ui-monospace, monospace;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.92rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.navDrawerClose {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-alt);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.navDrawerClose:hover { background: var(--panel-raised); color: var(--text); }
+.navDrawerClose:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.navDrawerLinks {
+  list-style: none;
+  margin: 0;
+  padding: 0.4rem 0;
+  flex: 1;
+}
+.navDrawerLinks li {
+  border-bottom: 1px solid color-mix(in oklab, var(--line) 45%, transparent);
+}
+.navDrawerLinks li:last-child { border-bottom: none; }
+.navDrawerLinks a {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.72rem 1rem;
+  color: var(--muted);
+  font-size: 0.93rem;
+  font-weight: 500;
+  transition: color 0.1s ease, background 0.1s ease, padding-left 0.1s ease;
+}
+.navDrawerLinks a::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-right: 0.75rem;
+  background: transparent;
+  transition: background 0.1s ease;
+}
+.navDrawerLinks a:hover,
+.navDrawerLinks a[aria-current="page"] {
+  color: var(--text);
+  background: color-mix(in oklab, var(--panel-raised) 60%, transparent);
+  text-decoration: none;
+}
+.navDrawerLinks a[aria-current="page"]::before { background: var(--accent); }
+
 /* ─── Responsive ────────────────────────────────── */
 
-@media (max-width: 700px) {
-  .headerInner { align-items: flex-start; flex-direction: column; gap: 0.5rem; }
-  .navList { justify-content: flex-start; }
+@media (max-width: 699px) {
+  /* header: row with wordmark on left, burger on right */
+  .headerInner { flex-direction: row; align-items: center; padding: 0.7rem 0; }
+  /* hide the desktop nav ul on mobile — SiteNav renders it inside .navDesktop */
+  .navDesktop { display: none; }
+  /* show the burger button */
+  .navBurger { display: flex; }
+  /* signal bar stacks vertically */
   .signalBar { flex-direction: column; }
   .signalBarState { border-right: none; border-bottom: 1px solid var(--line); }
   .signalBarState:last-child { border-bottom: none; }
+  /* comparison table tighter */
   .compareTable { font-size: 0.82rem; }
   .compareTable th, .compareTable td { padding: 0.45rem 0.55rem; }
 }
@@ -1019,15 +1152,17 @@ code {
 
 @keyframes signalPulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  50%       { opacity: 0.42; }
 }
 @keyframes traceIn {
   from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, .card, .opCard { transition: none; }
   .btn:active { transform: none; }
+  .navBurger, .navDrawerClose { transition: none; }
+  .navDrawerLinks a { transition: none; }
   .sigLive { animation: none; box-shadow: none; }
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { repoBlob, MEL_GITHUB_REPO, melGithubFile } from '@/lib/repo';
+import { SiteNav } from './SiteNav';
 
 const DOCS_HUB = melGithubFile('docs/README.md');
 
@@ -35,22 +36,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <span className="wordmarkDot" aria-hidden="true" />
             MEL
           </Link>
-          <nav aria-label="Primary">
-            <ul className="navList">
-              {NAV_LINKS.map((link) => (
-                <li key={link.href}>
-                  {link.external ? (
-                    <a href={link.href} rel="noreferrer" target="_blank">
-                      {link.label}
-                      <span className="srOnly"> (opens in new tab)</span>
-                    </a>
-                  ) : (
-                    <Link href={link.href}>{link.label}</Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <SiteNav links={NAV_LINKS} />
         </div>
       </header>
       <main id="main-content" className="container main" tabIndex={-1}>
