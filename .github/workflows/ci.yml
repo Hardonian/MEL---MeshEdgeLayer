@@ -2,12 +2,24 @@
 name: ci
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NPM_CONFIG_FETCH_RETRIES: "5"
+  NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -43,6 +55,7 @@ jobs:
 
   frontend-verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -52,8 +65,17 @@ jobs:
         with:
           node-version: '24'
           cache: false
-      - name: Install frontend deps
-        run: npm ci
+      - name: Install frontend deps (retry on transient failures)
+        run: |
+          for i in 1 2 3; do
+            npm ci && break
+            echo "npm ci failed on attempt $i, retrying..."
+            sleep 10
+            if [ "$i" -eq 3 ]; then
+              echo "npm ci failed after 3 attempts"
+              exit 1
+            fi
+          done
       - name: Frontend tests
         run: npm test
       - name: Frontend typecheck
@@ -61,6 +83,7 @@ jobs:
 
   site-verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: site
@@ -70,8 +93,17 @@ jobs:
         with:
           node-version: '24'
           cache: false
-      - name: Install site deps
-        run: npm ci
+      - name: Install site deps (retry on transient failures)
+        run: |
+          for i in 1 2 3; do
+            npm ci && break
+            echo "npm ci failed on attempt $i, retrying..."
+            sleep 10
+            if [ "$i" -eq 3 ]; then
+              echo "npm ci failed after 3 attempts"
+              exit 1
+            fi
+          done
       - name: Site lint
         run: npm run lint
       - name: Site typecheck
