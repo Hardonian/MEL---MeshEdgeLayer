@@ -7,11 +7,12 @@ export default function GuidePage() {
   return (
     <>
       <PageHeader
+        kicker="operator workflow"
         title="Operator guide"
         subtitle="A concise path through MEL’s real workflow: install, validate runtime truth, operate, and iterate."
       />
 
-      <Section title="Start with deterministic setup">
+      <Section title="Start with deterministic setup" kicker="bootstrap" accent="green">
         <TerminalBlock title="Build + initialize + serve">
 {MEL_BOOTSTRAP_COMMANDS}
         </TerminalBlock>
@@ -20,7 +21,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="Understand truth boundaries before operating">
+      <Section title="Understand truth boundaries before operating" kicker="truth model">
         <ul>
           <li>Ingest records and audit events are canonical runtime truth.</li>
           <li>Inference layers are assistive only and must not be treated as canonical state.</li>
