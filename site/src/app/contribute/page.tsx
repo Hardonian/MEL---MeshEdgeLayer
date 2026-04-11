@@ -13,6 +13,7 @@ export default function ContributePage() {
   return (
     <>
       <PageHeader
+        kicker="open source contribution"
         title="Contribute"
         subtitle="Systems craft: truth boundaries, runtime reliability, docs clarity, and operator trust. Interesting problems live where evidence, control paths, and degraded states meet."
       />
@@ -20,6 +21,8 @@ export default function ContributePage() {
       <Section
         title="Start here"
         id="start"
+        kicker="onboarding"
+        accent="green"
         description="Small steps that match how maintainers review work."
       >
         <ul>
@@ -104,7 +107,7 @@ cd MEL-MeshEdgeLayer`}
         </ul>
       </Section>
 
-      <Section title="Contribution doctrine" id="doctrine">
+      <Section title="Contribution doctrine" id="doctrine" kicker="principles" accent="blue">
         <PrincipleList items={contributionPrinciples} />
       </Section>
 

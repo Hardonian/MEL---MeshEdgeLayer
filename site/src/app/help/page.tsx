@@ -1,11 +1,18 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader, Section } from '@/components/marketing';
 import { repoBlob } from '@/lib/repo';
+
+export const metadata: Metadata = {
+  title: 'Help / Orientation',
+  description: 'Fast context for operators: what surfaces exist, what state labels mean, and where to go when evidence looks incomplete.',
+};
 
 export default function HelpPage() {
   return (
     <>
       <PageHeader
+        kicker="operator orientation"
         title="Help / orientation"
         subtitle="Fast context for operators: what surfaces exist, what state labels mean, and where to go when evidence looks incomplete."
       />
@@ -15,7 +22,7 @@ export default function HelpPage() {
         API checks below apply when <code>mel serve</code> is running on <em>your</em> host.
       </p>
 
-      <Section title="Main surfaces in MEL">
+      <Section title="Main surfaces in MEL" kicker="surfaces" accent="green">
         <div className="grid">
           <article className="card">
             <h3>Status and diagnostics</h3>
@@ -36,7 +43,7 @@ export default function HelpPage() {
         </div>
       </Section>
 
-      <Section title="Semantic labels you should trust">
+      <Section title="Semantic labels you should trust" kicker="signal language">
         <ul>
           <li><strong>Live</strong>: recent persisted ingest evidence exists.</li>
           <li><strong>Stale</strong>: evidence exists but is old for runtime confidence.</li>
@@ -53,7 +60,7 @@ export default function HelpPage() {
         </ul>
       </Section>
 
-      <Section title="Troubleshooting entrypoints">
+      <Section title="Troubleshooting entrypoints" kicker="triage" accent="blue">
         <ul>
           <li>Run `./bin/mel doctor --config ...` for host and runtime checks.</li>
           <li>Check `/api/v1/status`, `/readyz`, and `/api/v1/readyz` before assuming healthy ingest.</li>
