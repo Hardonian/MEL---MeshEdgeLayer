@@ -1,0 +1,21 @@
+{
+  "name": "mel-meshedgelayer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Root manifest declaring Next.js for Vercel framework detection. The actual Next.js app lives in ./site and is installed/built by vercel.json's installCommand/buildCommand. CI and local development continue to use ./site/package.json directly (see .github/workflows/ci.yml, which runs with working-directory: site).",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "cd site && npm run build",
+    "dev": "cd site && npm run dev",
+    "start": "cd site && npm run start",
+    "lint": "cd site && npm run lint",
+    "typecheck": "cd site && npm run typecheck"
+  },
+  "dependencies": {
+    "next": "16.2.3",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  }
+}

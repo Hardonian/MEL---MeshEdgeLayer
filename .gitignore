@@ -18,6 +18,12 @@ frontend/tsconfig.tsbuildinfo
 site/node_modules/
 site/.next/
 
+# Root Next.js manifest (exists solely so Vercel framework detection sees "next";
+# the actual install still happens in site/ — see vercel.json).
+/node_modules/
+/package-lock.json
+/.next/
+
 # Local build / Windows artifacts (do not commit release binaries in source tree)
 mel
 mel*.exe
