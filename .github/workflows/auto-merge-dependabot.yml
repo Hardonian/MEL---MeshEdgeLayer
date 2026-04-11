@@ -1,0 +1,68 @@
+name: Auto-merge Dependabot (Safe)
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  auto-merge-safe-deps:
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure required checks are green
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.head.sha,
+              per_page: 100,
+            });
+            const failing = checks.check_runs.filter(c => c.conclusion && c.conclusion !== 'success' && c.conclusion !== 'neutral' && c.conclusion !== 'skipped');
+            if (failing.length > 0) {
+              core.setFailed(`Cannot enable auto-merge; failing checks: ${failing.map(f => f.name).join(', ')}`);
+            }
+
+      - name: Enable auto-merge for safe updates
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = (pr.title || '').toLowerCase();
+            const body = (pr.body || '').toLowerCase();
+
+            const isSafeBump =
+              title.includes('bump') &&
+              !title.includes('major') &&
+              !body.includes('major version') &&
+              !body.includes('breaking change');
+
+            if (!isSafeBump) {
+              core.info('Skipping auto-merge: likely major/breaking bump.');
+              return;
+            }
+
+            await github.graphql(`
+              mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: SQUASH
+                }) {
+                  pullRequest { number }
+                }
+              }
+            `, { pullRequestId: pr.node_id });
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: ['automerge:enabled']
+            });

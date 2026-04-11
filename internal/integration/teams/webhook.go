@@ -25,33 +25,34 @@ type Attachment struct {
 
 // Content is the adaptive card structure.
 type Content struct {
-	Schema  string  `json:"$schema"`
-	Type    string  `json:"type"`
-	Version string  `json:"version"`
+	Schema  string     `json:"$schema"`
+	Type    string     `json:"type"`
+	Version string     `json:"version"`
 	Body    []BodyItem `json:"body"`
 }
 
 // BodyItem is a container in the card.
 type BodyItem struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	Items []BodyItem `json:"items,omitempty"`
-	Columns []Column `json:"columns,omitempty"`
-	Actions []Action `json:"actions,omitempty"`
+	Type    string     `json:"type"`
+	Text    string     `json:"text,omitempty"`
+	Wrap    bool       `json:"wrap,omitempty"`
+	Items   []BodyItem `json:"items,omitempty"`
+	Columns []Column   `json:"columns,omitempty"`
+	Actions []Action   `json:"actions,omitempty"`
 }
 
 // Column layout for card elements.
 type Column struct {
-	Type string `json:"type"`
-	Width string `json:"width"`
+	Type  string     `json:"type"`
+	Width string     `json:"width"`
 	Items []BodyItem `json:"items,omitempty"`
 }
 
 // Action is a button in the card.
 type Action struct {
-	Type string `json:"type"`
+	Type  string `json:"type"`
 	Title string `json:"title"`
-	URL string `json:"url"`
+	URL   string `json:"url"`
 }
 
 // NewMessage creates a Teams message with title and text.
@@ -103,7 +104,7 @@ func AddAction(msg Message, title, url string) Message {
 		URL:   url,
 	}
 	msg.Attachments[0].Content.Body = append(msg.Attachments[0].Content.Body, BodyItem{
-		Type: "ActionSet",
+		Type:    "ActionSet",
 		Actions: []Action{action},
 	})
 	return msg
