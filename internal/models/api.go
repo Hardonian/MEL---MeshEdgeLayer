@@ -1023,3 +1023,171 @@ type RecoveryStep struct {
 	UnsafeEarly   bool     `json:"unsafe_early"`
 	Dependencies  []string `json:"dependencies,omitempty"`
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Runbook review + operator worklist + shift handoff DTOs
+// These are the serialized shapes for the remediation-memory loop endpoints.
+// Everything is evidence-cited and bounded; nothing here invents state.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// RunbookEntryDTO is a single runbook candidate or promoted runbook as surfaced
+// by GET /api/v1/runbooks and GET /api/v1/runbooks/{id}. It is a faithful
+// projection of incident_runbook_entries with lifecycle + effectiveness counters.
+type RunbookEntryDTO struct {
+	ID                    string   `json:"id"`
+	Status                string   `json:"status"` // proposed | reviewing | promoted | deprecated
+	SourceKind            string   `json:"source_kind"`
+	Title                 string   `json:"title"`
+	Body                  string   `json:"body,omitempty"`
+	LegacySignatureKey    string   `json:"legacy_signature_key,omitempty"`
+	FingerprintHash       string   `json:"fingerprint_canonical_hash,omitempty"`
+	EvidenceRefs          []string `json:"evidence_refs,omitempty"`
+	SourceIncidentIDs     []string `json:"source_incident_ids,omitempty"`
+	PromotionBasis        string   `json:"promotion_basis,omitempty"`
+	CreatedAt             string   `json:"created_at,omitempty"`
+	UpdatedAt             string   `json:"updated_at,omitempty"`
+	ReviewedAt            string   `json:"reviewed_at,omitempty"`
+	ReviewerActorID       string   `json:"reviewer_actor_id,omitempty"`
+	AppliedCount          int      `json:"applied_count"`
+	UsefulCount           int      `json:"useful_count"`
+	IneffectiveCount      int      `json:"ineffective_count"`
+	LastAppliedAt         string   `json:"last_applied_at,omitempty"`
+	LastAppliedIncidentID string   `json:"last_applied_incident_id,omitempty"`
+	PromotedAt            string   `json:"promoted_at,omitempty"`
+	PromotedByActorID     string   `json:"promoted_by_actor_id,omitempty"`
+	DeprecatedAt          string   `json:"deprecated_at,omitempty"`
+	DeprecatedByActorID   string   `json:"deprecated_by_actor_id,omitempty"`
+	DeprecatedReason      string   `json:"deprecated_reason,omitempty"`
+}
+
+// RunbookEntryDetailDTO is the body for GET /api/v1/runbooks/{id}: the row plus
+// its most recent applications (bounded).
+type RunbookEntryDetailDTO struct {
+	Entry        RunbookEntryDTO        `json:"entry"`
+	Applications []RunbookApplicationDTO `json:"recent_applications,omitempty"`
+}
+
+// RunbookApplicationDTO is one operator attaching a runbook to an incident with
+// an explicit outcome. Durable audit truth.
+type RunbookApplicationDTO struct {
+	ID         string `json:"id"`
+	RunbookID  string `json:"runbook_id"`
+	IncidentID string `json:"incident_id"`
+	ActorID    string `json:"actor_id"`
+	Outcome    string `json:"outcome"` // applied | helped | did_not_help | worsened | superseded
+	Note       string `json:"note,omitempty"`
+	CreatedAt  string `json:"created_at"`
+}
+
+// ApplyRunbookRequest is the body for POST /api/v1/incidents/{id}/apply-runbook.
+type ApplyRunbookRequest struct {
+	RunbookID string `json:"runbook_id"`
+	Outcome   string `json:"outcome,omitempty"`
+	Note      string `json:"note,omitempty"`
+}
+
+// PromoteRunbookRequest is the body for POST /api/v1/runbooks/{id}/promote.
+type PromoteRunbookRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// DeprecateRunbookRequest is the body for POST /api/v1/runbooks/{id}/deprecate.
+type DeprecateRunbookRequest struct {
+	Reason string `json:"reason"`
+}
+
+// OperatorWorklistDTO is the backend-composed working set for one operator.
+// Every list is a deterministic projection of what is durably in the DB; nothing
+// is inferred or predicted. Used by GET /api/v1/operator/worklist.
+type OperatorWorklistDTO struct {
+	GeneratedAt         string                    `json:"generated_at"`
+	ActorID             string                    `json:"actor_id"`
+	OwnedOpenIncidents  []OperatorWorklistItem    `json:"owned_open_incidents,omitempty"`
+	PendingReview       []OperatorWorklistItem    `json:"pending_review,omitempty"`
+	FollowUpNeeded      []OperatorWorklistItem    `json:"follow_up_needed,omitempty"`
+	PendingApprovals    []OperatorPendingApproval `json:"pending_approvals,omitempty"`
+	DecisionPackReview  []OperatorWorklistItem    `json:"decision_pack_pending_adjudication,omitempty"`
+	RunbookCandidates   []RunbookEntryDTO         `json:"runbook_candidates_to_review,omitempty"`
+	Counts              OperatorWorklistCounts    `json:"counts"`
+	EvidenceBasis       []string                  `json:"evidence_basis"`
+	DegradedSections    []string                  `json:"degraded_sections,omitempty"`
+	TruncationDisclosure []string                 `json:"truncation_disclosure,omitempty"`
+}
+
+// OperatorWorklistItem is a compact incident reference with just enough context
+// for the worklist to avoid double-fetching by id.
+type OperatorWorklistItem struct {
+	IncidentID   string `json:"incident_id"`
+	Title        string `json:"title"`
+	Severity     string `json:"severity,omitempty"`
+	Category     string `json:"category,omitempty"`
+	State        string `json:"state,omitempty"`
+	ReviewState  string `json:"review_state,omitempty"`
+	OwnerActorID string `json:"owner_actor_id,omitempty"`
+	UpdatedAt    string `json:"updated_at,omitempty"`
+	OccurredAt   string `json:"occurred_at,omitempty"`
+	Rationale    string `json:"rationale,omitempty"`
+}
+
+// OperatorPendingApproval is one control action awaiting the operator's review.
+// SoD-aware: when the actor is also the submitter and the action requires a
+// separate approver, this row will NOT appear for that actor.
+type OperatorPendingApproval struct {
+	ActionID                 string  `json:"action_id"`
+	ActionType               string  `json:"action_type"`
+	TargetTransport          string  `json:"target_transport,omitempty"`
+	TargetSegment            string  `json:"target_segment,omitempty"`
+	TargetNode               string  `json:"target_node,omitempty"`
+	Reason                   string  `json:"reason"`
+	Confidence               float64 `json:"confidence"`
+	BlastRadiusClass         string  `json:"blast_radius_class,omitempty"`
+	SubmittedBy              string  `json:"submitted_by,omitempty"`
+	RequiresSeparateApprover bool    `json:"requires_separate_approver"`
+	HighBlastRadius          bool    `json:"high_blast_radius,omitempty"`
+	IncidentID               string  `json:"incident_id,omitempty"`
+	CreatedAt                string  `json:"created_at"`
+}
+
+// OperatorWorklistCounts is a deterministic summary of what is in the worklist.
+type OperatorWorklistCounts struct {
+	OwnedOpen          int `json:"owned_open"`
+	PendingReview      int `json:"pending_review"`
+	FollowUpNeeded     int `json:"follow_up_needed"`
+	PendingApprovals   int `json:"pending_approvals"`
+	DecisionPackReview int `json:"decision_pack_review"`
+	RunbookCandidates  int `json:"runbook_candidates"`
+}
+
+// ShiftHandoffPacketDTO is a deterministic backend-owned shift handoff summary
+// computed over a bounded time window. Used by GET /api/v1/operator/shift-handoff.
+type ShiftHandoffPacketDTO struct {
+	GeneratedAt         string                   `json:"generated_at"`
+	ActorID             string                   `json:"actor_id"`
+	WindowHours         int                      `json:"window_hours"`
+	WindowStart         string                   `json:"window_start"`
+	WindowEnd           string                   `json:"window_end"`
+	OpenedIncidents     []OperatorWorklistItem   `json:"opened_incidents,omitempty"`
+	ResolvedIncidents   []OperatorWorklistItem   `json:"resolved_incidents,omitempty"`
+	StillOpenOwned      []OperatorWorklistItem   `json:"still_open_owned,omitempty"`
+	HandoffsToMe        []OperatorWorklistItem   `json:"handoffs_to_me,omitempty"`
+	PendingApprovals    []OperatorPendingApproval `json:"pending_approvals,omitempty"`
+	RunbookCandidates   []RunbookEntryDTO        `json:"runbook_candidates_created,omitempty"`
+	RunbookPromotions   []RunbookEntryDTO        `json:"runbook_promotions,omitempty"`
+	RunbookApplications []RunbookApplicationDTO  `json:"runbook_applications,omitempty"`
+	Counts              ShiftHandoffCounts       `json:"counts"`
+	EvidenceBasis       []string                 `json:"evidence_basis"`
+	DegradedSections    []string                 `json:"degraded_sections,omitempty"`
+	TruncationDisclosure []string                `json:"truncation_disclosure,omitempty"`
+}
+
+// ShiftHandoffCounts is the bounded numeric summary of the shift handoff packet.
+type ShiftHandoffCounts struct {
+	OpenedIncidents     int `json:"opened_incidents"`
+	ResolvedIncidents   int `json:"resolved_incidents"`
+	StillOpenOwned      int `json:"still_open_owned"`
+	HandoffsToMe        int `json:"handoffs_to_me"`
+	PendingApprovals    int `json:"pending_approvals"`
+	RunbookCandidates   int `json:"runbook_candidates_created"`
+	RunbookPromotions   int `json:"runbook_promotions"`
+	RunbookApplications int `json:"runbook_applications"`
+}
