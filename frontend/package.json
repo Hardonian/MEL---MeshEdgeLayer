@@ -24,7 +24,7 @@
     "date-fns": "^3.3.1",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.2.5",
     "react-router-dom": "^6.22.0"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/google.maps": "^3.58.1",
     "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.7.0",
