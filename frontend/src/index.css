@@ -127,8 +127,8 @@
     --panel-glow: 160 70% 48%;
     --panel-warm: 38 92% 56%;
     --shell-shadow: 0 0% 0%;
-    --chrome-bg: 222 26% 4%;
-    --chrome-border: 160 12% 14%;
+    --chrome-bg: 222 26% 3%;
+    --chrome-border: 160 15% 18%;
     --nav-active: 160 70% 48%;
     --neon: 160 65% 52%;
     --neon-alt: 199 80% 58%;
@@ -213,6 +213,19 @@
 
   a, button {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    [role='button'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
   .prose-body {
@@ -549,8 +562,8 @@
   /* Grid background — like a terminal graph */
   .mel-grid-bg {
     background-image:
-      linear-gradient(hsl(var(--border) / 0.22) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.22) 1px, transparent 1px);
+      linear-gradient(hsl(var(--border) / 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.18) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 

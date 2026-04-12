@@ -1,12 +1,18 @@
 import { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
+import { Badge, type BadgeVariant } from '@/components/ui/Badge'
 
 interface PageHeaderProps {
   title: string
   subtitle?: string
   description?: string
   action?: ReactNode
+  statusChips?: Array<{
+    label: string
+    value: string
+    variant?: BadgeVariant
+  }>
   breadcrumbs?: {
     label: string
     href?: string
@@ -19,15 +25,16 @@ export function PageHeader({
   subtitle,
   description,
   action,
+  statusChips,
   breadcrumbs,
   className,
 }: PageHeaderProps) {
   return (
-    <div className={clsx('mb-4 border-b border-border/50 pb-3', className)}>
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+    <header className={clsx('mb-4 surface-panel surface-panel-strong p-3 md:p-4', className)}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <nav className="mb-1.5 flex flex-wrap items-center gap-1 text-mel-xs text-muted-foreground">
+            <nav className="mb-2 flex flex-wrap items-center gap-1 text-mel-xs text-muted-foreground" aria-label="Breadcrumb">
               {breadcrumbs.map((crumb, index) => (
                 <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
                   {index > 0 && <span className="text-muted-foreground/30">/</span>}
@@ -42,22 +49,32 @@ export function PageHeader({
               ))}
             </nav>
           )}
-          <h1 className="mel-prompt text-base font-bold uppercase tracking-[0.04em] text-foreground">
+          <h1 className="mel-prompt text-base font-bold uppercase tracking-[0.04em] text-foreground sm:text-lg">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-0.5 text-mel-xs text-muted-foreground/60"># {subtitle}</p>
+            <p className="mt-1 text-mel-xs text-muted-foreground/70"># {subtitle}</p>
           )}
           {description && (
-            <p className="mt-1 max-w-3xl text-mel-sm text-muted-foreground">{description}</p>
+            <p className="mt-1.5 max-w-4xl text-mel-sm text-muted-foreground">{description}</p>
+          )}
+          {statusChips && statusChips.length > 0 && (
+            <ul className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Header status">
+              {statusChips.map((chip) => (
+                <li key={`${chip.label}-${chip.value}`} className="inline-flex items-center gap-1">
+                  <span className="text-mel-xs text-muted-foreground">{chip.label}:</span>
+                  <Badge variant={chip.variant ?? 'secondary'}>{chip.value}</Badge>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {action && (
-          <div className="flex shrink-0 items-center gap-2 lg:justify-end">
+          <div className="flex shrink-0 items-center gap-2 lg:justify-end lg:self-start">
             {action}
           </div>
         )}
       </div>
-    </div>
+    </header>
   )
 }

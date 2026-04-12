@@ -10,7 +10,7 @@ interface StatCardProps {
     value: number
     label: string
   }
-  variant?: 'default' | 'success' | 'warning' | 'critical' | 'info'
+  variant?: 'default' | 'success' | 'warning' | 'critical' | 'info' | 'partial' | 'stale' | 'unavailable'
   /** `console` = chrome-weight workbench strip (still uses variant for signal color) */
   rhythm?: 'panel' | 'console'
   className?: string
@@ -37,6 +37,18 @@ const variantStyles = {
     icon: 'border-signal-observed/25 text-signal-observed',
     value: 'text-signal-observed',
   },
+  partial: {
+    icon: 'border-signal-partial/30 text-signal-partial',
+    value: 'text-signal-partial',
+  },
+  stale: {
+    icon: 'border-signal-stale/35 text-signal-stale',
+    value: 'text-signal-stale',
+  },
+  unavailable: {
+    icon: 'border-signal-unsupported/40 text-signal-unsupported',
+    value: 'text-signal-unsupported',
+  },
 } as const
 
 export function StatCard({
@@ -53,7 +65,7 @@ export function StatCard({
   const isConsole = rhythm === 'console'
 
   return (
-    <div className={clsx('surface-panel relative overflow-hidden p-3', className)}>
+    <div className={clsx('surface-panel relative overflow-hidden p-3', className)} role="group" aria-label={title}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mel-label">{title}</p>
