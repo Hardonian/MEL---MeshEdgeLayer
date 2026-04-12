@@ -66,6 +66,15 @@ export function Status() {
       <PageHeader
         title="System status"
         description="Runtime and transport posture for this MEL instance. Metrics reflect what the API reports now — not historical mesh proof or fleet-wide state."
+        statusChips={[
+          { label: 'connected', value: `${connectedCount}/${transports.length || 0}`, variant: connectedCount > 0 ? 'complete' : 'stale' },
+          {
+            label: 'health',
+            value: unhealthyCount > 0 ? 'unhealthy present' : degradedCount > 0 ? 'degraded present' : 'stable',
+            variant: unhealthyCount > 0 ? 'critical' : degradedCount > 0 ? 'degraded' : 'complete',
+          },
+          { label: 'runtime', value: loading ? 'refreshing' : 'observed', variant: loading ? 'partial' : 'observed' },
+        ]}
         action={
           <button
             onClick={refresh}
@@ -113,7 +122,7 @@ export function Status() {
               value={`${connectedCount}/${transports.length}`}
               description="Active transport connections"
               icon={connectedCount > 0 ? <CheckCircle2 className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-              variant={connectedCount > 0 ? 'success' : 'warning'}
+              variant={connectedCount > 0 ? 'success' : hasTransports ? 'warning' : 'unavailable'}
               rhythm="console"
             />
             <StatCard
@@ -127,7 +136,15 @@ export function Status() {
                     : 'All configured transports operational'
               }
               icon={<Activity className="h-4 w-4" />}
-              variant={healthyCount === transports.length && transports.length > 0 ? 'success' : unhealthyCount > 0 ? 'critical' : 'warning'}
+              variant={
+                healthyCount === transports.length && transports.length > 0
+                  ? 'success'
+                  : unhealthyCount > 0
+                    ? 'critical'
+                    : degradedCount > 0
+                      ? 'partial'
+                      : 'unavailable'
+              }
               rhythm="console"
             />
           </div>

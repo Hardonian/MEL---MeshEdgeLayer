@@ -419,6 +419,13 @@ export function Dashboard() {
   if (shiftDelta.transportHeartbeatAdvanced) deltaSummaryParts.push('transport heartbeat advanced')
   if (shiftDelta.messagesIncreased) deltaSummaryParts.push('message counter increased')
   if (shiftDelta.deadLettersIncreased) deltaSummaryParts.push('dead letter count increased')
+  const transportPostureValue = !transportStats.hasTransports
+    ? 'no transport'
+    : transportStats.unhealthyTransports > 0
+      ? 'unhealthy present'
+      : transportStats.degradedTransports > 0
+        ? 'degraded present'
+        : 'stable'
 
   return (
     <div className="space-y-5 pb-10 md:space-y-6">
@@ -427,6 +434,11 @@ export function Dashboard() {
           title="Operator console"
           subtitle="Mesh operations cockpit"
           description="Shift-start overview: attention, evidence posture, and where to go next. Data refreshes on a short poll while this tab is visible."
+          statusChips={[
+            { label: 'transports', value: transportPostureValue, variant: !transportStats.hasTransports ? 'stale' : transportStats.unhealthyTransports > 0 ? 'critical' : transportStats.degradedTransports > 0 ? 'degraded' : 'complete' },
+            { label: 'incidents', value: `${openIncidents.length} open`, variant: openIncidents.length > 0 ? 'warning' : 'complete' },
+            { label: 'evidence', value: sparseIncidents.length > 0 ? 'partial' : 'complete', variant: sparseIncidents.length > 0 ? 'partial' : 'complete' },
+          ]}
         />
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
