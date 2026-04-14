@@ -69,3 +69,11 @@ make demo-seed
 - [Current status](docs/project/CURRENT_STATUS.md)
 
 MEL is GPL-3.0 licensed; see [LICENSE](LICENSE).
+
+
+## Repository Operations Standards
+
+- Squash-only merges
+- Auto-delete merged branches
+- Weekly dependency update windows
+- Security scanning in CI
