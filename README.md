@@ -36,6 +36,12 @@ chmod 600 .tmp/mel.json
 
 Open <http://127.0.0.1:8080>.
 
+Operator orientation after first boot:
+
+- ` /transports` → confirm ingest links are connected vs stalled (no fake “live” by default).
+- ` /status` → inspect degraded/unknown conditions and heartbeat posture.
+- ` /incidents` → review open queue and evidence strength.
+
 No-radio deterministic evaluation:
 
 ```bash
