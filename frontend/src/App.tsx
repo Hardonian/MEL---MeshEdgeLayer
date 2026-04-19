@@ -16,6 +16,7 @@ import { IncidentDetail } from './pages/IncidentDetail'
 import { ControlActions } from './pages/ControlActions'
 import { Topology } from './pages/Topology'
 import { Planning } from './pages/Planning'
+import { Transports } from './pages/Transports'
 import { ApiProvider } from './hooks/useApi'
 import { ConsoleThemeProvider } from './hooks/useConsoleThemePreference'
 import { ToastProvider } from './components/ui/Toast'
@@ -31,6 +32,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/status" element={<Status />} />
+                <Route path="/transports" element={<Transports />} />
                 <Route path="/nodes" element={<Nodes />} />
                 <Route path="/nodes/:nodeId" element={<Nodes />} />
                 <Route path="/topology" element={<Topology />} />

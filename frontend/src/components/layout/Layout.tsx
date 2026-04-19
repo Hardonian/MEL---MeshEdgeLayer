@@ -80,6 +80,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       icon: Radio,
       items: [
         { label: 'nodes', href: '/nodes', icon: Radio },
+        { label: 'transports', href: '/transports', icon: Activity },
         { label: 'topology', href: '/topology', icon: GitBranch },
         { label: 'messages', href: '/messages', icon: MessageSquare },
         {
@@ -489,6 +490,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     { group: 'routes', label: 'console', href: '/', keywords: 'home overview operator workspace workbench g h' },
     { group: 'routes', label: 'briefing', href: '/#mel-instance-briefing', keywords: 'briefing intelligence priorities dashboard' },
     { group: 'routes', label: 'status', href: '/status', keywords: 'transport health liveness' },
+    { group: 'routes', label: 'transports', href: '/transports', keywords: 'ingest links serial tcp mqtt state heartbeats g t' },
     { group: 'routes', label: 'nodes', href: '/nodes', keywords: 'devices mesh radio g n' },
     { group: 'routes', label: 'topology', href: '/topology', keywords: 'graph network map g t' },
     { group: 'routes', label: 'planning', href: '/planning', keywords: 'resilience playbook deployment g p' },
