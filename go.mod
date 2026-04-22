@@ -1,6 +1,6 @@
 module github.com/mel-project/mel
 
-go 1.25.0
+go 1.24
 
 require (
 	github.com/charmbracelet/bubbletea v0.26.2
