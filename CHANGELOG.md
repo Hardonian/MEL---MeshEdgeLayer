@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.9] - 2026-04-22
+
+### Security
+- Fixed go.mod to `go 1.24` (removed forward-declaration for non-existent 1.25)
+- Removed stale tsc-errors.txt (false positives from missing deps)
+- Synced site/package-lock.json
+
 ## Unreleased
 
 ### Capability enforcement, break-glass CLI, incidents UI
