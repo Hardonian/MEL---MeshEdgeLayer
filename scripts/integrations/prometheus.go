@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Package integrations provides Prometheus metrics for MEL
 package integrations
 
