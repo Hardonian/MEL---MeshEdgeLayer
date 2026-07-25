@@ -1,1 +1,7 @@
+# Hardonian Code Owners
+# Default owner for everything
+@Hardonian
+
+# Default catch-all for any file not matched below
 * @Hardonian
+
