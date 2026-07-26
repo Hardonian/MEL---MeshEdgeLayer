@@ -19,15 +19,6 @@
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
-  "overrides": {
-    "@babel/core": ">=7.29.6",
-    "brace-expansion": ">=5.0.8",
-    "fast-uri": ">=3.1.4",
-    "next": ">=16.2.11",
-    "postcss": ">=8.5.18",
-    "react-router": ">=8.3.0",
-    "sharp": ">=0.35.0"
-  },
   "devDependencies": {
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.2",
@@ -35,5 +26,10 @@
     "eslint": "^9.25.1",
     "eslint-config-next": "16.2.2",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "brace-expansion": "$brace-expansion",
+    "postcss": "$postcss",
+    "sharp": ">=0.35.0"
   }
 }
