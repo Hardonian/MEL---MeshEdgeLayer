@@ -58,3 +58,4 @@ htmlcov/
 
 # Cleanup additions
 .turbo
+.pytest_cache/
