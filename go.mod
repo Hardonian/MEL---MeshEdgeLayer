@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/bubbletea v0.26.2
 	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/google/uuid v1.6.0
-	golang.org/x/crypto v0.52.0
+	golang.org/x/crypto v0.55.0
 )
 
 require (
@@ -33,7 +33,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.43.0
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/term v0.45.0
+	golang.org/x/text v0.41.0 // indirect
 	modernc.org/sqlite v1.56.0
 )
