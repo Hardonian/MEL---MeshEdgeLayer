@@ -1,5 +1,9 @@
 # MEL — MeshEdgeLayer
 
+<!-- BEGIN: REPO HERO -->
+![MEL-MeshEdgeLayer — hero generated locally on the GPU stack](assets/repo-hero.png)
+<!-- END: REPO HERO -->
+
 **MEL is an evidence-first operator OS for mixed-channel mesh incidents and trusted control.**
 
 If MEL cannot prove a claim from persisted runtime evidence, it should render **unknown/degraded**, not confidence theatre.
